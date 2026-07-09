@@ -11,15 +11,17 @@ from typing import Any
 
 import numpy as np
 
-from .alignment import WindowAlignment, align_windows
+from .alignment import WindowAlignment, align_windows, estimate_sim3_robust
 from .fusion import FusedSequence, fuse_windows
 from .gauge import (
     FixedLagGaugeSmoother,
     GaugeEstimate,
     RelativeGaugeConstraint,
     SequentialGaugeEstimator,
+    ScaleAnchor,
 )
-from .metrics import SequenceMetrics, evaluate_sequence
+from .io import PredictionBundle, load_prediction_bundle, load_truth
+from .metrics import SequenceMetrics, TruthSequence, evaluate_sequence
 from .sim3 import Sim3
 from .synthetic import SyntheticProblem, make_synthetic_problem
 from .uncertainty import (
@@ -141,9 +143,10 @@ def _evaluate(
     key: str,
     label: str,
     sequence: FusedSequence,
-    problem: SyntheticProblem,
+    truth: TruthSequence,
     *,
     gauges: dict[str, GaugeEstimate] | None = None,
+    true_gauges: dict[str, Sim3] | None = None,
     boundary_frames: list[int] | None = None,
     baseline_source: str = "prob4d",
 ) -> AblationRow:
@@ -152,12 +155,12 @@ def _evaluate(
         label=label,
         sequence_metrics=evaluate_sequence(
             sequence,
-            problem.truth,
-            boundary_frames=boundary_frames or problem.boundary_frames,
+            truth,
+            boundary_frames=boundary_frames,
         ),
         gauge_metrics=(
-            _gauge_metrics(gauges, problem.true_overlap_gauges)
-            if gauges is not None
+            _gauge_metrics(gauges, true_gauges)
+            if gauges is not None and true_gauges is not None
             else None
         ),
         baseline_source=baseline_source,
@@ -276,7 +279,7 @@ def run_synthetic_ablation(
             "disjoint",
             "Disjoint 25-frame windows",
             disjoint_sequence,
-            problem,
+            problem.truth,
             boundary_frames=[w.start_frame for w in problem.disjoint_windows[1:]],
             baseline_source="synthetic_disjoint",
         ),
@@ -284,46 +287,304 @@ def run_synthetic_ablation(
             "latent_linear",
             "Latent-space linear overlap blend",
             latent_proxy,
-            problem,
+            problem.truth,
+            boundary_frames=problem.boundary_frames,
             baseline_source="synthetic_decoded_proxy",
         ),
         _evaluate(
             "decoded_uniform",
             "Decoded Sim(3) alignment + uniform fusion",
             uniform,
-            problem,
+            problem.truth,
             gauges=sequential,
+            true_gauges=problem.true_overlap_gauges,
+            boundary_frames=problem.boundary_frames,
         ),
         _evaluate(
             "precision",
             "Naive precision-weighted fusion",
             precision,
-            problem,
+            problem.truth,
             gauges=sequential,
+            true_gauges=problem.true_overlap_gauges,
+            boundary_frames=problem.boundary_frames,
         ),
         _evaluate(
             "ci",
             "Covariance intersection",
             covariance_intersection,
-            problem,
+            problem.truth,
             gauges=sequential,
+            true_gauges=problem.true_overlap_gauges,
+            boundary_frames=problem.boundary_frames,
         ),
         _evaluate(
             "ci_smoothed",
             "Covariance intersection + fixed-lag gauge smoothing",
             smoothed_ci,
-            problem,
+            problem.truth,
             gauges=smoothed,
+            true_gauges=problem.true_overlap_gauges,
+            boundary_frames=problem.boundary_frames,
         ),
         _evaluate(
             "ci_smoothed_anchored",
             "Smoothed covariance intersection + sparse metric anchors",
             anchored_ci,
-            problem,
+            problem.truth,
             gauges=anchored,
+            true_gauges=problem.true_overlap_gauges,
+            boundary_frames=problem.boundary_frames,
         ),
     ]
     return rows, calibration_report
+
+
+def _window_truth_gauge(window, truth: TruthSequence) -> Sim3:
+    common_frames = np.intersect1d(window.frame_indices, truth.frame_indices)
+    source_parts: list[np.ndarray] = []
+    target_parts: list[np.ndarray] = []
+    for frame in common_frames:
+        window_index = window.local_index(int(frame))
+        truth_index = int(np.searchsorted(truth.frame_indices, frame))
+        mask = window.valid_mask[window_index] & truth.valid_mask[truth_index]
+        source_parts.append(window.point_map[window_index][mask])
+        target_parts.append(truth.point_map[truth_index][mask])
+    if not source_parts or sum(part.shape[0] for part in source_parts) < 4:
+        raise ValueError(f"window {window.window_id!r} has insufficient overlap with truth")
+    source = np.concatenate(source_parts)
+    target = np.concatenate(target_parts)
+    if source.shape[0] > 100_000:
+        indices = np.linspace(0, source.shape[0] - 1, 100_000, dtype=int)
+        source = source[indices]
+        target = target[indices]
+    return estimate_sim3_robust(source, target).transform
+
+
+def _dataset_calibration(
+    bundle: PredictionBundle,
+    truth: TruthSequence,
+    model: DepthDisagreementModel,
+) -> tuple[DepthDisagreementModel, CalibrationReport, dict[str, Sim3]]:
+    alignments = _build_alignments(bundle.overlap_windows)
+    windows = {window.window_id: window for window in bundle.overlap_windows}
+    evidence = accumulate_disagreement(windows, alignments)
+    true_gauges = {
+        window.window_id: _window_truth_gauge(window, truth)
+        for window in bundle.overlap_windows
+    }
+    errors: list[np.ndarray] = []
+    rays: list[np.ndarray] = []
+    parallel: list[np.ndarray] = []
+    lateral: list[np.ndarray] = []
+    masks: list[np.ndarray] = []
+    truth_positions = {int(frame): index for index, frame in enumerate(truth.frame_indices)}
+    for window in bundle.overlap_windows:
+        gauge = true_gauges[window.window_id]
+        truth_frames = np.stack(
+            [truth.point_map[truth_positions[int(frame)]] for frame in window.frame_indices]
+        )
+        truth_masks = np.stack(
+            [truth.valid_mask[truth_positions[int(frame)]] for frame in window.frame_indices]
+        )
+        truth_local = gauge.inverse().transform_points(truth_frames)
+        covariance = model.predict(window, evidence[window.window_id])
+        errors.append((window.point_map - truth_local).reshape(-1, 3))
+        rays.append(covariance.ray_directions.reshape(-1, 3))
+        parallel.append(covariance.parallel_variance.reshape(-1))
+        lateral.append(covariance.lateral_variance.reshape(-1))
+        masks.append((window.valid_mask & truth_masks).reshape(-1))
+    stacked_covariance = StructuredCovariance(
+        np.concatenate(rays), np.concatenate(parallel), np.concatenate(lateral)
+    )
+    calibrated, report = model.calibrate(
+        np.concatenate(errors), stacked_covariance, mask=np.concatenate(masks)
+    )
+    return calibrated, report, true_gauges
+
+
+def _baseline_sequence(
+    window,
+    model: DepthDisagreementModel,
+) -> FusedSequence:
+    uncertainty = model.predict(window)
+    return FusedSequence(
+        frame_indices=window.frame_indices,
+        point_map=window.point_map,
+        valid_mask=window.valid_mask,
+        point_covariance=uncertainty.matrices(),
+        contributors=np.ones(window.shape, dtype=np.uint16),
+        scene_flow=window.scene_flow,
+        deform_mask=window.deform_mask,
+        flow_covariance=(uncertainty.matrices() if window.scene_flow is not None else None),
+    )
+
+
+def _simulated_scale_anchors(
+    windows,
+    truth: TruthSequence,
+    *,
+    every: int,
+    standard_deviation: float,
+) -> list[ScaleAnchor]:
+    if every < 1:
+        raise ValueError("metric_anchor_every must be at least one")
+    truth_positions = {int(frame): index for index, frame in enumerate(truth.frame_indices)}
+    anchors: list[ScaleAnchor] = []
+    for window in windows[::every]:
+        frame = window.start_frame
+        truth_index = truth_positions[frame]
+        mask = window.valid_mask[0] & truth.valid_mask[truth_index]
+        coordinates = np.argwhere(mask)
+        if coordinates.shape[0] < 2:
+            continue
+        first_row, first_column = coordinates[0]
+        distances = np.sum((coordinates - coordinates[0]) ** 2, axis=1)
+        second_row, second_column = coordinates[int(np.argmax(distances))]
+        first_local = window.point_map[0, first_row, first_column]
+        second_local = window.point_map[0, second_row, second_column]
+        first_truth = truth.point_map[truth_index, first_row, first_column]
+        second_truth = truth.point_map[truth_index, second_row, second_column]
+        anchors.append(
+            ScaleAnchor.from_metric_pair(
+                window.window_id,
+                first_local,
+                second_local,
+                float(np.linalg.norm(first_truth - second_truth)),
+                standard_deviation,
+            )
+        )
+    if not anchors or anchors[0].window_id != windows[0].window_id:
+        raise ValueError("could not construct a metric scale anchor for the first window")
+    return anchors
+
+
+def run_manifest_ablation(
+    *,
+    predictions: str | Path,
+    truth_path: str | Path,
+    calibration_predictions: str | Path,
+    calibration_truth_path: str | Path,
+    metric_anchor_every: int = 2,
+    metric_anchor_standard_deviation: float = 0.02,
+) -> tuple[list[AblationRow], CalibrationReport, dict[str, Any]]:
+    """Run the seven variants on real MotionCrafter prediction manifests."""
+
+    test_bundle = load_prediction_bundle(predictions)
+    truth = load_truth(truth_path)
+    calibration_bundle = load_prediction_bundle(calibration_predictions)
+    calibration_truth = load_truth(calibration_truth_path)
+    model, report, _ = _dataset_calibration(
+        calibration_bundle, calibration_truth, DepthDisagreementModel()
+    )
+    alignments = _build_alignments(test_bundle.overlap_windows)
+    constraints = [
+        RelativeGaugeConstraint.from_window_alignment(alignment)
+        for alignment in alignments
+    ]
+    ordered_ids = [window.window_id for window in test_bundle.overlap_windows]
+    sequential = SequentialGaugeEstimator().estimate(ordered_ids, constraints)
+    smoothed = FixedLagGaugeSmoother(lag=4).smooth(ordered_ids, sequential, constraints)
+    anchors = _simulated_scale_anchors(
+        test_bundle.overlap_windows,
+        truth,
+        every=metric_anchor_every,
+        standard_deviation=metric_anchor_standard_deviation,
+    )
+    anchored_initial = SequentialGaugeEstimator().estimate(
+        ordered_ids,
+        constraints,
+        initial_transform=Sim3(scale=anchors[0].scale),
+    )
+    anchored = FixedLagGaugeSmoother(lag=4).smooth(
+        ordered_ids,
+        anchored_initial,
+        constraints,
+        scale_anchors=anchors,
+    )
+    true_gauges = {
+        window.window_id: _window_truth_gauge(window, truth)
+        for window in test_bundle.overlap_windows
+    }
+    uncertainties = _uncertainties(test_bundle.overlap_windows, alignments, model)
+    boundaries = [window.start_frame for window in test_bundle.overlap_windows[1:]]
+    transforms = {
+        "sequential": {key: value.global_from_local for key, value in sequential.items()},
+        "smoothed": {key: value.global_from_local for key, value in smoothed.items()},
+        "anchored": {key: value.global_from_local for key, value in anchored.items()},
+    }
+    sequences = {
+        "decoded_uniform": fuse_windows(
+            test_bundle.overlap_windows, transforms["sequential"], uncertainties, method="uniform"
+        ),
+        "precision": fuse_windows(
+            test_bundle.overlap_windows, transforms["sequential"], uncertainties, method="precision"
+        ),
+        "ci": fuse_windows(
+            test_bundle.overlap_windows,
+            transforms["sequential"],
+            uncertainties,
+            method="covariance_intersection",
+        ),
+        "ci_smoothed": fuse_windows(
+            test_bundle.overlap_windows,
+            transforms["smoothed"],
+            uncertainties,
+            method="covariance_intersection",
+        ),
+        "ci_smoothed_anchored": fuse_windows(
+            test_bundle.overlap_windows,
+            transforms["anchored"],
+            uncertainties,
+            method="covariance_intersection",
+        ),
+    }
+    definitions = [
+        (
+            "disjoint",
+            "Disjoint 25-frame windows",
+            _baseline_sequence(test_bundle.disjoint_baseline, model),
+            None,
+            "upstream_motioncrafter",
+        ),
+        (
+            "latent_linear",
+            "Latent-space linear overlap blend",
+            _baseline_sequence(test_bundle.latent_linear_baseline, model),
+            None,
+            "upstream_motioncrafter",
+        ),
+        ("decoded_uniform", "Decoded Sim(3) alignment + uniform fusion", sequences["decoded_uniform"], sequential, "prob4d"),
+        ("precision", "Naive precision-weighted fusion", sequences["precision"], sequential, "prob4d"),
+        ("ci", "Covariance intersection", sequences["ci"], sequential, "prob4d"),
+        ("ci_smoothed", "Covariance intersection + fixed-lag gauge smoothing", sequences["ci_smoothed"], smoothed, "prob4d"),
+        ("ci_smoothed_anchored", "Smoothed covariance intersection + sparse metric anchors", sequences["ci_smoothed_anchored"], anchored, "prob4d"),
+    ]
+    rows = [
+        _evaluate(
+            key,
+            label,
+            sequence,
+            truth,
+            gauges=gauges,
+            true_gauges=true_gauges,
+            boundary_frames=boundaries,
+            baseline_source=source,
+        )
+        for key, label, sequence, gauges, source in definitions
+    ]
+    metadata = {
+        "benchmark": "motioncrafter_manifest",
+        "predictions": str(Path(predictions).resolve()),
+        "truth": str(Path(truth_path).resolve()),
+        "calibration_predictions": str(Path(calibration_predictions).resolve()),
+        "calibration_truth": str(Path(calibration_truth_path).resolve()),
+        "motioncrafter_commit": test_bundle.metadata.get("motioncrafter_commit"),
+        "metric_anchor_source": "simulated_from_ground_truth",
+        "metric_anchor_every": metric_anchor_every,
+        "metric_anchor_standard_deviation": metric_anchor_standard_deviation,
+    }
+    return rows, report, metadata
 
 
 def _write_results(
@@ -378,6 +639,14 @@ def main(argv: list[str] | None = None) -> int:
     synthetic.add_argument("--num-frames", type=int, default=70)
     synthetic.add_argument("--height", type=int, default=10)
     synthetic.add_argument("--width", type=int, default=14)
+    real = subparsers.add_parser("real", help="evaluate MotionCrafter prediction manifests")
+    real.add_argument("--predictions", type=Path, required=True)
+    real.add_argument("--truth", type=Path, required=True)
+    real.add_argument("--calibration-predictions", type=Path, required=True)
+    real.add_argument("--calibration-truth", type=Path, required=True)
+    real.add_argument("--output-dir", type=Path, required=True)
+    real.add_argument("--metric-anchor-every", type=int, default=2)
+    real.add_argument("--metric-anchor-std", type=float, default=0.02)
     arguments = parser.parse_args(argv)
 
     if arguments.command == "synthetic":
@@ -403,6 +672,17 @@ def main(argv: list[str] | None = None) -> int:
                 ),
             },
         )
+        return 0
+    if arguments.command == "real":
+        rows, calibration, metadata = run_manifest_ablation(
+            predictions=arguments.predictions,
+            truth_path=arguments.truth,
+            calibration_predictions=arguments.calibration_predictions,
+            calibration_truth_path=arguments.calibration_truth,
+            metric_anchor_every=arguments.metric_anchor_every,
+            metric_anchor_standard_deviation=arguments.metric_anchor_std,
+        )
+        _write_results(arguments.output_dir, rows, calibration, metadata)
         return 0
     raise AssertionError("unreachable")
 

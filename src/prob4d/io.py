@@ -1,0 +1,87 @@
+"""Portable manifests for MotionCrafter predictions and evaluation truth."""
+
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+from pathlib import Path
+
+import numpy as np
+
+from .data import PredictionWindow
+from .metrics import TruthSequence
+
+
+@dataclass(frozen=True)
+class PredictionBundle:
+    manifest_path: Path
+    overlap_windows: list[PredictionWindow]
+    disjoint_baseline: PredictionWindow
+    latent_linear_baseline: PredictionWindow
+    metadata: dict
+
+
+def load_prediction_bundle(path: str | Path) -> PredictionBundle:
+    path = Path(path).resolve()
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if payload.get("format_version") != 1:
+        raise ValueError("unsupported prediction-manifest format_version")
+    root = path.parent
+    windows = [
+        PredictionWindow.from_npz(
+            root / item["path"],
+            start_frame=item.get("start_frame"),
+            window_id=item["window_id"],
+        )
+        for item in payload["overlap_windows"]
+    ]
+    if not windows:
+        raise ValueError("prediction manifest has no overlap windows")
+    windows.sort(key=lambda window: window.start_frame)
+    return PredictionBundle(
+        manifest_path=path,
+        overlap_windows=windows,
+        disjoint_baseline=PredictionWindow.from_npz(
+            root / payload["disjoint_baseline"],
+            start_frame=0,
+            window_id="baseline_disjoint",
+        ),
+        latent_linear_baseline=PredictionWindow.from_npz(
+            root / payload["latent_linear_baseline"],
+            start_frame=0,
+            window_id="baseline_latent_linear",
+        ),
+        metadata=payload,
+    )
+
+
+def load_truth(path: str | Path) -> TruthSequence:
+    path = Path(path)
+    with np.load(path, allow_pickle=False) as data:
+        if "point_map" not in data or "valid_mask" not in data:
+            raise ValueError("truth file must contain point_map and valid_mask")
+        frames = (
+            data["frame_indices"]
+            if "frame_indices" in data
+            else np.arange(data["point_map"].shape[0])
+        )
+        return TruthSequence(
+            frame_indices=frames,
+            point_map=data["point_map"],
+            valid_mask=data["valid_mask"],
+            scene_flow=data["scene_flow"] if "scene_flow" in data else None,
+            deform_mask=data["deform_mask"] if "deform_mask" in data else None,
+        )
+
+
+def save_truth(path: str | Path, truth: TruthSequence) -> None:
+    payload = {
+        "frame_indices": truth.frame_indices,
+        "point_map": truth.point_map.astype(np.float32),
+        "valid_mask": truth.valid_mask,
+    }
+    if truth.scene_flow is not None:
+        payload["scene_flow"] = truth.scene_flow.astype(np.float32)
+        payload["deform_mask"] = truth.deform_mask
+    np.savez_compressed(Path(path), **payload)
+
