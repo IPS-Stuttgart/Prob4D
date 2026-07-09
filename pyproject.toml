@@ -21,6 +21,7 @@ dev = [
 
 [project.scripts]
 prob4d-ablate = "prob4d.experiments:main"
+prob4d-motioncrafter = "prob4d.motioncrafter:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -35,4 +36,3 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
-
