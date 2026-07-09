@@ -11,7 +11,6 @@ from .alignment import WindowAlignment
 from .data import PredictionWindow
 from .sim3 import Sim3
 
-
 FloatArray = NDArray[np.floating]
 
 
@@ -184,8 +183,7 @@ def accumulate_disagreement(
     """Project pairwise overlap residuals into along-ray and lateral components."""
 
     evidence = {
-        window_id: DisagreementEvidence.empty(window.shape)
-        for window_id, window in windows.items()
+        window_id: DisagreementEvidence.empty(window.shape) for window_id, window in windows.items()
     }
     for alignment in alignments:
         reference = windows[alignment.reference_id]
@@ -217,4 +215,3 @@ def accumulate_disagreement(
                 item.lateral_sum[local_index][mask] += lateral[mask]
                 item.count[local_index][mask] += 1.0
     return evidence
-

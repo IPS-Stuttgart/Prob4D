@@ -13,4 +13,3 @@ def test_synthetic_problem_has_correlated_overlaps_and_metric_anchors() -> None:
     for anchor in problem.scale_anchors:
         truth_scale = problem.true_overlap_gauges[anchor.window_id].scale
         np.testing.assert_allclose(anchor.scale, truth_scale, rtol=0.08)
-

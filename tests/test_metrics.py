@@ -30,4 +30,3 @@ def test_metrics_detect_boundary_jump_and_calibrated_coverage() -> None:
     assert metrics.point_rmse > 0
     np.testing.assert_allclose(metrics.seam_rmse, 0.2)
     assert metrics.coverage_95 == 1.0
-

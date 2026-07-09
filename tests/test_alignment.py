@@ -24,9 +24,7 @@ def test_robust_sim3_recovers_transform_with_outliers() -> None:
 def test_window_alignment_uses_absolute_overlap_frames() -> None:
     generator = np.random.default_rng(10)
     global_points = generator.normal(size=(10, 4, 6, 3))
-    moving_to_reference = Sim3.from_vector(
-        np.array([-0.08, 0.03, 0.02, -0.04, 0.3, -0.1, 0.2])
-    )
+    moving_to_reference = Sim3.from_vector(np.array([-0.08, 0.03, 0.02, -0.04, 0.3, -0.1, 0.2]))
     reference = PredictionWindow(
         "reference",
         np.arange(3, 8),
@@ -43,4 +41,6 @@ def test_window_alignment_uses_absolute_overlap_frames() -> None:
     alignment = align_windows(reference, moving)
 
     np.testing.assert_array_equal(alignment.common_frames, [5, 6, 7])
-    np.testing.assert_allclose(alignment.result.transform.as_vector(), moving_to_reference.as_vector(), atol=1e-9)
+    np.testing.assert_allclose(
+        alignment.result.transform.as_vector(), moving_to_reference.as_vector(), atol=1e-9
+    )

@@ -77,4 +77,3 @@ def test_prediction_bundle_and_truth_round_trip(tmp_path: Path) -> None:
     assert len(bundle.overlap_windows) == len(problem.overlap_windows)
     assert bundle.metadata["motioncrafter_commit"] == "synthetic-test"
     np.testing.assert_allclose(truth.point_map, problem.truth.point_map, rtol=1e-6)
-

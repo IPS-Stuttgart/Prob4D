@@ -11,7 +11,6 @@ from .alignment import WindowAlignment
 from .fusion import fuse_gaussians_covariance_intersection
 from .sim3 import Sim3
 
-
 FloatArray = NDArray[np.floating]
 
 
@@ -204,9 +203,7 @@ class SequentialGaugeEstimator:
             if initial_covariance is None
             else np.asarray(initial_covariance, dtype=np.float64)
         )
-        estimates = {
-            first_id: GaugeEstimate(first_id, first_transform, first_covariance)
-        }
+        estimates = {first_id: GaugeEstimate(first_id, first_transform, first_covariance)}
 
         for window_id in ordered_window_ids[1:]:
             candidates: list[tuple[Sim3, FloatArray]] = []
@@ -248,9 +245,7 @@ class SequentialGaugeEstimator:
                     grid_size=self.covariance_intersection_grid_size,
                     minimum_weight=0.05,
                 )
-            estimates[window_id] = GaugeEstimate(
-                window_id, Sim3.from_vector(mean), covariance
-            )
+            estimates[window_id] = GaugeEstimate(window_id, Sim3.from_vector(mean), covariance)
         return estimates
 
 
@@ -258,9 +253,7 @@ def relative_constraint_residual(
     constraint: RelativeGaugeConstraint,
     gauges: dict[str, Sim3],
 ) -> FloatArray:
-    predicted = gauges[constraint.reference_id].inverse().compose(
-        gauges[constraint.moving_id]
-    )
+    predicted = gauges[constraint.reference_id].inverse().compose(gauges[constraint.moving_id])
     return constraint.reference_from_moving.inverse().compose(predicted).as_vector()
 
 
@@ -326,10 +319,7 @@ class FixedLagGaugeSmoother:
                 for constraint in constraints
                 if order[constraint.reference_id] <= end
                 and order[constraint.moving_id] <= end
-                and (
-                    constraint.reference_id in active_set
-                    or constraint.moving_id in active_set
-                )
+                and (constraint.reference_id in active_set or constraint.moving_id in active_set)
             ]
             active_gauge_anchors = [a for a in gauge_anchors if a.window_id in active_set]
             active_scale_anchors = [a for a in scale_anchors if a.window_id in active_set]
@@ -339,26 +329,39 @@ class FixedLagGaugeSmoother:
             ):
                 continue
 
-            initial_vector = np.concatenate([state[window_id].as_vector() for window_id in active_ids])
+            initial_vector = np.concatenate(
+                [state[window_id].as_vector() for window_id in active_ids]
+            )
 
-            def unpack(vector: FloatArray) -> dict[str, Sim3]:
+            def unpack(
+                vector: FloatArray,
+                active_window_ids: tuple[str, ...] = tuple(active_ids),
+            ) -> dict[str, Sim3]:
                 result = state.copy()
-                for index, window_id in enumerate(active_ids):
+                for index, window_id in enumerate(active_window_ids):
                     result[window_id] = Sim3.from_vector(vector[7 * index : 7 * (index + 1)])
                 return result
 
-            def residual_vector(vector: FloatArray) -> FloatArray:
+            def residual_vector(
+                vector: FloatArray,
+                relative_factors: tuple[RelativeGaugeConstraint, ...] = tuple(usable_constraints),
+                gauge_factors: tuple[GaugeAnchor, ...] = tuple(active_gauge_anchors),
+                scale_factors: tuple[ScaleAnchor, ...] = tuple(active_scale_anchors),
+                point_factors: tuple[PointAnchor, ...] = tuple(active_point_anchors),
+            ) -> FloatArray:
                 gauges = unpack(vector)
                 residual_parts: list[FloatArray] = []
-                for constraint in usable_constraints:
+                for constraint in relative_factors:
                     residual = relative_constraint_residual(constraint, gauges)
                     residual_parts.append(_whitener(constraint.covariance) @ residual)
-                for anchor in active_gauge_anchors:
-                    error = anchor.global_from_local.inverse().compose(
-                        gauges[anchor.window_id]
-                    ).as_vector()
+                for anchor in gauge_factors:
+                    error = (
+                        anchor.global_from_local.inverse()
+                        .compose(gauges[anchor.window_id])
+                        .as_vector()
+                    )
                     residual_parts.append(_whitener(anchor.covariance) @ error)
-                for anchor in active_scale_anchors:
+                for anchor in scale_factors:
                     residual_parts.append(
                         np.array(
                             [
@@ -367,7 +370,7 @@ class FixedLagGaugeSmoother:
                             ]
                         )
                     )
-                for anchor in active_point_anchors:
+                for anchor in point_factors:
                     error = (
                         gauges[anchor.window_id].transform_points(anchor.local_point)
                         - anchor.global_point
@@ -411,4 +414,3 @@ class FixedLagGaugeSmoother:
             window_id: GaugeEstimate(window_id, state[window_id], covariances[window_id])
             for window_id in ordered_window_ids
         }
-

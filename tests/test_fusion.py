@@ -29,6 +29,23 @@ def test_covariance_intersection_is_conservative_for_equal_inputs() -> None:
     np.testing.assert_allclose(weight, [0.5])
 
 
+def test_pointwise_covariance_intersection_remains_available() -> None:
+    means = np.zeros((2, 3))
+    first_covariance = np.stack([np.eye(3), 4.0 * np.eye(3)])
+    second_covariance = np.stack([4.0 * np.eye(3), np.eye(3)])
+
+    _, _, weights = fuse_gaussians_covariance_intersection(
+        means,
+        first_covariance,
+        means,
+        second_covariance,
+        weight_mode="pointwise",
+    )
+
+    assert weights[0] > 0.9
+    assert weights[1] < 0.1
+
+
 def make_window(window_id: str, frames: list[int], offset: float) -> PredictionWindow:
     points = np.zeros((len(frames), 1, 2, 3))
     points[..., 0] = np.asarray(frames)[:, None, None] + offset
@@ -62,12 +79,9 @@ def test_fuse_windows_transforms_and_combines_overlap() -> None:
         "second": make_uncertainty(second, 1.0),
     }
 
-    result = fuse_windows(
-        [first, second], gauges, uncertainties, method="covariance_intersection"
-    )
+    result = fuse_windows([first, second], gauges, uncertainties, method="covariance_intersection")
 
     np.testing.assert_array_equal(result.frame_indices, [0, 1, 2])
     np.testing.assert_allclose(result.point_map[:, 0, 0, 0], [0.0, 1.0, 2.0])
     assert result.contributors[1, 0, 0] == 2
     np.testing.assert_allclose(result.point_covariance[1, 0, 0], np.eye(3))
-

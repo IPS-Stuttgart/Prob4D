@@ -10,7 +10,6 @@ from numpy.typing import NDArray
 from .data import PredictionWindow
 from .sim3 import Sim3, skew
 
-
 FloatArray = NDArray[np.floating]
 
 
@@ -138,7 +137,10 @@ def estimate_sim3_robust(
         huber_weights = np.minimum(1.0, cutoff / np.maximum(residual_norms, cutoff))
         robust_weights = base_weights * huber_weights
         current_vector = transform.as_vector()
-        if previous_vector is not None and np.linalg.norm(current_vector - previous_vector) < tolerance:
+        if (
+            previous_vector is not None
+            and np.linalg.norm(current_vector - previous_vector) < tolerance
+        ):
             break
         previous_vector = current_vector
 

@@ -12,7 +12,6 @@ from .data import PredictionWindow
 from .sim3 import Sim3
 from .uncertainty import StructuredCovariance
 
-
 FloatArray = NDArray[np.floating]
 FusionMethod = Literal["uniform", "precision", "covariance_intersection"]
 
@@ -59,11 +58,13 @@ class FusedSequence:
 def _regularized_inverse(covariance: FloatArray, floor: float = 1e-12) -> FloatArray:
     covariance = np.asarray(covariance, dtype=np.float64)
     symmetric = 0.5 * (covariance + np.swapaxes(covariance, -1, -2))
-    eigenvalues, eigenvectors = np.linalg.eigh(symmetric)
-    eigenvalues = np.maximum(eigenvalues, floor)
-    return np.einsum(
-        "...ij,...j,...kj->...ik", eigenvectors, 1.0 / eigenvalues, eigenvectors
-    )
+    identity = np.eye(symmetric.shape[-1])
+    try:
+        return np.linalg.inv(symmetric + floor * identity)
+    except np.linalg.LinAlgError:
+        eigenvalues, eigenvectors = np.linalg.eigh(symmetric)
+        eigenvalues = np.maximum(eigenvalues, floor)
+        return np.einsum("...ij,...j,...kj->...ik", eigenvectors, 1.0 / eigenvalues, eigenvectors)
 
 
 def fuse_gaussians_independent(
@@ -77,9 +78,8 @@ def fuse_gaussians_independent(
     first_information = _regularized_inverse(first_covariance)
     second_information = _regularized_inverse(second_covariance)
     covariance = _regularized_inverse(first_information + second_information)
-    information_vector = (
-        np.einsum("...ij,...j->...i", first_information, first_mean)
-        + np.einsum("...ij,...j->...i", second_information, second_mean)
+    information_vector = np.einsum("...ij,...j->...i", first_information, first_mean) + np.einsum(
+        "...ij,...j->...i", second_information, second_mean
     )
     mean = np.einsum("...ij,...j->...i", covariance, information_vector)
     return mean, covariance
@@ -104,12 +104,15 @@ def fuse_gaussians_covariance_intersection(
     grid_size: int = 21,
     minimum_weight: float = 0.0,
     chunk_size: int = 16_384,
+    weight_mode: Literal["global", "pointwise"] = "global",
+    weight_sample_size: int = 4_096,
 ) -> tuple[FloatArray, FloatArray, FloatArray]:
     """Conservatively fuse estimates with unknown cross-correlation.
 
-    The CI weight minimizes log determinant independently for each sample. Work
-    is chunked so dense 320x640 predictions do not materialize a weight-grid
-    dimension in memory.
+    By default, one CI weight minimizes mean log determinant over a representative
+    sample. In :func:`fuse_windows` this means one weight per overlapping frame,
+    which is fast and gives the shared-backbone correlation a coherent treatment.
+    ``pointwise`` mode retains the more expensive diagnostic alternative.
     """
 
     first_mean = np.asarray(first_mean, dtype=np.float64)
@@ -134,6 +137,49 @@ def fuse_gaussians_covariance_intersection(
     output_weight = np.empty(mean_one.shape[0], dtype=np.float64)
     weight_grid = _ci_weight_grid(grid_size, minimum_weight)
 
+    if weight_mode == "global":
+        if mean_one.shape[0] <= weight_sample_size:
+            sample = np.arange(mean_one.shape[0])
+        else:
+            sample = np.linspace(0, mean_one.shape[0] - 1, weight_sample_size, dtype=np.int64)
+        sampled_information_one = _regularized_inverse(covariance_one[sample])
+        sampled_information_two = _regularized_inverse(covariance_two[sample])
+        best_score = np.inf
+        best_weight = 0.5
+        for weight in weight_grid:
+            information = (
+                weight * sampled_information_one + (1.0 - weight) * sampled_information_two
+            )
+            covariance = _regularized_inverse(information)
+            _, log_determinant = np.linalg.slogdet(covariance)
+            score = float(np.mean(log_determinant))
+            if score < best_score - 1e-12:
+                best_score = score
+                best_weight = float(weight)
+
+        for start in range(0, mean_one.shape[0], chunk_size):
+            stop = min(start + chunk_size, mean_one.shape[0])
+            information_one = _regularized_inverse(covariance_one[start:stop])
+            information_two = _regularized_inverse(covariance_two[start:stop])
+            information = best_weight * information_one + (1.0 - best_weight) * information_two
+            covariance = _regularized_inverse(information)
+            information_vector = best_weight * np.einsum(
+                "...ij,...j->...i", information_one, mean_one[start:stop]
+            ) + (1.0 - best_weight) * np.einsum(
+                "...ij,...j->...i", information_two, mean_two[start:stop]
+            )
+            output_mean[start:stop] = np.einsum("...ij,...j->...i", covariance, information_vector)
+            output_covariance[start:stop] = covariance
+            output_weight[start:stop] = best_weight
+        return (
+            output_mean.reshape(first_mean.shape),
+            output_covariance.reshape(first_covariance.shape),
+            output_weight.reshape(leading_shape),
+        )
+
+    if weight_mode != "pointwise":
+        raise ValueError("weight_mode must be 'global' or 'pointwise'")
+
     for start in range(0, mean_one.shape[0], chunk_size):
         stop = min(start + chunk_size, mean_one.shape[0])
         information_one = _regularized_inverse(covariance_one[start:stop])
@@ -150,15 +196,12 @@ def fuse_gaussians_covariance_intersection(
             best_weight[improved] = weight
             best_covariance[improved] = covariance[improved]
 
-        information_vector = (
-            best_weight[:, None]
-            * np.einsum("...ij,...j->...i", information_one, mean_one[start:stop])
-            + (1.0 - best_weight)[:, None]
-            * np.einsum("...ij,...j->...i", information_two, mean_two[start:stop])
+        information_vector = best_weight[:, None] * np.einsum(
+            "...ij,...j->...i", information_one, mean_one[start:stop]
+        ) + (1.0 - best_weight)[:, None] * np.einsum(
+            "...ij,...j->...i", information_two, mean_two[start:stop]
         )
-        output_mean[start:stop] = np.einsum(
-            "...ij,...j->...i", best_covariance, information_vector
-        )
+        output_mean[start:stop] = np.einsum("...ij,...j->...i", best_covariance, information_vector)
         output_covariance[start:stop] = best_covariance
         output_weight[start:stop] = best_weight
 
@@ -200,9 +243,7 @@ def _fuse_update(
     if method == "uniform":
         return _uniform_update(mean, covariance, count, incoming_mean, incoming_covariance)
     if method == "precision":
-        return fuse_gaussians_independent(
-            mean, covariance, incoming_mean, incoming_covariance
-        )
+        return fuse_gaussians_independent(mean, covariance, incoming_mean, incoming_covariance)
     if method == "covariance_intersection":
         fused_mean, fused_covariance, _ = fuse_gaussians_covariance_intersection(
             mean, covariance, incoming_mean, incoming_covariance
@@ -245,9 +286,9 @@ def fuse_windows(
             raise KeyError(f"missing gauge or uncertainty for window {window.window_id!r}")
         gauge = gauges[window.window_id]
         transformed_points = gauge.transform_points(window.point_map)
-        transformed_point_covariance = point_uncertainties[window.window_id].transformed(
-            gauge
-        ).matrices()
+        transformed_point_covariance = (
+            point_uncertainties[window.window_id].transformed(gauge).matrices()
+        )
         if window.scene_flow is not None:
             uncertainty = (
                 flow_uncertainties[window.window_id]
@@ -313,4 +354,3 @@ def fuse_windows(
         deform_mask=deform_mask,
         flow_covariance=flow_covariance,
     )
-

@@ -20,7 +20,9 @@ def test_depth_model_grows_along_ray_uncertainty() -> None:
 
     assert covariance.parallel_variance[0, 0, 2] > covariance.parallel_variance[0, 0, 0]
     assert covariance.parallel_variance[0, 0, 2] > covariance.lateral_variance[0, 0, 2]
-    np.testing.assert_allclose(covariance.matrices()[0, 0, 0, :2, :2], np.eye(2) * covariance.lateral_variance[0, 0, 0])
+    np.testing.assert_allclose(
+        covariance.matrices()[0, 0, 0, :2, :2], np.eye(2) * covariance.lateral_variance[0, 0, 0]
+    )
 
 
 def test_calibration_recovers_known_variance_scale() -> None:
@@ -44,4 +46,3 @@ def test_calibration_recovers_known_variance_scale() -> None:
     assert calibrated.parallel_scale > 1.0
     assert calibrated.lateral_scale > 1.0
     assert report.count == np.prod(window.shape)
-

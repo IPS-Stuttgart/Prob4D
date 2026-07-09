@@ -113,9 +113,9 @@ def _build_windows(
             parallel_std,
             lateral_std,
         )
-        global_error = np.sqrt(correlation) * shared_noise[frames] + np.sqrt(
-            1.0 - correlation
-        ) * independent
+        global_error = (
+            np.sqrt(correlation) * shared_noise[frames] + np.sqrt(1.0 - correlation) * independent
+        )
         prediction_global = truth.point_map[frames] + global_error
         flow_noise = 0.15 * _anisotropic_noise(
             generator,

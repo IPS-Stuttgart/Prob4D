@@ -93,4 +93,3 @@ def test_sparse_scale_anchor_reduces_chain_scale_drift() -> None:
 
     final_error = abs(np.log(smoothed["w2"].global_from_local.scale))
     assert final_error < initial_error * 0.2
-

@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 
 import numpy as np
 from numpy.typing import NDArray
 
 from .fusion import FusedSequence
-
 
 FloatArray = NDArray[np.floating]
 
@@ -52,7 +51,9 @@ class SequenceMetrics:
         return asdict(self)
 
 
-def _scale_translation_alignment(source: FloatArray, target: FloatArray) -> tuple[float, FloatArray]:
+def _scale_translation_alignment(
+    source: FloatArray, target: FloatArray
+) -> tuple[float, FloatArray]:
     source_mean = np.mean(source, axis=0)
     target_mean = np.mean(target, axis=0)
     source_centered = source - source_mean
@@ -77,7 +78,9 @@ def evaluate_sequence(
     common_frames = np.intersect1d(prediction.frame_indices, truth.frame_indices)
     if common_frames.size == 0:
         raise ValueError("prediction and truth have no common frames")
-    prediction_indices = [int(np.searchsorted(prediction.frame_indices, frame)) for frame in common_frames]
+    prediction_indices = [
+        int(np.searchsorted(prediction.frame_indices, frame)) for frame in common_frames
+    ]
     truth_indices = [int(np.searchsorted(truth.frame_indices, frame)) for frame in common_frames]
     predicted_points = prediction.point_map[prediction_indices].copy()
     predicted_covariance = prediction.point_covariance[prediction_indices].copy()
@@ -153,19 +156,14 @@ def evaluate_sequence(
     inverse_covariance = np.einsum(
         "...ij,...j,...kj->...ik", eigenvectors, 1.0 / eigenvalues, eigenvectors
     )
-    mahalanobis = np.einsum(
-        "...i,...ij,...j->...", active_error, inverse_covariance, active_error
-    )
+    mahalanobis = np.einsum("...i,...ij,...j->...", active_error, inverse_covariance, active_error)
     log_determinant = np.sum(np.log(eigenvalues), axis=-1)
     nll = 0.5 * (3.0 * np.log(2.0 * np.pi) + log_determinant + mahalanobis)
 
     flow_epe: float | None = None
     if prediction.scene_flow is not None and truth.scene_flow is not None:
         predicted_flow = scale * prediction.scene_flow[prediction_indices]
-        flow_mask = (
-            prediction.deform_mask[prediction_indices]
-            & truth.deform_mask[truth_indices]
-        )
+        flow_mask = prediction.deform_mask[prediction_indices] & truth.deform_mask[truth_indices]
         if np.any(flow_mask):
             flow_epe = float(
                 np.mean(

@@ -7,7 +7,6 @@ from dataclasses import dataclass, field
 import numpy as np
 from numpy.typing import NDArray
 
-
 FloatArray = NDArray[np.floating]
 
 
@@ -97,9 +96,7 @@ class Sim3:
         )
 
     def as_vector(self) -> FloatArray:
-        return np.concatenate(
-            ([np.log(self.scale)], so3_log(self.rotation), self.translation)
-        )
+        return np.concatenate(([np.log(self.scale)], so3_log(self.rotation), self.translation))
 
     def compose(self, other: Sim3) -> Sim3:
         """Return ``self(other(x))``."""
@@ -141,4 +138,3 @@ class Sim3:
         """Return the transform from this local frame into ``reference`` local frame."""
 
         return reference.inverse().compose(self)
-

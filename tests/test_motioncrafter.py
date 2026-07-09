@@ -22,4 +22,3 @@ def test_motioncrafter_config_validates_window_geometry() -> None:
             output_directory=Path("output"),
             height=321,
         )
-

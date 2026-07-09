@@ -1,7 +1,7 @@
+from test_io import write_problem_bundle
+
 from prob4d.experiments import run_manifest_ablation, run_synthetic_ablation
 from prob4d.synthetic import make_synthetic_problem
-
-from test_io import write_problem_bundle
 
 
 def test_synthetic_ablation_covers_all_requested_variants() -> None:
@@ -27,9 +27,7 @@ def test_synthetic_ablation_covers_all_requested_variants() -> None:
 
 
 def test_manifest_ablation_uses_held_out_calibration_and_exact_baselines(tmp_path) -> None:
-    test_problem = make_synthetic_problem(
-        seed=31, num_frames=45, height=4, width=6, overlap=15
-    )
+    test_problem = make_synthetic_problem(seed=31, num_frames=45, height=4, width=6, overlap=15)
     calibration_problem = make_synthetic_problem(
         seed=32, num_frames=45, height=4, width=6, overlap=15
     )
@@ -50,7 +48,4 @@ def test_manifest_ablation_uses_held_out_calibration_and_exact_baselines(tmp_pat
     assert rows[0].baseline_source == "upstream_motioncrafter"
     assert rows[1].baseline_source == "upstream_motioncrafter"
     assert metadata["metric_anchor_source"] == "simulated_from_ground_truth"
-    assert (
-        rows[-1].sequence_metrics.metric_point_rmse
-        < rows[-2].sequence_metrics.metric_point_rmse
-    )
+    assert rows[-1].sequence_metrics.metric_point_rmse < rows[-2].sequence_metrics.metric_point_rmse

@@ -54,4 +54,3 @@ def test_window_rejects_misaligned_metadata() -> None:
             point_map=np.zeros((3, 1, 1, 3)),
             valid_mask=np.ones((3, 1, 1), dtype=bool),
         )
-

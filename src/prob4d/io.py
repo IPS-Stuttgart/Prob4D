@@ -84,4 +84,3 @@ def save_truth(path: str | Path, truth: TruthSequence) -> None:
         payload["scene_flow"] = truth.scene_flow.astype(np.float32)
         payload["deform_mask"] = truth.deform_mask
     np.savez_compressed(Path(path), **payload)
-

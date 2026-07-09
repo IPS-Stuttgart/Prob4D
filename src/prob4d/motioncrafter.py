@@ -80,22 +80,32 @@ class MotionCrafterAdapter:
         self.VideoReader = VideoReader
         self.cpu = cpu
         self.set_seed = set_seed
-        self.geometry_motion_vae = UnifyAutoencoderKL.from_pretrained(
-            config.vae_path,
-            subfolder="geometry_motion_vae",
-            low_cpu_mem_usage=True,
-            torch_dtype=torch.float32,
-            cache_dir=config.cache_directory,
-        ).requires_grad_(False).to("cuda", dtype=torch.float32)
-        unet = UNetSpatioTemporalConditionModelVid2vid.from_pretrained(
-            config.unet_path,
-            subfolder="unet_diff" if config.model_type == "diff" else "unet_determ",
-            low_cpu_mem_usage=True,
-            torch_dtype=torch.float16,
-            cache_dir=config.cache_directory,
-        ).requires_grad_(False).to("cuda", dtype=torch.float16)
+        self.geometry_motion_vae = (
+            UnifyAutoencoderKL.from_pretrained(
+                config.vae_path,
+                subfolder="geometry_motion_vae",
+                low_cpu_mem_usage=True,
+                torch_dtype=torch.float32,
+                cache_dir=config.cache_directory,
+            )
+            .requires_grad_(False)
+            .to("cuda", dtype=torch.float32)
+        )
+        unet = (
+            UNetSpatioTemporalConditionModelVid2vid.from_pretrained(
+                config.unet_path,
+                subfolder="unet_diff" if config.model_type == "diff" else "unet_determ",
+                low_cpu_mem_usage=True,
+                torch_dtype=torch.float16,
+                cache_dir=config.cache_directory,
+            )
+            .requires_grad_(False)
+            .to("cuda", dtype=torch.float16)
+        )
         pipeline_class = (
-            MotionCrafterDiffPipeline if config.model_type == "diff" else MotionCrafterDetermPipeline
+            MotionCrafterDiffPipeline
+            if config.model_type == "diff"
+            else MotionCrafterDetermPipeline
         )
         self.pipeline = pipeline_class.from_pretrained(
             "stabilityai/stable-video-diffusion-img2vid-xt",
@@ -123,9 +133,9 @@ class MotionCrafterAdapter:
             int(round(tensor.shape[-2] * resize_scale)),
             int(round(tensor.shape[-1] * resize_scale)),
         )
-        tensor = self.functional.interpolate(
-            tensor, resized, mode="bicubic", antialias=True
-        ).clamp(0, 1)
+        tensor = self.functional.interpolate(tensor, resized, mode="bicubic", antialias=True).clamp(
+            0, 1
+        )
         row = (tensor.shape[-2] - config.height) // 2
         column = (tensor.shape[-1] - config.width) // 2
         return tensor[:, :, row : row + config.height, column : column + config.width]
@@ -305,4 +315,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

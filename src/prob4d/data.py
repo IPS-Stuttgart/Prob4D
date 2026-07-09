@@ -8,7 +8,6 @@ from pathlib import Path
 import numpy as np
 from numpy.typing import NDArray
 
-
 FloatArray = NDArray[np.floating]
 BoolArray = NDArray[np.bool_]
 IntArray = NDArray[np.integer]
@@ -180,4 +179,3 @@ class PredictionWindow:
                 deform_mask=data["deform_mask"] if "deform_mask" in data else None,
                 ray_directions=data["ray_directions"] if "ray_directions" in data else None,
             )
-

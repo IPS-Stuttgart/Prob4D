@@ -17,8 +17,8 @@ from .gauge import (
     FixedLagGaugeSmoother,
     GaugeEstimate,
     RelativeGaugeConstraint,
-    SequentialGaugeEstimator,
     ScaleAnchor,
+    SequentialGaugeEstimator,
 )
 from .io import PredictionBundle, load_prediction_bundle, load_truth
 from .metrics import SequenceMetrics, TruthSequence, evaluate_sequence
@@ -113,8 +113,7 @@ def _uncertainties(
     window_map = {window.window_id: window for window in windows}
     evidence = accumulate_disagreement(window_map, alignments)
     return {
-        window.window_id: model.predict(window, evidence[window.window_id])
-        for window in windows
+        window.window_id: model.predict(window, evidence[window.window_id]) for window in windows
     }
 
 
@@ -183,9 +182,7 @@ def run_synthetic_ablation(
         width=width,
         overlap=15,
     )
-    model, calibration_report = _calibrate_model(
-        calibration_problem, DepthDisagreementModel()
-    )
+    model, calibration_report = _calibrate_model(calibration_problem, DepthDisagreementModel())
     problem = make_synthetic_problem(
         seed=seed,
         num_frames=num_frames,
@@ -196,8 +193,7 @@ def run_synthetic_ablation(
 
     overlap_alignments = _build_alignments(problem.overlap_windows)
     constraints = [
-        RelativeGaugeConstraint.from_window_alignment(alignment)
-        for alignment in overlap_alignments
+        RelativeGaugeConstraint.from_window_alignment(alignment) for alignment in overlap_alignments
     ]
     uncertainties = _uncertainties(problem.overlap_windows, overlap_alignments, model)
     ordered_ids = [window.window_id for window in problem.overlap_windows]
@@ -205,9 +201,7 @@ def run_synthetic_ablation(
     sequential_transforms = {
         window_id: estimate.global_from_local for window_id, estimate in sequential.items()
     }
-    smoothed = FixedLagGaugeSmoother(lag=4).smooth(
-        ordered_ids, sequential, constraints
-    )
+    smoothed = FixedLagGaugeSmoother(lag=4).smooth(ordered_ids, sequential, constraints)
     smoothed_transforms = {
         window_id: estimate.global_from_local for window_id, estimate in smoothed.items()
     }
@@ -370,8 +364,7 @@ def _dataset_calibration(
     windows = {window.window_id: window for window in bundle.overlap_windows}
     evidence = accumulate_disagreement(windows, alignments)
     true_gauges = {
-        window.window_id: _window_truth_gauge(window, truth)
-        for window in bundle.overlap_windows
+        window.window_id: _window_truth_gauge(window, truth) for window in bundle.overlap_windows
     }
     errors: list[np.ndarray] = []
     rays: list[np.ndarray] = []
@@ -479,8 +472,7 @@ def run_manifest_ablation(
     )
     alignments = _build_alignments(test_bundle.overlap_windows)
     constraints = [
-        RelativeGaugeConstraint.from_window_alignment(alignment)
-        for alignment in alignments
+        RelativeGaugeConstraint.from_window_alignment(alignment) for alignment in alignments
     ]
     ordered_ids = [window.window_id for window in test_bundle.overlap_windows]
     sequential = SequentialGaugeEstimator().estimate(ordered_ids, constraints)
@@ -554,11 +546,35 @@ def run_manifest_ablation(
             None,
             "upstream_motioncrafter",
         ),
-        ("decoded_uniform", "Decoded Sim(3) alignment + uniform fusion", sequences["decoded_uniform"], sequential, "prob4d"),
-        ("precision", "Naive precision-weighted fusion", sequences["precision"], sequential, "prob4d"),
+        (
+            "decoded_uniform",
+            "Decoded Sim(3) alignment + uniform fusion",
+            sequences["decoded_uniform"],
+            sequential,
+            "prob4d",
+        ),
+        (
+            "precision",
+            "Naive precision-weighted fusion",
+            sequences["precision"],
+            sequential,
+            "prob4d",
+        ),
         ("ci", "Covariance intersection", sequences["ci"], sequential, "prob4d"),
-        ("ci_smoothed", "Covariance intersection + fixed-lag gauge smoothing", sequences["ci_smoothed"], smoothed, "prob4d"),
-        ("ci_smoothed_anchored", "Smoothed covariance intersection + sparse metric anchors", sequences["ci_smoothed_anchored"], anchored, "prob4d"),
+        (
+            "ci_smoothed",
+            "Covariance intersection + fixed-lag gauge smoothing",
+            sequences["ci_smoothed"],
+            smoothed,
+            "prob4d",
+        ),
+        (
+            "ci_smoothed_anchored",
+            "Smoothed covariance intersection + sparse metric anchors",
+            sequences["ci_smoothed_anchored"],
+            anchored,
+            "prob4d",
+        ),
     ]
     rows = [
         _evaluate(
@@ -623,9 +639,7 @@ def _write_results(
     lines = ["# Prob4D ablation", "", header, divider]
     for row in flattened:
         values = [row.get(column) for column in columns]
-        rendered = [
-            f"{value:.6g}" if isinstance(value, float) else str(value) for value in values
-        ]
+        rendered = [f"{value:.6g}" if isinstance(value, float) else str(value) for value in values]
         lines.append("| " + " | ".join(rendered) + " |")
     (output_directory / "ablation.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 

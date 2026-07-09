@@ -26,4 +26,3 @@ def test_covariance_transform_matches_samples() -> None:
     expected = transform.scale**2 * transform.rotation @ covariance @ transform.rotation.T
 
     np.testing.assert_allclose(transform.transform_covariances(covariance), expected)
-
