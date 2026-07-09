@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.coverage
+.pytest_cache/
+.ruff_cache/
+.venv/
+build/
+dist/
+
+# Model, dataset, and generated experiment artifacts.
+data/
+outputs/
+workspace/
+*.npz
+*.mp4
+
