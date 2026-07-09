@@ -89,3 +89,7 @@ from pointwise to frame-level CI weights. Runtime measurements are diagnostics,
 not paper results; benchmark runs must record hardware and commits in their
 manifests.
 
+For integration testing only, `scripts/create_smoke_fixture.py` creates a tiny
+video and metric truth archive. Its image renderer is deliberately simple and
+is not fully coupled to the 3D scene, so results from that fixture must never be
+reported as reconstruction evidence.
