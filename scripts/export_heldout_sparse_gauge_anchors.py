@@ -22,6 +22,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-depth", type=float, default=70.0)
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--seed", type=int, default=20260710)
+    parser.add_argument("--initialization-points", type=int, default=16)
+    parser.add_argument("--anchors-per-window", type=int, default=16)
+    parser.add_argument("--measurement-std", type=float, default=0.01)
     return parser.parse_args()
 
 
@@ -29,6 +32,10 @@ def main() -> int:
     args = parse_args()
     if args.workers < 1:
         raise ValueError("workers must be positive")
+    if args.initialization_points < 4 or args.anchors_per_window < 4:
+        raise ValueError("initialization and per-window anchor counts must be at least four")
+    if args.measurement_std <= 0:
+        raise ValueError("measurement-std must be positive")
     all_inputs = discover_inputs(args.dataset_dir, args.results_dir)
     if args.split == "test":
         _, inputs = held_out_split(all_inputs)
@@ -57,11 +64,11 @@ def main() -> int:
                 "--max-depth",
                 str(args.max_depth),
                 "--initialization-points",
-                "16",
+                str(args.initialization_points),
                 "--anchors-per-window",
-                "16",
+                str(args.anchors_per_window),
                 "--measurement-std",
-                "0.01",
+                str(args.measurement_std),
                 "--seed",
                 str(args.seed + index),
             ],
