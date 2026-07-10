@@ -2,6 +2,7 @@ import numpy as np
 
 from prob4d.gauge import (
     FixedLagGaugeSmoother,
+    GaugeCovarianceCalibration,
     RelativeGaugeConstraint,
     ScaleAnchor,
     SequentialGaugeEstimator,
@@ -93,3 +94,19 @@ def test_sparse_scale_anchor_reduces_chain_scale_drift() -> None:
 
     final_error = abs(np.log(smoothed["w2"].global_from_local.scale))
     assert final_error < initial_error * 0.2
+
+
+def test_gauge_covariance_calibration_fits_blockwise_inflation() -> None:
+    errors = np.tile(np.array([2.0, 3.0, 3.0, 3.0, 4.0, 4.0, 4.0]), (2, 1))
+    covariances = np.tile(np.eye(7), (2, 1, 1))
+
+    calibration = GaugeCovarianceCalibration.fit(errors, covariances, trim_quantile=1.0)
+
+    assert calibration.count == 2
+    assert calibration.scale == 4.0
+    assert calibration.rotation == 9.0
+    assert calibration.translation == 16.0
+    np.testing.assert_allclose(
+        calibration.apply(np.eye(7)),
+        np.diag([4.0, 9.0, 9.0, 9.0, 16.0, 16.0, 16.0]),
+    )

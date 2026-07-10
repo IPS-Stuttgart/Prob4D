@@ -70,6 +70,90 @@ class GaugeAnchor:
 
 
 @dataclass(frozen=True)
+class GaugeCovarianceCalibration:
+    """Blockwise inflation for correlated dense-overlap gauge measurements."""
+
+    scale: float
+    rotation: float
+    translation: float
+    trim_quantile: float = 0.99
+    count: int = 0
+
+    def __post_init__(self) -> None:
+        if self.scale <= 0 or self.rotation <= 0 or self.translation <= 0:
+            raise ValueError("gauge covariance inflation factors must be positive")
+        if not 0.0 < self.trim_quantile <= 1.0:
+            raise ValueError("trim_quantile must be in (0, 1]")
+        if self.count < 0:
+            raise ValueError("calibration count must be non-negative")
+
+    @property
+    def scaling_matrix(self) -> FloatArray:
+        factors = np.asarray(
+            [self.scale] + [self.rotation] * 3 + [self.translation] * 3,
+            dtype=np.float64,
+        )
+        return np.diag(np.sqrt(factors))
+
+    def apply(self, covariance: FloatArray) -> FloatArray:
+        covariance = np.asarray(covariance, dtype=np.float64)
+        if covariance.shape != (7, 7):
+            raise ValueError("gauge covariance must have shape (7, 7)")
+        scaling = self.scaling_matrix
+        inflated = scaling @ covariance @ scaling
+        return 0.5 * (inflated + inflated.T)
+
+    @classmethod
+    def fit(
+        cls,
+        errors: FloatArray,
+        covariances: FloatArray,
+        *,
+        trim_quantile: float = 0.99,
+    ) -> GaugeCovarianceCalibration:
+        errors = np.asarray(errors, dtype=np.float64)
+        covariances = np.asarray(covariances, dtype=np.float64)
+        if errors.ndim != 2 or errors.shape[1] != 7:
+            raise ValueError("gauge errors must have shape (N, 7)")
+        if covariances.shape != (errors.shape[0], 7, 7):
+            raise ValueError("gauge covariances must have shape (N, 7, 7)")
+        if errors.shape[0] == 0:
+            raise ValueError("at least one gauge error is required")
+        if not np.all(np.isfinite(errors)) or not np.all(np.isfinite(covariances)):
+            raise ValueError("gauge calibration inputs must be finite")
+        if not 0.0 < trim_quantile <= 1.0:
+            raise ValueError("trim_quantile must be in (0, 1]")
+
+        def normalized_quadratic(
+            block_errors: FloatArray, block_covariances: FloatArray
+        ) -> FloatArray:
+            values = np.empty(block_errors.shape[0], dtype=np.float64)
+            for index, (error, covariance) in enumerate(
+                zip(block_errors, block_covariances, strict=True)
+            ):
+                symmetric = 0.5 * (covariance + covariance.T)
+                values[index] = (
+                    error @ np.linalg.pinv(symmetric, rcond=1e-10) @ error
+                ) / error.size
+            return values
+
+        def trimmed_mean(values: FloatArray) -> float:
+            upper = float(np.quantile(values, trim_quantile))
+            return max(float(np.mean(np.minimum(values, upper))), 1e-6)
+
+        scale_ratios = errors[:, 0] ** 2 / np.maximum(covariances[:, 0, 0], 1e-12)
+        rotation_ratios = normalized_quadratic(errors[:, 1:4], covariances[:, 1:4, 1:4])
+        translation_ratios = normalized_quadratic(errors[:, 4:7], covariances[:, 4:7, 4:7])
+        return cls(
+            scale=trimmed_mean(scale_ratios),
+            rotation=trimmed_mean(rotation_ratios),
+            translation=trimmed_mean(translation_ratios),
+            trim_quantile=trim_quantile,
+            count=errors.shape[0],
+        )
+
+
+@dataclass(frozen=True)
 class ScaleAnchor:
     """A sparse metric observation of one window's global scale."""
 

@@ -96,6 +96,26 @@ prob4d-sintel-uncertainty \
   --output-dir outputs/sintel-uncertainty
 ```
 
+Calibrate dense-overlap gauge covariance on the predeclared Sintel family
+split, then export the simulated sparse-sensor ablation:
+
+```bash
+python scripts/calibrate_sintel_gauge_covariance.py \
+  --dataset-dir /path/to/processed/Sintel_video \
+  --results-dir /path/to/benchmark/results \
+  --output outputs/gauge-calibration.json
+
+python scripts/export_heldout_sparse_gauge_anchors.py \
+  --dataset-dir /path/to/processed/Sintel_video \
+  --results-dir /path/to/benchmark/results \
+  --gauge-calibration outputs/gauge-calibration.json \
+  --output-dir outputs/sparse-gauge-anchors
+```
+
+The sparse-anchor exporter samples ground-truth 3D points to simulate an
+associated depth/LiDAR sensor. It is an explicitly sensor-assisted ablation,
+not a monocular input protocol.
+
 ## Repository Boundary
 
 This repository owns code, tests, and run definitions. Videos, model weights,
