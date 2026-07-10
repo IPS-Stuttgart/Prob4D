@@ -8,6 +8,7 @@ import json
 import shutil
 import subprocess
 import time
+from collections.abc import Collection
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -19,6 +20,14 @@ from .gauge import FixedLagGaugeSmoother, RelativeGaugeConstraint, SequentialGau
 from .io import PredictionBundle, load_prediction_bundle, pack_symmetric_covariance
 from .motioncrafter import MotionCrafterAdapter, MotionCrafterRunConfig
 from .uncertainty import DepthDisagreementModel, accumulate_disagreement
+
+FUSION_METHOD_NAMES = (
+    "prob4d_uniform",
+    "prob4d_uniform_smoothed",
+    "prob4d_precision",
+    "prob4d_ci",
+    "prob4d_ci_smoothed_uncalibrated",
+)
 
 
 @dataclass(frozen=True)
@@ -75,8 +84,16 @@ def fuse_prediction_bundle_methods(
     bundle: PredictionBundle,
     *,
     model: DepthDisagreementModel | None = None,
+    method_names: Collection[str] | None = None,
 ) -> dict[str, FusedSequence]:
     """Produce all decoded fusion variants with propagated gauge covariance."""
+
+    requested = set(FUSION_METHOD_NAMES if method_names is None else method_names)
+    unknown = requested.difference(FUSION_METHOD_NAMES)
+    if unknown:
+        raise ValueError(f"unknown fusion methods: {sorted(unknown)}")
+    if not requested:
+        raise ValueError("at least one fusion method must be requested")
 
     alignments = _build_alignments(bundle)
     constraints = [
@@ -104,48 +121,48 @@ def fuse_prediction_bundle_methods(
     smoothed_covariances = {
         window_id: estimate.covariance for window_id, estimate in smoothed.items()
     }
-    uniform = fuse_windows(
-        bundle.overlap_windows,
-        sequential_gauges,
-        uncertainties,
-        method="uniform",
-        gauge_covariances=sequential_covariances,
-    )
-    smoothed_uniform = fuse_windows(
-        bundle.overlap_windows,
-        smoothed_gauges,
-        uncertainties,
-        method="uniform",
-        gauge_covariances=smoothed_covariances,
-    )
-    precision = fuse_windows(
-        bundle.overlap_windows,
-        sequential_gauges,
-        uncertainties,
-        method="precision",
-        gauge_covariances=sequential_covariances,
-    )
-    covariance_intersection = fuse_windows(
-        bundle.overlap_windows,
-        sequential_gauges,
-        uncertainties,
-        method="covariance_intersection",
-        gauge_covariances=sequential_covariances,
-    )
-    smoothed_covariance_intersection = fuse_windows(
-        bundle.overlap_windows,
-        smoothed_gauges,
-        uncertainties,
-        method="covariance_intersection",
-        gauge_covariances=smoothed_covariances,
-    )
-    return {
-        "prob4d_uniform": uniform,
-        "prob4d_uniform_smoothed": smoothed_uniform,
-        "prob4d_precision": precision,
-        "prob4d_ci": covariance_intersection,
-        "prob4d_ci_smoothed_uncalibrated": smoothed_covariance_intersection,
-    }
+    methods: dict[str, FusedSequence] = {}
+    if "prob4d_uniform" in requested:
+        methods["prob4d_uniform"] = fuse_windows(
+            bundle.overlap_windows,
+            sequential_gauges,
+            uncertainties,
+            method="uniform",
+            gauge_covariances=sequential_covariances,
+        )
+    if "prob4d_uniform_smoothed" in requested:
+        methods["prob4d_uniform_smoothed"] = fuse_windows(
+            bundle.overlap_windows,
+            smoothed_gauges,
+            uncertainties,
+            method="uniform",
+            gauge_covariances=smoothed_covariances,
+        )
+    if "prob4d_precision" in requested:
+        methods["prob4d_precision"] = fuse_windows(
+            bundle.overlap_windows,
+            sequential_gauges,
+            uncertainties,
+            method="precision",
+            gauge_covariances=sequential_covariances,
+        )
+    if "prob4d_ci" in requested:
+        methods["prob4d_ci"] = fuse_windows(
+            bundle.overlap_windows,
+            sequential_gauges,
+            uncertainties,
+            method="covariance_intersection",
+            gauge_covariances=sequential_covariances,
+        )
+    if "prob4d_ci_smoothed_uncalibrated" in requested:
+        methods["prob4d_ci_smoothed_uncalibrated"] = fuse_windows(
+            bundle.overlap_windows,
+            smoothed_gauges,
+            uncertainties,
+            method="covariance_intersection",
+            gauge_covariances=smoothed_covariances,
+        )
+    return methods
 
 
 def _write_fused_prediction(

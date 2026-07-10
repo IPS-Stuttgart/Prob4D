@@ -42,8 +42,12 @@ def test_fuse_prediction_bundle_exports_smoothed_uniform(tmp_path: Path) -> None
     )
     manifest, _ = write_problem_bundle(tmp_path / "bundle", problem)
 
-    methods = fuse_prediction_bundle_methods(load_prediction_bundle(manifest))
+    methods = fuse_prediction_bundle_methods(
+        load_prediction_bundle(manifest),
+        method_names={"prob4d_uniform_smoothed"},
+    )
 
+    assert set(methods) == {"prob4d_uniform_smoothed"}
     smoothed_uniform = methods["prob4d_uniform_smoothed"]
     np.testing.assert_array_equal(smoothed_uniform.frame_indices, problem.truth.frame_indices)
     assert np.max(smoothed_uniform.contributors) > 1
