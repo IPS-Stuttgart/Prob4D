@@ -46,6 +46,7 @@ class BenchmarkExportConfig:
     max_sequences: int | None = None
     skip_existing: bool = False
     include_covariance: bool = False
+    fusion_methods: tuple[str, ...] = FUSION_METHOD_NAMES
 
 
 def _read_video_paths(dataset_directory: Path, metadata_filename: str) -> list[Path]:
@@ -227,17 +228,17 @@ def run_benchmark_export(config: BenchmarkExportConfig) -> Path:
             seed=config.seed,
         )
     )
+    fusion_methods = tuple(dict.fromkeys(config.fusion_methods))
+    unknown = set(fusion_methods).difference(FUSION_METHOD_NAMES)
+    if unknown:
+        raise ValueError(f"unknown fusion methods: {sorted(unknown)}")
+    if not fusion_methods:
+        raise ValueError("at least one fusion method must be requested")
     methods = {
         "motioncrafter_disjoint": config.output_directory / "motioncrafter_disjoint",
         "motioncrafter_latent_linear": config.output_directory / "motioncrafter_latent_linear",
-        "prob4d_uniform": config.output_directory / "prob4d_uniform",
-        "prob4d_uniform_smoothed": (config.output_directory / "prob4d_uniform_smoothed"),
-        "prob4d_precision": config.output_directory / "prob4d_precision",
-        "prob4d_ci": config.output_directory / "prob4d_ci",
-        "prob4d_ci_smoothed_uncalibrated": (
-            config.output_directory / "prob4d_ci_smoothed_uncalibrated"
-        ),
     }
+    methods.update({method: config.output_directory / method for method in fusion_methods})
     samples: list[dict[str, object]] = []
     for sample_index, relative_video_path in enumerate(video_paths):
         relative_prediction_path = relative_video_path.with_suffix(".npz")
@@ -260,7 +261,7 @@ def run_benchmark_export(config: BenchmarkExportConfig) -> Path:
             output_directory=artifact_directory,
         )
         bundle = load_prediction_bundle(manifest_path)
-        fused_methods = fuse_prediction_bundle_methods(bundle)
+        fused_methods = fuse_prediction_bundle_methods(bundle, method_names=fusion_methods)
         _copy_upstream_prediction(
             artifact_directory / "baseline_disjoint.npz",
             destinations["motioncrafter_disjoint"],
@@ -280,7 +281,7 @@ def run_benchmark_export(config: BenchmarkExportConfig) -> Path:
                 "video": relative_video_path.as_posix(),
                 "status": "completed",
                 "elapsed_seconds": time.perf_counter() - started,
-                "frames": int(fused_methods["prob4d_ci_smoothed_uncalibrated"].frame_indices.size),
+                "frames": int(next(iter(fused_methods.values())).frame_indices.size),
                 "index": sample_index,
             }
         )
@@ -324,6 +325,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--max-sequences", type=int)
     parser.add_argument("--skip-existing", action="store_true")
     parser.add_argument("--include-covariance", action="store_true")
+    parser.add_argument(
+        "--fusion-method",
+        dest="fusion_methods",
+        action="append",
+        choices=FUSION_METHOD_NAMES,
+        help="Fusion output to export; repeat for multiple methods (default: all).",
+    )
     arguments = parser.parse_args(argv)
     manifest = run_benchmark_export(
         BenchmarkExportConfig(
@@ -341,6 +349,7 @@ def main(argv: list[str] | None = None) -> int:
             max_sequences=arguments.max_sequences,
             skip_existing=arguments.skip_existing,
             include_covariance=arguments.include_covariance,
+            fusion_methods=tuple(arguments.fusion_methods or FUSION_METHOD_NAMES),
         )
     )
     print(manifest)
