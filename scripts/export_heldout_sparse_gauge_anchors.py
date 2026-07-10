@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Batch sparse gauge-anchor export on held-out Sintel scene families."""
+"""Batch sparse gauge-anchor export on all or held-out benchmark sequences."""
 
 from __future__ import annotations
 
@@ -18,6 +18,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--results-dir", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--gauge-calibration", type=Path, required=True)
+    parser.add_argument("--split", choices=("test", "all"), default="test")
+    parser.add_argument("--max-depth", type=float, default=70.0)
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--seed", type=int, default=20260710)
     return parser.parse_args()
@@ -27,12 +29,16 @@ def main() -> int:
     args = parse_args()
     if args.workers < 1:
         raise ValueError("workers must be positive")
-    _, test_inputs = held_out_split(discover_inputs(args.dataset_dir, args.results_dir))
+    all_inputs = discover_inputs(args.dataset_dir, args.results_dir)
+    if args.split == "test":
+        _, inputs = held_out_split(all_inputs)
+    else:
+        inputs = all_inputs
     args.output_dir.mkdir(parents=True, exist_ok=True)
     exporter = Path(__file__).with_name("export_sparse_gauge_anchors.py")
 
     def run(index: int) -> tuple[str, Path]:
-        item = test_inputs[index]
+        item = inputs[index]
         stem = item.prediction_manifest.parent.name
         output = args.output_dir / item.sequence / f"{stem}.npz"
         output.parent.mkdir(parents=True, exist_ok=True)
@@ -49,7 +55,7 @@ def main() -> int:
                 "--gauge-calibration",
                 str(args.gauge_calibration),
                 "--max-depth",
-                "70",
+                str(args.max_depth),
                 "--initialization-points",
                 "16",
                 "--anchors-per-window",
@@ -64,7 +70,7 @@ def main() -> int:
         return item.sequence, output
 
     with ThreadPoolExecutor(max_workers=args.workers) as executor:
-        futures = {executor.submit(run, index): index for index in range(len(test_inputs))}
+        futures = {executor.submit(run, index): index for index in range(len(inputs))}
         for future in as_completed(futures):
             sequence, output = future.result()
             print(sequence, output, flush=True)
