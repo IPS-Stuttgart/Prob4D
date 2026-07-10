@@ -121,11 +121,11 @@ class MotionCrafterAdapter:
         self.pipeline.enable_attention_slicing()
         self.video_vae_class = AutoencoderKL
 
-    def read_video(self) -> Any:
+    def read_video(self, video_path: Path | None = None) -> Any:
         """Read, cover-resize, and center-crop the entire RGB sequence."""
 
         config = self.config
-        reader = self.VideoReader(str(config.video_path), ctx=self.cpu(0))
+        reader = self.VideoReader(str(video_path or config.video_path), ctx=self.cpu(0))
         frames = reader.get_batch(list(range(len(reader)))).asnumpy().astype(np.float32) / 255.0
         tensor = self.torch.from_numpy(frames).permute(0, 3, 1, 2).float()
         resize_scale = max(config.height / tensor.shape[-2], config.width / tensor.shape[-1])
@@ -182,12 +182,18 @@ class MotionCrafterAdapter:
         arrays["frame_indices"] = np.arange(num_frames)
         np.savez_compressed(path, **arrays)
 
-    def run(self) -> Path:
+    def run(
+        self,
+        *,
+        video_path: Path | None = None,
+        output_directory: Path | None = None,
+    ) -> Path:
         config = self.config
-        output = config.output_directory
+        actual_video_path = (video_path or config.video_path).resolve()
+        output = output_directory or config.output_directory
         windows_directory = output / "windows"
         windows_directory.mkdir(parents=True, exist_ok=True)
-        frames = self.read_video()
+        frames = self.read_video(actual_video_path)
         num_frames = int(frames.shape[0])
 
         disjoint_path = output / "baseline_disjoint.npz"
@@ -246,7 +252,7 @@ class MotionCrafterAdapter:
 
         manifest = {
             "format_version": 1,
-            "video_path": str(config.video_path.resolve()),
+            "video_path": str(actual_video_path),
             "motioncrafter_commit": self._upstream_commit(),
             "config": {
                 key: str(value) if isinstance(value, Path) else value
@@ -256,6 +262,8 @@ class MotionCrafterAdapter:
             "disjoint_baseline": disjoint_path.name,
             "latent_linear_baseline": latent_path.name,
         }
+        manifest["config"]["video_path"] = str(actual_video_path)
+        manifest["config"]["output_directory"] = str(output.resolve())
         manifest_path = output / "predictions.json"
         manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
         return manifest_path

@@ -20,6 +20,7 @@ dev = [
 
 [project.scripts]
 prob4d-ablate = "prob4d.experiments:main"
+prob4d-benchmark = "prob4d.benchmark:main"
 prob4d-motioncrafter = "prob4d.motioncrafter:main"
 
 [tool.setuptools.packages.find]
