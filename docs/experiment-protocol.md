@@ -30,8 +30,9 @@ Sigma = sigma_parallel^2 r r^T
 
 Depth supplies the initial heteroscedastic trend. Aligned overlap disagreement
 adds online evidence. Global parallel and lateral scale factors are learned
-from an entirely separate calibration sequence; test truth is never used to
-tune uncertainty.
+from separate calibration scene families; test truth is never used to tune
+uncertainty. The final covariance also includes first-order propagation of each
+window's uncertain `Sim(3)` gauge.
 
 ## Correlated Fusion
 
@@ -64,7 +65,11 @@ Accuracy and calibration are intentionally separated:
   with MotionCrafter's existing evaluation protocol;
 - `seam_rmse`, endpoint error, and drift slope expose long-horizon failures;
 - `coverage_95`, Gaussian NLL, and mean marginal Mahalanobis distance evaluate
-  dense uncertainty; and
+  dense uncertainty;
+- 95% coverage shortfall and minimum per-sequence coverage measure the
+  conservative-consistency objective separately from two-sided calibration;
+- relative-uncertainty rank correlation and risk at 80% retention test whether
+  covariance can identify likely failures; and
 - gauge scale, rotation, translation, and normalized squared error are reported
   on benchmark datasets only after estimation is complete.
 

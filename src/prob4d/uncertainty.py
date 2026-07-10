@@ -112,18 +112,18 @@ class DepthDisagreementModel:
         evidence: DisagreementEvidence | None = None,
     ) -> StructuredCovariance:
         depth_squared = np.sum(window.point_map**2, axis=-1)
-        parallel = self.parallel_scale * (
-            self.parallel_floor + self.parallel_depth_coefficient * depth_squared
-        )
-        lateral = self.lateral_scale * (
-            self.lateral_floor + self.lateral_depth_coefficient * depth_squared
-        )
+        parallel = self.parallel_floor + self.parallel_depth_coefficient * depth_squared
+        lateral = self.lateral_floor + self.lateral_depth_coefficient * depth_squared
         if evidence is not None:
             if evidence.count.shape != window.shape:
                 raise ValueError("disagreement evidence shape does not match window")
             # Pairwise disagreement is split between the two contributing estimates.
             parallel += 0.5 * self.disagreement_gain * evidence.parallel_mean
             lateral += 0.5 * self.disagreement_gain * evidence.lateral_mean
+        # Calibration is a multiplicative correction of the complete predictive
+        # variance, including the overlap-disagreement contribution.
+        parallel *= self.parallel_scale
+        lateral *= self.lateral_scale
         return StructuredCovariance(
             ray_directions=window.rays(),
             parallel_variance=np.maximum(parallel, np.finfo(np.float64).eps),

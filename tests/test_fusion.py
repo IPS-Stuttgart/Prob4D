@@ -85,3 +85,61 @@ def test_fuse_windows_transforms_and_combines_overlap() -> None:
     np.testing.assert_allclose(result.point_map[:, 0, 0, 0], [0.0, 1.0, 2.0])
     assert result.contributors[1, 0, 0] == 2
     np.testing.assert_allclose(result.point_covariance[1, 0, 0], np.eye(3))
+
+
+def test_fuse_windows_propagates_gauge_translation_uncertainty_to_points_only() -> None:
+    window = make_window("window", [0, 1], 0.0)
+    window = PredictionWindow(
+        window.window_id,
+        window.frame_indices,
+        window.point_map,
+        window.valid_mask,
+        scene_flow=np.ones_like(window.point_map),
+        deform_mask=window.valid_mask,
+    )
+    gauge_covariance = np.zeros((7, 7))
+    gauge_covariance[4, 4] = 4.0
+
+    result = fuse_windows(
+        [window],
+        {window.window_id: Sim3.identity()},
+        {window.window_id: make_uncertainty(window, 1.0)},
+        method="uniform",
+        gauge_covariances={window.window_id: gauge_covariance},
+    )
+
+    np.testing.assert_allclose(result.point_covariance[..., 0, 0], 5.0)
+    np.testing.assert_allclose(result.point_covariance[..., 1, 1], 1.0)
+    np.testing.assert_allclose(
+        result.flow_covariance, np.broadcast_to(np.eye(3), result.flow_covariance.shape)
+    )
+
+
+def test_gauge_covariance_propagation_matches_parameter_finite_difference() -> None:
+    transform = Sim3.from_vector(np.array([0.2, 0.5, -0.3, 0.2, 1.0, 2.0, -1.0]))
+    point = np.array([2.0, -0.5, 3.0])
+    covariance = np.diag([0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08])
+    window = PredictionWindow(
+        "window",
+        np.array([0]),
+        point.reshape(1, 1, 1, 3),
+        np.ones((1, 1, 1), dtype=bool),
+    )
+
+    result = fuse_windows(
+        [window],
+        {window.window_id: transform},
+        {window.window_id: make_uncertainty(window, 1e-12)},
+        method="uniform",
+        gauge_covariances={window.window_id: covariance},
+    )
+
+    vector = transform.as_vector()
+    jacobian = np.empty((3, 7))
+    baseline = transform.transform_points(point)
+    for index in range(7):
+        perturbed = vector.copy()
+        perturbed[index] += 1e-6
+        jacobian[:, index] = (Sim3.from_vector(perturbed).transform_points(point) - baseline) / 1e-6
+    expected = jacobian @ covariance @ jacobian.T
+    np.testing.assert_allclose(result.point_covariance[0, 0, 0], expected, rtol=2e-6, atol=2e-6)

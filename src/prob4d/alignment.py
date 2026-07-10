@@ -8,7 +8,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from .data import PredictionWindow
-from .sim3 import Sim3, skew
+from .sim3 import Sim3, skew, so3_log, so3_right_jacobian
 
 FloatArray = NDArray[np.floating]
 
@@ -74,11 +74,12 @@ def _alignment_covariance(
     transformed = transform.transform_points(source)
     residuals = target - transformed
     information = np.zeros((7, 7), dtype=np.float64)
+    rotation_jacobian = so3_right_jacobian(so3_log(transform.rotation))
     for point, weight in zip(source, weights, strict=True):
         scaled_rotated = transform.scale * (transform.rotation @ point)
         jacobian = np.empty((3, 7), dtype=np.float64)
         jacobian[:, 0] = scaled_rotated
-        jacobian[:, 1:4] = -transform.scale * transform.rotation @ skew(point)
+        jacobian[:, 1:4] = -transform.scale * transform.rotation @ skew(point) @ rotation_jacobian
         jacobian[:, 4:7] = np.eye(3)
         information += float(weight) * jacobian.T @ jacobian
 

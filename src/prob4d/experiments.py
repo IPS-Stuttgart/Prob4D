@@ -201,9 +201,15 @@ def run_synthetic_ablation(
     sequential_transforms = {
         window_id: estimate.global_from_local for window_id, estimate in sequential.items()
     }
+    sequential_covariances = {
+        window_id: estimate.covariance for window_id, estimate in sequential.items()
+    }
     smoothed = FixedLagGaugeSmoother(lag=4).smooth(ordered_ids, sequential, constraints)
     smoothed_transforms = {
         window_id: estimate.global_from_local for window_id, estimate in smoothed.items()
+    }
+    smoothed_covariances = {
+        window_id: estimate.covariance for window_id, estimate in smoothed.items()
     }
     anchored = FixedLagGaugeSmoother(lag=4).smooth(
         ordered_ids,
@@ -217,6 +223,9 @@ def run_synthetic_ablation(
     )
     anchored_transforms = {
         window_id: estimate.global_from_local for window_id, estimate in anchored.items()
+    }
+    anchored_covariances = {
+        window_id: estimate.covariance for window_id, estimate in anchored.items()
     }
 
     disjoint_uncertainties = {
@@ -242,30 +251,35 @@ def run_synthetic_ablation(
         sequential_transforms,
         uncertainties,
         method="uniform",
+        gauge_covariances=sequential_covariances,
     )
     precision = fuse_windows(
         problem.overlap_windows,
         sequential_transforms,
         uncertainties,
         method="precision",
+        gauge_covariances=sequential_covariances,
     )
     covariance_intersection = fuse_windows(
         problem.overlap_windows,
         sequential_transforms,
         uncertainties,
         method="covariance_intersection",
+        gauge_covariances=sequential_covariances,
     )
     smoothed_ci = fuse_windows(
         problem.overlap_windows,
         smoothed_transforms,
         uncertainties,
         method="covariance_intersection",
+        gauge_covariances=smoothed_covariances,
     )
     anchored_ci = fuse_windows(
         problem.overlap_windows,
         anchored_transforms,
         uncertainties,
         method="covariance_intersection",
+        gauge_covariances=anchored_covariances,
     )
 
     rows = [
@@ -505,30 +519,46 @@ def run_manifest_ablation(
         "smoothed": {key: value.global_from_local for key, value in smoothed.items()},
         "anchored": {key: value.global_from_local for key, value in anchored.items()},
     }
+    gauge_covariances = {
+        "sequential": {key: value.covariance for key, value in sequential.items()},
+        "smoothed": {key: value.covariance for key, value in smoothed.items()},
+        "anchored": {key: value.covariance for key, value in anchored.items()},
+    }
     sequences = {
         "decoded_uniform": fuse_windows(
-            test_bundle.overlap_windows, transforms["sequential"], uncertainties, method="uniform"
+            test_bundle.overlap_windows,
+            transforms["sequential"],
+            uncertainties,
+            method="uniform",
+            gauge_covariances=gauge_covariances["sequential"],
         ),
         "precision": fuse_windows(
-            test_bundle.overlap_windows, transforms["sequential"], uncertainties, method="precision"
+            test_bundle.overlap_windows,
+            transforms["sequential"],
+            uncertainties,
+            method="precision",
+            gauge_covariances=gauge_covariances["sequential"],
         ),
         "ci": fuse_windows(
             test_bundle.overlap_windows,
             transforms["sequential"],
             uncertainties,
             method="covariance_intersection",
+            gauge_covariances=gauge_covariances["sequential"],
         ),
         "ci_smoothed": fuse_windows(
             test_bundle.overlap_windows,
             transforms["smoothed"],
             uncertainties,
             method="covariance_intersection",
+            gauge_covariances=gauge_covariances["smoothed"],
         ),
         "ci_smoothed_anchored": fuse_windows(
             test_bundle.overlap_windows,
             transforms["anchored"],
             uncertainties,
             method="covariance_intersection",
+            gauge_covariances=gauge_covariances["anchored"],
         ),
     }
     definitions = [

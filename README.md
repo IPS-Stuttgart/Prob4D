@@ -83,8 +83,18 @@ prob4d-ablate real \
 ```
 
 See [the experiment protocol](docs/experiment-protocol.md) for estimator and
-evaluation details, and [the data format](docs/data-format.md) for artifact
-schemas.
+evaluation details, [the theoretical benefit and its assumptions](docs/theoretical-benefit.md),
+and [the data format](docs/data-format.md) for artifact schemas.
+
+Run the sequence-family-held-out Sintel uncertainty analysis on cached
+prediction bundles:
+
+```bash
+prob4d-sintel-uncertainty \
+  --dataset-dir /path/to/processed/Sintel_video \
+  --results-dir /path/to/benchmark/results \
+  --output-dir outputs/sintel-uncertainty
+```
 
 ## Repository Boundary
 
@@ -103,4 +113,3 @@ The implementation has been exercised at full `25 x 320 x 640` window size on
 an RTX 6000 Ada host. Frame-level covariance intersection is the production
 default; the more expensive per-pixel CI weight search remains available for
 small diagnostic experiments.
-

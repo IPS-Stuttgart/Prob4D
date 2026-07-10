@@ -9,7 +9,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from .data import PredictionWindow
-from .sim3 import Sim3
+from .sim3 import Sim3, so3_log, so3_right_jacobian
 from .uncertainty import StructuredCovariance
 
 FloatArray = NDArray[np.floating]
@@ -252,6 +252,49 @@ def _fuse_update(
     raise ValueError(f"unknown fusion method {method!r}")
 
 
+def _gauge_induced_covariance(
+    values: FloatArray,
+    transform: Sim3,
+    gauge_covariance: FloatArray,
+    *,
+    include_translation: bool,
+    chunk_size: int = 16_384,
+) -> FloatArray:
+    """Propagate a seven-dimensional Sim(3) covariance into vectors or points."""
+
+    values = np.asarray(values, dtype=np.float64)
+    covariance = np.asarray(gauge_covariance, dtype=np.float64)
+    if values.shape[-1] != 3:
+        raise ValueError("gauge covariance propagation requires three-dimensional values")
+    if covariance.shape != (7, 7):
+        raise ValueError("gauge covariance must have shape (7, 7)")
+    covariance = 0.5 * (covariance + covariance.T)
+    flattened = values.reshape(-1, 3)
+    propagated = np.empty((flattened.shape[0], 3, 3), dtype=np.float64)
+    identity = np.eye(3)
+    right_jacobian = so3_right_jacobian(so3_log(transform.rotation))
+    for start in range(0, flattened.shape[0], chunk_size):
+        stop = min(start + chunk_size, flattened.shape[0])
+        chunk = flattened[start:stop]
+        scaled_rotated = transform.scale * np.einsum("ij,nj->ni", transform.rotation, chunk)
+        skew_matrices = np.zeros((chunk.shape[0], 3, 3), dtype=np.float64)
+        skew_matrices[:, 0, 1] = -chunk[:, 2]
+        skew_matrices[:, 0, 2] = chunk[:, 1]
+        skew_matrices[:, 1, 0] = chunk[:, 2]
+        skew_matrices[:, 1, 2] = -chunk[:, 0]
+        skew_matrices[:, 2, 0] = -chunk[:, 1]
+        skew_matrices[:, 2, 1] = chunk[:, 0]
+        jacobian = np.zeros((chunk.shape[0], 3, 7), dtype=np.float64)
+        jacobian[:, :, 0] = scaled_rotated
+        jacobian[:, :, 1:4] = -transform.scale * np.einsum(
+            "ij,njk,kl->nil", transform.rotation, skew_matrices, right_jacobian
+        )
+        if include_translation:
+            jacobian[:, :, 4:7] = identity
+        propagated[start:stop] = np.einsum("nij,jk,nlk->nil", jacobian, covariance, jacobian)
+    return propagated.reshape(values.shape + (3,))
+
+
 def fuse_windows(
     windows: list[PredictionWindow],
     gauges: dict[str, Sim3],
@@ -259,6 +302,7 @@ def fuse_windows(
     *,
     method: FusionMethod,
     flow_uncertainties: dict[str, StructuredCovariance] | None = None,
+    gauge_covariances: dict[str, FloatArray] | None = None,
 ) -> FusedSequence:
     """Transform decoded windows to a common gauge and fuse duplicate pixels."""
 
@@ -289,6 +333,15 @@ def fuse_windows(
         transformed_point_covariance = (
             point_uncertainties[window.window_id].transformed(gauge).matrices()
         )
+        if gauge_covariances is not None:
+            if window.window_id not in gauge_covariances:
+                raise KeyError(f"missing gauge covariance for window {window.window_id!r}")
+            transformed_point_covariance += _gauge_induced_covariance(
+                window.point_map,
+                gauge,
+                gauge_covariances[window.window_id],
+                include_translation=True,
+            )
         if window.scene_flow is not None:
             uncertainty = (
                 flow_uncertainties[window.window_id]
@@ -297,6 +350,13 @@ def fuse_windows(
             )
             transformed_flow = gauge.transform_vectors(window.scene_flow)
             transformed_flow_covariance = uncertainty.transformed(gauge).matrices()
+            if gauge_covariances is not None:
+                transformed_flow_covariance += _gauge_induced_covariance(
+                    window.scene_flow,
+                    gauge,
+                    gauge_covariances[window.window_id],
+                    include_translation=False,
+                )
 
         for local_index, frame in enumerate(window.frame_indices):
             output_index = frame_positions[int(frame)]

@@ -9,7 +9,64 @@ from pathlib import Path
 import numpy as np
 
 from .data import PredictionWindow
+from .fusion import FusedSequence
 from .metrics import TruthSequence
+
+
+def pack_symmetric_covariance(covariance: np.ndarray) -> np.ndarray:
+    """Pack the upper triangle of dense 3x3 covariance matrices into six values."""
+
+    covariance = np.asarray(covariance)
+    if covariance.shape[-2:] != (3, 3):
+        raise ValueError("covariance must end in shape (3, 3)")
+    return covariance[..., (0, 0, 0, 1, 1, 2), (0, 1, 2, 1, 2, 2)]
+
+
+def unpack_symmetric_covariance(packed: np.ndarray) -> np.ndarray:
+    """Restore dense 3x3 covariance matrices from six upper-triangle values."""
+
+    packed = np.asarray(packed)
+    if packed.shape[-1] != 6:
+        raise ValueError("packed covariance must end in six values")
+    covariance = np.empty(packed.shape[:-1] + (3, 3), dtype=packed.dtype)
+    covariance[..., 0, 0] = packed[..., 0]
+    covariance[..., 0, 1] = covariance[..., 1, 0] = packed[..., 1]
+    covariance[..., 0, 2] = covariance[..., 2, 0] = packed[..., 2]
+    covariance[..., 1, 1] = packed[..., 3]
+    covariance[..., 1, 2] = covariance[..., 2, 1] = packed[..., 4]
+    covariance[..., 2, 2] = packed[..., 5]
+    return covariance
+
+
+def load_fused_prediction(path: str | Path) -> FusedSequence:
+    """Load a fused prediction that was exported with compact covariance."""
+
+    path = Path(path)
+    with np.load(path, allow_pickle=False) as data:
+        required = {
+            "frame_indices",
+            "point_map",
+            "valid_mask",
+            "point_covariance_packed",
+            "contributors",
+        }
+        missing = required - set(data.files)
+        if missing:
+            raise ValueError(f"{path} is missing fused uncertainty fields: {sorted(missing)}")
+        return FusedSequence(
+            frame_indices=data["frame_indices"],
+            point_map=data["point_map"],
+            valid_mask=data["valid_mask"],
+            point_covariance=unpack_symmetric_covariance(data["point_covariance_packed"]),
+            contributors=data["contributors"],
+            scene_flow=data["scene_flow"] if "scene_flow" in data else None,
+            deform_mask=data["deform_mask"] if "deform_mask" in data else None,
+            flow_covariance=(
+                unpack_symmetric_covariance(data["flow_covariance_packed"])
+                if "flow_covariance_packed" in data
+                else None
+            ),
+        )
 
 
 @dataclass(frozen=True)

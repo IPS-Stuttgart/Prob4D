@@ -46,3 +46,17 @@ def test_calibration_recovers_known_variance_scale() -> None:
     assert calibrated.parallel_scale > 1.0
     assert calibrated.lateral_scale > 1.0
     assert report.count == np.prod(window.shape)
+
+
+def test_calibration_scales_disagreement_variance_too() -> None:
+    window = make_window()
+    evidence = np.ones(window.shape)
+    from prob4d.uncertainty import DisagreementEvidence
+
+    disagreement = DisagreementEvidence(evidence.copy(), evidence.copy(), evidence.copy())
+    model = DepthDisagreementModel(parallel_scale=3.0, lateral_scale=5.0)
+    unscaled = DepthDisagreementModel().predict(window, disagreement)
+    scaled = model.predict(window, disagreement)
+
+    np.testing.assert_allclose(scaled.parallel_variance, 3.0 * unscaled.parallel_variance)
+    np.testing.assert_allclose(scaled.lateral_variance, 5.0 * unscaled.lateral_variance)

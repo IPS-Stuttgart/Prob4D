@@ -51,6 +51,143 @@ class SequenceMetrics:
         return asdict(self)
 
 
+@dataclass(frozen=True)
+class UncertaintyDiagnostics:
+    count: int
+    coverage_50: float
+    coverage_80: float
+    coverage_90: float
+    coverage_95: float
+    coverage_shortfall_95: float
+    coverage_calibration_error: float
+    mean_mahalanobis_squared: float
+    median_mahalanobis_squared: float
+    gaussian_nll: float
+    uncertainty_error_spearman: float
+    mean_relative_error: float
+    relative_error_retained_80: float
+    relative_error_oracle_80: float
+    selective_gain_80: float
+    selective_oracle_fraction_80: float
+
+    def to_dict(self) -> dict[str, float | int]:
+        return asdict(self)
+
+
+_CHI_SQUARED_3 = {
+    0.50: 2.3659738843753377,
+    0.80: 4.64162767608745,
+    0.90: 6.251388631170325,
+    0.95: 7.814727903251179,
+}
+
+
+def _rankdata(values: FloatArray) -> FloatArray:
+    values = np.asarray(values, dtype=np.float64)
+    order = np.argsort(values, kind="mergesort")
+    sorted_values = values[order]
+    ranks = np.empty(values.size, dtype=np.float64)
+    start = 0
+    while start < values.size:
+        stop = start + 1
+        while stop < values.size and sorted_values[stop] == sorted_values[start]:
+            stop += 1
+        ranks[order[start:stop]] = 0.5 * (start + stop - 1)
+        start = stop
+    return ranks
+
+
+def uncertainty_diagnostics(
+    errors: FloatArray,
+    covariances: FloatArray,
+    target_norms: FloatArray,
+    *,
+    uncertainty_normalizers: FloatArray | None = None,
+) -> UncertaintyDiagnostics:
+    """Evaluate calibration and relative-error ranking for sampled 3D residuals."""
+
+    errors = np.asarray(errors, dtype=np.float64)
+    covariances = np.asarray(covariances, dtype=np.float64)
+    target_norms = np.asarray(target_norms, dtype=np.float64)
+    normalizers = (
+        target_norms
+        if uncertainty_normalizers is None
+        else np.asarray(uncertainty_normalizers, dtype=np.float64)
+    )
+    if errors.ndim != 2 or errors.shape[1] != 3:
+        raise ValueError("errors must have shape (N, 3)")
+    if covariances.shape != (errors.shape[0], 3, 3):
+        raise ValueError("covariances must have shape (N, 3, 3)")
+    if target_norms.shape != (errors.shape[0],):
+        raise ValueError("target_norms must have shape (N,)")
+    if normalizers.shape != (errors.shape[0],):
+        raise ValueError("uncertainty_normalizers must have shape (N,)")
+    active = (
+        np.all(np.isfinite(errors), axis=1)
+        & np.all(np.isfinite(covariances), axis=(1, 2))
+        & np.isfinite(target_norms)
+        & np.isfinite(normalizers)
+    )
+    if not np.any(active):
+        raise ValueError("uncertainty diagnostics have no finite samples")
+    errors = errors[active]
+    covariances = covariances[active]
+    target_norms = target_norms[active]
+    normalizers = normalizers[active]
+
+    symmetric = 0.5 * (covariances + np.swapaxes(covariances, -1, -2))
+    eigenvalues, eigenvectors = np.linalg.eigh(symmetric)
+    eigenvalues = np.maximum(eigenvalues, 1e-12)
+    inverse = np.einsum("...ij,...j,...kj->...ik", eigenvectors, 1.0 / eigenvalues, eigenvectors)
+    mahalanobis_squared = np.einsum("...i,...ij,...j->...", errors, inverse, errors)
+    log_determinant = np.sum(np.log(eigenvalues), axis=-1)
+    nll = 0.5 * (3.0 * np.log(2.0 * np.pi) + log_determinant + mahalanobis_squared)
+    coverage = {
+        level: float(np.mean(mahalanobis_squared <= threshold))
+        for level, threshold in _CHI_SQUARED_3.items()
+    }
+    calibration_error = float(np.mean([abs(coverage[level] - level) for level in _CHI_SQUARED_3]))
+
+    relative_error = np.linalg.norm(errors, axis=-1) / np.maximum(target_norms, 1e-2)
+    # Match the relative point-error risk: covariance is in squared metric
+    # units, so normalize it by the squared predicted point norm.
+    uncertainty_score = np.trace(symmetric, axis1=-2, axis2=-1) / np.maximum(normalizers, 1e-2) ** 2
+    uncertainty_rank = _rankdata(uncertainty_score)
+    error_rank = _rankdata(relative_error)
+    if np.std(uncertainty_rank) <= 1e-12 or np.std(error_rank) <= 1e-12:
+        spearman = 0.0
+    else:
+        spearman = float(np.corrcoef(uncertainty_rank, error_rank)[0, 1])
+
+    retain_count = max(1, int(np.floor(0.8 * relative_error.size)))
+    selected = np.argpartition(uncertainty_score, retain_count - 1)[:retain_count]
+    oracle = np.argpartition(relative_error, retain_count - 1)[:retain_count]
+    risk_all = float(np.mean(relative_error))
+    risk_retained = float(np.mean(relative_error[selected]))
+    risk_oracle = float(np.mean(relative_error[oracle]))
+    gain = risk_all - risk_retained
+    oracle_gain = risk_all - risk_oracle
+
+    return UncertaintyDiagnostics(
+        count=int(relative_error.size),
+        coverage_50=coverage[0.50],
+        coverage_80=coverage[0.80],
+        coverage_90=coverage[0.90],
+        coverage_95=coverage[0.95],
+        coverage_shortfall_95=max(0.0, 0.95 - coverage[0.95]),
+        coverage_calibration_error=calibration_error,
+        mean_mahalanobis_squared=float(np.mean(mahalanobis_squared)),
+        median_mahalanobis_squared=float(np.median(mahalanobis_squared)),
+        gaussian_nll=float(np.mean(nll)),
+        uncertainty_error_spearman=spearman,
+        mean_relative_error=risk_all,
+        relative_error_retained_80=risk_retained,
+        relative_error_oracle_80=risk_oracle,
+        selective_gain_80=gain,
+        selective_oracle_fraction_80=(gain / oracle_gain if oracle_gain > 1e-12 else 0.0),
+    )
+
+
 def _scale_translation_alignment(
     source: FloatArray, target: FloatArray
 ) -> tuple[float, FloatArray]:

@@ -1,6 +1,6 @@
 import numpy as np
 
-from prob4d.alignment import align_windows, estimate_sim3_robust
+from prob4d.alignment import _alignment_covariance, align_windows, estimate_sim3_robust
 from prob4d.data import PredictionWindow
 from prob4d.sim3 import Sim3
 
@@ -44,3 +44,33 @@ def test_window_alignment_uses_absolute_overlap_frames() -> None:
     np.testing.assert_allclose(
         alignment.result.transform.as_vector(), moving_to_reference.as_vector(), atol=1e-9
     )
+
+
+def test_alignment_covariance_matches_parameter_finite_difference() -> None:
+    generator = np.random.default_rng(12)
+    source = generator.normal(size=(30, 3))
+    transform = Sim3.from_vector(np.array([0.2, 0.5, -0.3, 0.2, 1.0, 2.0, -1.0]))
+    target = transform.transform_points(source) + generator.normal(scale=0.01, size=source.shape)
+    weights = np.ones(source.shape[0])
+
+    covariance = _alignment_covariance(source, target, weights, transform)
+
+    vector = transform.as_vector()
+    information = np.zeros((7, 7))
+    baseline = transform.transform_points(source)
+    for point_index in range(source.shape[0]):
+        jacobian = np.empty((3, 7))
+        for parameter_index in range(7):
+            perturbed = vector.copy()
+            perturbed[parameter_index] += 1e-6
+            jacobian[:, parameter_index] = (
+                Sim3.from_vector(perturbed).transform_points(source[point_index])
+                - baseline[point_index]
+            ) / 1e-6
+        information += jacobian.T @ jacobian
+    residuals = target - baseline
+    variance = float(np.sum(residuals**2) / (3 * source.shape[0] - 7))
+    floor = np.diag([1e-10] * 4 + [1e-12] * 3)
+    expected = variance * np.linalg.pinv(information, rcond=1e-10) + floor
+
+    np.testing.assert_allclose(covariance, expected, rtol=3e-6, atol=1e-10)

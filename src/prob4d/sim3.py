@@ -50,6 +50,23 @@ def so3_log(rotation: FloatArray) -> FloatArray:
     return theta / (2.0 * np.sin(theta)) * antisymmetric
 
 
+def so3_right_jacobian(rotation_vector: FloatArray) -> FloatArray:
+    """Return the right Jacobian of the SO(3) exponential coordinates."""
+
+    vector = np.asarray(rotation_vector, dtype=np.float64)
+    if vector.shape != (3,):
+        raise ValueError("rotation_vector must have shape (3,)")
+    angle = float(np.linalg.norm(vector))
+    generator = skew(vector)
+    if angle < 1e-6:
+        return np.eye(3) - 0.5 * generator + generator @ generator / 6.0
+    return (
+        np.eye(3)
+        - (1.0 - np.cos(angle)) / angle**2 * generator
+        + (angle - np.sin(angle)) / angle**3 * generator @ generator
+    )
+
+
 @dataclass(frozen=True)
 class Sim3:
     """A transform ``y = scale * rotation @ x + translation``.

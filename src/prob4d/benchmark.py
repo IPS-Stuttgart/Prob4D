@@ -16,7 +16,7 @@ import numpy as np
 from .alignment import WindowAlignment, align_windows
 from .fusion import FusedSequence, fuse_windows
 from .gauge import FixedLagGaugeSmoother, RelativeGaugeConstraint, SequentialGaugeEstimator
-from .io import PredictionBundle, load_prediction_bundle
+from .io import PredictionBundle, load_prediction_bundle, pack_symmetric_covariance
 from .motioncrafter import MotionCrafterAdapter, MotionCrafterRunConfig
 from .uncertainty import DepthDisagreementModel, accumulate_disagreement
 
@@ -36,6 +36,7 @@ class BenchmarkExportConfig:
     seed: int = 42
     max_sequences: int | None = None
     skip_existing: bool = False
+    include_covariance: bool = False
 
 
 def _read_video_paths(dataset_directory: Path, metadata_filename: str) -> list[Path]:
@@ -66,6 +67,17 @@ def fuse_prediction_bundle(
 ) -> tuple[FusedSequence, FusedSequence]:
     """Produce decoded uniform and uncalibrated smoothed-CI predictions."""
 
+    methods = fuse_prediction_bundle_methods(bundle)
+    return methods["prob4d_uniform"], methods["prob4d_ci_smoothed_uncalibrated"]
+
+
+def fuse_prediction_bundle_methods(
+    bundle: PredictionBundle,
+    *,
+    model: DepthDisagreementModel | None = None,
+) -> dict[str, FusedSequence]:
+    """Produce all decoded fusion variants with propagated gauge covariance."""
+
     alignments = _build_alignments(bundle)
     constraints = [
         RelativeGaugeConstraint.from_window_alignment(alignment) for alignment in alignments
@@ -75,7 +87,7 @@ def fuse_prediction_bundle(
     smoothed = FixedLagGaugeSmoother(lag=4).smooth(ordered_ids, estimates, constraints)
     windows = {window.window_id: window for window in bundle.overlap_windows}
     evidence = accumulate_disagreement(windows, alignments)
-    model = DepthDisagreementModel()
+    model = model or DepthDisagreementModel()
     uncertainties = {
         window_id: model.predict(window, evidence[window_id])
         for window_id, window in windows.items()
@@ -86,31 +98,72 @@ def fuse_prediction_bundle(
     smoothed_gauges = {
         window_id: estimate.global_from_local for window_id, estimate in smoothed.items()
     }
+    sequential_covariances = {
+        window_id: estimate.covariance for window_id, estimate in estimates.items()
+    }
+    smoothed_covariances = {
+        window_id: estimate.covariance for window_id, estimate in smoothed.items()
+    }
     uniform = fuse_windows(
         bundle.overlap_windows,
         sequential_gauges,
         uncertainties,
         method="uniform",
+        gauge_covariances=sequential_covariances,
+    )
+    precision = fuse_windows(
+        bundle.overlap_windows,
+        sequential_gauges,
+        uncertainties,
+        method="precision",
+        gauge_covariances=sequential_covariances,
     )
     covariance_intersection = fuse_windows(
+        bundle.overlap_windows,
+        sequential_gauges,
+        uncertainties,
+        method="covariance_intersection",
+        gauge_covariances=sequential_covariances,
+    )
+    smoothed_covariance_intersection = fuse_windows(
         bundle.overlap_windows,
         smoothed_gauges,
         uncertainties,
         method="covariance_intersection",
+        gauge_covariances=smoothed_covariances,
     )
-    return uniform, covariance_intersection
+    return {
+        "prob4d_uniform": uniform,
+        "prob4d_precision": precision,
+        "prob4d_ci": covariance_intersection,
+        "prob4d_ci_smoothed_uncalibrated": smoothed_covariance_intersection,
+    }
 
 
-def _write_fused_prediction(path: Path, sequence: FusedSequence) -> None:
+def _write_fused_prediction(
+    path: Path,
+    sequence: FusedSequence,
+    *,
+    include_covariance: bool = False,
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "point_map": sequence.point_map.astype(np.float16),
         "valid_mask": sequence.valid_mask,
         "frame_indices": sequence.frame_indices,
     }
+    if include_covariance:
+        payload["point_covariance_packed"] = pack_symmetric_covariance(
+            sequence.point_covariance
+        ).astype(np.float32)
+        payload["contributors"] = sequence.contributors
     if sequence.scene_flow is not None:
         payload["scene_flow"] = sequence.scene_flow.astype(np.float16)
         payload["deform_mask"] = sequence.deform_mask
+        if include_covariance:
+            payload["flow_covariance_packed"] = pack_symmetric_covariance(
+                sequence.flow_covariance
+            ).astype(np.float32)
     np.savez(path, **payload)
 
 
@@ -153,6 +206,8 @@ def run_benchmark_export(config: BenchmarkExportConfig) -> Path:
         "motioncrafter_disjoint": config.output_directory / "motioncrafter_disjoint",
         "motioncrafter_latent_linear": config.output_directory / "motioncrafter_latent_linear",
         "prob4d_uniform": config.output_directory / "prob4d_uniform",
+        "prob4d_precision": config.output_directory / "prob4d_precision",
+        "prob4d_ci": config.output_directory / "prob4d_ci",
         "prob4d_ci_smoothed_uncalibrated": (
             config.output_directory / "prob4d_ci_smoothed_uncalibrated"
         ),
@@ -179,7 +234,7 @@ def run_benchmark_export(config: BenchmarkExportConfig) -> Path:
             output_directory=artifact_directory,
         )
         bundle = load_prediction_bundle(manifest_path)
-        uniform, covariance_intersection = fuse_prediction_bundle(bundle)
+        fused_methods = fuse_prediction_bundle_methods(bundle)
         _copy_upstream_prediction(
             artifact_directory / "baseline_disjoint.npz",
             destinations["motioncrafter_disjoint"],
@@ -188,20 +243,22 @@ def run_benchmark_export(config: BenchmarkExportConfig) -> Path:
             artifact_directory / "baseline_latent_linear.npz",
             destinations["motioncrafter_latent_linear"],
         )
-        _write_fused_prediction(destinations["prob4d_uniform"], uniform)
-        _write_fused_prediction(
-            destinations["prob4d_ci_smoothed_uncalibrated"], covariance_intersection
-        )
+        for method, sequence in fused_methods.items():
+            _write_fused_prediction(
+                destinations[method],
+                sequence,
+                include_covariance=config.include_covariance,
+            )
         samples.append(
             {
                 "video": relative_video_path.as_posix(),
                 "status": "completed",
                 "elapsed_seconds": time.perf_counter() - started,
-                "frames": int(covariance_intersection.frame_indices.size),
+                "frames": int(fused_methods["prob4d_ci_smoothed_uncalibrated"].frame_indices.size),
                 "index": sample_index,
             }
         )
-        del bundle, uniform, covariance_intersection
+        del bundle, fused_methods
         gc.collect()
         adapter.torch.cuda.empty_cache()
 
@@ -216,8 +273,8 @@ def run_benchmark_export(config: BenchmarkExportConfig) -> Path:
         "methods": {method: str(path.resolve()) for method, path in methods.items()},
         "samples": samples,
         "warning": (
-            "The CI row uses the fixed depth/disagreement model without held-out "
-            "uncertainty calibration. Treat it as a preliminary accuracy result."
+            "The exported CI rows use the fixed depth/disagreement model without held-out "
+            "uncertainty calibration. Treat them as preliminary unless recalibrated."
         ),
     }
     manifest_path = config.output_directory / "benchmark_export.json"
@@ -240,6 +297,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--max-sequences", type=int)
     parser.add_argument("--skip-existing", action="store_true")
+    parser.add_argument("--include-covariance", action="store_true")
     arguments = parser.parse_args(argv)
     manifest = run_benchmark_export(
         BenchmarkExportConfig(
@@ -256,6 +314,7 @@ def main(argv: list[str] | None = None) -> int:
             seed=arguments.seed,
             max_sequences=arguments.max_sequences,
             skip_existing=arguments.skip_existing,
+            include_covariance=arguments.include_covariance,
         )
     )
     print(manifest)
