@@ -25,6 +25,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--initialization-points", type=int, default=16)
     parser.add_argument("--anchors-per-window", type=int, default=16)
     parser.add_argument("--measurement-std", type=float, default=0.01)
+    parser.add_argument("--skip-existing", action="store_true")
     return parser.parse_args()
 
 
@@ -49,6 +50,8 @@ def main() -> int:
         stem = item.prediction_manifest.parent.name
         output = args.output_dir / item.sequence / f"{stem}.npz"
         output.parent.mkdir(parents=True, exist_ok=True)
+        if args.skip_existing and output.exists() and output.with_suffix(".anchors.json").exists():
+            return item.sequence, output
         subprocess.run(
             [
                 sys.executable,
