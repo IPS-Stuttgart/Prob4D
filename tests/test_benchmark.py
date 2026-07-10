@@ -3,7 +3,11 @@ from pathlib import Path
 import numpy as np
 from test_io import write_problem_bundle
 
-from prob4d.benchmark import _write_fused_prediction, fuse_prediction_bundle
+from prob4d.benchmark import (
+    _write_fused_prediction,
+    fuse_prediction_bundle,
+    fuse_prediction_bundle_methods,
+)
 from prob4d.io import load_fused_prediction, load_prediction_bundle
 from prob4d.synthetic import make_synthetic_problem
 
@@ -26,6 +30,23 @@ def test_fuse_prediction_bundle_exports_uniform_and_ci(tmp_path: Path) -> None:
         covariance_intersection.frame_indices, problem.truth.frame_indices
     )
     assert np.max(covariance_intersection.contributors) > 1
+
+
+def test_fuse_prediction_bundle_exports_smoothed_uniform(tmp_path: Path) -> None:
+    problem = make_synthetic_problem(
+        seed=73,
+        num_frames=45,
+        height=4,
+        width=6,
+        overlap=15,
+    )
+    manifest, _ = write_problem_bundle(tmp_path / "bundle", problem)
+
+    methods = fuse_prediction_bundle_methods(load_prediction_bundle(manifest))
+
+    smoothed_uniform = methods["prob4d_uniform_smoothed"]
+    np.testing.assert_array_equal(smoothed_uniform.frame_indices, problem.truth.frame_indices)
+    assert np.max(smoothed_uniform.contributors) > 1
 
 
 def test_fused_prediction_can_persist_compact_covariance(tmp_path: Path) -> None:

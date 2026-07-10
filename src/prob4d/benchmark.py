@@ -111,6 +111,13 @@ def fuse_prediction_bundle_methods(
         method="uniform",
         gauge_covariances=sequential_covariances,
     )
+    smoothed_uniform = fuse_windows(
+        bundle.overlap_windows,
+        smoothed_gauges,
+        uncertainties,
+        method="uniform",
+        gauge_covariances=smoothed_covariances,
+    )
     precision = fuse_windows(
         bundle.overlap_windows,
         sequential_gauges,
@@ -134,6 +141,7 @@ def fuse_prediction_bundle_methods(
     )
     return {
         "prob4d_uniform": uniform,
+        "prob4d_uniform_smoothed": smoothed_uniform,
         "prob4d_precision": precision,
         "prob4d_ci": covariance_intersection,
         "prob4d_ci_smoothed_uncalibrated": smoothed_covariance_intersection,
@@ -206,6 +214,7 @@ def run_benchmark_export(config: BenchmarkExportConfig) -> Path:
         "motioncrafter_disjoint": config.output_directory / "motioncrafter_disjoint",
         "motioncrafter_latent_linear": config.output_directory / "motioncrafter_latent_linear",
         "prob4d_uniform": config.output_directory / "prob4d_uniform",
+        "prob4d_uniform_smoothed": (config.output_directory / "prob4d_uniform_smoothed"),
         "prob4d_precision": config.output_directory / "prob4d_precision",
         "prob4d_ci": config.output_directory / "prob4d_ci",
         "prob4d_ci_smoothed_uncalibrated": (
