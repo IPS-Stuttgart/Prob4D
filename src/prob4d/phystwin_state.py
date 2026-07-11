@@ -31,6 +31,7 @@ def anchored_physics_rollout(
     *,
     endpoint_frame: int,
     output_frame_count: int,
+    preserve_endpoint_offset: bool = True,
 ) -> FloatArray:
     """Attach observed points to nearest simulator nodes and preserve endpoint offsets."""
 
@@ -48,6 +49,8 @@ def anchored_physics_rollout(
         return result
     nearest, _ = nearest_neighbor_indices(initial[active], physics[endpoint_frame])
     offsets = initial[active] - physics[endpoint_frame, nearest]
+    if not preserve_endpoint_offset:
+        offsets = np.zeros_like(offsets)
     stop = min(output_frame_count, physics.shape[0])
     result[:stop, active] = physics[:stop, nearest] + offsets[None, :, :]
     return result
@@ -225,6 +228,16 @@ def state_forecast_metrics(
                         output_frame_count=output_frame_count,
                     )
                 )
+                if initial_name == "motioncrafter_endpoint":
+                    trajectories[f"{initial_name}_{physics_name}_association_only"] = (
+                        anchored_physics_rollout(
+                            initial,
+                            physics,
+                            endpoint_frame=endpoint_frame,
+                            output_frame_count=output_frame_count,
+                            preserve_endpoint_offset=False,
+                        )
+                    )
 
     visible = (samples.frame_indices >= fit_end_frame) & (
         samples.frame_indices <= maximum_frame
@@ -242,6 +255,7 @@ def state_forecast_metrics(
     }
     visual_norm = np.linalg.norm(visual_errors, axis=1)
     comparisons: dict[str, object] = {}
+    visible_error_norms: dict[str, FloatArray] = {}
     for index, (name, trajectory) in enumerate(trajectories.items()):
         predicted = trajectory[visible_frames, visible_tracks]
         active = np.all(np.isfinite(predicted), axis=1)
@@ -253,12 +267,32 @@ def state_forecast_metrics(
             visible_frames[active],
             fit_end_frame=fit_end_frame,
         )
+        full_norm = np.full(visible_frames.shape, np.nan, dtype=np.float64)
+        full_norm[active] = np.linalg.norm(errors, axis=1)
+        visible_error_norms[name] = full_norm
         comparisons[name] = paired_frame_block_bootstrap(
-            np.linalg.norm(errors, axis=1),
+            full_norm[active],
             visual_norm[active],
             visible_frames[active],
             repetitions=bootstrap_repetitions,
             seed=bootstrap_seed + index,
+        )
+
+    state_update_comparisons: dict[str, object] = {}
+    for index, physics_name in enumerate(("physics", "corrected_physics")):
+        state_name = f"motioncrafter_endpoint_{physics_name}_forecast"
+        association_name = f"motioncrafter_endpoint_{physics_name}_association_only"
+        if state_name not in visible_error_norms or association_name not in visible_error_norms:
+            continue
+        state_error = visible_error_norms[state_name]
+        association_error = visible_error_norms[association_name]
+        active = np.isfinite(state_error) & np.isfinite(association_error)
+        state_update_comparisons[physics_name] = paired_frame_block_bootstrap(
+            state_error[active],
+            association_error[active],
+            visible_frames[active],
+            repetitions=bootstrap_repetitions,
+            seed=bootstrap_seed + 100 + index,
         )
 
     all_track_results: dict[str, object] = {}
@@ -290,6 +324,7 @@ def state_forecast_metrics(
         "initializer_error": initializer_errors,
         "visible_future_tracks": visible_results,
         "paired_block_bootstrap_vs_motioncrafter_per_frame": comparisons,
+        "state_update_vs_node_association_only": state_update_comparisons,
         "all_finite_future_tracks_no_future_visual": all_track_results,
     }
 

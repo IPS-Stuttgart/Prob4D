@@ -22,6 +22,15 @@ def test_anchored_rollout_preserves_observed_endpoint_offset() -> None:
     np.testing.assert_allclose(result[:, 0, 0], [0.25, 1.25, 2.25, 3.25])
     assert np.all(np.isnan(result[:, 1]))
 
+    association_only = anchored_physics_rollout(
+        initial,
+        trajectory,
+        endpoint_frame=1,
+        output_frame_count=4,
+        preserve_endpoint_offset=False,
+    )
+    np.testing.assert_allclose(association_only[:, 0, 0], [0.0, 1.0, 2.0, 3.0])
+
 
 def test_paired_block_bootstrap_detects_uniform_improvement() -> None:
     baseline = np.full(12, 0.02)

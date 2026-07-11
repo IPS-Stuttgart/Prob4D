@@ -156,3 +156,6 @@ all-finite-track evaluation additionally includes camera-missing observations.
 Manual track identities provide the sparse pixel association; manual 3D values
 are used only for evaluation. Bias-corrected and truth-initialized forecasts
 are explicitly label-dependent controls and cannot support the main claim.
+An association-only control follows the same nearest simulator node without
+preserving the MotionCrafter endpoint offset; its direct paired comparison
+tests whether the visual state update contributes beyond node association.
