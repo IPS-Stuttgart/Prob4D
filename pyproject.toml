@@ -23,6 +23,7 @@ prob4d-ablate = "prob4d.experiments:main"
 prob4d-benchmark = "prob4d.benchmark:main"
 prob4d-motioncrafter = "prob4d.motioncrafter:main"
 prob4d-phystwin = "prob4d.phystwin_experiment:main"
+prob4d-phystwin-uncertainty = "prob4d.phystwin_uncertainty:main"
 prob4d-sintel-uncertainty = "prob4d.sintel_uncertainty:main"
 
 [tool.setuptools.packages.find]

@@ -66,6 +66,7 @@ class ManualFlowSamples:
     visual_flow_world: FloatArray
     truth_current_world: FloatArray
     truth_next_world: FloatArray
+    track_indices: NDArray[np.int64] | None = None
 
     def __post_init__(self) -> None:
         count = int(np.asarray(self.frame_indices).size)
@@ -77,6 +78,8 @@ class ManualFlowSamples:
         )
         if any(shape != (count, 3) for shape in shapes):
             raise ValueError("manual flow arrays must have shape (N, 3)")
+        if self.track_indices is not None and np.asarray(self.track_indices).shape != (count,):
+            raise ValueError("track_indices must have shape (N,)")
 
 
 def sha256(path: str | Path) -> str:
@@ -190,6 +193,7 @@ def load_manual_flow_samples(
     }
     collected: dict[str, list[np.ndarray]] = {
         "frames": [],
+        "tracks": [],
         "visual_current": [],
         "visual_flow": [],
         "truth_current": [],
@@ -251,6 +255,7 @@ def load_manual_flow_samples(
             continue
         count = int(np.count_nonzero(active))
         collected["frames"].append(np.full(count, current_frame, dtype=np.int64))
+        collected["tracks"].append(np.flatnonzero(active).astype(np.int64))
         collected["visual_current"].append(transform.transform_points(visual_current[active]))
         collected["visual_flow"].append(transform.transform_vectors(visual_flow[active]))
         collected["truth_current"].append(current_truth[active])
@@ -263,6 +268,7 @@ def load_manual_flow_samples(
         visual_flow_world=np.concatenate(collected["visual_flow"]),
         truth_current_world=np.concatenate(collected["truth_current"]),
         truth_next_world=np.concatenate(collected["truth_next"]),
+        track_indices=np.concatenate(collected["tracks"]),
     )
 
 

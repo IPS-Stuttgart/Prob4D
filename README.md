@@ -149,6 +149,18 @@ flow, 50/50 fusion, and a scalar inverse-training-MSE fusion. The latter is a
 contained train/test baseline, not calibrated per-pixel uncertainty. See the
 experiment protocol for the exact claim boundary.
 
+For independently seeded diffusion runs, estimate and calibrate the empirical
+3D flow covariance before fusing it with the physical proposal:
+
+```bash
+prob4d-phystwin-uncertainty /path/to/double_stretch_sloth output.json \
+  --manifest outputs/diff_seed101/predictions.json \
+  --manifest outputs/diff_seed202/predictions.json \
+  --fit-end-frame 134 \
+  --physics-trajectory /path/to/released/inference.pkl \
+  --corrected-trajectory /path/to/bayesian_anchor/trajectory.pkl
+```
+
 ## Repository Boundary
 
 This repository owns code, tests, and run definitions. Videos, model weights,

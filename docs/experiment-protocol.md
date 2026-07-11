@@ -125,3 +125,19 @@ Held-out-camera point-set distance measures surface coverage, not dense
 cross-view correspondence. A positive result would motivate sampled visual
 covariance and recursive state-space fusion; a poor visual baseline motivates
 deformable-domain adaptation first.
+
+### Sampled visual uncertainty
+
+The follow-up uncertainty protocol runs the diffusion MotionCrafter checkpoint
+with at least two independent seeds. Every sample receives its own train-only
+global `Sim(3)`, and manual observations are intersected by absolute frame and
+persistent track identity. The empirical 3D flow covariance is shrunk toward
+its isotropic component and given a 0.25 mm axis floor. One global scale makes
+the preboundary mean normalized innovation squared equal three; no future
+track label enters that scale.
+
+The physical covariance is the regularized preboundary error second moment,
+which deliberately retains systematic simulator bias. Gaussian products are
+reported beside the ensemble mean, raw and corrected physics, fixed fusion,
+and scalar inverse-MSE fusion. Coverage is sparse-track coverage, not a claim
+of calibrated dense per-pixel uncertainty.
