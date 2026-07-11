@@ -98,3 +98,30 @@ For integration testing only, `scripts/create_smoke_fixture.py` creates a tiny
 video and metric truth archive. Its image renderer is deliberately simple and
 is not fully coupled to the 3D scene, so results from that fixture must never be
 reported as reconstruction evidence.
+
+## PhysTwin Experiment Zero
+
+The first deformable-object test uses one RGB stream from an official
+three-camera PhysTwin interaction. MotionCrafter receives camera 0 only. Its
+point map is registered to metric PhysTwin world coordinates with one robust
+global `Sim(3)` estimated exclusively before the official test boundary.
+
+The later interval has three distinct evaluations:
+
+- object-point error at the same camera pixels against calibrated depth;
+- scene-flow and endpoint error at visible manual 3D tracks; and
+- symmetric object point-set distance and held-out-only coverage in cameras 1
+  and 2.
+
+Released and discrepancy-corrected PhysTwin trajectories are evaluated as
+physical flow proposals. Physics motion is transferred from the nearest
+surface node to each transformed visual observation. Fixed 50/50 fusion and a
+single inverse-training-MSE weight are baselines. The scalar weight is fitted
+from preboundary manual tracks and is frozen before test evaluation.
+
+This protocol does not yet supply `Sigma_vis`: deterministic MotionCrafter has
+no per-pixel covariance, and one scalar training weight is not a substitute.
+Held-out-camera point-set distance measures surface coverage, not dense
+cross-view correspondence. A positive result would motivate sampled visual
+covariance and recursive state-space fusion; a poor visual baseline motivates
+deformable-domain adaptation first.

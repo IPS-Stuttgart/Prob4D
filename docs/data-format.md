@@ -36,6 +36,11 @@ Files without `frame_indices` are accepted only when the caller supplies an
 explicit start frame. This prevents local clip indices from being mistaken for
 global video indices.
 
+`prob4d-motioncrafter --frame-start/--frame-stop/--frame-stride` writes source
+video frame IDs directly into every baseline and overlap window. PhysTwin
+evaluation requires these absolute IDs because its calibration, depth frames,
+manual tracks, and physical trajectories all use the original sequence index.
+
 ## Ground Truth
 
 Real evaluation expects a compressed NumPy archive with:
@@ -64,3 +69,7 @@ Each ablation writes:
 The JSON metadata distinguishes exact upstream baselines from synthetic
 proxies and records when metric anchors are simulated from benchmark truth.
 
+`prob4d-phystwin` writes one `experiment_zero.json` with a separately fitted
+gauge for each MotionCrafter baseline, same-view geometry summaries, manual
+track flow methods and frozen fusion weights, held-out-view surface coverage,
+input and output hashes, and explicit claim boundaries.

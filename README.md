@@ -116,6 +116,39 @@ The sparse-anchor exporter samples ground-truth 3D points to simulate an
 associated depth/LiDAR sensor. It is an explicitly sensor-assisted ablation,
 not a monocular input protocol.
 
+## PhysTwin Experiment Zero
+
+MotionCrafter can be tested on a real deformable interaction before any learned
+physics integration is designed. Preserve absolute source-frame IDs while
+running a monocular clip that crosses PhysTwin's locked test boundary:
+
+```bash
+prob4d-motioncrafter /path/to/double_stretch_sloth/color/0.mp4 \
+  --upstream-root /path/to/MotionCrafter \
+  --output-dir outputs/double_stretch_sloth_camera0 \
+  --cache-dir /path/to/huggingface-cache \
+  --frame-start 110 --frame-stop 160
+```
+
+Then fit one global `Sim(3)` on frames 110--133 and evaluate later frames
+against same-view metric depth, sparse manual 3D tracks, and the two held-out
+RGB-D cameras:
+
+```bash
+prob4d-phystwin \
+  outputs/double_stretch_sloth_camera0/predictions.json \
+  /path/to/double_stretch_sloth \
+  outputs/double_stretch_sloth_camera0/experiment_zero.json \
+  --fit-end-frame 134 \
+  --physics-trajectory /path/to/released/inference.pkl \
+  --corrected-trajectory /path/to/bayesian_anchor/trajectory.pkl
+```
+
+The evaluator reports raw visual flow, raw and discrepancy-corrected PhysTwin
+flow, 50/50 fusion, and a scalar inverse-training-MSE fusion. The latter is a
+contained train/test baseline, not calibrated per-pixel uncertainty. See the
+experiment protocol for the exact claim boundary.
+
 ## Repository Boundary
 
 This repository owns code, tests, and run definitions. Videos, model weights,

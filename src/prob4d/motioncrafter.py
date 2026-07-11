@@ -38,6 +38,9 @@ class MotionCrafterRunConfig:
     decode_chunk_size: int = 25
     seed: int = 42
     low_memory_usage: bool = False
+    frame_start: int = 0
+    frame_stop: int | None = None
+    frame_stride: int = 1
 
     def __post_init__(self) -> None:
         if self.model_type not in {"determ", "diff"}:
@@ -46,6 +49,12 @@ class MotionCrafterRunConfig:
             raise ValueError("MotionCrafter height and width must be divisible by 64")
         if not 0 <= self.overlap < self.window_size:
             raise ValueError("overlap must be non-negative and smaller than window_size")
+        if self.frame_start < 0:
+            raise ValueError("frame_start must be non-negative")
+        if self.frame_stop is not None and self.frame_stop <= self.frame_start:
+            raise ValueError("frame_stop must be greater than frame_start")
+        if self.frame_stride < 1:
+            raise ValueError("frame_stride must be positive")
 
 
 class MotionCrafterAdapter:
@@ -126,7 +135,11 @@ class MotionCrafterAdapter:
 
         config = self.config
         reader = self.VideoReader(str(video_path or config.video_path), ctx=self.cpu(0))
-        frames = reader.get_batch(list(range(len(reader)))).asnumpy().astype(np.float32) / 255.0
+        stop = len(reader) if config.frame_stop is None else min(config.frame_stop, len(reader))
+        frame_indices = list(range(config.frame_start, stop, config.frame_stride))
+        if not frame_indices:
+            raise ValueError("selected source-frame interval is empty")
+        frames = reader.get_batch(frame_indices).asnumpy().astype(np.float32) / 255.0
         tensor = self.torch.from_numpy(frames).permute(0, 3, 1, 2).float()
         resize_scale = max(config.height / tensor.shape[-2], config.width / tensor.shape[-1])
         resized = (
@@ -177,9 +190,14 @@ class MotionCrafterAdapter:
             "valid_mask": valid.detach().cpu().numpy().astype(bool),
         }
 
-    def _write_baseline(self, path: Path, results: tuple, num_frames: int) -> None:
+    def _write_baseline(
+        self,
+        path: Path,
+        results: tuple,
+        frame_indices: np.ndarray,
+    ) -> None:
         arrays = self._arrays(results)
-        arrays["frame_indices"] = np.arange(num_frames)
+        arrays["frame_indices"] = frame_indices
         np.savez_compressed(path, **arrays)
 
     def run(
@@ -195,6 +213,17 @@ class MotionCrafterAdapter:
         windows_directory.mkdir(parents=True, exist_ok=True)
         frames = self.read_video(actual_video_path)
         num_frames = int(frames.shape[0])
+        source_stop = (
+            config.frame_start + config.frame_stride * num_frames
+            if config.frame_stop is None
+            else config.frame_stop
+        )
+        frame_indices = np.arange(
+            config.frame_start,
+            source_stop,
+            config.frame_stride,
+            dtype=np.int64,
+        )[:num_frames]
 
         disjoint_path = output / "baseline_disjoint.npz"
         disjoint = self.infer(
@@ -203,7 +232,7 @@ class MotionCrafterAdapter:
             overlap=0,
             seed=config.seed,
         )
-        self._write_baseline(disjoint_path, disjoint, num_frames)
+        self._write_baseline(disjoint_path, disjoint, frame_indices)
 
         latent_path = output / "baseline_latent_linear.npz"
         latent = self.infer(
@@ -212,7 +241,7 @@ class MotionCrafterAdapter:
             overlap=config.overlap,
             seed=config.seed,
         )
-        self._write_baseline(latent_path, latent, num_frames)
+        self._write_baseline(latent_path, latent, frame_indices)
 
         stride = config.window_size - config.overlap
         starts = list(range(0, max(1, num_frames - config.window_size + 1), stride))
@@ -233,7 +262,7 @@ class MotionCrafterAdapter:
             arrays = self._arrays(results)
             window = PredictionWindow(
                 window_id=window_id,
-                frame_indices=np.arange(start, stop),
+                frame_indices=frame_indices[start:stop],
                 point_map=arrays["point_map"],
                 valid_mask=arrays["valid_mask"],
                 scene_flow=arrays.get("scene_flow"),
@@ -245,8 +274,8 @@ class MotionCrafterAdapter:
                 {
                     "window_id": window_id,
                     "path": relative_path.as_posix(),
-                    "start_frame": start,
-                    "stop_frame": stop,
+                    "start_frame": int(frame_indices[start]),
+                    "stop_frame": int(frame_indices[stop - 1]) + config.frame_stride,
                 }
             )
 
@@ -297,6 +326,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--decode-chunk-size", type=int, default=25)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--low-memory-usage", action="store_true")
+    parser.add_argument("--frame-start", type=int, default=0)
+    parser.add_argument("--frame-stop", type=int)
+    parser.add_argument("--frame-stride", type=int, default=1)
     arguments = parser.parse_args(argv)
     config = MotionCrafterRunConfig(
         upstream_root=arguments.upstream_root,
@@ -315,6 +347,9 @@ def main(argv: list[str] | None = None) -> int:
         decode_chunk_size=arguments.decode_chunk_size,
         seed=arguments.seed,
         low_memory_usage=arguments.low_memory_usage,
+        frame_start=arguments.frame_start,
+        frame_stop=arguments.frame_stop,
+        frame_stride=arguments.frame_stride,
     )
     manifest = MotionCrafterAdapter(config).run()
     print(manifest)
