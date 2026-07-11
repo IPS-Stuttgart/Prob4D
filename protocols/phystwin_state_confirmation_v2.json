@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "status": "locked causal supersession before confirmation result inspection",
+  "locked_at_utc": "2026-07-11T12:34:11Z",
+  "supersedes": {
+    "path": "protocols/phystwin_state_confirmation_v1.json",
+    "sha256": "c1d9767d02c9b1c44788e9615101ed127b9dd3477bb215f73822ecc46a0b0517",
+    "reason": "latent overlap can blend a window containing post-boundary RGB into the endpoint state"
+  },
+  "cohort": "PhysTwin 19-case confirmation cohort",
+  "excluded_development_cases": [
+    "double_lift_sloth",
+    "double_stretch_sloth",
+    "single_lift_sloth"
+  ],
+  "method_code_commit": "2a5f87a56f45836a8a08effdd3ab7076a1525ff1",
+  "motioncrafter_commit": "1d6a8947ec6ebabbcf4fc1e0f6d06828fcf6f257",
+  "source_protocol_id": "dab6d6b3c1fd593fe23348f531a4fbf6aea8052ae001172c8bd040bd9d9da169",
+  "data_archive_sha256": "586a237a0f870b2a0a144ee69c3f04b636cac4fe251df969c1fd1feaf67eeae2",
+  "input": {
+    "camera": 0,
+    "height": 320,
+    "width": 640,
+    "model_type": "determ",
+    "seed": 42,
+    "window_size": 25,
+    "overlap": 8,
+    "state_prediction_product": "disjoint",
+    "flow_prediction_product": "latent_linear"
+  },
+  "evaluation": {
+    "gauge": "one robust global Sim(3) fitted on the disjoint first 25-frame window only",
+    "state_initializer": "disjoint MotionCrafter 3D position at the final preboundary manual-track pixel",
+    "causal_endpoint_contract": "the first disjoint window is exactly the 25 selected preboundary frames and contains no future RGB",
+    "transition": "nearest released PhysTwin surface node with endpoint offset preserved",
+    "future_visual_updates": false,
+    "future_action": "known through the released action-conditioned PhysTwin trajectory",
+    "primary_method": "motioncrafter_endpoint_physics_forecast",
+    "primary_baseline": "motioncrafter_per_frame",
+    "primary_metric": "equal-case mean visible-manual-track 3D position error in meters",
+    "primary_uncertainty": "paired case-and-five-frame moving-block bootstrap, 10000 replicates",
+    "secondary_methods": [
+      "motioncrafter_endpoint_corrected_physics_forecast",
+      "motioncrafter_endpoint_persistence",
+      "one-step scalar flow fusion"
+    ],
+    "secondary_metrics": [
+      "RMSE",
+      "95th-percentile position error",
+      "all-finite-track error without future visual evidence",
+      "flow endpoint error",
+      "held-out-camera point-set coverage"
+    ],
+    "claim_boundary": "manual identities provide sparse pixel association; manual 3D coordinates are evaluation-only for the primary method; latent overlap is a noncausal control only"
+  },
+  "case_contracts": {
+    "double_lift_cloth_1": {"frame_start": 56, "fit_end_frame": 81, "frame_stop": 116},
+    "double_lift_cloth_3": {"frame_start": 57, "fit_end_frame": 82, "frame_stop": 118},
+    "double_lift_zebra": {"frame_start": 15, "fit_end_frame": 40, "frame_stop": 58},
+    "double_stretch_zebra": {"frame_start": 113, "fit_end_frame": 138, "frame_stop": 198},
+    "rope_double_hand": {"frame_start": 159, "fit_end_frame": 184, "frame_stop": 264},
+    "single_clift_cloth_1": {"frame_start": 31, "fit_end_frame": 56, "frame_stop": 80},
+    "single_clift_cloth_3": {"frame_start": 42, "fit_end_frame": 67, "frame_stop": 97},
+    "single_lift_cloth": {"frame_start": 96, "fit_end_frame": 121, "frame_stop": 173},
+    "single_lift_cloth_1": {"frame_start": 52, "fit_end_frame": 77, "frame_stop": 110},
+    "single_lift_cloth_3": {"frame_start": 84, "fit_end_frame": 109, "frame_stop": 156},
+    "single_lift_cloth_4": {"frame_start": 95, "fit_end_frame": 120, "frame_stop": 172},
+    "single_lift_dinosor": {"frame_start": 35, "fit_end_frame": 60, "frame_stop": 86},
+    "single_lift_rope": {"frame_start": 10, "fit_end_frame": 35, "frame_stop": 50},
+    "single_lift_zebra": {"frame_start": 21, "fit_end_frame": 46, "frame_stop": 66},
+    "single_push_rope": {"frame_start": 15, "fit_end_frame": 40, "frame_stop": 58},
+    "single_push_rope_1": {"frame_start": 39, "fit_end_frame": 64, "frame_stop": 92},
+    "single_push_rope_4": {"frame_start": 33, "fit_end_frame": 58, "frame_stop": 83},
+    "single_push_sloth": {"frame_start": 22, "fit_end_frame": 47, "frame_stop": 68},
+    "weird_package": {"frame_start": 2, "fit_end_frame": 27, "frame_stop": 39}
+  }
+}

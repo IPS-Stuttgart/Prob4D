@@ -113,7 +113,12 @@ def main(argv: list[str] | None = None) -> int:
                     str(case_directory),
                     str(state_output),
                     "--product",
-                    str(input_contract["prediction_product"]),
+                    str(
+                        input_contract.get(
+                            "state_prediction_product",
+                            input_contract.get("prediction_product", "latent_linear"),
+                        )
+                    ),
                     *common_arguments,
                 ],
                 run_directory.with_suffix(".state.log"),
@@ -131,7 +136,12 @@ def main(argv: list[str] | None = None) -> int:
                     str(case_directory),
                     str(experiment_output),
                     "--product",
-                    str(input_contract["prediction_product"]),
+                    str(
+                        input_contract.get(
+                            "flow_prediction_product",
+                            input_contract.get("prediction_product", "latent_linear"),
+                        )
+                    ),
                     *common_arguments,
                 ],
                 run_directory.with_suffix(".experiment.log"),
