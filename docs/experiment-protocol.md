@@ -141,3 +141,18 @@ which deliberately retains systematic simulator bias. Gaussian products are
 reported beside the ensemble mean, raw and corrected physics, fixed fusion,
 and scalar inverse-MSE fusion. Coverage is sparse-track coverage, not a claim
 of calibrated dense per-pixel uncertainty.
+
+### Endpoint state update and occlusion forecast
+
+The state-space diagnostic takes MotionCrafter's metric-aligned 3D positions
+at the final preboundary frame, associates each observed track with the nearest
+PhysTwin surface node, preserves the observed endpoint offset, and follows the
+node under the known future action. It receives no future RGB, depth, or visual
+flow. Per-frame MotionCrafter geometry and endpoint persistence are baselines.
+
+Visible-track errors are paired by frame and track. A circular moving-block
+bootstrap over frames uses five-frame blocks and 10,000 replicates. The
+all-finite-track evaluation additionally includes camera-missing observations.
+Manual track identities provide the sparse pixel association; manual 3D values
+are used only for evaluation. Bias-corrected and truth-initialized forecasts
+are explicitly label-dependent controls and cannot support the main claim.

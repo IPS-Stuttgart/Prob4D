@@ -161,6 +161,18 @@ prob4d-phystwin-uncertainty /path/to/double_stretch_sloth output.json \
   --corrected-trajectory /path/to/bayesian_anchor/trajectory.pkl
 ```
 
+To test the state-space direction directly, initialize once from the final
+preboundary MotionCrafter point map and roll PhysTwin forward without future
+visual updates:
+
+```bash
+prob4d-phystwin-state outputs/camera0/predictions.json \
+  /path/to/double_stretch_sloth state_forecast.json \
+  --fit-end-frame 134 \
+  --physics-trajectory /path/to/released/inference.pkl \
+  --corrected-trajectory /path/to/bayesian_anchor/trajectory.pkl
+```
+
 ## Repository Boundary
 
 This repository owns code, tests, and run definitions. Videos, model weights,
