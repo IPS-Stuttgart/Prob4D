@@ -6,6 +6,7 @@ import numpy as np
 
 from prob4d.data import PredictionWindow
 from prob4d.phystwin_experiment import (
+    ErrorSummary,
     ManualFlowSamples,
     fit_metric_gauge,
     flow_method_metrics,
@@ -63,6 +64,15 @@ def test_training_calibrated_flow_fusion_uses_only_fit_errors() -> None:
         result["test"]["calibrated_visual_physics"]["flow_epe"]["mean_m"]
         < result["test"]["visual"]["flow_epe"]["mean_m"]
     )
+
+
+def test_error_summary_drops_nonfinite_annotation_rows() -> None:
+    summary = ErrorSummary.from_vectors(
+        np.array([[0.01, 0.0, 0.0], [np.nan, 0.0, 0.0]])
+    )
+
+    assert summary.count == 1
+    assert summary.mean_m == 0.01
 
 
 def test_load_physics_trajectory_keeps_surface_contract(tmp_path: Path) -> None:

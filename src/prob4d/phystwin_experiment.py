@@ -41,8 +41,11 @@ class ErrorSummary:
     @classmethod
     def from_vectors(cls, errors: FloatArray) -> ErrorSummary:
         values = np.asarray(errors, dtype=np.float64)
-        if values.ndim != 2 or values.shape[1] != 3 or values.shape[0] == 0:
+        if values.ndim != 2 or values.shape[1] != 3:
             raise ValueError("error vectors must have non-empty shape (N, 3)")
+        values = values[np.all(np.isfinite(values), axis=1)]
+        if values.shape[0] == 0:
+            raise ValueError("error vectors contain no finite rows")
         norms = np.linalg.norm(values, axis=1)
         return cls(
             count=int(values.shape[0]),
@@ -212,10 +215,18 @@ def load_manual_flow_samples(
             valid_mask=prediction.deform_mask[prediction_index],
         )
 
-        rows = np.rint(source_pixels[:, 1]).astype(np.int64)
-        columns = np.rint(source_pixels[:, 0]).astype(np.int64)
+        finite_tracks = (
+            np.all(np.isfinite(current_truth), axis=1)
+            & np.all(np.isfinite(next_truth), axis=1)
+            & np.all(np.isfinite(source_pixels), axis=1)
+            & np.isfinite(camera_depth)
+        )
+        safe_pixels = np.where(np.isfinite(source_pixels), source_pixels, 0.0)
+        rows = np.rint(safe_pixels[:, 1]).astype(np.int64)
+        columns = np.rint(safe_pixels[:, 0]).astype(np.int64)
         in_source = (
-            (rows >= 0)
+            finite_tracks
+            & (rows >= 0)
             & (rows < case.source_height)
             & (columns >= 0)
             & (columns < case.source_width)

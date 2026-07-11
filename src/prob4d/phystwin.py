@@ -306,10 +306,13 @@ def sample_vector_field_nearest(
         raise ValueError("field must have shape (H, W, 3)")
     if coordinates.ndim != 2 or coordinates.shape[1] != 2:
         raise ValueError("coordinates must have shape (N, 2)")
-    rows = np.rint(coordinates[:, 1]).astype(np.int64)
-    columns = np.rint(coordinates[:, 0]).astype(np.int64)
+    finite = np.all(np.isfinite(coordinates), axis=1)
+    safe_coordinates = np.where(np.isfinite(coordinates), coordinates, 0.0)
+    rows = np.rint(safe_coordinates[:, 1]).astype(np.int64)
+    columns = np.rint(safe_coordinates[:, 0]).astype(np.int64)
     active = (
-        (rows >= 0)
+        finite
+        & (rows >= 0)
         & (rows < values.shape[0])
         & (columns >= 0)
         & (columns < values.shape[1])

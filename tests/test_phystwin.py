@@ -83,11 +83,11 @@ def test_nearest_field_sampling_reports_out_of_bounds() -> None:
 
     sampled, active = sample_vector_field_nearest(
         field,
-        np.array([[1.1, 0.2], [-2.0, 0.0], [2.0, 1.0]]),
+        np.array([[1.1, 0.2], [-2.0, 0.0], [2.0, 1.0], [np.nan, 0.0]]),
     )
 
     np.testing.assert_allclose(sampled[[0, 2]], [[1.0, 0.0, 1.0], [2.0, 1.0, 1.0]])
-    np.testing.assert_array_equal(active, [True, False, True])
+    np.testing.assert_array_equal(active, [True, False, True, False])
 
 
 def test_point_set_metrics_are_symmetric_and_metric() -> None:
