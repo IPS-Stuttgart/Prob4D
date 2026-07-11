@@ -149,6 +149,8 @@ at the final preboundary frame, associates each observed track with the nearest
 PhysTwin surface node, preserves the observed endpoint offset, and follows the
 node under the known future action. It receives no future RGB, depth, or visual
 flow. Per-frame MotionCrafter geometry and endpoint persistence are baselines.
+For a causal endpoint, the disjoint window ends at the boundary; latent overlap
+is not admissible because a blended window can contain future RGB.
 
 Visible-track errors are paired by frame and track. A circular moving-block
 bootstrap over frames uses five-frame blocks and 10,000 replicates. The

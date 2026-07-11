@@ -457,7 +457,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("prediction_manifest", type=Path)
     parser.add_argument("case_directory", type=Path)
     parser.add_argument("output", type=Path)
-    parser.add_argument("--product", choices=("disjoint", "latent_linear"), default="latent_linear")
+    parser.add_argument("--product", choices=("disjoint", "latent_linear"), default="disjoint")
     parser.add_argument("--input-camera", type=int, default=0)
     parser.add_argument("--fit-end-frame", type=int, required=True)
     parser.add_argument("--manual-tracks", type=Path)

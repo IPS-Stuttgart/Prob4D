@@ -168,10 +168,16 @@ visual updates:
 ```bash
 prob4d-phystwin-state outputs/camera0/predictions.json \
   /path/to/double_stretch_sloth state_forecast.json \
+  --product disjoint \
   --fit-end-frame 134 \
   --physics-trajectory /path/to/released/inference.pkl \
   --corrected-trajectory /path/to/bayesian_anchor/trajectory.pkl
 ```
+
+For a causal endpoint claim, the selected interval must begin exactly one
+window before `--fit-end-frame`; the disjoint product's first window then
+contains only preboundary RGB. Latent overlap is a reconstruction control and
+can blend post-boundary frames into the endpoint estimate.
 
 ## Repository Boundary
 
