@@ -100,6 +100,20 @@ def paired_frame_block_bootstrap(
         "method_minus_baseline_mean_m": observed,
         "interval_95_m": np.quantile(bootstrap, (0.025, 0.975)).tolist(),
         "probability_method_better": float(np.mean(bootstrap < 0.0)),
+        "paired_frame_rows": [
+            {
+                "frame": int(frame),
+                "difference_sum_m": float(total),
+                "count": int(count),
+                "mean_difference_m": float(total / count),
+            }
+            for frame, total, count in zip(
+                unique_frames,
+                frame_sums,
+                frame_counts,
+                strict=True,
+            )
+        ],
     }
 
 

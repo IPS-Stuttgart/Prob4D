@@ -39,3 +39,5 @@ def test_paired_block_bootstrap_detects_uniform_improvement() -> None:
     assert np.isclose(result["method_minus_baseline_mean_m"], -0.01)
     np.testing.assert_allclose(result["interval_95_m"], [-0.01, -0.01])
     assert result["probability_method_better"] == 1.0
+    assert len(result["paired_frame_rows"]) == 6
+    assert result["paired_frame_rows"][0]["count"] == 2
