@@ -18,6 +18,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--results-dir", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--gauge-calibration", type=Path, required=True)
+    parser.add_argument(
+        "--anchor-prediction-dir",
+        type=Path,
+        help="Use matching external world-point NPZ files instead of simulated GT anchors.",
+    )
     parser.add_argument("--split", choices=("test", "all"), default="test")
     parser.add_argument("--max-depth", type=float, default=70.0)
     parser.add_argument("--workers", type=int, default=4)
@@ -35,8 +40,8 @@ def main() -> int:
         raise ValueError("workers must be positive")
     if args.initialization_points < 4 or args.anchors_per_window < 4:
         raise ValueError("initialization and per-window anchor counts must be at least four")
-    if args.measurement_std <= 0:
-        raise ValueError("measurement-std must be positive")
+    if args.measurement_std < 0:
+        raise ValueError("measurement-std must be nonnegative")
     all_inputs = discover_inputs(args.dataset_dir, args.results_dir)
     if args.split == "test":
         _, inputs = held_out_split(all_inputs)
@@ -52,31 +57,34 @@ def main() -> int:
         output.parent.mkdir(parents=True, exist_ok=True)
         if args.skip_existing and output.exists() and output.with_suffix(".anchors.json").exists():
             return item.sequence, output
-        subprocess.run(
-            [
-                sys.executable,
-                str(exporter),
-                "--manifest",
-                str(item.prediction_manifest),
-                "--ground-truth",
-                str(item.ground_truth_hdf5),
-                "--output",
-                str(output),
-                "--gauge-calibration",
-                str(args.gauge_calibration),
-                "--max-depth",
-                str(args.max_depth),
-                "--initialization-points",
-                str(args.initialization_points),
-                "--anchors-per-window",
-                str(args.anchors_per_window),
-                "--measurement-std",
-                str(args.measurement_std),
-                "--seed",
-                str(args.seed + index),
-            ],
-            check=True,
-        )
+        command = [
+            sys.executable,
+            str(exporter),
+            "--manifest",
+            str(item.prediction_manifest),
+            "--output",
+            str(output),
+            "--gauge-calibration",
+            str(args.gauge_calibration),
+            "--max-depth",
+            str(args.max_depth),
+            "--initialization-points",
+            str(args.initialization_points),
+            "--anchors-per-window",
+            str(args.anchors_per_window),
+            "--measurement-std",
+            str(args.measurement_std),
+            "--seed",
+            str(args.seed + index),
+        ]
+        if args.anchor_prediction_dir is None:
+            command.extend(["--ground-truth", str(item.ground_truth_hdf5)])
+        else:
+            anchor_prediction = args.anchor_prediction_dir / item.sequence / f"{stem}.npz"
+            if not anchor_prediction.exists():
+                raise FileNotFoundError(anchor_prediction)
+            command.extend(["--anchor-prediction", str(anchor_prediction)])
+        subprocess.run(command, check=True)
         return item.sequence, output
 
     with ThreadPoolExecutor(max_workers=args.workers) as executor:

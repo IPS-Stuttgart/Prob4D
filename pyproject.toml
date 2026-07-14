@@ -26,6 +26,7 @@ prob4d-phystwin = "prob4d.phystwin_experiment:main"
 prob4d-phystwin-state = "prob4d.phystwin_state:main"
 prob4d-phystwin-uncertainty = "prob4d.phystwin_uncertainty:main"
 prob4d-sintel-uncertainty = "prob4d.sintel_uncertainty:main"
+prob4d-vggt-baseline = "prob4d.vggt_baseline:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

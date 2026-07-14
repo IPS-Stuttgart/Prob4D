@@ -179,6 +179,32 @@ window before `--fit-end-frame`; the disjoint product's first window then
 contains only preboundary RGB. Latent overlap is a reconstruction control and
 can blend post-boundary frames into the endpoint estimate.
 
+## Matched VGGT Comparison
+
+Export both official VGGT point constructions for the same dataset list. The
+VGGT dependency and checkpoint remain external to this lightweight package:
+
+```bash
+prob4d-vggt-baseline \
+  --dataset-root /path/to/processed/Sintel_video \
+  --vggt-root /path/to/facebookresearch/vggt \
+  --output-root outputs/vggt \
+  --resume
+```
+
+For an exploratory model-combination ablation, align VGGT to the Prob4D gauge
+using prediction-only correspondences and export a fixed blend grid:
+
+```bash
+python scripts/export_vggt_prob4d_blends.py \
+  --prob4d-results-dir /path/to/prob4d/results \
+  --vggt-prediction-dir outputs/vggt/depth_unprojected \
+  --output-dir outputs/vggt-prob4d-blends
+```
+
+Blend weights are hyperparameters and require a scene-family-held-out
+selection protocol. They are not uncertainty-calibrated fusion weights.
+
 ## Repository Boundary
 
 This repository owns code, tests, and run definitions. Videos, model weights,
