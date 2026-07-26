@@ -8,8 +8,11 @@ from .observation_contract import (
     save_observation_belief_export,
 )
 from .observation_export import (
+    JointGaugePosterior,
     MetricGaugeAnchor,
     build_prob4d_observation_belief,
+    deterministic_covariance_root,
+    estimate_joint_gauge_tree,
     load_metric_gauge_anchor,
     save_metric_gauge_anchor,
 )
@@ -27,6 +30,7 @@ from .sim3 import Sim3
 __all__ = [
     "OBSERVATION_BELIEF_SCHEMA",
     "OBSERVATION_BELIEF_VERSION",
+    "JointGaugePosterior",
     "LinearizedObservationFactor",
     "MetricGaugeAnchor",
     "ObservationBeliefExportV1",
@@ -36,6 +40,8 @@ __all__ = [
     "Sim3",
     "StackedObservationFactors",
     "build_prob4d_observation_belief",
+    "deterministic_covariance_root",
+    "estimate_joint_gauge_tree",
     "load_metric_gauge_anchor",
     "load_observation_factor_bundle",
     "save_metric_gauge_anchor",
@@ -43,4 +49,4 @@ __all__ = [
     "stack_observation_factors",
     "write_observation_factor_bundle",
 ]
-__version__ = "0.1.0"
+__version__ = "0.2.0"
