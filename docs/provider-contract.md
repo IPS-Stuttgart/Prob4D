@@ -37,13 +37,21 @@ can:
 - produce a content-addressed `ObservationBeliefV1` artifact and append-invariant
   causal-source digest;
 - keep local conditional point covariance separate from shared gauge factors;
-- propagate the fixed metric-anchor uncertainty and selected relative-gauge
-  constraints into one joint cross-window `Sim(3)` covariance;
+- propagate the metric-anchor prior and selected relative-gauge constraints into
+  one joint cross-window `Sim(3)` covariance;
 - export one shared low-rank latent factor whose window blocks preserve that
   covariance, with trace-audited rank reduction;
 - retain association probability separately from residual-independent prior
   reliability; and
-- bind metric coordinates to an independently checksummed fixed `Sim(3)` anchor.
+- bind metric coordinates to a content-addressed anchor that identifies the
+  exact first prediction payload, exact external calibration artifact, case, and
+  world frame.
+
+A zero anchor covariance is declared as `fixed_external_calibration`. A nonzero
+anchor covariance is declared as `propagated_external_prior` and is included in
+the same joint latent factor as the relative-gauge uncertainty. The producer and
+both consumers reject an explicit v2 artifact when this treatment, calibration
+digest, or inclusion flag is absent or inconsistent.
 
 The production default is a causal sequential spanning tree. It preserves the
 uncertainty of the selected causal constraints without pretending that redundant
@@ -56,17 +64,20 @@ Prob4D 0.2.0 artifacts that already contain canonical
 `joint_gauge_latent_####` factors but predate the explicit version field can be
 recognized by updated Bayesian-PhysTwin and Causal4D validators. Their validation
 report marks the version as inferred. Newly exported production artifacts carry
-the version, complete metric-anchor schema, and covariance treatment explicitly.
+the version, complete metric-anchor schema, calibration digest, and covariance
+treatment explicitly.
 
 The manifest does **not** claim that exported covariance has passed prospective
 target calibration, that redundant dense-edge fusion is validated, or that a
 valid observation artifact by itself improves a Bayesian physical twin.
 
 Use `prob4d-validate-observation` to reject schema drift, array drift, malformed
-archives, and content-address mismatches. `PredictionWindow` inputs are copied
-and frozen after validation so caller-side mutation cannot alter a sealed source
-object. The richer `ObservationFactorBundle` schema v3 remains available when
-the consumer estimates gauge nuisance variables explicitly.
+archives, and content-address mismatches. Strict causal export writes through a
+temporary archive, reloads and validates its content address, then atomically
+replaces the requested output. `PredictionWindow` inputs are copied and frozen
+after validation so caller-side mutation cannot alter a sealed source object.
+The richer `ObservationFactorBundle` schema v3 remains available when the
+consumer estimates gauge nuisance variables explicitly.
 
 The grouped `prob4d` command is the preferred discoverable interface. Existing
 `prob4d-*` commands remain available so historical run manifests and frozen
