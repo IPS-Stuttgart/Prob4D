@@ -69,6 +69,10 @@ The output manifest references:
 - MotionCrafter's exact latent-space overlap blend; and
 - independently decoded overlapping windows with absolute frame indices.
 
+It also records a versioned temporal-lineage contract for MotionCrafter's
+internal sliding windows. Causal consumers can therefore determine the exact
+source-frame bounds and contributing internal windows for any output frame.
+
 Prepare a separate calibration sequence and world-coordinate truth files, then
 run the real ablation:
 
@@ -161,12 +165,20 @@ prob4d-phystwin-uncertainty /path/to/double_stretch_sloth output.json \
   --corrected-trajectory /path/to/bayesian_anchor/trajectory.pkl
 ```
 
-To test the state-space direction directly, initialize once from the final
-preboundary MotionCrafter point map and roll PhysTwin forward without future
-visual updates:
+To test the state-space direction causally, create a separate prefix-aligned
+bundle. With a 25-frame window and `--fit-end-frame 134`, the first selected
+source frame must be 109 so that the endpoint at frame 133 depends only on
+frames 109--133:
 
 ```bash
-prob4d-phystwin-state outputs/camera0/predictions.json \
+prob4d-motioncrafter /path/to/double_stretch_sloth/color/0.mp4 \
+  --upstream-root /path/to/MotionCrafter \
+  --output-dir outputs/double_stretch_sloth_camera0_causal \
+  --cache-dir /path/to/huggingface-cache \
+  --frame-start 109 --frame-stop 159
+
+prob4d-phystwin-state \
+  outputs/double_stretch_sloth_camera0_causal/predictions.json \
   /path/to/double_stretch_sloth state_forecast.json \
   --product disjoint \
   --fit-end-frame 134 \
@@ -174,10 +186,12 @@ prob4d-phystwin-state outputs/camera0/predictions.json \
   --corrected-trajectory /path/to/bayesian_anchor/trajectory.pkl
 ```
 
-For a causal endpoint claim, the selected interval must begin exactly one
-window before `--fit-end-frame`; the disjoint product's first window then
-contains only preboundary RGB. Latent overlap is a reconstruction control and
-can blend post-boundary frames into the endpoint estimate.
+`prob4d-phystwin-state` audits the endpoint before reading metric or manual-track
+evaluation data. It rejects the run whenever the endpoint's maximum source
+frame is at or after `--fit-end-frame`. The latent overlap product is normally
+a reconstruction-only control because an endpoint blended across windows can
+depend on post-boundary RGB. Older manifests can be audited from their stored
+window configuration without rerunning MotionCrafter.
 
 ## Matched VGGT Comparison
 
