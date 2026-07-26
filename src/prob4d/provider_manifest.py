@@ -10,6 +10,7 @@ from typing import Any
 
 PROB4D_PROVIDER_API_VERSION = 1
 PROB4D_PROVIDER_PACKAGE_VERSION = "0.2.0"
+PROB4D_CAUSAL_STREAM_CONTRACT_VERSION = 2
 PROB4D_PROVIDER_CAPABILITIES = (
     "append_invariant_causal_source_digest",
     "association_reliability_separation",
@@ -21,11 +22,13 @@ PROB4D_PROVIDER_CAPABILITIES = (
     "joint_cross_window_sim3_gauge_covariance",
     "strict_observation_belief_validation",
     "trace_audited_gauge_rank_reduction",
+    "versioned_causal_stream_contract",
     "versioned_python_provider_api",
 )
 PROB4D_ARTIFACT_SCHEMA_VERSIONS = {
     "ObservationBeliefV1": 1,
     "ObservationFactorBundle": 3,
+    "Prob4DCausalObservationStream": PROB4D_CAUSAL_STREAM_CONTRACT_VERSION,
 }
 PROB4D_PROVIDER_LIMITATIONS = {
     "joint_cross_window_gauge_covariance_in_observation_belief_v1": True,
@@ -91,6 +94,9 @@ def prob4d_provider_manifest(
             "source_repository": "FlorianPfaff/Prob4D",
             "python_import_boundary": "prob4d.provider_v1",
             "observation_stream": "prob4d:causal-overlap-window-points",
+            "observation_stream_contract_version": (
+                PROB4D_CAUSAL_STREAM_CONTRACT_VERSION
+            ),
             "observation_belief_covariance_semantics": (
                 "conditional local covariance plus one shared low-rank root of the "
                 "joint Sim(3) covariance induced by the fixed metric anchor and "
@@ -116,6 +122,7 @@ def prob4d_provider_manifest(
 
 __all__ = [
     "PROB4D_ARTIFACT_SCHEMA_VERSIONS",
+    "PROB4D_CAUSAL_STREAM_CONTRACT_VERSION",
     "PROB4D_PROVIDER_API_VERSION",
     "PROB4D_PROVIDER_CAPABILITIES",
     "PROB4D_PROVIDER_LIMITATIONS",
