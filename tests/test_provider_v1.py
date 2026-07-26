@@ -8,6 +8,7 @@ import prob4d.provider_v1 as provider
 def test_provider_v1_exposes_versioned_contracts() -> None:
     assert provider.PROVIDER_API_VERSION == 1
     assert provider.PROB4D_PROVIDER_API_VERSION == 1
+    assert provider.PROB4D_CAUSAL_STREAM_CONTRACT_VERSION == 2
     assert provider.OBSERVATION_BELIEF_SCHEMA == "phys4d.observation_belief"
     assert provider.OBSERVATION_BELIEF_VERSION == 1
     assert provider.OBSERVATION_FACTOR_SCHEMA_VERSION == 3
@@ -15,6 +16,7 @@ def test_provider_v1_exposes_versioned_contracts() -> None:
     manifest = provider.prob4d_provider_manifest(provider_revision="a" * 40)
     assert manifest["provider_api_version"] == provider.PROVIDER_API_VERSION
     assert "versioned_python_provider_api" in manifest["capabilities"]
+    assert "versioned_causal_stream_contract" in manifest["capabilities"]
 
 
 def test_select_causal_source_forwards_exact_boundary(monkeypatch) -> None:
@@ -45,17 +47,25 @@ def test_select_causal_source_forwards_exact_boundary(monkeypatch) -> None:
     }
 
 
-def test_export_observation_belief_forwards_stable_parameters(monkeypatch) -> None:
-    sentinel = object()
+def test_export_observation_belief_forwards_and_binds_stable_parameters(
+    monkeypatch,
+) -> None:
+    raw = object()
+    bound = object()
     anchor = object()
     model = object()
     captured = {}
 
     def fake_export(manifest_path, **kwargs):
         captured.update(manifest_path=manifest_path, **kwargs)
-        return sentinel
+        return raw
+
+    def fake_bind(artifact, *, metric_anchor):
+        captured.update(bound_artifact=artifact, bound_anchor=metric_anchor)
+        return bound
 
     monkeypatch.setattr(provider, "build_prob4d_observation_belief", fake_export)
+    monkeypatch.setattr(provider, "bind_causal_stream_contract_v2", fake_bind)
     result = provider.export_observation_belief(
         "predictions.json",
         case_id="case-a",
@@ -74,7 +84,7 @@ def test_export_observation_belief_forwards_stable_parameters(monkeypatch) -> No
         uncertainty_model=model,
     )
 
-    assert result is sentinel
+    assert result is bound
     assert captured == {
         "manifest_path": "predictions.json",
         "case_id": "case-a",
@@ -91,4 +101,33 @@ def test_export_observation_belief_forwards_stable_parameters(monkeypatch) -> No
         "view_name": "left-camera",
         "source_revision": "a" * 40,
         "uncertainty_model": model,
+        "bound_artifact": raw,
+        "bound_anchor": anchor,
     }
+
+
+def test_fixed_lag_export_is_not_labelled_as_strict_stream(monkeypatch) -> None:
+    raw = object()
+    anchor = object()
+
+    monkeypatch.setattr(
+        provider,
+        "build_prob4d_observation_belief",
+        lambda *args, **kwargs: raw,
+    )
+
+    def fail_bind(*args, **kwargs):
+        raise AssertionError("fixed-lag output must not receive stream contract v2")
+
+    monkeypatch.setattr(provider, "bind_causal_stream_contract_v2", fail_bind)
+
+    result = provider.export_observation_belief(
+        "predictions.json",
+        case_id="case-a",
+        causal_frame_stop=134,
+        metric_anchor=anchor,
+        gauge_mode="fixed_lag",
+        allow_approximate_fixed_lag_covariance=True,
+    )
+
+    assert result is raw
