@@ -175,6 +175,37 @@ def test_future_append_does_not_change_exported_artifact(
     assert first.source_artifact_sha256 == second.source_artifact_sha256
     assert first.artifact_id == second.artifact_id
     np.testing.assert_array_equal(first.mean_xyz_m, second.mean_xyz_m)
+    np.testing.assert_array_equal(
+        first.group_prior_nominal_probability,
+        np.ones_like(first.group_prior_nominal_probability),
+    )
+    assert first.metadata["joint_cross_window_gauge_covariance_represented"] is False
+    assert first.metadata["association_probability_definition"].endswith(
+        "not downstream physical-node association"
+    )
+
+
+def test_export_requires_exact_source_revision(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _window(tmp_path / "window_0000.npz", [0, 1, 2, 3])
+    _window(tmp_path / "window_0001.npz", [2, 3, 4, 5], offset=0.1)
+    manifest = _manifest(tmp_path, name="predictions.json", include_future=False)
+    monkeypatch.setattr(
+        "prob4d.observation_export._git_revision",
+        lambda: "unknown",
+    )
+
+    with pytest.raises(ValueError, match="source_revision must be an exact"):
+        build_prob4d_observation_belief(
+            manifest,
+            case_id="case-a",
+            causal_frame_stop=6,
+            metric_anchor=_anchor(),
+            pixel_stride=1,
+            gauge_mode="sequential",
+        )
 
 
 def test_selection_rejects_payload_frame_ids_that_cross_cutoff(tmp_path: Path) -> None:
@@ -218,3 +249,16 @@ def test_gauge_factor_recovers_linearized_marginal() -> None:
         jacobian[:, 4:7] = np.eye(3)
         expected.append(jacobian @ covariance @ jacobian.T)
     np.testing.assert_allclose(marginal, np.asarray(expected), atol=1e-12)
+
+
+def test_gauge_factor_rejects_indefinite_covariance() -> None:
+    covariance = np.eye(7)
+    covariance[0, 0] = -1e-3
+
+    with pytest.raises(ValueError, match="positive semidefinite"):
+        gauge_covariance_factor(
+            np.asarray([[1.0, 2.0, 3.0]]),
+            Sim3.identity(),
+            covariance,
+            include_translation=True,
+        )
