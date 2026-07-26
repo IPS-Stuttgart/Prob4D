@@ -68,7 +68,7 @@ def load_observation_belief_export(
                 raise ValueError("observation artifact has no descriptor_json")
             try:
                 descriptor = json.loads(str(archive["descriptor_json"]))
-            except (TypeError, ValueError, json.JSONDecodeError) as error:
+            except (TypeError, ValueError) as error:
                 raise ValueError(
                     "observation artifact descriptor is not valid JSON"
                 ) from error
