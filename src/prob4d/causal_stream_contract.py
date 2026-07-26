@@ -5,16 +5,15 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import replace
 
-from ._metric_gauge_anchor import (
-    METRIC_GAUGE_ANCHOR_SCHEMA,
-    METRIC_GAUGE_ANCHOR_VERSION,
-    MetricGaugeAnchor,
-)
+import numpy as np
+
+from ._metric_gauge_anchor import MetricGaugeAnchor
 from .observation_contract import ObservationBeliefExportV1
 
 PROB4D_CAUSAL_STREAM_CONTRACT_VERSION = 2
 PROB4D_CAUSAL_STREAM_ID = "prob4d:causal-overlap-window-points"
 PROB4D_SOURCE_REPOSITORY = "FlorianPfaff/Prob4D"
+PROB4D_JOINT_GAUGE_FACTOR_PREFIX = "joint_gauge_latent_"
 
 
 def _require(condition: bool, message: str) -> None:
@@ -46,12 +45,14 @@ def bind_causal_stream_contract_v2(
         "metric gauge anchor must identify the first exported window",
     )
     metadata = dict(artifact.metadata)
-    existing_version = metadata.get(
-        "prob4d_causal_stream_contract_version"
-    )
+    existing_version = metadata.get("prob4d_causal_stream_contract_version")
     _require(
         existing_version in {None, PROB4D_CAUSAL_STREAM_CONTRACT_VERSION},
         "observation artifact already declares another Prob4D stream contract",
+    )
+    _require(
+        metadata.get("coordinate_frame") == metric_anchor.coordinate_frame,
+        "metric gauge-anchor frame differs from observation frame",
     )
     _require(
         metadata.get("gauge_mode") == "sequential",
@@ -78,6 +79,27 @@ def bind_causal_stream_contract_v2(
         posterior.get("fixed_lag_boundary_covariance_is_approximate") is False,
         "stream contract v2 cannot bind approximate fixed-lag covariance",
     )
+    factor_rank = len(artifact.factor_names)
+    expected_factor_names = tuple(
+        f"{PROB4D_JOINT_GAUGE_FACTOR_PREFIX}{index:04d}"
+        for index in range(factor_rank)
+    )
+    _require(
+        factor_rank > 0 and artifact.factor_names == expected_factor_names,
+        "stream contract v2 requires canonical joint gauge factor names",
+    )
+    _require(
+        np.array_equal(
+            np.unique(artifact.factor_group_ids),
+            np.asarray([0], dtype=np.int64),
+        ),
+        "stream contract v2 requires one shared joint factor group",
+    )
+    _require(
+        posterior.get("exported_factor_rank") == factor_rank,
+        "stream contract v2 gauge rank differs from the exported factor rank",
+    )
+
     existing_anchor = metadata.get("metric_gauge_anchor")
     _require(
         isinstance(existing_anchor, Mapping),
@@ -92,30 +114,42 @@ def bind_causal_stream_contract_v2(
         == metric_anchor.source_artifact_sha256,
         "exported metric gauge-anchor source digest changed",
     )
+    lineage = metadata.get("causal_source_lineage")
+    _require(
+        isinstance(lineage, Mapping),
+        "stream contract v2 requires causal source lineage",
+    )
+    selected_windows = lineage.get("selected_windows")
+    _require(
+        isinstance(selected_windows, list) and bool(selected_windows),
+        "stream contract v2 requires selected source-window lineage",
+    )
+    first_window = selected_windows[0]
+    _require(
+        isinstance(first_window, Mapping)
+        and first_window.get("window_id") == metric_anchor.window_id
+        and first_window.get("payload_sha256")
+        == metric_anchor.source_artifact_sha256,
+        "metric gauge anchor is not bound to the first selected payload",
+    )
 
+    anchor_metadata = metric_anchor.contract_metadata(case_id=artifact.case_id)
     metadata["prob4d_causal_stream_contract_version"] = (
         PROB4D_CAUSAL_STREAM_CONTRACT_VERSION
     )
-    metadata["metric_gauge_anchor"] = {
-        "schema_name": METRIC_GAUGE_ANCHOR_SCHEMA,
-        "schema_version": METRIC_GAUGE_ANCHOR_VERSION,
-        "artifact_id": metric_anchor.artifact_id,
-        "window_id": metric_anchor.window_id,
-        "coordinate_frame": metric_anchor.coordinate_frame,
-        "metric_units": "m",
-        "source_kind": metric_anchor.source_kind,
-        "source_artifact_sha256": metric_anchor.source_artifact_sha256,
-        "covariance_treatment": "fixed_external_calibration",
-        "metadata": dict(metric_anchor.metadata),
-    }
+    metadata["metric_gauge_anchor"] = anchor_metadata
+    metadata["metric_anchor_covariance_in_joint_factor"] = True
     metadata["prob4d_causal_stream_contract"] = {
         "version": PROB4D_CAUSAL_STREAM_CONTRACT_VERSION,
         "gauge_covariance_semantics": (
             "one shared low-rank root of the joint cross-window Sim(3) "
-            "covariance induced by the fixed metric anchor and selected "
-            "causal gauge tree"
+            "covariance induced by the metric-anchor prior and selected causal "
+            "gauge tree"
         ),
         "factor_group_semantics": "one shared latent vector across all windows",
+        "metric_anchor_covariance_treatment": anchor_metadata[
+            "covariance_treatment"
+        ],
         "causal_frame_stop_convention": "exclusive",
     }
     return replace(artifact, metadata=metadata)
@@ -124,6 +158,7 @@ def bind_causal_stream_contract_v2(
 __all__ = [
     "PROB4D_CAUSAL_STREAM_CONTRACT_VERSION",
     "PROB4D_CAUSAL_STREAM_ID",
+    "PROB4D_JOINT_GAUGE_FACTOR_PREFIX",
     "PROB4D_SOURCE_REPOSITORY",
     "bind_causal_stream_contract_v2",
 ]
