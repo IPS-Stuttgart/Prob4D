@@ -10,9 +10,18 @@ G_k = (s_k, R_k, t_k) in Sim(3).
 
 For each pair of overlapping windows, Prob4D collects decoded points for the
 same absolute frame and pixel. Robust weighted Umeyama iterations estimate the
-relative transform and a seven-parameter covariance approximation. Sequential
-initialization propagates transform uncertainty through composition and uses
-covariance intersection when several previous windows constrain a new one.
+relative transform. The dense-overlap covariance uses a cluster-robust sandwich
+estimator with frame-by-spatial-tile clusters (32 x 32 pixels by default), so
+pixels produced by the same model window and local image region are not counted
+as independent evidence. Tiny synthetic grids fall back to pointwise clusters,
+while direct sparse registrations keep the IID Gauss--Newton covariance unless
+cluster IDs are supplied explicitly. Rank-deficient seven-parameter geometry is
+rejected instead of receiving spuriously small pseudoinverse variance.
+
+Sequential initialization propagates transform uncertainty through composition
+and uses covariance intersection when several previous windows constrain a new
+one. Gauge-covariance calibration artifacts are tied to the covariance model
+that produced them and must be regenerated after changing that model.
 
 The fixed-lag smoother minimizes whitened nonlinear relative-gauge residuals.
 It supports full gauge priors, log-scale observations, and associated sparse 3D
