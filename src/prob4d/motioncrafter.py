@@ -18,6 +18,7 @@ from typing import Any
 import numpy as np
 
 from .data import PredictionWindow
+from .lineage import motioncrafter_temporal_lineage_manifest
 
 
 @dataclass(frozen=True)
@@ -287,6 +288,10 @@ class MotionCrafterAdapter:
                 key: str(value) if isinstance(value, Path) else value
                 for key, value in asdict(config).items()
             },
+            "temporal_lineage": motioncrafter_temporal_lineage_manifest(
+                window_size=config.window_size,
+                overlap=config.overlap,
+            ),
             "overlap_windows": manifest_windows,
             "disjoint_baseline": disjoint_path.name,
             "latent_linear_baseline": latent_path.name,
