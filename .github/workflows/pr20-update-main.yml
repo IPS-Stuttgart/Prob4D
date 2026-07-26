@@ -1,9 +1,9 @@
 name: PR 20 update from main
 
 on:
-  pull_request:
+  push:
     branches:
-      - main
+      - agent/content-addressed-covariance-calibration
 
 permissions:
   contents: write
@@ -15,12 +15,26 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.head_ref }}
+          ref: agent/content-addressed-covariance-calibration
           fetch-depth: 0
-      - name: Merge current main
+      - name: Merge current main or record conflicts
+        shell: bash
         run: |
+          set -u
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch origin main
-          git merge --no-edit origin/main
-          git push origin HEAD:${{ github.head_ref }}
+          if git merge --no-edit origin/main; then
+            git push origin HEAD:agent/content-addressed-covariance-calibration
+            exit 0
+          fi
+          git status --short > /tmp/merge-conflicts.txt
+          git merge --abort
+          {
+            echo "Merge of origin/main failed. Conflicting paths were:"
+            cat /tmp/merge-conflicts.txt
+          } > PR20_MERGE_CONFLICTS.txt
+          git add PR20_MERGE_CONFLICTS.txt
+          git commit -m "Record PR 20 merge conflicts"
+          git push origin HEAD:agent/content-addressed-covariance-calibration
+          exit 1
