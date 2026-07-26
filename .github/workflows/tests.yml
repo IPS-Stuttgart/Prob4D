@@ -33,7 +33,20 @@ jobs:
       - name: Install development tools
         run: python -m pip install -e ".[dev]"
       - name: Run Ruff
-        run: python -m ruff check src tests
+        id: ruff
+        continue-on-error: true
+        run: python -m ruff check src tests 2>&1 | tee ruff-output.txt
+      - name: Upload Ruff diagnostics
+        if: steps.ruff.outcome == 'failure'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ruff-diagnostics
+          path: ruff-output.txt
+          if-no-files-found: error
+          retention-days: 14
+      - name: Fail on Ruff diagnostics
+        if: steps.ruff.outcome == 'failure'
+        run: exit 1
       - name: Type-check stable provider interfaces
         run: >-
           python -m mypy
@@ -148,6 +161,7 @@ jobs:
           test -n "$artifact"
           "$python_bin" -m pip install "$artifact"
           "$python_bin" -m pip check
+          "$python_bin" -c "import prob4d; print(prob4d.__version__)"
       - name: Exercise grouped and legacy command help
         shell: bash
         run: |
@@ -165,4 +179,5 @@ jobs:
           "$bin/prob4d-phystwin-state" --help
           "$bin/prob4d-phystwin-uncertainty" --help
           "$bin/prob4d-sintel-uncertainty" --help
+          "$bin/prob4d-validate-observation" --help
           "$bin/prob4d-vggt-baseline" --help

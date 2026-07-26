@@ -4,7 +4,7 @@
 Bayesian estimator may rely on without importing Prob4D implementation modules.
 The manifest records the installed package version, an optional exact Git
 revision, supported artifact schema versions, positive capabilities, and
-explicit limitations.
+explicit nonclaims.
 
 ```bash
 prob4d provider manifest \
@@ -19,23 +19,30 @@ The version-1 contract declares that Prob4D can:
 - produce a content-addressed `ObservationBeliefV1` artifact and append-invariant
   causal-source digest;
 - keep local conditional point covariance separate from shared gauge factors;
+- propagate the fixed metric-anchor uncertainty and selected relative-gauge
+  constraints into one joint cross-window `Sim(3)` covariance;
+- export one shared low-rank latent factor whose window blocks preserve that
+  covariance, with trace-audited rank reduction;
 - retain association probability separately from residual-independent prior
   reliability; and
 - bind metric coordinates to an independently checksummed fixed `Sim(3)` anchor.
 
-The manifest also states what the compact artifact does **not** establish:
+The production default is a causal sequential spanning tree. It preserves the
+uncertainty of the selected causal constraints without pretending that redundant
+dense alignment edges are independent. The legacy fixed-lag covariance path is
+available only as an explicitly acknowledged reconstruction control because its
+current boundary treatment fixes marginalized gauges at posterior means.
 
-- `ObservationBeliefV1` carries per-window marginal `Sim(3)` gauge factors, not
-  the full joint cross-window gauge covariance;
-- exported covariance has not thereby passed prospective target calibration;
-- a valid observation artifact does not itself demonstrate improvement of a
-  Bayesian physical twin.
+The manifest does **not** claim that exported covariance has passed prospective
+target calibration, that redundant dense-edge fusion is validated, or that a
+valid observation artifact by itself improves a Bayesian physical twin.
 
-The richer `ObservationFactorBundle` schema v3 remains available when the
-consumer estimates gauge nuisance variables explicitly. Downstream projects
-must still validate the serialized artifact and source lineage independently.
-The provider manifest describes compatibility; exact Git revisions remain
-mandatory for frozen experiments.
+Use `prob4d-validate-observation` to reject schema drift, array drift, malformed
+archives, and content-address mismatches. The richer `ObservationFactorBundle`
+schema v3 remains available when the consumer estimates gauge nuisance variables
+explicitly. Downstream projects must still validate serialized artifacts and
+source lineage independently. The provider manifest describes compatibility;
+exact Git revisions remain mandatory for frozen experiments.
 
 The grouped `prob4d` command is the preferred discoverable interface. Existing
 `prob4d-*` commands remain available so historical run manifests and frozen

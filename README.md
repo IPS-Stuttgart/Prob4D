@@ -7,7 +7,9 @@ windows.
 Prob4D treats every window's global gauge as an uncertain `Sim(3)` state. It
 uses duplicate predictions for the same frame and pixel to estimate relative
 gauges, calibrates a compact along-ray/lateral uncertainty model, and fuses
-shared-backbone estimates using covariance intersection.
+shared-backbone estimates using covariance intersection. For Bayesian-PhysTwin,
+it also exports causally sealed metric observations with explicit covariance,
+reliability, dependence, and source-lineage semantics.
 
 ## Ablation
 
@@ -31,7 +33,7 @@ Install the lightweight NumPy estimator:
 
 ```bash
 python -m pip install -e ".[dev]"
-pytest
+python -m pytest
 ruff check src tests
 ```
 
@@ -86,6 +88,9 @@ prob4d-export-observation-belief \
   --causal-frame-stop 134 \
   --metric-gauge-anchor outputs/sequence_name/metric_gauge_anchor.json \
   --summary-json outputs/sequence_name/observation_belief_summary.json
+
+prob4d-validate-observation \
+  outputs/sequence_name/observation_belief.npz
 ```
 
 The exporter opens only independently decoded windows wholly before the
@@ -93,8 +98,16 @@ exclusive cutoff. It recomputes alignment, gauge estimation, overlap
 disagreement, uncertainty, and residual-independent reliability on that prefix.
 Appending post-cutoff windows therefore cannot change the exported artifact ID.
 Association probability remains separate from prior reliability, and gauge
-uncertainty is represented as shared low-rank factors rather than counted again
-inside each local covariance. See [the causal observation export contract](docs/observation-belief-export.md).
+uncertainty is represented as a shared low-rank factor rather than counted again
+inside each local covariance.
+
+The production default is a causal sequential spanning tree with the **full
+joint cross-window gauge covariance** propagated from the metric anchor. A rank
+cap is accepted only when the retained covariance-trace fraction satisfies the
+explicit threshold. The legacy fixed-lag covariance is available solely as an
+opt-in reconstruction ablation because its current boundary treatment fixes
+marginalized gauges at their posterior means. See [the causal observation export
+contract](docs/observation-belief-export.md).
 
 Prepare a separate calibration sequence and world-coordinate truth files, then
 run the real ablation:
@@ -244,16 +257,21 @@ selection protocol. They are not uncertainty-calibrated fusion weights.
 
 ## Repository Boundary
 
-This repository owns code, tests, and run definitions. Videos, model weights,
-decoded predictions, and generated results are gitignored. Paper-facing result
-tables and figures belong in `FlorianPfaff/2026-07-Prob4D-Paper`, together with
-the run manifest and exact Prob4D/MotionCrafter commit identifiers.
+This repository owns code, tests, run definitions, and portable observation
+contracts. Videos, model weights, decoded predictions, and generated results are
+gitignored. Paper-facing result tables, figures, frozen run manifests, and exact
+Prob4D/MotionCrafter commit identifiers belong in
+`FlorianPfaff/2026-07-Causal4D-BPT-Paper`.
 
 ## Development
 
 The core package intentionally depends only on NumPy. Torch, Diffusers, Decord,
 and model-loading dependencies are imported lazily by `prob4d-motioncrafter`.
 The tested GPU environment is pinned separately under `environments/`.
+
+Continuous integration tests Python 3.10, 3.12, and 3.14, builds the source and
+wheel distributions, validates package metadata, installs the wheel in an
+isolated environment, and smoke-tests every installed command.
 
 The implementation has been exercised at full `25 x 320 x 640` window size on
 an RTX 6000 Ada host. Frame-level covariance intersection is the production

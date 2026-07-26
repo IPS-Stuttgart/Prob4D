@@ -6,15 +6,21 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from prob4d.gauge import GaugeEstimate
+from prob4d.alignment import AlignmentResult, WindowAlignment
+from prob4d.data import PredictionWindow
 from prob4d.observation_export import (
+    JointGaugePosterior,
     MetricGaugeAnchor,
     build_prob4d_observation_belief,
+    deterministic_covariance_root,
+    estimate_joint_gauge_tree,
     gauge_covariance_factor,
+    joint_gauge_factor,
     load_metric_gauge_anchor,
     save_metric_gauge_anchor,
     select_causal_overlap_windows,
 )
+from prob4d.observation_factors import sim3_point_jacobian
 from prob4d.sim3 import Sim3
 
 
@@ -107,6 +113,20 @@ def _manifest(
     return path
 
 
+def _fake_joint_posterior(windows, *, metric_anchor, **kwargs):
+    del kwargs
+    window_ids = tuple(window.window_id for window in windows)
+    covariance = np.kron(np.ones((len(windows), len(windows))), metric_anchor.covariance)
+    return [], JointGaugePosterior(
+        window_ids=window_ids,
+        estimates={window_id: metric_anchor.global_from_local for window_id in window_ids},
+        joint_covariance=covariance,
+        mode="test_joint_covariance",
+        cross_window_covariance_preserved=True,
+        parent_window_ids=(None,) + window_ids[:-1],
+    )
+
+
 def test_metric_anchor_round_trip(tmp_path: Path) -> None:
     path = tmp_path / "anchor.json"
     save_metric_gauge_anchor(path, _anchor())
@@ -143,22 +163,9 @@ def test_future_append_does_not_change_exported_artifact(
     prefix = _manifest(tmp_path, name="prefix.json", include_future=False)
     appended = _manifest(tmp_path, name="appended.json", include_future=True)
 
-    def fake_gauge_estimates(
-        windows, *, gauge_mode, fixed_lag, metric_anchor
-    ):
-        del gauge_mode, fixed_lag
-        return [], {
-            window.window_id: GaugeEstimate(
-                window.window_id,
-                metric_anchor.global_from_local,
-                metric_anchor.covariance,
-            )
-            for window in windows
-        }
-
     monkeypatch.setattr(
-        "prob4d.observation_export._gauge_estimates",
-        fake_gauge_estimates,
+        "prob4d.observation_export._gauge_posterior",
+        _fake_joint_posterior,
     )
 
     common = dict(
@@ -166,8 +173,8 @@ def test_future_append_does_not_change_exported_artifact(
         causal_frame_stop=6,
         metric_anchor=_anchor(),
         pixel_stride=1,
-        gauge_mode="sequential",
         source_revision="c" * 40,
+        max_gauge_rank=None,
     )
     first = build_prob4d_observation_belief(prefix, **common)
     second = build_prob4d_observation_belief(appended, **common)
@@ -179,10 +186,11 @@ def test_future_append_does_not_change_exported_artifact(
         first.group_prior_nominal_probability,
         np.ones_like(first.group_prior_nominal_probability),
     )
-    assert first.metadata["joint_cross_window_gauge_covariance_represented"] is False
+    assert first.metadata["joint_cross_window_gauge_covariance_represented"] is True
     assert first.metadata["association_probability_definition"].endswith(
         "not downstream physical-node association"
     )
+    assert np.all(first.factor_group_ids == 0)
 
 
 def test_export_requires_exact_source_revision(
@@ -204,7 +212,6 @@ def test_export_requires_exact_source_revision(
             causal_frame_stop=6,
             metric_anchor=_anchor(),
             pixel_stride=1,
-            gauge_mode="sequential",
         )
 
 
@@ -261,4 +268,104 @@ def test_gauge_factor_rejects_indefinite_covariance() -> None:
             Sim3.identity(),
             covariance,
             include_translation=True,
+        )
+
+
+def test_joint_tree_preserves_anchor_uncertainty_and_cross_covariance() -> None:
+    points = np.ones((1, 1, 1, 3))
+    windows = [
+        PredictionWindow(
+            window_id="w0",
+            frame_indices=np.asarray([0]),
+            point_map=points,
+            valid_mask=np.ones((1, 1, 1), dtype=bool),
+        ),
+        PredictionWindow(
+            window_id="w1",
+            frame_indices=np.asarray([1]),
+            point_map=points,
+            valid_mask=np.ones((1, 1, 1), dtype=bool),
+        ),
+    ]
+    anchor_covariance = np.diag([0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70])
+    relative_covariance = np.eye(7) * 1e-6
+    alignment = WindowAlignment(
+        reference_id="w0",
+        moving_id="w1",
+        common_frames=np.asarray([0]),
+        result=AlignmentResult(
+            transform=Sim3.identity(),
+            covariance=relative_covariance,
+            residual_rms=0.0,
+            inlier_fraction=1.0,
+            num_correspondences=100,
+        ),
+    )
+
+    posterior = estimate_joint_gauge_tree(
+        windows,
+        [alignment],
+        initial_transform=Sim3.identity(),
+        initial_covariance=anchor_covariance,
+    )
+
+    np.testing.assert_allclose(
+        posterior.joint_covariance[:7, 7:],
+        anchor_covariance,
+        atol=2e-6,
+    )
+    assert np.all(
+        np.diag(posterior.joint_covariance[7:, 7:])
+        >= np.diag(anchor_covariance) - 1e-6
+    )
+    assert posterior.cross_window_covariance_preserved is True
+
+
+def test_joint_gauge_factor_preserves_cross_window_covariance() -> None:
+    generator = np.random.default_rng(7)
+    basis = generator.normal(size=(14, 5))
+    covariance = basis @ basis.T
+    root, retained = deterministic_covariance_root(covariance, max_rank=None)
+    first_point = np.asarray([[1.0, 0.2, 0.3]])
+    second_point = np.asarray([[0.1, 1.2, 0.4]])
+    first_factor = joint_gauge_factor(
+        first_point,
+        Sim3.identity(),
+        root[:7],
+    )[0]
+    second_factor = joint_gauge_factor(
+        second_point,
+        Sim3.identity(),
+        root[7:],
+    )[0]
+    first_jacobian = sim3_point_jacobian(Sim3.identity(), first_point)[0]
+    second_jacobian = sim3_point_jacobian(Sim3.identity(), second_point)[0]
+    expected = first_jacobian @ covariance[:7, 7:] @ second_jacobian.T
+    np.testing.assert_allclose(first_factor @ second_factor.T, expected, atol=1e-10)
+    assert retained == pytest.approx(1.0)
+
+
+def test_covariance_root_reports_rank_truncation() -> None:
+    covariance = np.diag(np.arange(1.0, 8.0))
+    root, retained = deterministic_covariance_root(covariance, max_rank=2)
+    assert root.shape == (7, 2)
+    assert retained == pytest.approx((7.0 + 6.0) / 28.0)
+
+
+def test_fixed_lag_export_requires_explicit_approximation_opt_in(
+    tmp_path: Path,
+) -> None:
+    _window(tmp_path / "window_0000.npz", [0, 1, 2, 3])
+    _window(tmp_path / "window_0001.npz", [2, 3, 4, 5], offset=0.1)
+    manifest = _manifest(tmp_path, name="predictions.json", include_future=False)
+
+    with pytest.raises(ValueError, match="marginalized boundary gauges as exact"):
+        build_prob4d_observation_belief(
+            manifest,
+            case_id="case-a",
+            causal_frame_stop=6,
+            metric_anchor=_anchor(),
+            pixel_stride=1,
+            gauge_mode="fixed_lag",
+            source_revision="c" * 40,
         )

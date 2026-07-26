@@ -7,6 +7,10 @@ from prob4d.observation_contract import (
     ObservationBeliefExportV1,
     save_observation_belief_export,
 )
+from prob4d.observation_validation import (
+    load_observation_belief_export,
+    main as validate_main,
+)
 
 GOLDEN_ARTIFACT_ID = (
     "9c02e638f60424cca7738d347d1258acd208eb562f422efacd077db4edb2fe80"
@@ -62,6 +66,63 @@ def test_contract_matches_cross_repository_golden_digest(tmp_path: Path) -> None
     with np.load(path, allow_pickle=False) as archive:
         assert "descriptor_json" in archive.files
         assert archive["low_rank_factor_m"].shape == (4, 3, 2)
+
+
+def test_contract_round_trip_uses_strict_loader(tmp_path: Path) -> None:
+    expected = _artifact()
+    path = tmp_path / "observation.npz"
+    save_observation_belief_export(path, expected)
+
+    actual = load_observation_belief_export(path)
+
+    assert actual.artifact_id == expected.artifact_id
+    np.testing.assert_array_equal(actual.mean_xyz_m, expected.mean_xyz_m)
+    np.testing.assert_array_equal(
+        actual.low_rank_factor_m,
+        expected.low_rank_factor_m,
+    )
+
+
+def test_contract_loader_rejects_tampered_payload(tmp_path: Path) -> None:
+    path = tmp_path / "observation.npz"
+    save_observation_belief_export(path, _artifact())
+    with np.load(path, allow_pickle=False) as archive:
+        descriptor = np.asarray(archive["descriptor_json"])
+        arrays = {
+            name: np.asarray(archive[name])
+            for name in archive.files
+            if name != "descriptor_json"
+        }
+    arrays["mean_xyz_m"] = arrays["mean_xyz_m"].copy()
+    arrays["mean_xyz_m"][0, 0] += 1.0
+    np.savez_compressed(path, descriptor_json=descriptor, **arrays)
+
+    with pytest.raises(ValueError, match="digest"):
+        load_observation_belief_export(path)
+
+
+def test_contract_loader_rejects_extra_array(tmp_path: Path) -> None:
+    path = tmp_path / "observation.npz"
+    save_observation_belief_export(path, _artifact())
+    with np.load(path, allow_pickle=False) as archive:
+        payload = {name: np.asarray(archive[name]) for name in archive.files}
+    np.savez_compressed(path, **payload, unexpected=np.asarray([1]))
+
+    with pytest.raises(ValueError, match="arrays changed"):
+        load_observation_belief_export(path)
+
+
+def test_validation_cli_prints_summary(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    path = tmp_path / "observation.npz"
+    save_observation_belief_export(path, _artifact())
+
+    assert validate_main([str(path)]) == 0
+    output = capsys.readouterr().out
+    assert '"status": "valid"' in output
+    assert GOLDEN_ARTIFACT_ID in output
 
 
 def test_contract_rejects_future_frame() -> None:

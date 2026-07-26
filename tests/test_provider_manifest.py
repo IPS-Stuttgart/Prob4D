@@ -16,8 +16,12 @@ def test_provider_manifest_declares_covariance_boundary() -> None:
         "ObservationBeliefV1": 1,
         "ObservationFactorBundle": 3,
     }
+    assert "joint_cross_window_sim3_gauge_covariance" in manifest["capabilities"]
     assert manifest["limitations"][
         "joint_cross_window_gauge_covariance_in_observation_belief_v1"
+    ] is True
+    assert manifest["limitations"][
+        "fixed_lag_boundary_covariance_exactness_claim"
     ] is False
     descriptor = {key: value for key, value in manifest.items() if key != "manifest_id"}
     expected = hashlib.sha256(

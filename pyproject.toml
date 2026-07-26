@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "prob4d"
-version = "0.1.0"
+version = "0.2.0"
 description = "Probabilistic recursive fusion for long-horizon 4D reconstruction"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -15,6 +15,7 @@ dependencies = ["numpy>=1.24"]
 Repository = "https://github.com/FlorianPfaff/Prob4D"
 Documentation = "https://github.com/FlorianPfaff/Prob4D/tree/main/docs"
 Issues = "https://github.com/FlorianPfaff/Prob4D/issues"
+Project-Notes = "https://github.com/FlorianPfaff/2026-07-Causal4D-BPT-Paper"
 
 [project.optional-dependencies]
 dev = [
@@ -23,7 +24,7 @@ dev = [
   "pytest>=7.4",
   "pytest-cov>=4.1",
   "ruff>=0.6",
-  "twine>=5",
+  "twine>=5.0",
 ]
 
 [project.scripts]
@@ -37,6 +38,7 @@ prob4d-phystwin = "prob4d.phystwin_experiment:main"
 prob4d-phystwin-state = "prob4d.phystwin_state:main"
 prob4d-phystwin-uncertainty = "prob4d.phystwin_uncertainty:main"
 prob4d-sintel-uncertainty = "prob4d.sintel_uncertainty:main"
+prob4d-validate-observation = "prob4d.observation_validation:main"
 prob4d-vggt-baseline = "prob4d.vggt_baseline:main"
 
 [tool.setuptools.packages.find]

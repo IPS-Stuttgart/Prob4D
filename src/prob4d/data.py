@@ -38,6 +38,8 @@ class PredictionWindow:
             raise ValueError("window_id must not be empty")
         if frame_indices.ndim != 1 or frame_indices.size == 0:
             raise ValueError("frame_indices must be a non-empty one-dimensional array")
+        if np.any(frame_indices < 0):
+            raise ValueError("frame_indices must be non-negative")
         if np.any(np.diff(frame_indices) <= 0):
             raise ValueError("frame_indices must be strictly increasing")
         if point_map.ndim != 4 or point_map.shape[-1] != 3:
@@ -55,12 +57,19 @@ class PredictionWindow:
 
         if (scene_flow is None) != (deform_mask is None):
             raise ValueError("scene_flow and deform_mask must either both be present or absent")
+        if deform_mask is not None:
+            if np.any(deform_mask & ~valid_mask):
+                raise ValueError("deform_mask must be a subset of valid_mask")
+            if not np.all(np.isfinite(scene_flow[deform_mask])):
+                raise ValueError("active scene_flow entries must be finite")
         if rays is not None:
+            if not np.all(np.isfinite(rays[valid_mask])):
+                raise ValueError("valid ray_directions entries must be finite")
             ray_norm = np.linalg.norm(rays, axis=-1)
-            active = valid_mask & (ray_norm > 0)
-            if np.any(active):
-                rays = rays.copy()
-                rays[active] /= ray_norm[active, None]
+            if np.any(valid_mask & (ray_norm <= np.finfo(np.float64).eps)):
+                raise ValueError("valid ray_directions entries must be nonzero")
+            rays = rays.copy()
+            rays[valid_mask] /= ray_norm[valid_mask, None]
 
         object.__setattr__(self, "frame_indices", frame_indices)
         object.__setattr__(self, "point_map", point_map)

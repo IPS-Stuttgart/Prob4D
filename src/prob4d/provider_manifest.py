@@ -9,7 +9,7 @@ from importlib.metadata import PackageNotFoundError, distribution, version
 from typing import Any
 
 PROB4D_PROVIDER_API_VERSION = 1
-PROB4D_PROVIDER_PACKAGE_VERSION = "0.1.0"
+PROB4D_PROVIDER_PACKAGE_VERSION = "0.2.0"
 PROB4D_PROVIDER_CAPABILITIES = (
     "append_invariant_causal_source_digest",
     "association_reliability_separation",
@@ -17,14 +17,18 @@ PROB4D_PROVIDER_CAPABILITIES = (
     "conditional_point_covariance",
     "content_addressed_observation_belief",
     "fixed_metric_gauge_anchor",
-    "per_window_sim3_gauge_marginals",
+    "joint_cross_window_sim3_gauge_covariance",
+    "strict_observation_belief_validation",
+    "trace_audited_gauge_rank_reduction",
 )
 PROB4D_ARTIFACT_SCHEMA_VERSIONS = {
     "ObservationBeliefV1": 1,
     "ObservationFactorBundle": 3,
 }
 PROB4D_PROVIDER_LIMITATIONS = {
-    "joint_cross_window_gauge_covariance_in_observation_belief_v1": False,
+    "joint_cross_window_gauge_covariance_in_observation_belief_v1": True,
+    "dense_alignment_edge_fusion_claim": False,
+    "fixed_lag_boundary_covariance_exactness_claim": False,
     "prospective_covariance_calibration_claim": False,
     "physical_twin_improvement_claim": False,
 }
@@ -85,8 +89,13 @@ def prob4d_provider_manifest(
             "source_repository": "FlorianPfaff/Prob4D",
             "observation_stream": "prob4d:causal-overlap-window-points",
             "observation_belief_covariance_semantics": (
-                "conditional local covariance plus per-window marginal Sim(3) "
-                "low-rank factors"
+                "conditional local covariance plus one shared low-rank root of the "
+                "joint Sim(3) covariance induced by the fixed metric anchor and "
+                "selected causal gauge tree"
+            ),
+            "gauge_posterior_semantics": (
+                "causal sequential spanning tree by default; fixed-lag block-diagonal "
+                "covariance is an explicit approximate reconstruction control"
             ),
             "observation_factor_bundle_covariance_semantics": (
                 "explicit gauge nuisance factors with schema-v3 reliability and "
