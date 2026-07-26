@@ -2,6 +2,29 @@
 
 All notable changes to Prob4D are documented here.
 
+## 0.2.1 — 2026-07-26
+
+### Fixed
+
+- Portable observation exports now embed a versioned, machine-readable covariance
+  layout instead of relying on legacy seven-factor conventions.
+- The metric-anchor record now binds the exact calibration artifact and declares
+  its world frame and covariance treatment. Nonzero anchor covariance is carried
+  through the shared joint gauge factor; fixed anchors remain a zero-covariance
+  special case.
+- Bayesian-PhysTwin and Causal4D can independently distinguish the production
+  joint-tree layout, the explicitly approximate fixed-lag layout, and legacy
+  per-window factors.
+- Observation archives and metric-anchor JSON files are written atomically;
+  observation archives are strictly reloaded before publication.
+
+### Added
+
+- `prob4d observation create-anchor` and
+  `prob4d-create-metric-gauge-anchor` for reproducible anchor construction.
+- Provider-contract regression tests for complete anchor metadata, shared-factor
+  semantics, rank consistency, tamper rejection, and validated serialization.
+
 ## 0.2.0 — 2026-07-26
 
 ### Changed
