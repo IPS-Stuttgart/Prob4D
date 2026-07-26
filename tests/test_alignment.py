@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from prob4d.alignment import _alignment_covariance, align_windows, estimate_sim3_robust
 from prob4d.data import PredictionWindow
@@ -18,6 +19,8 @@ def test_robust_sim3_recovers_transform_with_outliers() -> None:
     np.testing.assert_allclose(result.transform.rotation, truth.rotation, atol=3e-3)
     np.testing.assert_allclose(result.transform.translation, truth.translation, atol=5e-3)
     assert result.inlier_fraction > 0.85
+    assert result.covariance_method == "iid_gauss_newton"
+    assert result.information_rank == 7
     assert np.all(np.linalg.eigvalsh(result.covariance) > 0)
 
 
@@ -44,6 +47,8 @@ def test_window_alignment_uses_absolute_overlap_frames() -> None:
     np.testing.assert_allclose(
         alignment.result.transform.as_vector(), moving_to_reference.as_vector(), atol=1e-9
     )
+    assert alignment.result.covariance_method == "frame_spatial_cluster_robust_v1"
+    assert alignment.result.num_covariance_clusters == 72
 
 
 def test_alignment_covariance_matches_parameter_finite_difference() -> None:
@@ -74,3 +79,37 @@ def test_alignment_covariance_matches_parameter_finite_difference() -> None:
     expected = variance * np.linalg.pinv(information, rcond=1e-10) + floor
 
     np.testing.assert_allclose(covariance, expected, rtol=3e-6, atol=1e-10)
+
+
+def test_cluster_robust_covariance_accounts_for_shared_block_error() -> None:
+    generator = np.random.default_rng(120)
+    points_per_cluster = 40
+    num_clusters = 30
+    cluster_ids = np.repeat(np.arange(num_clusters), points_per_cluster)
+    source = generator.normal(size=(cluster_ids.size, 3))
+    transform = Sim3.from_vector(np.array([0.08, 0.05, -0.02, 0.03, 0.4, -0.2, 0.1]))
+    shared_error = generator.normal(scale=0.03, size=(num_clusters, 3))
+    target = transform.transform_points(source) + shared_error[cluster_ids]
+    target += generator.normal(scale=0.001, size=source.shape)
+
+    iid = estimate_sim3_robust(source, target)
+    clustered = estimate_sim3_robust(
+        source,
+        target,
+        covariance_cluster_ids=cluster_ids,
+    )
+
+    np.testing.assert_allclose(clustered.transform.as_vector(), iid.transform.as_vector())
+    assert clustered.covariance_method == "frame_spatial_cluster_robust_v1"
+    assert clustered.num_covariance_clusters == num_clusters
+    assert np.trace(clustered.covariance) > 5.0 * np.trace(iid.covariance)
+
+
+def test_rank_deficient_alignment_is_rejected() -> None:
+    coordinates = np.linspace(-2.0, 2.0, 20)
+    source = np.column_stack((coordinates, np.zeros_like(coordinates), np.zeros_like(coordinates)))
+    transform = Sim3.from_vector(np.array([0.1, 0.2, -0.1, 0.05, 1.0, -0.5, 0.3]))
+    target = transform.transform_points(source)
+
+    with pytest.raises(ValueError, match="rank-deficient"):
+        estimate_sim3_robust(source, target)
