@@ -20,6 +20,7 @@ PROB4D_PROVIDER_CAPABILITIES = (
     "joint_cross_window_sim3_gauge_covariance",
     "strict_observation_belief_validation",
     "trace_audited_gauge_rank_reduction",
+    "versioned_provider_api_v1",
 )
 PROB4D_ARTIFACT_SCHEMA_VERSIONS = {
     "ObservationBeliefV1": 1,
@@ -87,6 +88,7 @@ def prob4d_provider_manifest(
         "limitations": dict(PROB4D_PROVIDER_LIMITATIONS),
         "metadata": {
             "source_repository": "FlorianPfaff/Prob4D",
+            "provider_api": "prob4d.provider_v1",
             "observation_stream": "prob4d:causal-overlap-window-points",
             "observation_belief_covariance_semantics": (
                 "conditional local covariance plus one shared low-rank root of the "
