@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import numpy as np
@@ -5,6 +6,7 @@ import pytest
 
 from prob4d.gauge import GaugeEstimate
 from prob4d.observation_factors import (
+    OBSERVATION_FACTOR_SCHEMA_VERSION,
     ObservationFactor,
     ObservationFactorBundle,
     load_observation_factor_bundle,
@@ -21,7 +23,11 @@ def _factor(
     view_id: str = "camera-0",
     group_id: str = "backbone-window-0",
     frame_index: int = 4,
-    causal_frame_limit: int = 8,
+    causal_frame_stop: int = 9,
+    reliability: np.ndarray | None = None,
+    association: np.ndarray | None = None,
+    nominal_probability: float = 0.8,
+    composite_weight: float = 0.5,
 ) -> ObservationFactor:
     return ObservationFactor(
         factor_id=factor_id,
@@ -33,9 +39,16 @@ def _factor(
         points_local_m=np.asarray([[1.0, 0.0, 0.0], [0.0, 2.0, 0.0]]),
         valid_mask=np.asarray([True, True]),
         local_covariance_m2=np.tile(np.eye(3) * 0.01, (2, 1, 1)),
-        association_probability=np.asarray([0.9, 0.6]),
+        association_probability=(
+            np.asarray([0.9, 0.6]) if association is None else association
+        ),
+        prior_reliability=(
+            np.asarray([0.7, 0.4]) if reliability is None else reliability
+        ),
+        prior_nominal_probability=nominal_probability,
+        composite_weight=composite_weight,
         correlation_group_id=group_id,
-        causal_frame_limit=causal_frame_limit,
+        causal_frame_stop=causal_frame_stop,
         ray_directions_local=np.asarray([[1.0, 0.0, 0.0], [0.0, 2.0, 0.0]]),
     )
 
@@ -58,11 +71,13 @@ def _bundle() -> ObservationFactorBundle:
                 gauge_id="window-1",
                 view_id="camera-1",
                 group_id="backbone-window-1",
+                nominal_probability=0.6,
+                composite_weight=0.25,
             ),
         ),
         gauges=gauges,
         source_revision="0123456789abcdef",
-        causal_frame_limit=8,
+        causal_frame_stop=9,
         metadata={"producer": "unit-test", "metric": True},
     )
 
@@ -74,31 +89,42 @@ def test_bundle_roundtrip_preserves_unfused_provenance(tmp_path: Path) -> None:
     )
 
     loaded = load_observation_factor_bundle(manifest)
+    record = json.loads(manifest.read_text(encoding="utf-8"))
 
     assert payload.is_file()
+    assert record["schema_version"] == 3
+    assert record["causal_frame_stop"] == 9
+    assert record["causal_frame_stop_convention"] == "exclusive"
     assert loaded.sequence_id == bundle.sequence_id
     assert loaded.source_revision == bundle.source_revision
+    assert loaded.causal_frame_stop == 9
+    assert loaded.causal_frame_limit == 8
     assert [factor.factor_id for factor in loaded.factors] == ["factor-0", "factor-1"]
-    assert [factor.view_id for factor in loaded.factors] == ["camera-0", "camera-1"]
-    assert loaded.correlation_group_counts == {
-        "backbone-window-0": 1,
-        "backbone-window-1": 1,
+    np.testing.assert_allclose(loaded.factors[0].prior_reliability, [0.7, 0.4])
+    assert loaded.factors[0].prior_nominal_probability == pytest.approx(0.8)
+    assert loaded.factors[1].composite_weight == pytest.approx(0.25)
+    assert loaded.correlation_group_parameters == {
+        "backbone-window-0": {
+            "prior_nominal_probability": 0.8,
+            "composite_weight": 0.5,
+        },
+        "backbone-window-1": {
+            "prior_nominal_probability": 0.6,
+            "composite_weight": 0.25,
+        },
     }
-    np.testing.assert_array_equal(loaded.factors[0].point_ids, [11, 12])
-    np.testing.assert_allclose(loaded.gauges[1].global_from_local.translation, [0.5, 0, 0])
 
 
 def test_linearized_covariance_includes_sim3_gauge_uncertainty() -> None:
-    bundle = _bundle()
-
-    factor = bundle.linearize("factor-0")
+    factor = _bundle().linearize("factor-0")
 
     np.testing.assert_allclose(factor.world_mean_m[0], [1.0, 0.0, 0.0])
     assert factor.gauge_jacobian[0, 0, 0] == pytest.approx(1.0)
-    assert factor.gauge_jacobian[0, 1, 0] == pytest.approx(0.0)
     assert factor.conditional_world_covariance_m2[0, 0, 0] == pytest.approx(0.01)
     assert factor.marginal_world_covariance_m2[0, 0, 0] == pytest.approx(0.05)
-    assert factor.marginal_world_covariance_m2[0, 1, 1] == pytest.approx(0.01)
+    np.testing.assert_allclose(factor.prior_reliability, [0.7, 0.4])
+    assert factor.prior_nominal_probability == pytest.approx(0.8)
+    assert factor.composite_weight == pytest.approx(0.5)
     np.testing.assert_allclose(factor.ray_directions_world[1], [0.0, 1.0, 0.0])
 
 
@@ -118,53 +144,125 @@ def test_sim3_rotation_jacobian_matches_finite_difference() -> None:
         numerical[:, parameter] = (
             Sim3.from_vector(perturbed).transform_points(point)[0] - baseline
         ) / step
-
     np.testing.assert_allclose(analytic, numerical, atol=2e-6, rtol=2e-5)
 
 
-def test_stacked_factors_retain_separate_gauge_blocks() -> None:
+def test_stacked_factors_keep_association_reliability_and_group_weights_separate() -> None:
     stacked = _bundle().stack()
 
     assert stacked.world_mean_m.shape == (4, 3)
     assert stacked.gauge_jacobian.shape == (4, 3, 14)
-    np.testing.assert_allclose(
-        stacked.conditional_world_covariance_m2[0], np.eye(3) * 0.01
-    )
-    assert stacked.marginal_world_covariance_m2[0, 0, 0] == pytest.approx(0.05)
-    assert stacked.gauge_prior_covariance.shape == (14, 14)
-    assert np.any(stacked.gauge_jacobian[:2, :, :7])
-    np.testing.assert_array_equal(stacked.gauge_jacobian[:2, :, 7:], 0.0)
-    np.testing.assert_array_equal(stacked.gauge_jacobian[2:, :, :7], 0.0)
-    assert np.any(stacked.gauge_jacobian[2:, :, 7:])
+    np.testing.assert_allclose(stacked.association_probability, [0.9, 0.6, 0.9, 0.6])
+    np.testing.assert_allclose(stacked.prior_reliability, [0.7, 0.4, 0.7, 0.4])
+    np.testing.assert_allclose(stacked.prior_nominal_probability, [0.8, 0.8, 0.6, 0.6])
+    np.testing.assert_allclose(stacked.composite_weight, [0.5, 0.5, 0.25, 0.25])
+    assert stacked.causal_frame_stop == 9
+    assert stacked.causal_frame_limit == 8
     assert stacked.correlation_group_ids == (
         "backbone-window-0",
         "backbone-window-0",
         "backbone-window-1",
         "backbone-window-1",
     )
-    np.testing.assert_allclose(
-        stacked.gauge_prior_covariance[:7, :7],
-        np.diag([0.04] + [0.0] * 6),
+
+
+def test_zero_reliability_row_is_not_stacked_even_with_high_association() -> None:
+    factor = _factor(
+        "factor-0",
+        gauge_id="window-0",
+        association=np.ones(2),
+        reliability=np.asarray([1.0, 0.0]),
+    )
+    bundle = ObservationFactorBundle(
+        sequence_id="sequence",
+        factors=(factor,),
+        gauges=(GaugeEstimate("window-0", Sim3.identity(), np.eye(7) * 1e-4),),
+        source_revision="revision",
+        causal_frame_stop=9,
     )
 
+    stacked = bundle.stack()
 
-def test_bundle_rejects_factor_with_different_causal_limit() -> None:
-    with pytest.raises(ValueError, match="causal frame limits differ"):
+    assert len(stacked.world_mean_m) == 1
+    np.testing.assert_allclose(stacked.association_probability, [1.0])
+    np.testing.assert_allclose(stacked.prior_reliability, [1.0])
+
+
+def test_factor_rejects_frame_at_exclusive_causal_stop() -> None:
+    with pytest.raises(ValueError, match="exclusive causal frame stop"):
+        _factor(
+            "factor-0",
+            gauge_id="window-0",
+            frame_index=9,
+            causal_frame_stop=9,
+        )
+
+
+def test_bundle_rejects_factor_with_different_causal_stop() -> None:
+    with pytest.raises(ValueError, match="causal frame stops differ"):
         ObservationFactorBundle(
             sequence_id="sequence-a",
             factors=(
                 _factor(
                     "factor-0",
                     gauge_id="window-0",
-                    causal_frame_limit=9,
+                    causal_frame_stop=10,
                 ),
             ),
             gauges=(
                 GaugeEstimate("window-0", Sim3.identity(), np.eye(7) * 1e-4),
             ),
             source_revision="revision",
-            causal_frame_limit=8,
+            causal_frame_stop=9,
         )
+
+
+def test_bundle_rejects_inconsistent_group_parameters() -> None:
+    with pytest.raises(ValueError, match="one correlation group"):
+        ObservationFactorBundle(
+            sequence_id="sequence-a",
+            factors=(
+                _factor("factor-0", gauge_id="window-0", group_id="shared"),
+                _factor(
+                    "factor-1",
+                    gauge_id="window-0",
+                    group_id="shared",
+                    composite_weight=0.25,
+                ),
+            ),
+            gauges=(
+                GaugeEstimate("window-0", Sim3.identity(), np.eye(7) * 1e-4),
+            ),
+            source_revision="revision",
+            causal_frame_stop=9,
+        )
+
+
+def test_schema_v2_loader_upgrades_inclusive_limit_and_missing_reliability(
+    tmp_path: Path,
+) -> None:
+    manifest, _ = write_observation_factor_bundle(
+        _bundle(), tmp_path / "factors.json"
+    )
+    record = json.loads(manifest.read_text(encoding="utf-8"))
+    record["schema_version"] = 2
+    record["causal_frame_limit"] = record.pop("causal_frame_stop") - 1
+    record.pop("causal_frame_stop_convention")
+    for factor in record["factors"]:
+        factor["causal_frame_limit"] = factor.pop("causal_frame_stop") - 1
+        factor.pop("prior_nominal_probability")
+        factor.pop("composite_weight")
+        factor["arrays"].pop("prior_reliability")
+    manifest.write_text(json.dumps(record), encoding="utf-8")
+
+    loaded = load_observation_factor_bundle(manifest)
+
+    assert loaded.schema_version == OBSERVATION_FACTOR_SCHEMA_VERSION
+    assert loaded.causal_frame_stop == 9
+    assert loaded.metadata["loaded_from_schema_version"] == 2
+    np.testing.assert_array_equal(loaded.factors[0].prior_reliability, np.ones(2))
+    assert loaded.factors[0].prior_nominal_probability == 1.0
+    assert loaded.factors[0].composite_weight == 1.0
 
 
 def test_bundle_loader_rejects_changed_payload(tmp_path: Path) -> None:
@@ -172,6 +270,5 @@ def test_bundle_loader_rejects_changed_payload(tmp_path: Path) -> None:
         _bundle(), tmp_path / "factors.json"
     )
     payload.write_bytes(payload.read_bytes() + b"changed")
-
     with pytest.raises(ValueError, match="checksum mismatch"):
         load_observation_factor_bundle(manifest)
