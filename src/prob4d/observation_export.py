@@ -6,7 +6,7 @@ import argparse
 import json
 import subprocess
 from collections.abc import Mapping, Sequence
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
@@ -29,7 +29,6 @@ from .alignment import WindowAlignment, align_windows
 from .data import PredictionWindow
 from .gauge import (
     FixedLagGaugeSmoother,
-    GaugeEstimate,
     RelativeGaugeConstraint,
     SequentialGaugeEstimator,
 )
@@ -37,10 +36,59 @@ from .observation_contract import (
     ObservationBeliefExportV1,
     save_observation_belief_export,
 )
-from .sim3 import Sim3, so3_log, so3_right_jacobian
+from .observation_factors import sim3_point_jacobian
+from .sim3 import Sim3
 from .uncertainty import DepthDisagreementModel, accumulate_disagreement
 
+# Retained for source compatibility. Production artifacts use dynamically sized
+# ``joint_gauge_latent_*`` names because one latent vector now carries the joint
+# cross-window covariance.
 GAUGE_FACTOR_NAMES = tuple(f"gauge_latent_{index}" for index in range(7))
+
+
+@dataclass(frozen=True)
+class JointGaugePosterior:
+    """Ordered gauge means and one covariance over all seven-dimensional gauges."""
+
+    window_ids: tuple[str, ...]
+    estimates: Mapping[str, Sim3]
+    joint_covariance: np.ndarray
+    mode: str
+    cross_window_covariance_preserved: bool
+    parent_window_ids: tuple[str | None, ...] = ()
+    selected_alignment_indices: tuple[int | None, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not self.window_ids or len(set(self.window_ids)) != len(self.window_ids):
+            raise ValueError("joint gauge posterior requires unique window IDs")
+        if set(self.estimates) != set(self.window_ids):
+            raise ValueError("joint gauge posterior estimates do not match window IDs")
+        dimension = 7 * len(self.window_ids)
+        covariance = np.asarray(self.joint_covariance, dtype=np.float64)
+        if covariance.shape != (dimension, dimension):
+            raise ValueError("joint gauge covariance has changed shape")
+        if not np.all(np.isfinite(covariance)):
+            raise ValueError("joint gauge covariance must be finite")
+        symmetric = 0.5 * (covariance + covariance.T)
+        if np.min(np.linalg.eigvalsh(symmetric)) < -1e-9:
+            raise ValueError("joint gauge covariance must be positive semidefinite")
+        parent_ids = self.parent_window_ids or tuple(None for _ in self.window_ids)
+        alignment_indices = self.selected_alignment_indices or tuple(
+            None for _ in self.window_ids
+        )
+        if len(parent_ids) != len(self.window_ids) or len(alignment_indices) != len(
+            self.window_ids
+        ):
+            raise ValueError("joint gauge posterior lineage changed length")
+        if not self.mode:
+            raise ValueError("joint gauge posterior mode must be nonempty")
+        object.__setattr__(self, "joint_covariance", symmetric)
+        object.__setattr__(self, "parent_window_ids", tuple(parent_ids))
+        object.__setattr__(
+            self,
+            "selected_alignment_indices",
+            tuple(alignment_indices),
+        )
 
 
 def _git_revision() -> str:
@@ -69,24 +117,97 @@ def _validated_source_revision(value: str | None) -> str:
     return revision
 
 
-def _deterministic_covariance_root(covariance: np.ndarray) -> np.ndarray:
-    symmetric = 0.5 * (
-        np.asarray(covariance, dtype=np.float64)
-        + np.asarray(covariance, dtype=np.float64).T
-    )
-    if symmetric.shape != (7, 7) or not np.all(np.isfinite(symmetric)):
-        raise ValueError("gauge covariance must have finite shape (7, 7)")
+def deterministic_covariance_root(
+    covariance: np.ndarray,
+    *,
+    max_rank: int | None = None,
+    relative_eigenvalue_floor: float = 1e-12,
+) -> tuple[np.ndarray, float]:
+    """Return a deterministic PSD square root and retained trace fraction."""
+
+    matrix = np.asarray(covariance, dtype=np.float64)
+    if matrix.ndim != 2 or matrix.shape[0] != matrix.shape[1]:
+        raise ValueError("covariance root requires a square matrix")
+    if not np.all(np.isfinite(matrix)):
+        raise ValueError("covariance root requires finite values")
+    if max_rank is not None and max_rank < 1:
+        raise ValueError("max_rank must be positive when supplied")
+    if not 0.0 <= relative_eigenvalue_floor < 1.0:
+        raise ValueError("relative_eigenvalue_floor must lie in [0, 1)")
+    symmetric = 0.5 * (matrix + matrix.T)
     eigenvalues, eigenvectors = np.linalg.eigh(symmetric)
-    if np.min(eigenvalues) < -1e-10:
-        raise ValueError("gauge covariance must be positive semidefinite")
+    if np.min(eigenvalues) < -1e-9:
+        raise ValueError("covariance root requires positive semidefinite input")
     order = np.argsort(eigenvalues)[::-1]
     eigenvalues = np.maximum(eigenvalues[order], 0.0)
     eigenvectors = eigenvectors[:, order]
-    for column in range(eigenvectors.shape[1]):
-        pivot = int(np.argmax(np.abs(eigenvectors[:, column])))
-        if eigenvectors[pivot, column] < 0.0:
-            eigenvectors[:, column] *= -1.0
-    return eigenvectors * np.sqrt(eigenvalues)[None]
+    maximum = float(eigenvalues[0]) if len(eigenvalues) else 0.0
+    keep = eigenvalues > maximum * relative_eigenvalue_floor
+    indices = np.flatnonzero(keep)
+    if max_rank is not None:
+        indices = indices[:max_rank]
+    total_trace = float(np.sum(eigenvalues))
+    retained_trace = float(np.sum(eigenvalues[indices]))
+    retained_fraction = 1.0 if total_trace == 0.0 else retained_trace / total_trace
+    selected_vectors = eigenvectors[:, indices].copy()
+    for column in range(selected_vectors.shape[1]):
+        pivot = int(np.argmax(np.abs(selected_vectors[:, column])))
+        if selected_vectors[pivot, column] < 0.0:
+            selected_vectors[:, column] *= -1.0
+    root = selected_vectors * np.sqrt(eigenvalues[indices])[None]
+    return root, retained_fraction
+
+
+def _deterministic_covariance_root(covariance: np.ndarray) -> np.ndarray:
+    """Backward-compatible square root for one seven-dimensional gauge."""
+
+    matrix = np.asarray(covariance, dtype=np.float64)
+    if matrix.shape != (7, 7):
+        raise ValueError("gauge covariance must have finite shape (7, 7)")
+    root, _ = deterministic_covariance_root(
+        matrix,
+        max_rank=7,
+        relative_eigenvalue_floor=0.0,
+    )
+    if root.shape[1] < 7:
+        root = np.pad(root, ((0, 0), (0, 7 - root.shape[1])))
+    return root
+
+
+def joint_gauge_factor(
+    values: np.ndarray,
+    transform: Sim3,
+    joint_root_block: np.ndarray,
+    *,
+    include_translation: bool = True,
+    chunk_size: int = 16_384,
+) -> np.ndarray:
+    """Map one gauge block of a joint covariance root into observation space."""
+
+    points = np.asarray(values, dtype=np.float64)
+    if points.shape[-1] != 3:
+        raise ValueError("joint gauge factors require three-dimensional values")
+    block = np.asarray(joint_root_block, dtype=np.float64)
+    if block.ndim != 2 or block.shape[0] != 7:
+        raise ValueError("joint_root_block must have shape (7, R)")
+    if not np.all(np.isfinite(block)):
+        raise ValueError("joint_root_block must be finite")
+    if chunk_size < 1:
+        raise ValueError("chunk_size must be positive")
+    flattened = points.reshape(-1, 3)
+    factors = np.empty((len(flattened), 3, block.shape[1]), dtype=np.float64)
+    for start in range(0, len(flattened), chunk_size):
+        stop = min(start + chunk_size, len(flattened))
+        jacobian = sim3_point_jacobian(transform, flattened[start:stop])
+        if not include_translation:
+            jacobian[:, :, 4:7] = 0.0
+        factors[start:stop] = np.einsum(
+            "nij,jr->nir",
+            jacobian,
+            block,
+            optimize=True,
+        )
+    return factors.reshape(points.shape + (block.shape[1],))
 
 
 def gauge_covariance_factor(
@@ -99,41 +220,14 @@ def gauge_covariance_factor(
 ) -> np.ndarray:
     """Return ``J L`` so rows from one window share its gauge uncertainty."""
 
-    points = np.asarray(values, dtype=np.float64)
-    if points.shape[-1] != 3:
-        raise ValueError("gauge factors require three-dimensional values")
-    if chunk_size < 1:
-        raise ValueError("chunk_size must be positive")
     root = _deterministic_covariance_root(gauge_covariance)
-    flattened = points.reshape(-1, 3)
-    factors = np.empty((len(flattened), 3, 7), dtype=np.float64)
-    right_jacobian = so3_right_jacobian(so3_log(transform.rotation))
-    identity = np.eye(3, dtype=np.float64)
-    for start in range(0, len(flattened), chunk_size):
-        stop = min(start + chunk_size, len(flattened))
-        chunk = flattened[start:stop]
-        scaled_rotated = transform.scale * np.einsum(
-            "ij,nj->ni", transform.rotation, chunk
-        )
-        skew = np.zeros((len(chunk), 3, 3), dtype=np.float64)
-        skew[:, 0, 1] = -chunk[:, 2]
-        skew[:, 0, 2] = chunk[:, 1]
-        skew[:, 1, 0] = chunk[:, 2]
-        skew[:, 1, 2] = -chunk[:, 0]
-        skew[:, 2, 0] = -chunk[:, 1]
-        skew[:, 2, 1] = chunk[:, 0]
-        jacobian = np.zeros((len(chunk), 3, 7), dtype=np.float64)
-        jacobian[:, :, 0] = scaled_rotated
-        jacobian[:, :, 1:4] = -transform.scale * np.einsum(
-            "ij,njk,kl->nil",
-            transform.rotation,
-            skew,
-            right_jacobian,
-        )
-        if include_translation:
-            jacobian[:, :, 4:7] = identity
-        factors[start:stop] = np.einsum("nij,jk->nik", jacobian, root)
-    return factors.reshape(points.shape + (7,))
+    return joint_gauge_factor(
+        values,
+        transform,
+        root,
+        include_translation=include_translation,
+        chunk_size=chunk_size,
+    )
 
 
 def _build_alignments(windows: Sequence[PredictionWindow]) -> list[WindowAlignment]:
@@ -146,16 +240,150 @@ def _build_alignments(windows: Sequence[PredictionWindow]) -> list[WindowAlignme
     return alignments
 
 
-def _gauge_estimates(
+def _numerical_jacobian(function, vector: np.ndarray) -> np.ndarray:
+    vector = np.asarray(vector, dtype=np.float64)
+    baseline = np.asarray(function(vector), dtype=np.float64)
+    jacobian = np.empty((baseline.size, vector.size), dtype=np.float64)
+    for index in range(vector.size):
+        step = 1e-6 * max(1.0, abs(float(vector[index])))
+        plus = vector.copy()
+        minus = vector.copy()
+        plus[index] += step
+        minus[index] -= step
+        jacobian[:, index] = (
+            np.asarray(function(plus), dtype=np.float64)
+            - np.asarray(function(minus), dtype=np.float64)
+        ) / (2.0 * step)
+    return jacobian
+
+
+def _compose_jacobians(parent: Sim3, relative: Sim3) -> tuple[np.ndarray, np.ndarray]:
+    parent_vector = parent.as_vector()
+    relative_vector = relative.as_vector()
+    parent_jacobian = _numerical_jacobian(
+        lambda value: Sim3.from_vector(value).compose(relative).as_vector(),
+        parent_vector,
+    )
+    relative_jacobian = _numerical_jacobian(
+        lambda value: parent.compose(Sim3.from_vector(value)).as_vector(),
+        relative_vector,
+    )
+    return parent_jacobian, relative_jacobian
+
+
+def estimate_joint_gauge_tree(
     windows: Sequence[PredictionWindow],
+    alignments: Sequence[WindowAlignment],
     *,
-    gauge_mode: str,
+    initial_transform: Sim3,
+    initial_covariance: np.ndarray,
+) -> JointGaugePosterior:
+    """Propagate one causal spanning tree into a full joint gauge covariance."""
+
+    if not windows:
+        raise ValueError("joint gauge estimation requires at least one window")
+    window_ids = tuple(window.window_id for window in windows)
+    if len(set(window_ids)) != len(window_ids):
+        raise ValueError("window IDs must be unique")
+    position = {window_id: index for index, window_id in enumerate(window_ids)}
+    first_covariance = np.asarray(initial_covariance, dtype=np.float64)
+    if first_covariance.shape != (7, 7) or not np.all(np.isfinite(first_covariance)):
+        raise ValueError("initial gauge covariance must have finite shape (7, 7)")
+    first_covariance = 0.5 * (first_covariance + first_covariance.T)
+    if np.min(np.linalg.eigvalsh(first_covariance)) < -1e-12:
+        raise ValueError("initial gauge covariance must be positive semidefinite")
+
+    dimension = 7 * len(windows)
+    joint = np.zeros((dimension, dimension), dtype=np.float64)
+    joint[:7, :7] = first_covariance
+    estimates: dict[str, Sim3] = {window_ids[0]: initial_transform}
+    parent_ids: list[str | None] = [None]
+    alignment_indices: list[int | None] = [None]
+
+    for child_index, child_id in enumerate(window_ids[1:], start=1):
+        candidates = [
+            (index, alignment)
+            for index, alignment in enumerate(alignments)
+            if alignment.moving_id == child_id
+            and alignment.reference_id in estimates
+        ]
+        if not candidates:
+            raise ValueError(
+                f"window {child_id!r} has no causal overlap with an earlier window"
+            )
+        selected_index, selected = min(
+            candidates,
+            key=lambda item: (
+                -item[1].result.num_correspondences,
+                item[1].result.residual_rms,
+                position[item[1].reference_id],
+            ),
+        )
+        parent_id = selected.reference_id
+        parent_index = position[parent_id]
+        parent = estimates[parent_id]
+        relative = selected.result.transform
+        child = parent.compose(relative)
+        parent_jacobian, relative_jacobian = _compose_jacobians(parent, relative)
+        parent_slice = slice(7 * parent_index, 7 * (parent_index + 1))
+        child_slice = slice(7 * child_index, 7 * (child_index + 1))
+        for previous_index in range(child_index):
+            previous_slice = slice(7 * previous_index, 7 * (previous_index + 1))
+            cross = parent_jacobian @ joint[parent_slice, previous_slice]
+            joint[child_slice, previous_slice] = cross
+            joint[previous_slice, child_slice] = cross.T
+        relative_covariance = np.asarray(selected.result.covariance, dtype=np.float64)
+        child_covariance = (
+            parent_jacobian
+            @ joint[parent_slice, parent_slice]
+            @ parent_jacobian.T
+            + relative_jacobian @ relative_covariance @ relative_jacobian.T
+        )
+        joint[child_slice, child_slice] = 0.5 * (
+            child_covariance + child_covariance.T
+        )
+        estimates[child_id] = child
+        parent_ids.append(parent_id)
+        alignment_indices.append(selected_index)
+
+    symmetric = 0.5 * (joint + joint.T)
+    eigenvalues, eigenvectors = np.linalg.eigh(symmetric)
+    if np.min(eigenvalues) < -1e-7:
+        raise ValueError("propagated joint gauge covariance is not positive semidefinite")
+    joint = (eigenvectors * np.maximum(eigenvalues, 0.0)) @ eigenvectors.T
+    return JointGaugePosterior(
+        window_ids=window_ids,
+        estimates=estimates,
+        joint_covariance=joint,
+        mode="sequential_joint_spanning_tree_v1",
+        cross_window_covariance_preserved=True,
+        parent_window_ids=tuple(parent_ids),
+        selected_alignment_indices=tuple(alignment_indices),
+    )
+
+
+def _block_diagonal(values: Sequence[np.ndarray]) -> np.ndarray:
+    dimension = sum(value.shape[0] for value in values)
+    result = np.zeros((dimension, dimension), dtype=np.float64)
+    offset = 0
+    for value in values:
+        width = value.shape[0]
+        result[offset : offset + width, offset : offset + width] = value
+        offset += width
+    return result
+
+
+def _fixed_lag_marginal_posterior(
+    windows: Sequence[PredictionWindow],
+    alignments: Sequence[WindowAlignment],
+    *,
     fixed_lag: int,
     metric_anchor: MetricGaugeAnchor,
-) -> tuple[list[WindowAlignment], dict[str, GaugeEstimate]]:
-    if gauge_mode not in {"sequential", "fixed_lag"}:
-        raise ValueError("gauge_mode must be 'sequential' or 'fixed_lag'")
-    alignments = _build_alignments(windows)
+) -> JointGaugePosterior:
+    """Return the legacy fixed-lag marginals as an explicitly approximate posterior."""
+
+    if fixed_lag < 2:
+        raise ValueError("fixed_lag must be at least two")
     constraints = [
         RelativeGaugeConstraint.from_window_alignment(alignment)
         for alignment in alignments
@@ -167,19 +395,58 @@ def _gauge_estimates(
         initial_transform=metric_anchor.global_from_local,
         initial_covariance=metric_anchor.covariance,
     )
-    if gauge_mode == "sequential" or len(ordered_ids) == 1:
-        estimates = sequential
-    elif gauge_mode == "fixed_lag":
-        if fixed_lag < 2:
-            raise ValueError("fixed_lag must be at least two")
-        estimates = FixedLagGaugeSmoother(lag=fixed_lag).smooth(
-            ordered_ids,
-            sequential,
-            constraints,
-        )
-    else:  # pragma: no cover - guarded above
+    estimates = FixedLagGaugeSmoother(lag=fixed_lag).smooth(
+        ordered_ids,
+        sequential,
+        constraints,
+    )
+    covariance = _block_diagonal(
+        [np.asarray(estimates[window_id].covariance) for window_id in ordered_ids]
+    )
+    return JointGaugePosterior(
+        window_ids=tuple(ordered_ids),
+        estimates={
+            window_id: estimates[window_id].global_from_local
+            for window_id in ordered_ids
+        },
+        joint_covariance=covariance,
+        mode="fixed_lag_block_diagonal_approximation_v1",
+        cross_window_covariance_preserved=False,
+    )
+
+
+def _gauge_posterior(
+    windows: Sequence[PredictionWindow],
+    *,
+    gauge_mode: str,
+    fixed_lag: int,
+    metric_anchor: MetricGaugeAnchor,
+    allow_approximate_fixed_lag_covariance: bool,
+) -> tuple[list[WindowAlignment], JointGaugePosterior]:
+    if gauge_mode not in {"sequential", "fixed_lag"}:
         raise ValueError("gauge_mode must be 'sequential' or 'fixed_lag'")
-    return alignments, estimates
+    if gauge_mode == "fixed_lag" and not allow_approximate_fixed_lag_covariance:
+        raise ValueError(
+            "fixed_lag covariance treats marginalized boundary gauges as exact; "
+            "pass allow_approximate_fixed_lag_covariance=True only for an explicitly "
+            "labelled reconstruction ablation"
+        )
+    alignments = _build_alignments(windows)
+    if gauge_mode == "sequential":
+        posterior = estimate_joint_gauge_tree(
+            windows,
+            alignments,
+            initial_transform=metric_anchor.global_from_local,
+            initial_covariance=metric_anchor.covariance,
+        )
+    else:
+        posterior = _fixed_lag_marginal_posterior(
+            windows,
+            alignments,
+            fixed_lag=fixed_lag,
+            metric_anchor=metric_anchor,
+        )
+    return alignments, posterior
 
 
 def _prior_reliability(
@@ -229,8 +496,11 @@ def _build_prob4d_observation_belief(
     pixel_stride: int = 4,
     effective_samples_per_group: float = 64.0,
     minimum_prior_reliability: float = 0.05,
-    gauge_mode: str = "fixed_lag",
+    gauge_mode: str = "sequential",
     fixed_lag: int = 4,
+    allow_approximate_fixed_lag_covariance: bool = False,
+    max_gauge_rank: int | None = 64,
+    minimum_retained_gauge_trace: float = 0.999,
     view_name: str = "camera0",
     source_revision: str | None = None,
     uncertainty_model: DepthDisagreementModel | None = None,
@@ -245,14 +515,33 @@ def _build_prob4d_observation_belief(
         effective_samples_per_group <= 0.0
     ):
         raise ValueError("effective_samples_per_group must be positive")
+    if not 0.0 < minimum_retained_gauge_trace <= 1.0:
+        raise ValueError("minimum_retained_gauge_trace must lie in (0, 1]")
 
     revision = _validated_source_revision(source_revision)
     windows = selection.predictions
-    alignments, estimates = _gauge_estimates(
+    alignments, posterior = _gauge_posterior(
         windows,
         gauge_mode=gauge_mode,
         fixed_lag=fixed_lag,
         metric_anchor=metric_anchor,
+        allow_approximate_fixed_lag_covariance=(
+            allow_approximate_fixed_lag_covariance
+        ),
+    )
+    joint_root, retained_trace_fraction = deterministic_covariance_root(
+        posterior.joint_covariance,
+        max_rank=max_gauge_rank,
+    )
+    if retained_trace_fraction + 1e-12 < minimum_retained_gauge_trace:
+        raise ValueError(
+            "gauge covariance rank cap retains only "
+            f"{retained_trace_fraction:.6f} of covariance trace; increase "
+            "max_gauge_rank or lower minimum_retained_gauge_trace explicitly"
+        )
+    factor_rank = joint_root.shape[1]
+    factor_names = tuple(
+        f"joint_gauge_latent_{index:04d}" for index in range(factor_rank)
     )
     window_map = {window.window_id: window for window in windows}
     evidence = accumulate_disagreement(window_map, alignments)
@@ -280,7 +569,7 @@ def _build_prob4d_observation_belief(
     factors: list[np.ndarray] = []
 
     for window_index, window in enumerate(windows):
-        estimate = estimates[window.window_id]
+        transform = posterior.estimates[window.window_id]
         disagreement = evidence[window.window_id]
         uncertainty = model.predict(window, disagreement)
         reliability = _prior_reliability(
@@ -292,6 +581,9 @@ def _build_prob4d_observation_belief(
             minimum=minimum_prior_reliability,
         )
         rays = window.rays()
+        root_block = joint_root[
+            7 * window_index : 7 * (window_index + 1), :
+        ]
         height, width = window.shape[1:]
         sample_mask = np.zeros((height, width), dtype=bool)
         sample_mask[::pixel_stride, ::pixel_stride] = True
@@ -305,7 +597,7 @@ def _build_prob4d_observation_belief(
                 continue
             count = int(np.count_nonzero(selected))
             local_points = window.point_map[local_index][selected]
-            means.append(estimate.global_from_local.transform_points(local_points))
+            means.append(transform.transform_points(local_points))
             frame_ids.append(np.full(count, absolute_frame, dtype=np.int64))
             entity_ids.append(linear_entity[selected])
             view_indices.append(np.zeros(count, dtype=np.int64))
@@ -317,7 +609,9 @@ def _build_prob4d_observation_belief(
                     dtype=np.int64,
                 )
             )
-            factor_groups.append(np.full(count, window_index, dtype=np.int64))
+            # Every row shares one joint latent vector. Cross-window covariance is
+            # encoded by the corresponding nonzero block of that vector.
+            factor_groups.append(np.zeros(count, dtype=np.int64))
             reliabilities.append(reliability[local_index][selected])
             associations.append(np.ones(count, dtype=np.float64))
             local_covariances.append(
@@ -325,14 +619,14 @@ def _build_prob4d_observation_belief(
                     rays[local_index][selected],
                     uncertainty.parallel_variance[local_index][selected],
                     uncertainty.lateral_variance[local_index][selected],
-                    estimate.global_from_local,
+                    transform,
                 )
             )
             factors.append(
-                gauge_covariance_factor(
+                joint_gauge_factor(
                     local_points,
-                    estimate.global_from_local,
-                    estimate.covariance,
+                    transform,
+                    root_block,
                     include_translation=True,
                 )
             )
@@ -365,6 +659,24 @@ def _build_prob4d_observation_belief(
             effective / float(np.count_nonzero(selected)),
         )
 
+    selected_alignment_indices = {
+        value
+        for value in posterior.selected_alignment_indices
+        if value is not None
+    }
+    alignment_records = [
+        {
+            "index": index,
+            "reference_id": alignment.reference_id,
+            "moving_id": alignment.moving_id,
+            "common_frames": [int(value) for value in alignment.common_frames],
+            "residual_rms": float(alignment.result.residual_rms),
+            "num_correspondences": int(alignment.result.num_correspondences),
+            "covariance_method": alignment.result.covariance_method,
+            "selected_for_joint_tree": index in selected_alignment_indices,
+        }
+        for index, alignment in enumerate(alignments)
+    ]
     metadata = {
         "metric_coordinates": True,
         "metric_units": "m",
@@ -380,18 +692,36 @@ def _build_prob4d_observation_belief(
         ),
         "gauge_mode": gauge_mode,
         "fixed_lag": fixed_lag if gauge_mode == "fixed_lag" else None,
+        "gauge_posterior": {
+            "model": posterior.mode,
+            "window_count": len(posterior.window_ids),
+            "full_dimension": int(posterior.joint_covariance.shape[0]),
+            "exported_factor_rank": factor_rank,
+            "retained_covariance_trace_fraction": retained_trace_fraction,
+            "minimum_retained_gauge_trace": minimum_retained_gauge_trace,
+            "max_gauge_rank": max_gauge_rank,
+            "cross_window_covariance_preserved": (
+                posterior.cross_window_covariance_preserved
+            ),
+            "parent_window_ids": list(posterior.parent_window_ids),
+            "alignments": alignment_records,
+            "fixed_lag_boundary_covariance_is_approximate": (
+                gauge_mode == "fixed_lag"
+            ),
+        },
         "pixel_stride": pixel_stride,
         "effective_samples_per_group": effective_samples_per_group,
         "minimum_prior_reliability": minimum_prior_reliability,
         "uncertainty_model": asdict(model),
         "group_definition": "absolute source frame across overlap windows",
-        "factor_definition": "shared seven-dimensional gauge latent per window",
+        "factor_definition": "one shared joint gauge latent vector",
         "factor_group_semantics": (
-            "per-window gauge marginals are explicit nuisance factors; schema v1 "
-            "does not represent joint cross-window gauge covariance, so remaining "
-            "dependence is capped by composite weights"
+            "all rows use one factor group; each window contributes its block of "
+            "the same joint gauge covariance root"
         ),
-        "joint_cross_window_gauge_covariance_represented": False,
+        "joint_cross_window_gauge_covariance_represented": (
+            posterior.cross_window_covariance_preserved
+        ),
         "association_probability_definition": (
             "same decoded pixel identity within one independently decoded window; "
             "not downstream physical-node association"
@@ -410,8 +740,8 @@ def _build_prob4d_observation_belief(
         stream_id="prob4d:causal-overlap-window-points",
         causal_frame_stop=causal_frame_stop,
         view_names=(view_name,),
-        window_names=tuple(window.window_id for window in windows),
-        factor_names=GAUGE_FACTOR_NAMES,
+        window_names=posterior.window_ids,
+        factor_names=factor_names,
         source_repository="FlorianPfaff/Prob4D",
         source_revision=revision,
         source_artifact_sha256=selection.source_artifact_sha256,
@@ -443,8 +773,11 @@ def build_prob4d_observation_belief(
     pixel_stride: int = 4,
     effective_samples_per_group: float = 64.0,
     minimum_prior_reliability: float = 0.05,
-    gauge_mode: str = "fixed_lag",
+    gauge_mode: str = "sequential",
     fixed_lag: int = 4,
+    allow_approximate_fixed_lag_covariance: bool = False,
+    max_gauge_rank: int | None = 64,
+    minimum_retained_gauge_trace: float = 0.999,
     view_name: str = "camera0",
     source_revision: str | None = None,
     uncertainty_model: DepthDisagreementModel | None = None,
@@ -466,6 +799,11 @@ def build_prob4d_observation_belief(
         minimum_prior_reliability=minimum_prior_reliability,
         gauge_mode=gauge_mode,
         fixed_lag=fixed_lag,
+        allow_approximate_fixed_lag_covariance=(
+            allow_approximate_fixed_lag_covariance
+        ),
+        max_gauge_rank=max_gauge_rank,
+        minimum_retained_gauge_trace=minimum_retained_gauge_trace,
         view_name=view_name,
         source_revision=source_revision,
         uncertainty_model=uncertainty_model,
@@ -493,9 +831,27 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--gauge-mode",
         choices=("sequential", "fixed_lag"),
-        default="fixed_lag",
+        default="sequential",
+        help=(
+            "sequential exports a full joint spanning-tree covariance; fixed_lag "
+            "is an explicit approximate reconstruction ablation"
+        ),
     )
     parser.add_argument("--fixed-lag", type=int, default=4)
+    parser.add_argument(
+        "--allow-approximate-fixed-lag-covariance",
+        action="store_true",
+        help=(
+            "acknowledge that legacy fixed-lag covariance treats marginalized "
+            "boundary gauges as exact"
+        ),
+    )
+    parser.add_argument("--max-gauge-rank", type=int, default=64)
+    parser.add_argument(
+        "--minimum-retained-gauge-trace",
+        type=float,
+        default=0.999,
+    )
     parser.add_argument("--view-name", default="camera0")
     parser.add_argument("--source-revision")
     parser.add_argument("--summary-json", type=Path)
@@ -517,6 +873,11 @@ def main(argv: list[str] | None = None) -> int:
         minimum_prior_reliability=args.minimum_prior_reliability,
         gauge_mode=args.gauge_mode,
         fixed_lag=args.fixed_lag,
+        allow_approximate_fixed_lag_covariance=(
+            args.allow_approximate_fixed_lag_covariance
+        ),
+        max_gauge_rank=args.max_gauge_rank,
+        minimum_retained_gauge_trace=args.minimum_retained_gauge_trace,
         view_name=args.view_name,
         source_revision=args.source_revision,
     )
@@ -525,6 +886,7 @@ def main(argv: list[str] | None = None) -> int:
         **selection.run_summary(causal_frame_stop=args.causal_frame_stop),
         **artifact.summary(),
         "metric_gauge_anchor_id": anchor.artifact_id,
+        "gauge_posterior": artifact.metadata["gauge_posterior"],
         "output": str(args.output_npz.resolve()),
     }
     if args.summary_json is not None:
@@ -543,10 +905,14 @@ __all__ = [
     "METRIC_GAUGE_ANCHOR_SCHEMA",
     "METRIC_GAUGE_ANCHOR_VERSION",
     "CausalOverlapSelection",
+    "JointGaugePosterior",
     "MetricGaugeAnchor",
     "SelectedOverlapWindow",
     "build_prob4d_observation_belief",
+    "deterministic_covariance_root",
+    "estimate_joint_gauge_tree",
     "gauge_covariance_factor",
+    "joint_gauge_factor",
     "load_metric_gauge_anchor",
     "save_metric_gauge_anchor",
     "select_causal_overlap_windows",

@@ -1,9 +1,8 @@
 """Stable Prob4D provider API for Bayesian-PhysTwin and Causal4D.
 
 Downstream repositories should import this module rather than experiment helpers
-or underscore-prefixed implementation modules. Version 1 exposes the causal
-source selector, the fixed metric-anchor contract, the portable observation
-belief writer, and the richer unfused factor-bundle contract.
+or underscore-prefixed implementation modules. Breaking provider changes require
+a new versioned module instead of silently changing this surface.
 """
 
 from __future__ import annotations
@@ -36,9 +35,14 @@ from .observation_factors import (
     load_observation_factor_bundle,
     write_observation_factor_bundle,
 )
+from .observation_validation import load_observation_belief_export
+from .provider_manifest import (
+    PROB4D_PROVIDER_API_VERSION,
+    prob4d_provider_manifest,
+)
 from .uncertainty import DepthDisagreementModel
 
-PROVIDER_API_VERSION = 1
+PROVIDER_API_VERSION = PROB4D_PROVIDER_API_VERSION
 
 
 def select_causal_source(
@@ -65,17 +69,21 @@ def export_observation_belief(
     pixel_stride: int = 4,
     effective_samples_per_group: float = 64.0,
     minimum_prior_reliability: float = 0.05,
-    gauge_mode: str = "fixed_lag",
+    gauge_mode: str = "sequential",
     fixed_lag: int = 4,
+    allow_approximate_fixed_lag_covariance: bool = False,
+    max_gauge_rank: int | None = 64,
+    minimum_retained_gauge_trace: float = 0.999,
     view_name: str = "camera0",
     source_revision: str | None = None,
     uncertainty_model: DepthDisagreementModel | None = None,
 ) -> ObservationBeliefExportV1:
     """Export a causally sealed portable observation belief.
 
-    Version 1 is conditional on a fixed metric anchor and carries per-window
-    gauge marginals as explicit low-rank nuisance factors. It intentionally does
-    not claim to encode the full joint cross-window gauge posterior.
+    The production sequential mode carries the joint cross-window gauge
+    covariance induced by the fixed metric anchor and selected causal gauge tree
+    through one shared low-rank latent factor. The fixed-lag mode is available
+    only as an explicitly acknowledged approximate reconstruction control.
     """
 
     return build_prob4d_observation_belief(
@@ -88,6 +96,11 @@ def export_observation_belief(
         minimum_prior_reliability=minimum_prior_reliability,
         gauge_mode=gauge_mode,
         fixed_lag=fixed_lag,
+        allow_approximate_fixed_lag_covariance=(
+            allow_approximate_fixed_lag_covariance
+        ),
+        max_gauge_rank=max_gauge_rank,
+        minimum_retained_gauge_trace=minimum_retained_gauge_trace,
         view_name=view_name,
         source_revision=source_revision,
         uncertainty_model=uncertainty_model,
@@ -101,6 +114,7 @@ __all__ = [
     "OBSERVATION_BELIEF_VERSION",
     "OBSERVATION_FACTOR_SCHEMA",
     "OBSERVATION_FACTOR_SCHEMA_VERSION",
+    "PROB4D_PROVIDER_API_VERSION",
     "PROVIDER_API_VERSION",
     "CausalOverlapSelection",
     "MetricGaugeAnchor",
@@ -109,7 +123,9 @@ __all__ = [
     "SelectedOverlapWindow",
     "export_observation_belief",
     "load_metric_gauge_anchor",
+    "load_observation_belief_export",
     "load_observation_factor_bundle",
+    "prob4d_provider_manifest",
     "save_metric_gauge_anchor",
     "save_observation_belief_export",
     "select_causal_source",

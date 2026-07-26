@@ -54,3 +54,55 @@ def test_window_rejects_misaligned_metadata() -> None:
             point_map=np.zeros((3, 1, 1, 3)),
             valid_mask=np.ones((3, 1, 1), dtype=bool),
         )
+
+
+def test_window_rejects_negative_absolute_frame_ids() -> None:
+    with pytest.raises(ValueError, match="non-negative"):
+        PredictionWindow(
+            window_id="bad",
+            frame_indices=np.array([-1, 0]),
+            point_map=np.ones((2, 1, 1, 3)),
+            valid_mask=np.ones((2, 1, 1), dtype=bool),
+        )
+
+
+def test_window_rejects_deformation_outside_valid_geometry() -> None:
+    valid = np.array([[[True, False]]])
+    deform = np.array([[[False, True]]])
+    with pytest.raises(ValueError, match="subset"):
+        PredictionWindow(
+            window_id="bad",
+            frame_indices=np.array([0]),
+            point_map=np.ones((1, 1, 2, 3)),
+            valid_mask=valid,
+            scene_flow=np.ones((1, 1, 2, 3)),
+            deform_mask=deform,
+        )
+
+
+def test_window_rejects_nonfinite_active_scene_flow() -> None:
+    flow = np.ones((1, 1, 1, 3))
+    flow[0, 0, 0, 0] = np.nan
+    with pytest.raises(ValueError, match="scene_flow"):
+        PredictionWindow(
+            window_id="bad",
+            frame_indices=np.array([0]),
+            point_map=np.ones((1, 1, 1, 3)),
+            valid_mask=np.ones((1, 1, 1), dtype=bool),
+            scene_flow=flow,
+            deform_mask=np.ones((1, 1, 1), dtype=bool),
+        )
+
+
+@pytest.mark.parametrize("bad_value", [0.0, np.nan])
+def test_window_rejects_invalid_active_ray_directions(bad_value: float) -> None:
+    rays = np.ones((1, 1, 1, 3))
+    rays[0, 0, 0] = bad_value
+    with pytest.raises(ValueError, match="ray_directions"):
+        PredictionWindow(
+            window_id="bad",
+            frame_indices=np.array([0]),
+            point_map=np.ones((1, 1, 1, 3)),
+            valid_mask=np.ones((1, 1, 1), dtype=bool),
+            ray_directions=rays,
+        )

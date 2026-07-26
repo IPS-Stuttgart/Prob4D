@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
@@ -14,12 +13,11 @@ BoolArray = NDArray[np.bool_]
 IntArray = NDArray[np.integer]
 
 
-def _readonly(value: np.ndarray, *, dtype: Any | None = None) -> np.ndarray:
-    """Return a defensive, read-only NumPy copy."""
+def _readonly_owned(value: np.ndarray) -> np.ndarray:
+    """Freeze an array that is already an owned defensive copy."""
 
-    result = np.asarray(value, dtype=dtype).copy()
-    result.setflags(write=False)
-    return result
+    value.setflags(write=False)
+    return value
 
 
 @dataclass(frozen=True)
@@ -29,7 +27,7 @@ class PredictionWindow:
     Point maps and scene flow use the window's local world gauge. Absolute
     ``frame_indices`` identify duplicate frames across overlapping windows.
     Every NumPy field is defensively copied and made read-only so a validated
-    window cannot be mutated after it has entered a content-addressed artifact.
+    window cannot be mutated after it has entered a content-addressed workflow.
     """
 
     window_id: str
@@ -69,32 +67,38 @@ class PredictionWindow:
 
         if (scene_flow is None) != (deform_mask is None):
             raise ValueError("scene_flow and deform_mask must either both be present or absent")
-        if scene_flow is not None and not np.all(np.isfinite(scene_flow[deform_mask])):
-            raise ValueError("active scene_flow entries must be finite")
+        if deform_mask is not None:
+            if np.any(deform_mask & ~valid_mask):
+                raise ValueError("deform_mask must be a subset of valid_mask")
+            if not np.all(np.isfinite(scene_flow[deform_mask])):
+                raise ValueError("active scene_flow entries must be finite")
         if rays is not None:
             if not np.all(np.isfinite(rays[valid_mask])):
-                raise ValueError("valid ray directions must be finite")
+                raise ValueError("valid ray_directions entries must be finite")
             ray_norm = np.linalg.norm(rays, axis=-1)
             if np.any(valid_mask & (ray_norm <= np.finfo(np.float64).eps)):
-                raise ValueError("valid ray directions must be nonzero")
-            normalize = ray_norm > np.finfo(np.float64).eps
-            rays[normalize] /= ray_norm[normalize, None]
+                raise ValueError("valid ray_directions entries must be nonzero")
+            rays[valid_mask] /= ray_norm[valid_mask, None]
 
         object.__setattr__(self, "window_id", window_id)
-        object.__setattr__(self, "frame_indices", _readonly(frame_indices))
-        object.__setattr__(self, "point_map", _readonly(point_map))
-        object.__setattr__(self, "valid_mask", _readonly(valid_mask))
+        object.__setattr__(self, "frame_indices", _readonly_owned(frame_indices))
+        object.__setattr__(self, "point_map", _readonly_owned(point_map))
+        object.__setattr__(self, "valid_mask", _readonly_owned(valid_mask))
         object.__setattr__(
             self,
             "scene_flow",
-            None if scene_flow is None else _readonly(scene_flow),
+            None if scene_flow is None else _readonly_owned(scene_flow),
         )
         object.__setattr__(
             self,
             "deform_mask",
-            None if deform_mask is None else _readonly(deform_mask),
+            None if deform_mask is None else _readonly_owned(deform_mask),
         )
-        object.__setattr__(self, "ray_directions", None if rays is None else _readonly(rays))
+        object.__setattr__(
+            self,
+            "ray_directions",
+            None if rays is None else _readonly_owned(rays),
+        )
 
     @staticmethod
     def _optional_vector_field(

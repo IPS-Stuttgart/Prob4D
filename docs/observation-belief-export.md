@@ -48,8 +48,12 @@ prob4d-export-observation-belief \
   --causal-frame-stop 134 \
   --metric-gauge-anchor outputs/metric_gauge_anchor.json \
   --pixel-stride 4 \
+  --max-gauge-rank 64 \
+  --minimum-retained-gauge-trace 0.999 \
   --source-revision <full-prob4d-commit> \
   --summary-json outputs/sequence/observation_belief_summary.json
+
+prob4d-validate-observation outputs/sequence/observation_belief.npz
 ```
 
 `--causal-frame-stop` is exclusive. An overlap-window manifest entry is admitted
@@ -61,34 +65,63 @@ The exporter records an exact 40- or 64-character Prob4D commit. It also fails
 closed when that revision cannot be obtained from the checkout and is not
 provided explicitly.
 
+## Joint gauge posterior
+
+The production default is `--gauge-mode sequential`. Prob4D chooses one causal
+spanning-tree parent for every retained window, preferring more correspondences,
+then lower residual RMS, then the earlier reference window. It propagates the
+metric-anchor covariance and every selected relative-alignment covariance into
+one joint matrix
+
+```text
+Sigma_g in R^(7K x 7K),
+```
+
+including the cross-covariance between windows. Redundant alignment edges are
+reported but are not fused into the production tree, which avoids silently
+assuming independence between dense shared-backbone constraints.
+
+A deterministic eigendecomposition produces a shared covariance root. The
+export fails when `--max-gauge-rank` would retain less than
+`--minimum-retained-gauge-trace` of the joint covariance trace. Rank reduction is
+therefore explicit and auditable rather than a silent memory optimization.
+
+The legacy `--gauge-mode fixed_lag` path remains available only with
+`--allow-approximate-fixed-lag-covariance`. Its current covariance treats gauges
+outside the active lag as exact posterior means and exports only block-diagonal
+marginals. It is suitable for a labelled reconstruction ablation, not for the
+main Bayesian uncertainty claim. A future fixed-lag implementation must carry a
+marginalized boundary information prior before this acknowledgement can be
+removed.
+
 ## Artifact semantics
 
 The archive contains metric 3-D means, full conditional `3 x 3` covariance,
 absolute frame/entity/view/window identities, separate association probability
 and prior reliability, effective correlation groups, and composite-likelihood
-weights. For row `i` assigned to gauge `k`, the shared low-rank factor is
+weights. For row `i` from window `k`, the shared low-rank factor is
 
 ```text
-U_i = J_i L_k,       Sigma_gauge,k = L_k L_k^T.
+U_i = J_i L_k,
+Sigma_g = L L^T,
+L_k = rows 7k : 7(k + 1) of L.
 ```
 
-A consumer that keeps these gauge terms as explicit nuisance variables must use
-the local conditional covariance and must not add `U_i U_i^T` to it again.
+Every row uses one common factor group because the latent vector is joint across
+all windows. This preserves both per-window gauge marginal covariance and
+cross-window covariance. A consumer that keeps the gauge terms as explicit
+nuisance variables must use the local conditional covariance and must not add
+`U_i U_i^T` to it again.
+
 Association probability is diagnostic support for the decoded pixel identity;
 it is not a MotionCrafter-to-physical-node association probability. Prior
 reliability is derived from overlap disagreement without reading the downstream
 physical innovation.
 
-The version-1 exporter has no independently calibrated group-level
-nominal/outlier prior. It therefore writes the neutral value `1.0` for
+The exporter has no independently calibrated group-level nominal/outlier prior.
+It therefore writes the neutral value `1.0` for
 `group_prior_nominal_probability`; overlap reliability is not applied a second
 time. `group_composite_weight` separately caps dense duplicate information.
-
-Each window's gauge marginal is represented as one coherent factor group.
-Version 1 does not encode the complete joint cross-window gauge posterior. The
-artifact records this limitation explicitly, and composite weights cap remaining
-cross-window dependence. A future joint sparse information-factor schema would
-be required before claiming exact cross-window covariance transport.
 
 The descriptor, all array names, dtypes, shapes, and bytes are covered by the
 artifact ID. The source digest covers only admitted payload hashes and stable
@@ -102,7 +135,7 @@ address.
 
 Prob4D, Bayesian-PhysTwin, and Causal4D share a golden contract fixture. The
 same artifact must have the same content address in all three repositories.
-Bayesian-PhysTwin consumes the low-rank gauge factors as explicit nuisance
+Bayesian-PhysTwin consumes the shared low-rank gauge factor as explicit nuisance
 parameters, keeps association probability separate from reliability, and uses
 the group prior and composite weight as distinct inputs. Causal4D can bind the
 resulting selected twin belief to the exact observation artifact without

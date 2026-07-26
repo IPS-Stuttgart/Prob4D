@@ -7,9 +7,14 @@ import prob4d.provider_v1 as provider
 
 def test_provider_v1_exposes_versioned_contracts() -> None:
     assert provider.PROVIDER_API_VERSION == 1
+    assert provider.PROB4D_PROVIDER_API_VERSION == 1
     assert provider.OBSERVATION_BELIEF_SCHEMA == "phys4d.observation_belief"
     assert provider.OBSERVATION_BELIEF_VERSION == 1
     assert provider.OBSERVATION_FACTOR_SCHEMA_VERSION == 3
+    assert callable(provider.load_observation_belief_export)
+    manifest = provider.prob4d_provider_manifest(provider_revision="a" * 40)
+    assert manifest["provider_api_version"] == provider.PROVIDER_API_VERSION
+    assert "versioned_python_provider_api" in manifest["capabilities"]
 
 
 def test_select_causal_source_forwards_exact_boundary(monkeypatch) -> None:
@@ -61,6 +66,9 @@ def test_export_observation_belief_forwards_stable_parameters(monkeypatch) -> No
         minimum_prior_reliability=0.1,
         gauge_mode="sequential",
         fixed_lag=5,
+        allow_approximate_fixed_lag_covariance=False,
+        max_gauge_rank=48,
+        minimum_retained_gauge_trace=0.997,
         view_name="left-camera",
         source_revision="a" * 40,
         uncertainty_model=model,
@@ -77,6 +85,9 @@ def test_export_observation_belief_forwards_stable_parameters(monkeypatch) -> No
         "minimum_prior_reliability": 0.1,
         "gauge_mode": "sequential",
         "fixed_lag": 5,
+        "allow_approximate_fixed_lag_covariance": False,
+        "max_gauge_rank": 48,
+        "minimum_retained_gauge_trace": 0.997,
         "view_name": "left-camera",
         "source_revision": "a" * 40,
         "uncertainty_model": model,

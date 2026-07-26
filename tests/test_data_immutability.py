@@ -66,8 +66,10 @@ def test_prediction_window_normalizes_and_freezes_optional_arrays() -> None:
     assert not window.ray_directions.flags.writeable
 
     flow[...] = 7.0
+    deform[...] = False
     rays[...] = 0.0
     np.testing.assert_allclose(window.scene_flow, 1.0)
+    assert np.all(window.deform_mask)
     assert np.all(np.linalg.norm(window.ray_directions[window.valid_mask], axis=-1) > 0.0)
 
 
@@ -87,7 +89,7 @@ def test_prediction_window_rejects_nonfinite_active_optional_values() -> None:
 
     rays = points.copy()
     rays[0, 0, 0] = 0.0
-    with pytest.raises(ValueError, match="ray directions must be nonzero"):
+    with pytest.raises(ValueError, match="must be nonzero"):
         PredictionWindow(
             window_id="window-a",
             frame_indices=frames,
