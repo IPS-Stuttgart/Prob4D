@@ -15,8 +15,11 @@ def test_provider_manifest_declares_covariance_boundary() -> None:
     assert manifest["artifact_schema_versions"] == {
         "ObservationBeliefV1": 1,
         "ObservationFactorBundle": 3,
+        "Prob4DCausalObservationStream": 2,
     }
     assert "joint_cross_window_sim3_gauge_covariance" in manifest["capabilities"]
+    assert "versioned_causal_stream_contract" in manifest["capabilities"]
+    assert manifest["metadata"]["observation_stream_contract_version"] == 2
     assert manifest["limitations"][
         "joint_cross_window_gauge_covariance_in_observation_belief_v1"
     ] is True
