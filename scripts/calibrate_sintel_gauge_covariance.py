@@ -12,6 +12,10 @@ from pathlib import Path
 
 import numpy as np
 
+from prob4d.alignment import (
+    DEFAULT_COVARIANCE_CLUSTER_SIZE,
+    DENSE_ALIGNMENT_COVARIANCE_METHOD,
+)
 from prob4d.benchmark import _build_alignments
 from prob4d.experiments import _window_truth_gauge
 from prob4d.gauge import GaugeCovarianceCalibration
@@ -82,6 +86,10 @@ def main() -> int:
                     "scale_ratio": float(error[0] ** 2 / max(covariance[0, 0], 1e-12)),
                     "rotation_ratio": normalized_quadratic(error[1:4], covariance[1:4, 1:4]),
                     "translation_ratio": normalized_quadratic(error[4:7], covariance[4:7, 4:7]),
+                    "covariance_method": alignment.result.covariance_method,
+                    "num_covariance_clusters": alignment.result.num_covariance_clusters,
+                    "information_rank": alignment.result.information_rank,
+                    "information_condition": alignment.result.information_condition,
                 }
             )
         print(item.sequence, flush=True)
@@ -114,6 +122,10 @@ def main() -> int:
         "results_directory": str(args.results_dir.resolve()),
         "calibration_sequences": [item.sequence for item in calibration_inputs],
         "test_sequences": [item.sequence for item in test_inputs],
+        "alignment_covariance": {
+            "method": DENSE_ALIGNMENT_COVARIANCE_METHOD,
+            "spatial_cluster_size": DEFAULT_COVARIANCE_CLUSTER_SIZE,
+        },
         "calibration": asdict(calibration),
         "inflation": {
             "scale": calibration.scale,
