@@ -14,9 +14,23 @@ bundle contains:
 - one `GaugeEstimate` for every local window gauge;
 - separate association probability and residual-independent prior reliability;
 - correlation-group nominal probabilities and composite-likelihood weights;
-- view, window, frame, and correlation-group provenance;
+- case, stream, sequence, repository, revision, view, window, frame, and
+  correlation-group provenance;
 - one explicit **exclusive** causal frame stop;
 - a checksum-bound JSON manifest and non-pickled NPZ payload.
+
+## Identity and provenance
+
+`case_id` names the physical case consumed downstream, while `stream_id`
+identifies the observation stream within that case. `sequence_id` remains the
+producer-side bundle identity and may be more specific, for example by naming a
+camera or extraction pass. `source_repository` and `source_revision` identify
+the exact producer implementation. They are serialized as first-class manifest
+fields so Bayesian-PhysTwin can carry the exact input into its posterior lineage
+and Causal4D can validate it without importing Prob4D.
+
+For compatibility, omitted `case_id` and `stream_id` default to `sequence_id`.
+New production exporters should supply all three explicitly.
 
 ## Reliability boundary
 
@@ -85,12 +99,19 @@ factor = ObservationFactor(
 )
 
 bundle = ObservationFactorBundle(
-    sequence_id="double_stretch_sloth-camera0",
+    sequence_id="double_stretch_sloth-camera0-prefix",
+    case_id="double_stretch_sloth",
+    stream_id="prob4d:motioncrafter-points:camera0",
     factors=(factor,),
     gauges=(gauge_window3_camera0,),
-    source_revision=motioncrafter_commit,
+    source_repository="FlorianPfaff/Prob4D",
+    source_revision=prob4d_commit,
     causal_frame_stop=134,
-    metadata={"metric_anchor_used": False},
+    metadata={
+        "upstream_repository": "TencentARC/MotionCrafter",
+        "upstream_revision": motioncrafter_commit,
+        "metric_anchor_used": False,
+    },
 )
 
 manifest, payload = write_observation_factor_bundle(
@@ -125,6 +146,7 @@ The loader accepts legacy schema-v2 manifests, whose `causal_frame_limit` was
 inclusive. It converts them deterministically to
 `causal_frame_stop = causal_frame_limit + 1`. Because v2 had no distinct prior
 reliability or group weighting fields, those values are conservatively restored
-as one and the migration is recorded in bundle metadata. New writes always use
+as one and the migration is recorded in bundle metadata. Missing case or stream
+identities are restored from the legacy `sequence_id`. New writes always use
 schema v3; the legacy inclusive aliases remain read-only compatibility
 properties.
