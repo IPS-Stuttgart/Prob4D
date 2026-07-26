@@ -15,6 +15,11 @@ from .calibration import (
     save_point_uncertainty_calibration,
 )
 from .data import PredictionWindow
+from .evaluation_modes import (
+    EvaluationModeResult,
+    EvaluationModes,
+    evaluate_sequence_modes,
+)
 from .observation_contract import (
     OBSERVATION_BELIEF_SCHEMA,
     OBSERVATION_BELIEF_VERSION,
@@ -54,6 +59,8 @@ __all__ = [
     "OBSERVATION_BELIEF_VERSION",
     "POINT_UNCERTAINTY_CALIBRATION_SCHEMA",
     "POINT_UNCERTAINTY_CALIBRATION_VERSION",
+    "EvaluationModeResult",
+    "EvaluationModes",
     "GaugeCovarianceCalibrationV1",
     "JointGaugePosterior",
     "LinearizedObservationFactor",
@@ -68,6 +75,7 @@ __all__ = [
     "build_prob4d_observation_belief",
     "deterministic_covariance_root",
     "estimate_joint_gauge_tree",
+    "evaluate_sequence_modes",
     "load_gauge_covariance_calibration",
     "load_metric_gauge_anchor",
     "load_observation_belief_export",
