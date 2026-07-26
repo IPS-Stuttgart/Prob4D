@@ -16,16 +16,18 @@ PROB4D_PROVIDER_CAPABILITIES = (
     "association_reliability_separation",
     "causal_prefix_selection",
     "conditional_point_covariance",
+    "content_addressed_metric_gauge_anchor",
     "content_addressed_observation_belief",
-    "fixed_metric_gauge_anchor",
     "immutable_prediction_window_inputs",
     "joint_cross_window_sim3_gauge_covariance",
+    "metric_anchor_covariance_propagation",
     "strict_observation_belief_validation",
     "trace_audited_gauge_rank_reduction",
     "versioned_causal_stream_contract",
     "versioned_python_provider_api",
 )
 PROB4D_ARTIFACT_SCHEMA_VERSIONS = {
+    "MetricGaugeAnchor": 1,
     "ObservationBeliefV1": 1,
     "ObservationFactorBundle": 3,
     "Prob4DCausalObservationStream": PROB4D_CAUSAL_STREAM_CONTRACT_VERSION,
@@ -99,7 +101,7 @@ def prob4d_provider_manifest(
             ),
             "observation_belief_covariance_semantics": (
                 "conditional local covariance plus one shared low-rank root of the "
-                "joint Sim(3) covariance induced by the fixed metric anchor and "
+                "joint Sim(3) covariance induced by the metric-anchor prior and "
                 "selected causal gauge tree"
             ),
             "gauge_posterior_semantics": (
@@ -111,8 +113,10 @@ def prob4d_provider_manifest(
                 "correlation-group fields"
             ),
             "metric_boundary": (
-                "ObservationBeliefV1 requires an independently checksummed fixed "
-                "metric Sim(3) anchor"
+                "the content-addressed anchor binds the exact first prediction "
+                "payload and external calibration digest, identifies the world "
+                "frame, and declares whether its covariance is zero-fixed or "
+                "propagated through the shared joint factor"
             ),
         },
     }
