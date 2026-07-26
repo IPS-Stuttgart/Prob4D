@@ -61,7 +61,9 @@ Every prediction archive contains:
 
 Files without `frame_indices` are accepted only when the caller supplies an
 explicit start frame. This prevents local clip indices from being mistaken for
-global video indices.
+global video indices. Negative absolute frame IDs, non-finite valid points,
+active non-finite flow, deformation outside valid geometry, and invalid active
+ray directions are rejected.
 
 `prob4d-motioncrafter --frame-start/--frame-stop/--frame-stride` writes source
 video frame IDs directly into every baseline and overlap window. PhysTwin
@@ -98,18 +100,30 @@ The arrays are:
 | `prior_reliability` | `N` | Residual-independent nominal-source support |
 | `association_probability` | `N` | Association support, kept separate from reliability |
 | `local_covariance_m2` | `N x 3 x 3` | Conditional point covariance in square metres |
-| `low_rank_factor_m` | `N x 3 x R` | Shared coherent gauge/window covariance factor |
+| `low_rank_factor_m` | `N x 3 x R` | Shared coherent joint-gauge covariance factor |
 | `group_ids` | `G` | Sorted effective group IDs |
 | `group_prior_nominal_probability` | `G` | Prior nominal probability per group |
 | `group_composite_weight` | `G` | Information-cap weight in `(0, 1]` |
 
-For a row assigned to window gauge `k`, the exported factor is
-`U_i = J_i L_k`, with `L_k L_k^T = Sigma_gauge,k`. A downstream estimator that
-keeps these factors as explicit nuisance variables must use
-`local_covariance_m2` without adding the gauge marginal again.
+For `K` retained windows, the production exporter propagates one joint gauge
+covariance `Sigma_g` of shape `7K x 7K` and obtains a deterministic root
+`Sigma_g = L L^T`. For a row from window `k`,
+
+```text
+U_i = J_i L_k,
+L_k = rows 7k : 7(k + 1) of L.
+```
+
+All rows therefore share one factor group. This represents per-window gauge
+uncertainty and cross-window covariance. A downstream estimator that keeps
+these factors as explicit nuisance variables must use `local_covariance_m2`
+without adding the gauge marginal again. Rank reduction is allowed only when the
+exported metadata records a retained covariance-trace fraction above the
+explicit threshold.
 
 See [the causal export contract](observation-belief-export.md) for the metric
-anchor schema, append-invariant source digest, command, and claim boundary.
+anchor schema, append-invariant source digest, joint posterior construction,
+fixed-lag limitation, command, and claim boundary.
 
 ## Ground Truth
 
