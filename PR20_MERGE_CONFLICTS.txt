@@ -1,0 +1,19 @@
+Merge of origin/main failed. Conflicting paths were:
+A  docs/evaluation-modes.md
+M  docs/observation-belief-export.md
+M  docs/provider-contract.md
+M  pyproject.toml
+UU src/prob4d/__init__.py
+M  src/prob4d/_metric_gauge_anchor.py
+A  src/prob4d/causal_stream_cli.py
+A  src/prob4d/causal_stream_contract.py
+M  src/prob4d/cli.py
+A  src/prob4d/evaluation_modes.py
+UU src/prob4d/provider_manifest.py
+UU src/prob4d/provider_v1.py
+A  tests/fixtures/prob4d_joint_observation_v1.json
+A  tests/test_causal_stream_contract.py
+A  tests/test_evaluation_modes.py
+A  tests/test_joint_observation_contract_fixture.py
+UU tests/test_provider_manifest.py
+UU tests/test_provider_v1.py
