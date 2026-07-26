@@ -13,19 +13,25 @@ PROB4D_PROVIDER_PACKAGE_VERSION = "0.2.0"
 PROB4D_PROVIDER_CAPABILITIES = (
     "append_invariant_causal_source_digest",
     "association_reliability_separation",
+    "calibrated_observation_export",
     "causal_prefix_selection",
     "conditional_point_covariance",
+    "content_addressed_covariance_calibration",
     "content_addressed_observation_belief",
+    "fail_closed_provider_cluster_covariance",
     "fixed_metric_gauge_anchor",
     "immutable_prediction_window_inputs",
+    "immutable_validated_core_arrays",
     "joint_cross_window_sim3_gauge_covariance",
     "strict_observation_belief_validation",
     "trace_audited_gauge_rank_reduction",
     "versioned_python_provider_api",
 )
 PROB4D_ARTIFACT_SCHEMA_VERSIONS = {
+    "GaugeCovarianceCalibrationV1": 1,
     "ObservationBeliefV1": 1,
     "ObservationFactorBundle": 3,
+    "PointUncertaintyCalibrationV1": 1,
 }
 PROB4D_PROVIDER_LIMITATIONS = {
     "joint_cross_window_gauge_covariance_in_observation_belief_v1": True,
@@ -33,6 +39,7 @@ PROB4D_PROVIDER_LIMITATIONS = {
     "fixed_lag_boundary_covariance_exactness_claim": False,
     "prospective_covariance_calibration_claim": False,
     "physical_twin_improvement_claim": False,
+    "provider_pointwise_covariance_fallback_default": False,
 }
 
 
@@ -99,6 +106,14 @@ def prob4d_provider_manifest(
             "gauge_posterior_semantics": (
                 "causal sequential spanning tree by default; fixed-lag block-diagonal "
                 "covariance is an explicit approximate reconstruction control"
+            ),
+            "calibration_semantics": (
+                "content-addressed held-out gauge and point covariance artifacts; "
+                "claim-bearing provider export requires both and records their IDs"
+            ),
+            "alignment_covariance_fallback_semantics": (
+                "provider exports reject fewer than eight spatial clusters by default; "
+                "pointwise fallback requires explicit opt-in and is recorded"
             ),
             "observation_factor_bundle_covariance_semantics": (
                 "explicit gauge nuisance factors with schema-v3 reliability and "

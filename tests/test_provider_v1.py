@@ -2,7 +2,88 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
+import pytest
+
 import prob4d.provider_v1 as provider
+from prob4d.calibration import (
+    GaugeCovarianceCalibrationV1,
+    PointUncertaintyCalibrationV1,
+)
+from prob4d.observation_contract import ObservationBeliefExportV1
+from prob4d.uncertainty import CalibrationReport, DepthDisagreementModel
+
+
+PROVENANCE = {
+    "calibration_case_ids": ("scene-a",),
+    "source_repository": "FlorianPfaff/Prob4D",
+    "source_revision": "a" * 40,
+    "motioncrafter_revision": "b" * 40,
+    "model_identifier": "motioncrafter-base@checkpoint-sha256:cafebabe",
+    "covariance_method": "held_out_scene_family_v1",
+    "image_resolution": (384, 640),
+    "window_size": 16,
+    "window_overlap": 8,
+    "covariance_cluster_size": 32,
+    "input_artifact_sha256": ("c" * 64,),
+}
+
+
+def _gauge_calibration() -> GaugeCovarianceCalibrationV1:
+    return GaugeCovarianceCalibrationV1(
+        scale=1.0,
+        rotation=1.0,
+        translation=1.0,
+        count=8,
+        trim_quantile=0.99,
+        **PROVENANCE,
+    )
+
+
+def _point_calibration() -> PointUncertaintyCalibrationV1:
+    report = CalibrationReport(
+        count=8,
+        parallel_scale_update=1.0,
+        lateral_scale_update=1.0,
+        parallel_normalized_mse=1.0,
+        lateral_normalized_mse=1.0,
+    )
+    return PointUncertaintyCalibrationV1.from_model(
+        DepthDisagreementModel(),
+        report,
+        trim_quantile=0.99,
+        **PROVENANCE,
+    )
+
+
+def _observation() -> ObservationBeliefExportV1:
+    return ObservationBeliefExportV1(
+        case_id="case-a",
+        stream_id="prob4d:test",
+        causal_frame_stop=2,
+        view_names=("camera0",),
+        window_names=("window0",),
+        factor_names=(),
+        source_repository="FlorianPfaff/Prob4D",
+        source_revision="a" * 40,
+        source_artifact_sha256="d" * 64,
+        declared_frame_ids=np.asarray([0]),
+        mean_xyz_m=np.asarray([[0.0, 0.0, 1.0]]),
+        frame_ids=np.asarray([0]),
+        entity_ids=np.asarray([0]),
+        view_indices=np.asarray([0]),
+        window_indices=np.asarray([0]),
+        correlation_group_ids=np.asarray([0]),
+        factor_group_ids=np.asarray([0]),
+        prior_reliability=np.asarray([1.0]),
+        association_probability=np.asarray([1.0]),
+        local_covariance_m2=np.asarray([np.eye(3)]),
+        low_rank_factor_m=np.empty((1, 3, 0)),
+        group_ids=np.asarray([0]),
+        group_prior_nominal_probability=np.asarray([1.0]),
+        group_composite_weight=np.asarray([1.0]),
+        metadata={"existing": True},
+    )
 
 
 def test_provider_v1_exposes_versioned_contracts() -> None:
@@ -11,7 +92,11 @@ def test_provider_v1_exposes_versioned_contracts() -> None:
     assert provider.OBSERVATION_BELIEF_SCHEMA == "phys4d.observation_belief"
     assert provider.OBSERVATION_BELIEF_VERSION == 1
     assert provider.OBSERVATION_FACTOR_SCHEMA_VERSION == 3
+    assert provider.GAUGE_COVARIANCE_CALIBRATION_VERSION == 1
+    assert provider.POINT_UNCERTAINTY_CALIBRATION_VERSION == 1
     assert callable(provider.load_observation_belief_export)
+    assert callable(provider.load_gauge_covariance_calibration)
+    assert callable(provider.load_point_uncertainty_calibration)
     manifest = provider.prob4d_provider_manifest(provider_revision="a" * 40)
     assert manifest["provider_api_version"] == provider.PROVIDER_API_VERSION
     assert "versioned_python_provider_api" in manifest["capabilities"]
@@ -92,3 +177,43 @@ def test_export_observation_belief_forwards_stable_parameters(monkeypatch) -> No
         "source_revision": "a" * 40,
         "uncertainty_model": model,
     }
+
+
+def test_claim_bearing_export_requires_both_calibrations() -> None:
+    with pytest.raises(ValueError, match="require both"):
+        provider.export_observation_belief(
+            "predictions.json",
+            case_id="case-a",
+            causal_frame_stop=134,
+            metric_anchor=object(),
+            gauge_covariance_calibration=_gauge_calibration(),
+            allow_uncalibrated_exploratory_covariance=False,
+        )
+
+
+def test_calibrated_export_records_artifact_ids(monkeypatch) -> None:
+    original = _observation()
+    monkeypatch.setattr(
+        provider,
+        "build_prob4d_observation_belief",
+        lambda *args, **kwargs: original,
+    )
+    gauge = _gauge_calibration()
+    point = _point_calibration()
+
+    exported = provider.export_calibrated_observation_belief(
+        "predictions.json",
+        case_id="case-a",
+        causal_frame_stop=2,
+        metric_anchor=object(),
+        gauge_covariance_calibration=gauge,
+        point_uncertainty_calibration=point,
+    )
+
+    calibration = exported.metadata["covariance_calibration"]
+    assert calibration["status"] == "calibrated"
+    assert calibration["gauge_artifact_id"] == gauge.artifact_id
+    assert calibration["point_artifact_id"] == point.artifact_id
+    assert calibration["alignment_count"] == 0
+    assert calibration["covariance_fallback_counts"] == {}
+    assert exported.artifact_id != original.artifact_id
