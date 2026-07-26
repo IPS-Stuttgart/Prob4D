@@ -68,6 +68,45 @@ video frame IDs directly into every baseline and overlap window. PhysTwin
 evaluation requires these absolute IDs because its calibration, depth frames,
 manual tracks, and physical trajectories all use the original sequence index.
 
+## Phys4D Observation Belief
+
+`prob4d-export-observation` writes a non-pickled NPZ implementing schema
+`phys4d.observation_belief`, version 1. The descriptor and every array name,
+dtype, shape, and byte payload contribute to one content address. The required
+arrays are:
+
+| Field | Shape | Meaning |
+| --- | --- | --- |
+| `declared_frame_ids` | `F` | Strictly increasing admissible source frames |
+| `mean_xyz_m` | `M x 3` | Observation means; metric only when explicitly anchored |
+| `frame_ids` | `M` | Absolute source frame per row |
+| `entity_ids` | `M` | Persistent pixel or material identity per row |
+| `view_indices` | `M` | Index into `view_names` |
+| `window_indices` | `M` | Index into `window_names` |
+| `correlation_group_ids` | `M` | Effective robust-likelihood group |
+| `factor_group_ids` | `M` | Shared low-rank latent identity |
+| `prior_reliability` | `M` | Residual-independent feeder reliability |
+| `association_probability` | `M` | Association support, kept separate from reliability |
+| `local_covariance_m2` | `M x 3 x 3` | Conditional point covariance excluding gauge uncertainty |
+| `low_rank_factor_m` | `M x 3 x R` | Coherent joint-gauge covariance factor |
+| `group_ids` | `G` | Sorted unique effective groups |
+| `group_prior_nominal_probability` | `G` | Frozen nominal-component prior |
+| `group_composite_weight` | `G` | Evidence-power cap in `(0, 1]` |
+
+The causal cutoff is exclusive: all declared and observed frames must satisfy
+`frame_id < causal_frame_stop`. Before loading payloads, the exporter selects
+only independently decoded overlap windows with
+`stop_frame <= causal_frame_stop`; all gauge estimation, disagreement
+accumulation, uncertainty construction, and row export are recomputed from that
+prefix. Excluded future payloads are neither opened nor hashed.
+
+The descriptor records `coordinate_mode`. `gauge_relative` artifacts use an
+arbitrary first-window reference and do not authorize metric state updates.
+`metric_anchored` artifacts require an independent `Sim(3)` anchor and include
+its digest, mean, and covariance in the content address. See
+[the observation-export contract](observation-belief-export.md) for the exact
+causal, gauge, and reliability semantics.
+
 ## Ground Truth
 
 Real evaluation expects a compressed NumPy archive with:
