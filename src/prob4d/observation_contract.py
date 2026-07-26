@@ -1,4 +1,4 @@
-"""Writer for the portable Phys4D observation-belief contract."""
+"""Writer and validator for the portable Phys4D observation-belief contract."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ OBSERVATION_BELIEF_VERSION = 1
 
 
 def array_sha256(values: np.ndarray) -> str:
-    """Hash an array including its dtype and shape."""
+    """Hash an array including dtype and shape."""
 
     array = np.ascontiguousarray(np.asarray(values))
     digest = hashlib.sha256()
@@ -69,9 +69,32 @@ def _validate_sha256(value: str, *, name: str) -> None:
         raise ValueError(f"{name} must be a lowercase SHA-256 digest")
 
 
+def _validated_metadata(values: Mapping[str, Any]) -> dict[str, Any]:
+    try:
+        return json.loads(json.dumps(dict(values), sort_keys=True, allow_nan=False))
+    except (TypeError, ValueError) as error:
+        raise ValueError("metadata must be finite JSON data") from error
+
+
+def _readonly(
+    values: np.ndarray,
+    *,
+    dtype: np.dtype[Any] | type | None = None,
+) -> np.ndarray:
+    result = np.asarray(values, dtype=dtype).copy()
+    result.setflags(write=False)
+    return result
+
+
 @dataclass(frozen=True)
 class ObservationBeliefExportV1:
-    """Validated data used to emit an ``ObservationBeliefV1`` archive."""
+    """Validated data used to emit a cross-repository ``ObservationBeliefV1``.
+
+    ``local_covariance_m2`` contains residual-independent conditional covariance.
+    ``low_rank_factor_m`` contains coherent factors shared by rows with the same
+    ``factor_group_id``. Association probability, prior reliability, and group
+    nominal probability remain separate by construction.
+    """
 
     case_id: str
     stream_id: str
@@ -105,164 +128,154 @@ class ObservationBeliefExportV1:
             raise ValueError("case_id and stream_id must be nonempty")
         if self.causal_frame_stop < 1:
             raise ValueError("causal_frame_stop must be positive")
-        if (
-            not self.view_names
-            or any(not name for name in self.view_names)
-            or not self.window_names
-            or any(not name for name in self.window_names)
-        ):
-            raise ValueError("view and window names must be nonempty")
+        if not self.view_names or any(not name for name in self.view_names):
+            raise ValueError("view_names must contain nonempty names")
+        if not self.window_names or any(not name for name in self.window_names):
+            raise ValueError("window_names must contain nonempty names")
         if any(not name for name in self.factor_names):
-            raise ValueError("factor names must be nonempty when present")
+            raise ValueError("factor_names must be nonempty when present")
         if not self.source_repository or not self.source_revision:
-            raise ValueError("source provenance must be nonempty")
+            raise ValueError("source repository and revision must be nonempty")
         _validate_sha256(
             self.source_artifact_sha256,
             name="source_artifact_sha256",
         )
 
-        normalized = {
-            "declared_frame_ids": np.asarray(
-                self.declared_frame_ids, dtype=np.int64
-            ),
-            "mean_xyz_m": np.asarray(self.mean_xyz_m, dtype=np.float64),
-            "frame_ids": np.asarray(self.frame_ids, dtype=np.int64),
-            "entity_ids": np.asarray(self.entity_ids, dtype=np.int64),
-            "view_indices": np.asarray(self.view_indices, dtype=np.int64),
-            "window_indices": np.asarray(
-                self.window_indices, dtype=np.int64
-            ),
-            "correlation_group_ids": np.asarray(
-                self.correlation_group_ids, dtype=np.int64
-            ),
-            "factor_group_ids": np.asarray(
-                self.factor_group_ids, dtype=np.int64
-            ),
-            "prior_reliability": np.asarray(
-                self.prior_reliability, dtype=np.float64
-            ),
-            "association_probability": np.asarray(
-                self.association_probability, dtype=np.float64
-            ),
-            "local_covariance_m2": np.asarray(
-                self.local_covariance_m2, dtype=np.float64
-            ),
-            "low_rank_factor_m": np.asarray(
-                self.low_rank_factor_m, dtype=np.float64
-            ),
-            "group_ids": np.asarray(self.group_ids, dtype=np.int64),
-            "group_prior_nominal_probability": np.asarray(
-                self.group_prior_nominal_probability, dtype=np.float64
-            ),
-            "group_composite_weight": np.asarray(
-                self.group_composite_weight, dtype=np.float64
-            ),
-        }
-        count = len(normalized["mean_xyz_m"])
-        if normalized["mean_xyz_m"].shape != (count, 3) or count == 0:
-            raise ValueError("mean_xyz_m must have nonempty shape (N, 3)")
-        for name in (
-            "frame_ids",
-            "entity_ids",
-            "view_indices",
-            "window_indices",
-            "correlation_group_ids",
-            "factor_group_ids",
-            "prior_reliability",
-            "association_probability",
-        ):
-            if normalized[name].shape != (count,):
-                raise ValueError(f"{name} must have shape ({count},)")
-        if normalized["local_covariance_m2"].shape != (count, 3, 3):
-            raise ValueError("local_covariance_m2 must have shape (N, 3, 3)")
-        if normalized["low_rank_factor_m"].shape != (
-            count,
-            3,
-            len(self.factor_names),
-        ):
-            raise ValueError("low_rank_factor_m rank does not match factor_names")
-        frames = normalized["declared_frame_ids"]
+        declared_frames = _readonly(self.declared_frame_ids, dtype=np.int64)
+        mean = _readonly(self.mean_xyz_m, dtype=np.float64)
+        frame_ids = _readonly(self.frame_ids, dtype=np.int64)
+        entity_ids = _readonly(self.entity_ids, dtype=np.int64)
+        view_indices = _readonly(self.view_indices, dtype=np.int64)
+        window_indices = _readonly(self.window_indices, dtype=np.int64)
+        correlation_groups = _readonly(
+            self.correlation_group_ids, dtype=np.int64
+        )
+        factor_groups = _readonly(self.factor_group_ids, dtype=np.int64)
+        prior_reliability = _readonly(
+            self.prior_reliability, dtype=np.float64
+        )
+        association_probability = _readonly(
+            self.association_probability, dtype=np.float64
+        )
+        local_covariance = _readonly(
+            self.local_covariance_m2, dtype=np.float64
+        )
+        factors = _readonly(self.low_rank_factor_m, dtype=np.float64)
+        group_ids = _readonly(self.group_ids, dtype=np.int64)
+        group_prior = _readonly(
+            self.group_prior_nominal_probability, dtype=np.float64
+        )
+        group_weight = _readonly(
+            self.group_composite_weight, dtype=np.float64
+        )
+
         if (
-            frames.ndim != 1
-            or len(frames) == 0
-            or np.any(np.diff(frames) <= 0)
-            or np.any(frames < 0)
-            or np.any(frames >= self.causal_frame_stop)
+            declared_frames.ndim != 1
+            or len(declared_frames) == 0
+            or np.any(declared_frames < 0)
+            or np.any(np.diff(declared_frames) <= 0)
         ):
+            raise ValueError(
+                "declared_frame_ids must be nonempty, nonnegative, and strictly increasing"
+            )
+        if np.any(declared_frames >= self.causal_frame_stop):
             raise ValueError("declared frames violate the causal boundary")
-        if not np.all(np.isin(normalized["frame_ids"], frames)):
-            raise ValueError("observation frames are not declared")
-        if np.any(normalized["entity_ids"] < 0):
+        if mean.ndim != 2 or mean.shape[1] != 3 or len(mean) == 0:
+            raise ValueError("mean_xyz_m must have nonempty shape (N, 3)")
+        observation_count = len(mean)
+        vectors = {
+            "frame_ids": frame_ids,
+            "entity_ids": entity_ids,
+            "view_indices": view_indices,
+            "window_indices": window_indices,
+            "correlation_group_ids": correlation_groups,
+            "factor_group_ids": factor_groups,
+            "prior_reliability": prior_reliability,
+            "association_probability": association_probability,
+        }
+        for name, values in vectors.items():
+            if values.shape != (observation_count,):
+                raise ValueError(f"{name} must have shape ({observation_count},)")
+        if local_covariance.shape != (observation_count, 3, 3):
+            raise ValueError("local_covariance_m2 must have shape (N, 3, 3)")
+        factor_rank = len(self.factor_names)
+        if factors.shape != (observation_count, 3, factor_rank):
+            raise ValueError(
+                "low_rank_factor_m must have shape "
+                f"(N, 3, {factor_rank})"
+            )
+        if not np.all(np.isfinite(mean)):
+            raise ValueError("mean_xyz_m must be finite")
+        if not np.all(np.isfinite(local_covariance)):
+            raise ValueError("local covariance must be finite")
+        if not np.all(np.isfinite(factors)):
+            raise ValueError("low-rank factors must be finite")
+        if np.any(entity_ids < 0):
             raise ValueError("entity_ids must be nonnegative")
-        if np.any(normalized["view_indices"] < 0) or np.any(
-            normalized["view_indices"] >= len(self.view_names)
-        ):
+        if np.any(frame_ids < 0) or np.any(frame_ids >= self.causal_frame_stop):
+            raise ValueError("observation frames cross the causal boundary")
+        if not np.all(np.isin(frame_ids, declared_frames)):
+            raise ValueError("frame_ids must be contained in declared_frame_ids")
+        if np.any(view_indices < 0) or np.any(view_indices >= len(self.view_names)):
             raise ValueError("view_indices reference unavailable views")
-        if np.any(normalized["window_indices"] < 0) or np.any(
-            normalized["window_indices"] >= len(self.window_names)
+        if np.any(window_indices < 0) or np.any(
+            window_indices >= len(self.window_names)
         ):
             raise ValueError("window_indices reference unavailable windows")
-        if np.any(normalized["correlation_group_ids"] < 0) or np.any(
-            normalized["factor_group_ids"] < 0
-        ):
+        if np.any(correlation_groups < 0) or np.any(factor_groups < 0):
             raise ValueError("group identifiers must be nonnegative")
-        for name in ("prior_reliability", "association_probability"):
-            values = normalized[name]
+        for name, values in (
+            ("prior_reliability", prior_reliability),
+            ("association_probability", association_probability),
+        ):
             if not np.all(np.isfinite(values)) or np.any(
                 (values < 0.0) | (values > 1.0)
             ):
                 raise ValueError(f"{name} must lie in [0, 1]")
-        if not np.array_equal(
-            normalized["group_ids"],
-            np.unique(normalized["correlation_group_ids"]),
+
+        symmetric = 0.5 * (
+            local_covariance + np.swapaxes(local_covariance, 1, 2)
+        )
+        if not np.allclose(
+            local_covariance, symmetric, atol=1e-12, rtol=1e-10
         ):
-            raise ValueError("group_ids do not match correlation groups")
-        group_count = len(normalized["group_ids"])
-        if normalized["group_prior_nominal_probability"].shape != (
+            raise ValueError("local covariance must be symmetric")
+        minimum_eigenvalue = np.min(np.linalg.eigvalsh(symmetric), axis=1)
+        if np.any(minimum_eigenvalue <= 0.0):
+            raise ValueError("local covariance must be positive definite")
+
+        expected_groups = np.unique(correlation_groups)
+        if group_ids.ndim != 1 or not np.array_equal(group_ids, expected_groups):
+            raise ValueError(
+                "group_ids must equal sorted unique correlation_group_ids"
+            )
+        group_count = len(group_ids)
+        if group_prior.shape != (group_count,) or group_weight.shape != (
             group_count,
-        ) or normalized["group_composite_weight"].shape != (group_count,):
-            raise ValueError("group metadata shape changed")
-        group_prior = normalized["group_prior_nominal_probability"]
-        group_weight = normalized["group_composite_weight"]
+        ):
+            raise ValueError(
+                "group prior and composite weight must identify every group"
+            )
         if not np.all(np.isfinite(group_prior)) or np.any(
             (group_prior < 0.0) | (group_prior > 1.0)
         ):
-            raise ValueError("group prior probabilities must lie in [0, 1]")
+            raise ValueError(
+                "group prior nominal probabilities must lie in [0, 1]"
+            )
         if not np.all(np.isfinite(group_weight)) or np.any(
             (group_weight <= 0.0) | (group_weight > 1.0)
         ):
             raise ValueError("group composite weights must lie in (0, 1]")
-        if not np.all(np.isfinite(normalized["mean_xyz_m"])):
-            raise ValueError("observation means must be finite")
-        if not np.all(np.isfinite(normalized["local_covariance_m2"])):
-            raise ValueError("local covariance must be finite")
-        if not np.all(np.isfinite(normalized["low_rank_factor_m"])):
-            raise ValueError("low-rank factors must be finite")
-        symmetric = 0.5 * (
-            normalized["local_covariance_m2"]
-            + np.swapaxes(normalized["local_covariance_m2"], 1, 2)
-        )
-        if not np.allclose(
-            symmetric,
-            normalized["local_covariance_m2"],
-            atol=1e-12,
-            rtol=1e-10,
-        ) or np.any(np.min(np.linalg.eigvalsh(symmetric), axis=1) <= 0.0):
-            raise ValueError("local covariance must be symmetric positive definite")
+
         order = np.lexsort(
-            (
-                normalized["window_indices"],
-                normalized["view_indices"],
-                normalized["entity_ids"],
-                normalized["frame_ids"],
-            )
+            (window_indices, view_indices, entity_ids, frame_ids)
         )
         sorted_keys = np.column_stack(
             (
-                normalized["frame_ids"][order],
-                normalized["entity_ids"][order],
-                normalized["view_indices"][order],
-                normalized["window_indices"][order],
+                frame_ids[order],
+                entity_ids[order],
+                view_indices[order],
+                window_indices[order],
             )
         )
         if len(sorted_keys) > 1 and np.any(
@@ -271,17 +284,29 @@ class ObservationBeliefExportV1:
             raise ValueError(
                 "observation identity (frame, entity, view, window) must be unique"
             )
-        try:
-            metadata = json.loads(
-                json.dumps(dict(self.metadata), sort_keys=True, allow_nan=False)
-            )
-        except (TypeError, ValueError) as error:
-            raise ValueError("metadata must be finite JSON data") from error
-        for name, values in normalized.items():
-            values = values.copy()
-            values.setflags(write=False)
-            object.__setattr__(self, name, values)
-        object.__setattr__(self, "metadata", metadata)
+
+        object.__setattr__(self, "declared_frame_ids", declared_frames)
+        object.__setattr__(self, "mean_xyz_m", mean)
+        object.__setattr__(self, "frame_ids", frame_ids)
+        object.__setattr__(self, "entity_ids", entity_ids)
+        object.__setattr__(self, "view_indices", view_indices)
+        object.__setattr__(self, "window_indices", window_indices)
+        object.__setattr__(
+            self, "correlation_group_ids", correlation_groups
+        )
+        object.__setattr__(self, "factor_group_ids", factor_groups)
+        object.__setattr__(self, "prior_reliability", prior_reliability)
+        object.__setattr__(
+            self, "association_probability", association_probability
+        )
+        object.__setattr__(self, "local_covariance_m2", local_covariance)
+        object.__setattr__(self, "low_rank_factor_m", factors)
+        object.__setattr__(self, "group_ids", group_ids)
+        object.__setattr__(
+            self, "group_prior_nominal_probability", group_prior
+        )
+        object.__setattr__(self, "group_composite_weight", group_weight)
+        object.__setattr__(self, "metadata", _validated_metadata(self.metadata))
 
     def descriptor(self) -> dict[str, Any]:
         return {
@@ -314,21 +339,38 @@ class ObservationBeliefExportV1:
             "local_covariance_m2": self.local_covariance_m2,
             "low_rank_factor_m": self.low_rank_factor_m,
             "group_ids": self.group_ids,
-            "group_prior_nominal_probability": (
-                self.group_prior_nominal_probability
-            ),
+            "group_prior_nominal_probability": self.group_prior_nominal_probability,
             "group_composite_weight": self.group_composite_weight,
         }
 
     @property
     def artifact_id(self) -> str:
+        """Content address of the descriptor and every numeric array."""
+
         return _artifact_id(self.descriptor(), self.arrays())
+
+    def summary(self) -> dict[str, Any]:
+        return {
+            "artifact_id": self.artifact_id,
+            "schema_name": OBSERVATION_BELIEF_SCHEMA,
+            "schema_version": OBSERVATION_BELIEF_VERSION,
+            "case_id": self.case_id,
+            "stream_id": self.stream_id,
+            "causal_frame_stop": self.causal_frame_stop,
+            "frame_count": int(len(self.declared_frame_ids)),
+            "observation_count": int(len(self.mean_xyz_m)),
+            "group_count": int(len(self.group_ids)),
+            "factor_rank": int(len(self.factor_names)),
+            "source_repository": self.source_repository,
+            "source_revision": self.source_revision,
+            "source_artifact_sha256": self.source_artifact_sha256,
+        }
 
 
 def save_observation_belief_export(
     path: str | Path, artifact: ObservationBeliefExportV1
 ) -> None:
-    """Write the exact archive consumed by Bayesian-PhysTwin and Causal4D."""
+    """Write a non-pickled, content-addressed observation artifact."""
 
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
