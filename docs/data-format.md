@@ -41,6 +41,22 @@ video frame IDs directly into every baseline and overlap window. PhysTwin
 evaluation requires these absolute IDs because its calibration, depth frames,
 manual tracks, and physical trajectories all use the original sequence index.
 
+## Downstream Observation Artifact
+
+`prob4d-observation export` writes a version-2 JSON/NPZ pair for downstream
+Bayesian consumers. The artifact includes point and optional flow covariance,
+source-window identities, dependence groups, per-frame source limits, exact
+producer and upstream revisions, and an explicit metric or gauge-relative
+coordinate status.
+
+A causal export with `--causal-max-frame` removes every window that used a later
+source frame and re-runs gauge estimation and fusion. It does not slice an
+all-frame fusion result. Gauge-relative exports use `gauge_unit^2`, never `m^2`,
+and retain an unresolved global `Sim(3)` gauge for the downstream model.
+
+See [the observation artifact contract](observation-artifact.md) for the schema,
+causal semantics, validation rules, and command examples.
+
 ## Ground Truth
 
 Real evaluation expects a compressed NumPy archive with:
