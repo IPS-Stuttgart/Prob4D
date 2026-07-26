@@ -1,6 +1,18 @@
 """Probabilistic long-horizon fusion for MotionCrafter predictions."""
 
 from .data import PredictionWindow
+from .metric_anchor import (
+    MetricGaugeAnchorV1,
+    load_metric_gauge_anchor,
+    save_metric_gauge_anchor,
+)
+from .observation_contract import (
+    OBSERVATION_BELIEF_SCHEMA,
+    OBSERVATION_BELIEF_VERSION,
+    ObservationBeliefExportV1,
+    save_observation_belief_export,
+)
+from .observation_export import build_prob4d_observation_belief
 from .observation_factors import (
     LinearizedObservationFactor,
     ObservationFactor,
@@ -13,13 +25,21 @@ from .observation_factors import (
 from .sim3 import Sim3
 
 __all__ = [
+    "OBSERVATION_BELIEF_SCHEMA",
+    "OBSERVATION_BELIEF_VERSION",
     "LinearizedObservationFactor",
+    "MetricGaugeAnchorV1",
+    "ObservationBeliefExportV1",
     "ObservationFactor",
     "ObservationFactorBundle",
     "PredictionWindow",
     "Sim3",
     "StackedObservationFactors",
+    "build_prob4d_observation_belief",
+    "load_metric_gauge_anchor",
     "load_observation_factor_bundle",
+    "save_metric_gauge_anchor",
+    "save_observation_belief_export",
     "stack_observation_factors",
     "write_observation_factor_bundle",
 ]
