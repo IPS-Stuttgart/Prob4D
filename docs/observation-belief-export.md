@@ -48,6 +48,7 @@ prob4d-export-observation-belief \
   --causal-frame-stop 134 \
   --metric-gauge-anchor outputs/metric_gauge_anchor.json \
   --pixel-stride 4 \
+  --source-revision <full-prob4d-commit> \
   --summary-json outputs/sequence/observation_belief_summary.json
 ```
 
@@ -56,6 +57,9 @@ only when its declared stop is at most the cutoff and its payload contains the
 exact absolute frame IDs implied by the declared bounds and frame stride.
 Unknown lineage schemas, path traversal, inconsistent frame IDs, non-prefix
 window selections, and a metric anchor for the wrong first window fail closed.
+The exporter records an exact 40- or 64-character Prob4D commit. It also fails
+closed when that revision cannot be obtained from the checkout and is not
+provided explicitly.
 
 ## Artifact semantics
 
@@ -71,8 +75,20 @@ U_i = J_i L_k,       Sigma_gauge,k = L_k L_k^T.
 A consumer that keeps these gauge terms as explicit nuisance variables must use
 the local conditional covariance and must not add `U_i U_i^T` to it again.
 Association probability is diagnostic support for the decoded pixel identity;
-prior reliability is derived from overlap disagreement without reading the
-downstream physical innovation.
+it is not a MotionCrafter-to-physical-node association probability. Prior
+reliability is derived from overlap disagreement without reading the downstream
+physical innovation.
+
+The version-1 exporter has no independently calibrated group-level
+nominal/outlier prior. It therefore writes the neutral value `1.0` for
+`group_prior_nominal_probability`; overlap reliability is not applied a second
+time. `group_composite_weight` separately caps dense duplicate information.
+
+Each window's gauge marginal is represented as one coherent factor group.
+Version 1 does not encode the complete joint cross-window gauge posterior. The
+artifact records this limitation explicitly, and composite weights cap remaining
+cross-window dependence. A future joint sparse information-factor schema would
+be required before claiming exact cross-window covariance transport.
 
 The descriptor, all array names, dtypes, shapes, and bytes are covered by the
 artifact ID. The source digest covers only admitted payload hashes and stable
@@ -87,5 +103,7 @@ address.
 Prob4D, Bayesian-PhysTwin, and Causal4D share a golden contract fixture. The
 same artifact must have the same content address in all three repositories.
 Bayesian-PhysTwin consumes the low-rank gauge factors as explicit nuisance
-parameters, while Causal4D can bind the resulting selected twin belief to the
-exact observation artifact without importing Prob4D.
+parameters, keeps association probability separate from reliability, and uses
+the group prior and composite weight as distinct inputs. Causal4D can bind the
+resulting selected twin belief to the exact observation artifact without
+importing Prob4D.
