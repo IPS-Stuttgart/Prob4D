@@ -12,6 +12,17 @@ prob4d provider manifest \
   --output outputs/prob4d-provider.json
 ```
 
+## Python import boundary
+
+Downstream development code should import `prob4d.provider_v1` instead of
+underscore-prefixed modules or experiment helpers. It exposes causal source
+selection, the metric-anchor contract, observation export and strict loading,
+the richer factor bundle, and the provider manifest. A breaking change requires
+a new versioned module. Exact Git revisions remain mandatory for frozen
+experiments.
+
+## Artifact semantics
+
 The version-1 contract declares that Prob4D can:
 
 - select independently decoded windows whose complete source interval precedes
@@ -38,11 +49,10 @@ target calibration, that redundant dense-edge fusion is validated, or that a
 valid observation artifact by itself improves a Bayesian physical twin.
 
 Use `prob4d-validate-observation` to reject schema drift, array drift, malformed
-archives, and content-address mismatches. The richer `ObservationFactorBundle`
-schema v3 remains available when the consumer estimates gauge nuisance variables
-explicitly. Downstream projects must still validate serialized artifacts and
-source lineage independently. The provider manifest describes compatibility;
-exact Git revisions remain mandatory for frozen experiments.
+archives, and content-address mismatches. `PredictionWindow` inputs are copied
+and frozen after validation so caller-side mutation cannot alter a sealed source
+object. The richer `ObservationFactorBundle` schema v3 remains available when
+the consumer estimates gauge nuisance variables explicitly.
 
 The grouped `prob4d` command is the preferred discoverable interface. Existing
 `prob4d-*` commands remain available so historical run manifests and frozen

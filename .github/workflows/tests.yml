@@ -53,6 +53,7 @@ jobs:
           src/prob4d/cli.py
           src/prob4d/provider_manifest.py
           src/prob4d/provider_manifest_cli.py
+          src/prob4d/provider_v1.py
       - name: Emit provider manifest
         run: >-
           prob4d provider manifest
@@ -88,6 +89,7 @@ jobs:
 
           import prob4d.cli
           import prob4d.provider_manifest
+          import prob4d.provider_v1
 
           forbidden = {"torch", "diffusers", "decord"}
           loaded = sorted(forbidden & set(sys.modules))
@@ -161,7 +163,13 @@ jobs:
           test -n "$artifact"
           "$python_bin" -m pip install "$artifact"
           "$python_bin" -m pip check
-          "$python_bin" -c "import prob4d; print(prob4d.__version__)"
+          "$python_bin" - <<'PY'
+          import prob4d
+          import prob4d.provider_v1 as provider
+
+          print(prob4d.__version__)
+          assert provider.PROVIDER_API_VERSION == 1
+          PY
       - name: Exercise grouped and legacy command help
         shell: bash
         run: |
