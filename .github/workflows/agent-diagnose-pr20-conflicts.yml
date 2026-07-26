@@ -1,15 +1,16 @@
 name: Diagnose PR 20 merge conflicts
 
 on:
-  pull_request:
-    branches: [main]
+  push:
+    branches:
+      - agent/content-addressed-covariance-calibration
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
   diagnose:
-    if: github.event.pull_request.head.ref == 'agent/content-addressed-covariance-calibration'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -44,12 +45,34 @@ jobs:
             git show ":3:$path" > "conflict-bundle/main/$path" 2>/dev/null || true
           done < conflict-bundle/conflicts.txt
 
-          echo '--- status ---'
-          cat conflict-bundle/status.txt
-          echo '--- conflicted paths ---'
-          cat conflict-bundle/conflicts.txt
-          echo '--- combined diff ---'
-          cat conflict-bundle/combined.diff
+          {
+            echo '### Automated merge-conflict diagnostic'
+            echo
+            echo "Merge exit status: \`$status\`"
+            echo
+            echo '#### Conflicted paths'
+            echo '```text'
+            cat conflict-bundle/conflicts.txt
+            echo '```'
+            echo
+            echo '#### Working-tree status'
+            echo '```text'
+            cat conflict-bundle/status.txt
+            echo '```'
+            echo
+            echo '<details><summary>Combined conflict diff</summary>'
+            echo
+            echo '```diff'
+            head -c 50000 conflict-bundle/combined.diff
+            echo
+            echo '```'
+            echo '</details>'
+          } > conflict-bundle/comment.md
+      - name: Publish diagnostic on PR 20
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh pr comment 20 --repo FlorianPfaff/Prob4D --body-file conflict-bundle/comment.md
       - uses: actions/upload-artifact@v4
         if: always()
         with:
