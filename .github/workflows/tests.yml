@@ -56,19 +56,23 @@ jobs:
       - run: python -m venv /tmp/prob4d-wheel
       - run: /tmp/prob4d-wheel/bin/python -m pip install dist/*.whl
       - run: /tmp/prob4d-wheel/bin/python -c "import prob4d; print(prob4d.__version__)"
-      - name: Smoke-test installed command help
-        run: |
-          for command in \
-            prob4d-ablate \
-            prob4d-benchmark \
-            prob4d-export-observation-belief \
-            prob4d-motioncrafter \
-            prob4d-phystwin \
-            prob4d-phystwin-state \
-            prob4d-phystwin-uncertainty \
-            prob4d-sintel-uncertainty \
-            prob4d-validate-observation \
-            prob4d-vggt-baseline
-          do
-            "/tmp/prob4d-wheel/bin/${command}" --help >/dev/null
-          done
+      - name: Smoke-test prob4d-ablate help
+        run: /tmp/prob4d-wheel/bin/prob4d-ablate --help >/dev/null
+      - name: Smoke-test prob4d-benchmark help
+        run: /tmp/prob4d-wheel/bin/prob4d-benchmark --help >/dev/null
+      - name: Smoke-test prob4d-export-observation-belief help
+        run: /tmp/prob4d-wheel/bin/prob4d-export-observation-belief --help >/dev/null
+      - name: Smoke-test prob4d-motioncrafter help
+        run: /tmp/prob4d-wheel/bin/prob4d-motioncrafter --help >/dev/null
+      - name: Smoke-test prob4d-phystwin help
+        run: /tmp/prob4d-wheel/bin/prob4d-phystwin --help >/dev/null
+      - name: Smoke-test prob4d-phystwin-state help
+        run: /tmp/prob4d-wheel/bin/prob4d-phystwin-state --help >/dev/null
+      - name: Smoke-test prob4d-phystwin-uncertainty help
+        run: /tmp/prob4d-wheel/bin/prob4d-phystwin-uncertainty --help >/dev/null
+      - name: Smoke-test prob4d-sintel-uncertainty help
+        run: /tmp/prob4d-wheel/bin/prob4d-sintel-uncertainty --help >/dev/null
+      - name: Smoke-test prob4d-validate-observation help
+        run: /tmp/prob4d-wheel/bin/prob4d-validate-observation --help >/dev/null
+      - name: Smoke-test prob4d-vggt-baseline help
+        run: /tmp/prob4d-wheel/bin/prob4d-vggt-baseline --help >/dev/null
