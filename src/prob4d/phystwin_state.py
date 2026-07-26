@@ -6,10 +6,13 @@ import argparse
 import json
 import pickle
 from pathlib import Path
+from typing import Any, Mapping
 
 import numpy as np
 from numpy.typing import NDArray
 
+from .data import PredictionWindow
+from .lineage import audit_motioncrafter_product_frame
 from .phystwin import CoverResizeCrop, PhysTwinCase, nearest_neighbor_indices
 from .phystwin_experiment import (
     ErrorSummary,
@@ -329,6 +332,32 @@ def state_forecast_metrics(
     }
 
 
+def validate_causal_source_lineage(
+    prediction: PredictionWindow,
+    manifest: Mapping[str, Any],
+    *,
+    product: str,
+    fit_end_frame: int,
+) -> dict[str, object]:
+    """Require the endpoint estimate to depend only on pre-boundary RGB."""
+
+    endpoint_frame = fit_end_frame - 1
+    audit = audit_motioncrafter_product_frame(
+        manifest,
+        prediction.frame_indices,
+        product=product,
+        output_frame=endpoint_frame,
+        cutoff_frame=fit_end_frame,
+    )
+    if not audit.admissible:
+        raise ValueError(
+            f"{product} endpoint frame {endpoint_frame} depends on source frame "
+            f"{audit.source_frame_max}, which is not before the causal cutoff "
+            f"{fit_end_frame}; regenerate a prefix-aligned prediction bundle"
+        )
+    return audit.to_dict()
+
+
 def run_state_experiment(
     manifest_path: str | Path,
     case_directory: str | Path,
@@ -345,8 +374,14 @@ def run_state_experiment(
     bootstrap_repetitions: int = 10_000,
     seed: int = 42,
 ) -> dict[str, object]:
-    case = PhysTwinCase.from_directory(case_directory)
     prediction, manifest = load_prediction_product(manifest_path, product)
+    causal_source_lineage = validate_causal_source_lineage(
+        prediction,
+        manifest,
+        product=product,
+        fit_end_frame=fit_end_frame,
+    )
+    case = PhysTwinCase.from_directory(case_directory)
     crop = CoverResizeCrop.from_shapes(
         case.source_height,
         case.source_width,
@@ -397,14 +432,17 @@ def run_state_experiment(
     }[product]
     prediction_path = Path(manifest_path).resolve().parent / manifest[prediction_field]
     result = {
-        "schema_version": 1,
+        "schema_version": 2,
         "status": "MotionCrafter endpoint state update followed by PhysTwin rollout",
         "case": Path(case_directory).name,
         "product": product,
         "input_camera": input_camera,
         "source_frames": prediction.frame_indices.tolist(),
         "fit_end_frame": fit_end_frame,
-        "future_visual_observations_used_by_forecasts": False,
+        "causal_source_lineage": causal_source_lineage,
+        "future_visual_observations_used_by_forecasts": not bool(
+            causal_source_lineage["admissible"]
+        ),
         "gauge": {
             "scale": gauge.transform.scale,
             "rotation_vector": so3_log(gauge.transform.rotation).tolist(),
@@ -438,8 +476,9 @@ def run_state_experiment(
                 "train_label_bias_corrected and oracle_truth methods are controls only"
             ),
             "forecast_information": (
-                "future PhysTwin action-conditioned trajectory is known; no future RGB or depth "
-                "updates enter forecast methods"
+                "future PhysTwin action-conditioned trajectory is known; the endpoint "
+                "MotionCrafter product passed an exact source-lineage audit proving that "
+                "no RGB frame at or after fit_end_frame entered the endpoint estimate"
             ),
             "missing_evidence": (
                 "all_finite_future_tracks includes tracks absent from camera-visible evaluation"
