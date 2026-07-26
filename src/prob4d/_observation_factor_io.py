@@ -101,6 +101,9 @@ def write_observation_factor_bundle(
         "schema_version": bundle.schema_version,
         "gauge_parameterization": GAUGE_PARAMETERIZATION,
         "sequence_id": bundle.sequence_id,
+        "case_id": bundle.case_id,
+        "stream_id": bundle.stream_id,
+        "source_repository": bundle.source_repository,
         "source_revision": bundle.source_revision,
         "causal_frame_stop": bundle.causal_frame_stop,
         "causal_frame_stop_convention": "exclusive",
@@ -223,6 +226,11 @@ def load_observation_factor_bundle(
         gauges=tuple(gauges),
         source_revision=str(record["source_revision"]),
         causal_frame_stop=bundle_causal_frame_stop,
+        case_id=str(record.get("case_id", record["sequence_id"])),
+        stream_id=str(record.get("stream_id", record["sequence_id"])),
+        source_repository=str(
+            record.get("source_repository", "FlorianPfaff/Prob4D")
+        ),
         metadata=metadata,
         schema_version=OBSERVATION_FACTOR_SCHEMA_VERSION,
     )
