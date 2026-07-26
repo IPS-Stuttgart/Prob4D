@@ -57,6 +57,18 @@ def _git_revision() -> str:
     return result.stdout.strip() or "unknown"
 
 
+def _validated_source_revision(value: str | None) -> str:
+    revision = value or _git_revision()
+    if revision == "unknown" or len(revision) not in {40, 64}:
+        raise ValueError(
+            "source_revision must be an exact 40- or 64-character Git commit; "
+            "pass --source-revision when the checkout revision is unavailable"
+        )
+    if any(character not in "0123456789abcdef" for character in revision):
+        raise ValueError("source_revision must be a lowercase hexadecimal Git commit")
+    return revision
+
+
 def _deterministic_covariance_root(covariance: np.ndarray) -> np.ndarray:
     symmetric = 0.5 * (
         np.asarray(covariance, dtype=np.float64)
@@ -65,6 +77,8 @@ def _deterministic_covariance_root(covariance: np.ndarray) -> np.ndarray:
     if symmetric.shape != (7, 7) or not np.all(np.isfinite(symmetric)):
         raise ValueError("gauge covariance must have finite shape (7, 7)")
     eigenvalues, eigenvectors = np.linalg.eigh(symmetric)
+    if np.min(eigenvalues) < -1e-10:
+        raise ValueError("gauge covariance must be positive semidefinite")
     order = np.argsort(eigenvalues)[::-1]
     eigenvalues = np.maximum(eigenvalues[order], 0.0)
     eigenvectors = eigenvectors[:, order]
@@ -163,7 +177,7 @@ def _gauge_estimates(
             sequential,
             constraints,
         )
-    else:
+    else:  # pragma: no cover - guarded above
         raise ValueError("gauge_mode must be 'sequential' or 'fixed_lag'")
     return alignments, estimates
 
@@ -177,6 +191,8 @@ def _prior_reliability(
     *,
     minimum: float,
 ) -> np.ndarray:
+    """Return source-only row reliability, independent of physical innovation."""
+
     if not 0.0 < minimum <= 1.0:
         raise ValueError("minimum prior reliability must lie in (0, 1]")
     normalized = (
@@ -230,6 +246,7 @@ def _build_prob4d_observation_belief(
     ):
         raise ValueError("effective_samples_per_group must be positive")
 
+    revision = _validated_source_revision(source_revision)
     windows = selection.predictions
     alignments, estimates = _gauge_estimates(
         windows,
@@ -335,13 +352,12 @@ def _build_prob4d_observation_belief(
     factor_array = np.concatenate(factors)
 
     group_ids = np.unique(correlation_array)
-    group_prior = np.empty(len(group_ids), dtype=np.float64)
+    # No independently calibrated nominal/outlier prior is available here. Use
+    # the neutral value instead of applying overlap reliability a second time.
+    group_prior = np.ones(len(group_ids), dtype=np.float64)
     group_weight = np.empty(len(group_ids), dtype=np.float64)
     for position, group_id in enumerate(group_ids):
         selected = correlation_array == group_id
-        group_prior[position] = float(
-            np.quantile(reliability_array[selected], 0.25)
-        )
         unique_entities = len(np.unique(entity_array[selected]))
         effective = min(effective_samples_per_group, float(unique_entities))
         group_weight[position] = min(
@@ -349,7 +365,6 @@ def _build_prob4d_observation_belief(
             effective / float(np.count_nonzero(selected)),
         )
 
-    revision = source_revision or _git_revision()
     metadata = {
         "metric_coordinates": True,
         "metric_units": "m",
@@ -372,14 +387,20 @@ def _build_prob4d_observation_belief(
         "group_definition": "absolute source frame across overlap windows",
         "factor_definition": "shared seven-dimensional gauge latent per window",
         "factor_group_semantics": (
-            "window gauge marginals are explicit nuisance factors; remaining "
-            "cross-window dependence is capped by composite weights"
+            "per-window gauge marginals are explicit nuisance factors; schema v1 "
+            "does not represent joint cross-window gauge covariance, so remaining "
+            "dependence is capped by composite weights"
         ),
+        "joint_cross_window_gauge_covariance_represented": False,
         "association_probability_definition": (
-            "same decoded pixel identity within one independently decoded window"
+            "same decoded pixel identity within one independently decoded window; "
+            "not downstream physical-node association"
         ),
         "prior_reliability_definition": (
             "overlap disagreement only; independent of downstream physical innovation"
+        ),
+        "group_prior_nominal_probability_definition": (
+            "neutral one; no independently calibrated group nominal prior supplied"
         ),
         "motioncrafter_commit": selection.manifest["motioncrafter_commit"],
         "prediction_manifest_format_version": selection.manifest["format_version"],
@@ -453,7 +474,10 @@ def build_prob4d_observation_belief(
 
 def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -499,11 +523,7 @@ def main(argv: list[str] | None = None) -> int:
     save_observation_belief_export(args.output_npz, artifact)
     summary = {
         **selection.run_summary(causal_frame_stop=args.causal_frame_stop),
-        "artifact_id": artifact.artifact_id,
-        "case_id": artifact.case_id,
-        "observation_count": len(artifact.mean_xyz_m),
-        "group_count": len(artifact.group_ids),
-        "factor_rank": len(artifact.factor_names),
+        **artifact.summary(),
         "metric_gauge_anchor_id": anchor.artifact_id,
         "output": str(args.output_npz.resolve()),
     }
