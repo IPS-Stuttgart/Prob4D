@@ -14,13 +14,14 @@ All notable changes to Prob4D are documented here.
   marginalized boundary covariance is approximate.
 - `PredictionWindow` now rejects negative frame identities, deformation masks
   outside valid geometry, non-finite active flow, and invalid active rays.
-- Continuous integration covers Python 3.10, 3.12, and 3.14, validates source and
-  wheel distributions, installs the wheel in isolation, and smoke-tests every
-  command.
+- Continuous integration covers Python 3.10, 3.12, and 3.14, validates wheel and
+  source distributions, installs both artifacts in isolation, and smoke-tests
+  grouped and legacy commands.
 - Project metadata and documentation now point to the canonical
   `2026-07-Causal4D-BPT-Paper` project-notes repository.
 
 ### Added
 
-- `prob4d-validate-observation` command for installed-artifact validation.
+- A content-addressed provider manifest and lazy grouped `prob4d` command surface.
+- `prob4d-validate-observation` for strict installed-artifact validation.
 - Joint covariance propagation and cross-window factor regression tests.
