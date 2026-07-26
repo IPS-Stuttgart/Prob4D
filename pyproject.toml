@@ -22,6 +22,7 @@ dev = [
 prob4d-ablate = "prob4d.experiments:main"
 prob4d-benchmark = "prob4d.benchmark:main"
 prob4d-motioncrafter = "prob4d.motioncrafter:main"
+prob4d-observation = "prob4d.observation_cli:main"
 prob4d-phystwin = "prob4d.phystwin_experiment:main"
 prob4d-phystwin-state = "prob4d.phystwin_state:main"
 prob4d-phystwin-uncertainty = "prob4d.phystwin_uncertainty:main"
