@@ -2,13 +2,16 @@
 
 The ordinary Prob4D fusion products intentionally collapse overlapping windows
 into one trajectory. This module provides a lossless interface that preserves
-window gauges, view provenance, correlation groups, and causal timing.
+window gauges, view provenance, correlation groups, reliability, and causal
+timing.
 """
 
 from ._observation_factor_bundle import (
     GAUGE_PARAMETERIZATION,
+    LEGACY_OBSERVATION_FACTOR_SCHEMA_VERSION,
     OBSERVATION_FACTOR_SCHEMA,
     OBSERVATION_FACTOR_SCHEMA_VERSION,
+    OBSERVATION_FACTOR_SOURCE_REPOSITORY,
     ObservationFactorBundle,
     sim3_point_jacobian,
     stack_observation_factors,
@@ -25,8 +28,10 @@ from ._observation_factor_types import (
 
 __all__ = [
     "GAUGE_PARAMETERIZATION",
+    "LEGACY_OBSERVATION_FACTOR_SCHEMA_VERSION",
     "OBSERVATION_FACTOR_SCHEMA",
     "OBSERVATION_FACTOR_SCHEMA_VERSION",
+    "OBSERVATION_FACTOR_SOURCE_REPOSITORY",
     "LinearizedObservationFactor",
     "ObservationFactor",
     "ObservationFactorBundle",

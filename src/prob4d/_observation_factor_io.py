@@ -12,6 +12,7 @@ import numpy as np
 
 from ._observation_factor_bundle import (
     GAUGE_PARAMETERIZATION,
+    LEGACY_OBSERVATION_FACTOR_SCHEMA_VERSION,
     OBSERVATION_FACTOR_SCHEMA,
     OBSERVATION_FACTOR_SCHEMA_VERSION,
     ObservationFactorBundle,
@@ -35,7 +36,7 @@ def write_observation_factor_bundle(
     *,
     payload_path: str | Path | None = None,
 ) -> tuple[Path, Path]:
-    """Write one checksum-bound JSON manifest and non-pickled NPZ payload."""
+    """Write a schema-v3 manifest with an exclusive causal frame stop."""
 
     manifest = Path(manifest_path)
     payload = (
@@ -67,12 +68,14 @@ def write_observation_factor_bundle(
             "valid_mask": f"{prefix}__valid_mask",
             "local_covariance_m2": f"{prefix}__local_covariance_m2",
             "association_probability": f"{prefix}__association_probability",
+            "prior_reliability": f"{prefix}__prior_reliability",
         }
         arrays[array_names["point_ids"]] = factor.point_ids
         arrays[array_names["points_local_m"]] = factor.points_local_m
         arrays[array_names["valid_mask"]] = factor.valid_mask
         arrays[array_names["local_covariance_m2"]] = factor.local_covariance_m2
         arrays[array_names["association_probability"]] = factor.association_probability
+        arrays[array_names["prior_reliability"]] = factor.prior_reliability
         ray_key = None
         if factor.ray_directions_local is not None:
             ray_key = f"{prefix}__ray_directions_local"
@@ -85,7 +88,9 @@ def write_observation_factor_bundle(
                 "window_id": factor.window_id,
                 "gauge_id": factor.gauge_id,
                 "correlation_group_id": factor.correlation_group_id,
-                "causal_frame_limit": factor.causal_frame_limit,
+                "causal_frame_stop": factor.causal_frame_stop,
+                "prior_nominal_probability": factor.prior_nominal_probability,
+                "composite_weight": factor.composite_weight,
                 "arrays": array_names,
                 "ray_directions_local_key": ray_key,
             }
@@ -96,8 +101,12 @@ def write_observation_factor_bundle(
         "schema_version": bundle.schema_version,
         "gauge_parameterization": GAUGE_PARAMETERIZATION,
         "sequence_id": bundle.sequence_id,
+        "case_id": bundle.case_id,
+        "stream_id": bundle.stream_id,
+        "source_repository": bundle.source_repository,
         "source_revision": bundle.source_revision,
-        "causal_frame_limit": bundle.causal_frame_limit,
+        "causal_frame_stop": bundle.causal_frame_stop,
+        "causal_frame_stop_convention": "exclusive",
         "metadata": dict(bundle.metadata),
         "payload": {
             "path": os.path.relpath(payload, manifest.parent),
@@ -114,19 +123,38 @@ def write_observation_factor_bundle(
     return manifest, payload
 
 
+def _causal_frame_stop(record: dict[str, Any], *, schema_version: int) -> int:
+    if schema_version == OBSERVATION_FACTOR_SCHEMA_VERSION:
+        convention = record.get("causal_frame_stop_convention")
+        if convention is not None and convention != "exclusive":
+            raise ValueError("schema-v3 causal frame stop must be exclusive")
+        return int(record["causal_frame_stop"])
+    if schema_version == LEGACY_OBSERVATION_FACTOR_SCHEMA_VERSION:
+        return int(record["causal_frame_limit"]) + 1
+    raise ValueError("unsupported observation-factor schema version")
+
+
 def load_observation_factor_bundle(
     manifest_path: str | Path,
 ) -> ObservationFactorBundle:
-    """Load and validate a checksum-bound observation-factor bundle."""
+    """Load schema v3 or upgrade a schema-v2 bundle without ambiguity."""
 
     manifest = Path(manifest_path)
     record = json.loads(manifest.read_text(encoding="utf-8"))
     if record.get("schema") != OBSERVATION_FACTOR_SCHEMA:
         raise ValueError("manifest is not a Prob4D observation-factor bundle")
-    if record.get("schema_version") != OBSERVATION_FACTOR_SCHEMA_VERSION:
+    schema_version = int(record.get("schema_version", -1))
+    if schema_version not in {
+        LEGACY_OBSERVATION_FACTOR_SCHEMA_VERSION,
+        OBSERVATION_FACTOR_SCHEMA_VERSION,
+    }:
         raise ValueError("unsupported observation-factor schema version")
     if record.get("gauge_parameterization") != GAUGE_PARAMETERIZATION:
         raise ValueError("unsupported gauge parameterization")
+    bundle_causal_frame_stop = _causal_frame_stop(
+        record,
+        schema_version=schema_version,
+    )
     payload = manifest.parent / record["payload"]["path"]
     if _sha256(payload) != record["payload"]["sha256"]:
         raise ValueError("observation-factor payload checksum mismatch")
@@ -146,6 +174,12 @@ def load_observation_factor_bundle(
         for factor_record in record["factors"]:
             keys = factor_record["arrays"]
             ray_key = factor_record.get("ray_directions_local_key")
+            association = arrays[keys["association_probability"]]
+            factor_causal_frame_stop = _causal_frame_stop(
+                factor_record,
+                schema_version=schema_version,
+            )
+            reliability_key = keys.get("prior_reliability")
             factors.append(
                 ObservationFactor(
                     factor_id=str(factor_record["factor_id"]),
@@ -157,24 +191,46 @@ def load_observation_factor_bundle(
                     points_local_m=arrays[keys["points_local_m"]],
                     valid_mask=arrays[keys["valid_mask"]],
                     local_covariance_m2=arrays[keys["local_covariance_m2"]],
-                    association_probability=arrays[
-                        keys["association_probability"]
-                    ],
+                    association_probability=association,
+                    prior_reliability=(
+                        np.ones(len(association), dtype=np.float64)
+                        if reliability_key is None
+                        else arrays[reliability_key]
+                    ),
+                    prior_nominal_probability=float(
+                        factor_record.get("prior_nominal_probability", 1.0)
+                    ),
+                    composite_weight=float(
+                        factor_record.get("composite_weight", 1.0)
+                    ),
                     correlation_group_id=str(
                         factor_record["correlation_group_id"]
                     ),
-                    causal_frame_limit=int(factor_record["causal_frame_limit"]),
+                    causal_frame_stop=factor_causal_frame_stop,
                     ray_directions_local=(
                         arrays[ray_key] if ray_key is not None else None
                     ),
                 )
             )
+    metadata = dict(record.get("metadata", {}))
+    if schema_version == LEGACY_OBSERVATION_FACTOR_SCHEMA_VERSION:
+        metadata = {
+            **metadata,
+            "loaded_from_schema_version": schema_version,
+            "legacy_causal_frame_limit_upgraded_to_exclusive_stop": True,
+            "legacy_missing_reliability_defaults": "ones",
+        }
     return ObservationFactorBundle(
         sequence_id=str(record["sequence_id"]),
         factors=tuple(factors),
         gauges=tuple(gauges),
         source_revision=str(record["source_revision"]),
-        causal_frame_limit=int(record["causal_frame_limit"]),
-        metadata=record.get("metadata", {}),
-        schema_version=int(record["schema_version"]),
+        causal_frame_stop=bundle_causal_frame_stop,
+        case_id=str(record.get("case_id", record["sequence_id"])),
+        stream_id=str(record.get("stream_id", record["sequence_id"])),
+        source_repository=str(
+            record.get("source_repository", "FlorianPfaff/Prob4D")
+        ),
+        metadata=metadata,
+        schema_version=OBSERVATION_FACTOR_SCHEMA_VERSION,
     )
