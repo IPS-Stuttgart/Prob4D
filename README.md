@@ -260,8 +260,10 @@ selection protocol. They are not uncertainty-calibrated fusion weights.
 This repository owns code, tests, run definitions, and portable observation
 contracts. Videos, model weights, decoded predictions, and generated results are
 gitignored. Paper-facing result tables, figures, frozen run manifests, and exact
-Prob4D/MotionCrafter commit identifiers belong in
-`FlorianPfaff/2026-07-Causal4D-BPT-Paper`.
+Prob4D/MotionCrafter commit identifiers belong in the canonical
+[`FlorianPfaff/BayesianPhysTwin-Paper`](https://github.com/FlorianPfaff/BayesianPhysTwin-Paper)
+project-notes repository. The earlier date-stamped proposal repository remains
+an archival planning artifact.
 
 ## Development
 

@@ -1,5 +1,7 @@
 """Probabilistic long-horizon fusion for MotionCrafter predictions."""
 
+from importlib.metadata import PackageNotFoundError, version
+
 from .data import PredictionWindow
 from .observation_contract import (
     OBSERVATION_BELIEF_SCHEMA,
@@ -28,6 +30,11 @@ from .observation_factors import (
 from .observation_validation import load_observation_belief_export
 from .sim3 import Sim3
 
+try:
+    __version__ = version("prob4d")
+except PackageNotFoundError:  # Source tree without installed distribution metadata.
+    __version__ = "0.2.0"
+
 __all__ = [
     "OBSERVATION_BELIEF_SCHEMA",
     "OBSERVATION_BELIEF_VERSION",
@@ -51,4 +58,3 @@ __all__ = [
     "stack_observation_factors",
     "write_observation_factor_bundle",
 ]
-__version__ = "0.2.0"

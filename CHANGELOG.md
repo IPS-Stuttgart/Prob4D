@@ -18,7 +18,7 @@ All notable changes to Prob4D are documented here.
   source distributions, installs both artifacts in isolation, and smoke-tests
   grouped and legacy commands.
 - Project metadata and documentation point to the canonical
-  `2026-07-Causal4D-BPT-Paper` project-notes repository.
+  `FlorianPfaff/BayesianPhysTwin-Paper` project-notes repository.
 
 ### Added
 
