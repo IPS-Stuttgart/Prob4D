@@ -21,6 +21,8 @@ dev = [
 [project.scripts]
 prob4d-ablate = "prob4d.experiments:main"
 prob4d-benchmark = "prob4d.benchmark:main"
+prob4d-create-metric-gauge-anchor = "prob4d.metric_anchor:main"
+prob4d-export-observation-belief = "prob4d.observation_export:main"
 prob4d-motioncrafter = "prob4d.motioncrafter:main"
 prob4d-phystwin = "prob4d.phystwin_experiment:main"
 prob4d-phystwin-state = "prob4d.phystwin_state:main"
