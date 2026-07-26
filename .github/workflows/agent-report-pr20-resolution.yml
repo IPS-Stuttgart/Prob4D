@@ -1,0 +1,50 @@
+name: Report PR 20 resolver failure
+
+on:
+  push:
+    branches:
+      - agent/content-addressed-covariance-calibration
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: write
+
+jobs:
+  report:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report most recent failed resolver run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          sleep 5
+          run_id="$(gh run list \
+            --repo FlorianPfaff/Prob4D \
+            --workflow 'Resolve PR 20 merge conflicts' \
+            --branch agent/content-addressed-covariance-calibration \
+            --status failure \
+            --limit 1 \
+            --json databaseId \
+            --jq '.[0].databaseId // empty')"
+          if [ -z "$run_id" ]; then
+            exit 0
+          fi
+          gh run view "$run_id" --repo FlorianPfaff/Prob4D --log-failed > /tmp/resolver-failure.log
+          {
+            echo '### Resolver failure details'
+            echo
+            echo "Failed workflow run: \`$run_id\`"
+            echo
+            echo '<details><summary>Failed-step log</summary>'
+            echo
+            echo '```text'
+            tail -c 55000 /tmp/resolver-failure.log
+            echo
+            echo '```'
+            echo '</details>'
+          } > /tmp/resolver-comment.md
+          gh pr comment 20 --repo FlorianPfaff/Prob4D --body-file /tmp/resolver-comment.md
