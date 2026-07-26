@@ -1,0 +1,134 @@
+diff --git a/src/prob4d/fusion.py b/src/prob4d/fusion.py
+--- a/src/prob4d/fusion.py
++++ b/src/prob4d/fusion.py
+@@ -10,6 +10,7 @@ import numpy as np
+ from numpy.typing import NDArray
+ 
++from .covariance import regularized_inverse_psd
+ from .data import PredictionWindow
+ from .sim3 import Sim3, so3_log, so3_right_jacobian
+ from .uncertainty import StructuredCovariance
+@@ -58,15 +59,11 @@ class FusedSequence:
+ 
+ 
+ def _regularized_inverse(covariance: FloatArray, floor: float = 1e-12) -> FloatArray:
+-    covariance = np.asarray(covariance, dtype=np.float64)
+-    symmetric = 0.5 * (covariance + np.swapaxes(covariance, -1, -2))
+-    identity = np.eye(symmetric.shape[-1])
+-    try:
+-        return np.linalg.inv(symmetric + floor * identity)
+-    except np.linalg.LinAlgError:
+-        eigenvalues, eigenvectors = np.linalg.eigh(symmetric)
+-        eigenvalues = np.maximum(eigenvalues, floor)
+-        return np.einsum("...ij,...j,...kj->...ik", eigenvectors, 1.0 / eigenvalues, eigenvectors)
++    return regularized_inverse_psd(
++        covariance,
++        name="fusion covariance",
++        eigenvalue_floor=floor,
++    )
+@@ -153,7 +150,11 @@ def fuse_gaussians_covariance_intersection(
+                 weight * sampled_information_one + (1.0 - weight) * sampled_information_two
+             )
+             covariance = _regularized_inverse(information)
+-            _, log_determinant = np.linalg.slogdet(covariance)
++            sign, log_determinant = np.linalg.slogdet(covariance)
++            if np.any(sign <= 0.0) or not np.all(np.isfinite(log_determinant)):
++                raise ValueError(
++                    "covariance intersection produced a non-positive covariance"
++                )
+             score = float(np.mean(log_determinant))
+             if score < best_score - 1e-12:
+                 best_score = score
+@@ -192,7 +193,11 @@ def fuse_gaussians_covariance_intersection(
+         for weight in weight_grid:
+             information = weight * information_one + (1.0 - weight) * information_two
+             covariance = _regularized_inverse(information)
+-            _, log_determinant = np.linalg.slogdet(covariance)
++            sign, log_determinant = np.linalg.slogdet(covariance)
++            if np.any(sign <= 0.0) or not np.all(np.isfinite(log_determinant)):
++                raise ValueError(
++                    "covariance intersection produced a non-positive covariance"
++                )
+             improved = log_determinant < best_score - 1e-12
+             best_score[improved] = log_determinant[improved]
+             best_weight[improved] = weight
+diff --git a/src/prob4d/metrics.py b/src/prob4d/metrics.py
+--- a/src/prob4d/metrics.py
++++ b/src/prob4d/metrics.py
+@@ -9,6 +9,7 @@ import numpy as np
+ from numpy.typing import NDArray
+ 
++from .covariance import covariance_statistics
+ from .fusion import FusedSequence
+ 
+ FloatArray = NDArray[np.floating]
+@@ -124,10 +125,11 @@ def uncertainty_diagnostics(
+     if normalizers.shape != (errors.shape[0],):
+         raise ValueError("uncertainty_normalizers must have shape (N,)")
++    if not np.all(np.isfinite(covariances)):
++        raise ValueError("uncertainty diagnostic covariances must be finite")
+     active = (
+         np.all(np.isfinite(errors), axis=1)
+-        & np.all(np.isfinite(covariances), axis=(1, 2))
+         & np.isfinite(target_norms)
+         & np.isfinite(normalizers)
+     )
+@@ -138,12 +140,13 @@ def uncertainty_diagnostics(
+     target_norms = target_norms[active]
+     normalizers = normalizers[active]
+ 
+-    symmetric = 0.5 * (covariances + np.swapaxes(covariances, -1, -2))
+-    eigenvalues, eigenvectors = np.linalg.eigh(symmetric)
+-    eigenvalues = np.maximum(eigenvalues, 1e-12)
+-    inverse = np.einsum("...ij,...j,...kj->...ik", eigenvectors, 1.0 / eigenvalues, eigenvectors)
++    symmetric, inverse, log_determinant = covariance_statistics(
++        covariances,
++        name="uncertainty diagnostic covariance",
++        eigenvalue_floor=1e-12,
++    )
+     mahalanobis_squared = np.einsum("...i,...ij,...j->...", errors, inverse, errors)
+-    log_determinant = np.sum(np.log(eigenvalues), axis=-1)
+     nll = 0.5 * (3.0 * np.log(2.0 * np.pi) + log_determinant + mahalanobis_squared)
+     coverage = {
+         level: float(np.mean(mahalanobis_squared <= threshold))
+@@ -286,18 +289,18 @@ def evaluate_sequence(
+ 
+     active_covariance = predicted_covariance[active]
+     active_error = errors[active]
+-    eigenvalues, eigenvectors = np.linalg.eigh(
+-        0.5 * (active_covariance + np.swapaxes(active_covariance, -1, -2))
++    _, inverse_covariance, log_determinant = covariance_statistics(
++        active_covariance,
++        name="active sequence covariance",
++        eigenvalue_floor=1e-12,
+     )
+-    eigenvalues = np.maximum(eigenvalues, 1e-12)
+-    inverse_covariance = np.einsum(
+-        "...ij,...j,...kj->...ik", eigenvectors, 1.0 / eigenvalues, eigenvectors
+-    )
+     mahalanobis = np.einsum("...i,...ij,...j->...", active_error, inverse_covariance, active_error)
+-    log_determinant = np.sum(np.log(eigenvalues), axis=-1)
+     nll = 0.5 * (3.0 * np.log(2.0 * np.pi) + log_determinant + mahalanobis)
+ 
+     flow_epe: float | None = None
+     if prediction.scene_flow is not None and truth.scene_flow is not None:
+         predicted_flow = scale * prediction.scene_flow[prediction_indices]
+-        flow_mask = prediction.deform_mask[prediction_indices] & truth.deform_mask[truth_indices]
++        truth_flow = truth.scene_flow[truth_indices]
++        flow_mask = (
++            prediction.deform_mask[prediction_indices]
++            & truth.deform_mask[truth_indices]
++            & predicted_mask
++            & truth_mask
++            & np.all(np.isfinite(predicted_flow), axis=-1)
++            & np.all(np.isfinite(truth_flow), axis=-1)
++        )
+         if np.any(flow_mask):
+             flow_epe = float(
+                 np.mean(
+                     np.linalg.norm(
+-                        predicted_flow[flow_mask] - truth.scene_flow[truth_indices][flow_mask],
++                        predicted_flow[flow_mask] - truth_flow[flow_mask],
+                         axis=-1,
+                     )
+                 )
