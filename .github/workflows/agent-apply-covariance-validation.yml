@@ -20,29 +20,10 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 1
           show-progress: false
-      - name: Check patch applicability
-        id: patch_check
-        continue-on-error: true
-        run: >-
-          git apply --check
-          .github/agent-patches/fail-closed-covariance.patch
-          > apply-error.txt 2>&1
-      - name: Upload patch diagnostic
-        if: steps.patch_check.outcome == 'failure'
-        uses: actions/upload-artifact@v7
-        with:
-          name: covariance-patch-diagnostic
-          path: apply-error.txt
-          if-no-files-found: error
-          retention-days: 3
-      - name: Fail on an inapplicable patch
-        if: steps.patch_check.outcome == 'failure'
+      - name: Apply deterministic source transformations
         run: |
-          cat apply-error.txt
-          exit 1
-      - name: Apply patch
-        run: |
-          git apply .github/agent-patches/fail-closed-covariance.patch
+          python .github/agent-patches/apply_covariance_validation.py
+          rm .github/agent-patches/apply_covariance_validation.py
           rm .github/agent-patches/fail-closed-covariance.patch
           rm .github/workflows/agent-apply-covariance-validation.yml
       - uses: actions/setup-python@v6
