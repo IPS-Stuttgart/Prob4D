@@ -13,7 +13,9 @@ def test_grouped_cli_lists_provider_and_observation(capsys) -> None:
 
 def test_grouped_cli_lists_nested_commands(capsys) -> None:
     assert main(["observation"]) == 0
-    assert "export" in capsys.readouterr().out
+    output = capsys.readouterr().out
+    assert "create-anchor" in output
+    assert "export" in output
 
 
 def test_grouped_cli_rejects_unknown_command(capsys) -> None:
