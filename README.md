@@ -73,6 +73,29 @@ It also records a versioned temporal-lineage contract for MotionCrafter's
 internal sliding windows. Causal consumers can therefore determine the exact
 source-frame bounds and contributing internal windows for any output frame.
 
+### Portable Bayesian observation export
+
+Export a provider-neutral observation artifact only after supplying an
+independent metric `Sim(3)` prior for the first retained overlap window:
+
+```bash
+prob4d-export-observation-belief \
+  outputs/sequence_name/predictions.json \
+  outputs/sequence_name/observation_belief.npz \
+  --case-id sequence_name \
+  --causal-frame-stop 134 \
+  --metric-gauge-anchor outputs/sequence_name/metric_gauge_anchor.json \
+  --summary-json outputs/sequence_name/observation_belief_summary.json
+```
+
+The exporter opens only independently decoded windows wholly before the
+exclusive cutoff. It recomputes alignment, gauge estimation, overlap
+disagreement, uncertainty, and residual-independent reliability on that prefix.
+Appending post-cutoff windows therefore cannot change the exported artifact ID.
+Association probability remains separate from prior reliability, and gauge
+uncertainty is represented as shared low-rank factors rather than counted again
+inside each local covariance. See [the causal observation export contract](docs/observation-belief-export.md).
+
 Prepare a separate calibration sequence and world-coordinate truth files, then
 run the real ablation:
 
