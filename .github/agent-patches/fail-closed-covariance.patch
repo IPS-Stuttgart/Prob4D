@@ -1,14 +1,14 @@
 diff --git a/src/prob4d/fusion.py b/src/prob4d/fusion.py
 --- a/src/prob4d/fusion.py
 +++ b/src/prob4d/fusion.py
-@@ -10,6 +10,7 @@ import numpy as np
+@@ -10,5 +10,6 @@ import numpy as np
  from numpy.typing import NDArray
  
 +from .covariance import regularized_inverse_psd
  from .data import PredictionWindow
  from .sim3 import Sim3, so3_log, so3_right_jacobian
  from .uncertainty import StructuredCovariance
-@@ -58,15 +59,11 @@ class FusedSequence:
+@@ -58,12 +59,8 @@ class FusedSequence:
  
  
  def _regularized_inverse(covariance: FloatArray, floor: float = 1e-12) -> FloatArray:
@@ -55,14 +55,14 @@ diff --git a/src/prob4d/fusion.py b/src/prob4d/fusion.py
 diff --git a/src/prob4d/metrics.py b/src/prob4d/metrics.py
 --- a/src/prob4d/metrics.py
 +++ b/src/prob4d/metrics.py
-@@ -9,6 +9,7 @@ import numpy as np
+@@ -9,5 +9,6 @@ import numpy as np
  from numpy.typing import NDArray
  
 +from .covariance import covariance_statistics
  from .fusion import FusedSequence
  
  FloatArray = NDArray[np.floating]
-@@ -124,10 +125,11 @@ def uncertainty_diagnostics(
+@@ -124,8 +125,9 @@ def uncertainty_diagnostics(
      if normalizers.shape != (errors.shape[0],):
          raise ValueError("uncertainty_normalizers must have shape (N,)")
 +    if not np.all(np.isfinite(covariances)):
@@ -73,7 +73,7 @@ diff --git a/src/prob4d/metrics.py b/src/prob4d/metrics.py
          & np.isfinite(target_norms)
          & np.isfinite(normalizers)
      )
-@@ -138,12 +140,13 @@ def uncertainty_diagnostics(
+@@ -138,12 +140,12 @@ def uncertainty_diagnostics(
      target_norms = target_norms[active]
      normalizers = normalizers[active]
  
@@ -91,7 +91,7 @@ diff --git a/src/prob4d/metrics.py b/src/prob4d/metrics.py
      nll = 0.5 * (3.0 * np.log(2.0 * np.pi) + log_determinant + mahalanobis_squared)
      coverage = {
          level: float(np.mean(mahalanobis_squared <= threshold))
-@@ -286,18 +289,18 @@ def evaluate_sequence(
+@@ -286,26 +288,31 @@ def evaluate_sequence(
  
      active_covariance = predicted_covariance[active]
      active_error = errors[active]
