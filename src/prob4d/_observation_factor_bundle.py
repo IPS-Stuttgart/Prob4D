@@ -20,7 +20,8 @@ from .gauge import GaugeEstimate
 from .sim3 import Sim3, skew, so3_right_jacobian
 
 OBSERVATION_FACTOR_SCHEMA = "prob4d.observation-factor-bundle"
-OBSERVATION_FACTOR_SCHEMA_VERSION = 2
+OBSERVATION_FACTOR_SCHEMA_VERSION = 3
+LEGACY_OBSERVATION_FACTOR_SCHEMA_VERSION = 2
 GAUGE_PARAMETERIZATION = "log-scale-rotvec-translation-v1"
 
 
@@ -41,17 +42,24 @@ class ObservationFactorBundle:
     factors: tuple[ObservationFactor, ...]
     gauges: tuple[GaugeEstimate, ...]
     source_revision: str
-    causal_frame_limit: int
+    causal_frame_stop: int
     metadata: Mapping[str, Any] = field(default_factory=dict)
     schema_version: int = OBSERVATION_FACTOR_SCHEMA_VERSION
+
+    @property
+    def causal_frame_limit(self) -> int:
+        """Legacy inclusive alias for schema-v2 readers."""
+
+        return self.causal_frame_stop - 1
 
     def __post_init__(self) -> None:
         if not self.sequence_id or not self.source_revision:
             raise ValueError("sequence_id and source_revision must not be empty")
         if self.schema_version != OBSERVATION_FACTOR_SCHEMA_VERSION:
             raise ValueError("unsupported observation-factor schema version")
-        if int(self.causal_frame_limit) < 0:
-            raise ValueError("causal_frame_limit must be non-negative")
+        causal_frame_stop = int(self.causal_frame_stop)
+        if causal_frame_stop < 1:
+            raise ValueError("causal_frame_stop must be positive")
         factors = tuple(self.factors)
         gauges = tuple(self.gauges)
         if not factors:
@@ -63,6 +71,7 @@ class ObservationFactorBundle:
         if not gauges or len(set(gauge_ids)) != len(gauge_ids):
             raise ValueError("gauge IDs must be non-empty and unique")
         gauge_id_set = set(gauge_ids)
+        group_settings: dict[str, tuple[float, float]] = {}
         for gauge in gauges:
             covariance = np.asarray(gauge.covariance, dtype=np.float64)
             if covariance.shape != (7, 7) or not np.all(np.isfinite(covariance)):
@@ -72,12 +81,24 @@ class ObservationFactorBundle:
             _require_psd(covariance, "gauge covariance")
         for factor in factors:
             if factor.gauge_id not in gauge_id_set:
-                raise ValueError(f"factor {factor.factor_id!r} references an unknown gauge")
-            if factor.causal_frame_limit != int(self.causal_frame_limit):
-                raise ValueError("factor and bundle causal frame limits differ")
+                raise ValueError(
+                    f"factor {factor.factor_id!r} references an unknown gauge"
+                )
+            if factor.causal_frame_stop != causal_frame_stop:
+                raise ValueError("factor and bundle causal frame stops differ")
+            setting = (
+                factor.prior_nominal_probability,
+                factor.composite_weight,
+            )
+            previous = group_settings.setdefault(factor.correlation_group_id, setting)
+            if previous != setting:
+                raise ValueError(
+                    "factors in one correlation group must share nominal "
+                    "probability and composite weight"
+                )
         object.__setattr__(self, "factors", factors)
         object.__setattr__(self, "gauges", gauges)
-        object.__setattr__(self, "causal_frame_limit", int(self.causal_frame_limit))
+        object.__setattr__(self, "causal_frame_stop", causal_frame_stop)
         object.__setattr__(self, "metadata", _json_metadata(self.metadata))
 
     @property
@@ -93,7 +114,19 @@ class ObservationFactorBundle:
             )
         return groups
 
-    def linearize(self, factor: ObservationFactor | str) -> LinearizedObservationFactor:
+    @property
+    def correlation_group_parameters(self) -> dict[str, dict[str, float]]:
+        result: dict[str, dict[str, float]] = {}
+        for factor in self.factors:
+            result[factor.correlation_group_id] = {
+                "prior_nominal_probability": factor.prior_nominal_probability,
+                "composite_weight": factor.composite_weight,
+            }
+        return result
+
+    def linearize(
+        self, factor: ObservationFactor | str
+    ) -> LinearizedObservationFactor:
         selected = factor
         if isinstance(factor, str):
             matches = [value for value in self.factors if value.factor_id == factor]
@@ -135,6 +168,9 @@ class ObservationFactorBundle:
             gauge_jacobian=jacobian,
             valid_mask=selected.valid_mask,
             association_probability=selected.association_probability,
+            prior_reliability=selected.prior_reliability,
+            prior_nominal_probability=selected.prior_nominal_probability,
+            composite_weight=selected.composite_weight,
             ray_directions_world=rays,
         )
 
@@ -178,7 +214,7 @@ def _block_diagonal(values: list[np.ndarray]) -> np.ndarray:
 def stack_observation_factors(
     bundle: ObservationFactorBundle, *, include_invalid: bool = False
 ) -> StackedObservationFactors:
-    """Stack factor rows while retaining separate seven-dimensional gauge blocks."""
+    """Stack rows while preserving all residual-independent evidence fields."""
 
     gauge_ids = tuple(gauge.window_id for gauge in bundle.gauges)
     gauge_offsets = {gauge_id: 7 * index for index, gauge_id in enumerate(gauge_ids)}
@@ -187,7 +223,10 @@ def stack_observation_factors(
     conditional_covariances: list[np.ndarray] = []
     marginal_covariances: list[np.ndarray] = []
     jacobians: list[np.ndarray] = []
-    probabilities: list[float] = []
+    association_probabilities: list[float] = []
+    prior_reliabilities: list[float] = []
+    prior_nominal_probabilities: list[float] = []
+    composite_weights: list[float] = []
     point_ids: list[int] = []
     frame_indices: list[int] = []
     view_ids: list[str] = []
@@ -198,7 +237,9 @@ def stack_observation_factors(
         selected = (
             np.ones(len(factor.point_ids), dtype=bool)
             if include_invalid
-            else factor.valid_mask & (factor.association_probability > 0.0)
+            else factor.valid_mask
+            & (factor.association_probability > 0.0)
+            & (factor.prior_reliability > 0.0)
         )
         offset = gauge_offsets[factor.gauge_id]
         for local_index in np.flatnonzero(selected):
@@ -212,7 +253,12 @@ def stack_observation_factors(
                 linearized.marginal_world_covariance_m2[local_index]
             )
             jacobians.append(expanded)
-            probabilities.append(float(factor.association_probability[local_index]))
+            association_probabilities.append(
+                float(factor.association_probability[local_index])
+            )
+            prior_reliabilities.append(float(factor.prior_reliability[local_index]))
+            prior_nominal_probabilities.append(factor.prior_nominal_probability)
+            composite_weights.append(factor.composite_weight)
             point_ids.append(int(factor.point_ids[local_index]))
             frame_indices.append(factor.frame_index)
             view_ids.append(factor.view_id)
@@ -229,11 +275,15 @@ def stack_observation_factors(
         marginal_world_covariance_m2=np.stack(marginal_covariances),
         gauge_jacobian=np.stack(jacobians),
         gauge_prior_covariance=gauge_prior,
-        association_probability=np.asarray(probabilities),
+        association_probability=np.asarray(association_probabilities),
+        prior_reliability=np.asarray(prior_reliabilities),
+        prior_nominal_probability=np.asarray(prior_nominal_probabilities),
+        composite_weight=np.asarray(composite_weights),
         point_ids=np.asarray(point_ids),
         frame_indices=np.asarray(frame_indices),
         view_ids=tuple(view_ids),
         factor_ids=tuple(factor_ids),
         correlation_group_ids=tuple(correlation_groups),
         gauge_ids=gauge_ids,
+        causal_frame_stop=bundle.causal_frame_stop,
     )
