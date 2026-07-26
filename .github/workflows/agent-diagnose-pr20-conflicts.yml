@@ -1,0 +1,712 @@
+name: Resolve PR 20 merge conflicts
+
+on:
+  push:
+    branches:
+      - agent/content-addressed-covariance-calibration
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  resolve:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: agent/content-addressed-covariance-calibration
+          fetch-depth: 0
+          show-progress: false
+      - name: Merge main and resolve the five audited conflicts
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin main
+
+          set +e
+          git merge --no-commit --no-ff origin/main
+          merge_status=$?
+          set -e
+          if [ "$merge_status" -eq 0 ]; then
+            echo 'main merged without textual conflicts'
+          elif [ "$merge_status" -ne 1 ]; then
+            echo "unexpected merge status: $merge_status" >&2
+            exit "$merge_status"
+          fi
+
+          actual_conflicts="$(git diff --name-only --diff-filter=U | sort)"
+          expected_conflicts="$(printf '%s\n' \
+            src/prob4d/__init__.py \
+            src/prob4d/provider_manifest.py \
+            src/prob4d/provider_v1.py \
+            tests/test_provider_manifest.py \
+            tests/test_provider_v1.py | sort)"
+          if [ "$actual_conflicts" != "$expected_conflicts" ]; then
+            echo 'unexpected conflict set' >&2
+            echo 'expected:' >&2
+            printf '%s\n' "$expected_conflicts" >&2
+            echo 'actual:' >&2
+            printf '%s\n' "$actual_conflicts" >&2
+            exit 1
+          fi
+
+          cat > src/prob4d/__init__.py <<'PYEOF'
+          """Probabilistic long-horizon fusion for MotionCrafter predictions."""
+
+          from importlib.metadata import PackageNotFoundError, version
+
+          from .calibration import (
+              GAUGE_COVARIANCE_CALIBRATION_SCHEMA,
+              GAUGE_COVARIANCE_CALIBRATION_VERSION,
+              POINT_UNCERTAINTY_CALIBRATION_SCHEMA,
+              POINT_UNCERTAINTY_CALIBRATION_VERSION,
+              GaugeCovarianceCalibrationV1,
+              PointUncertaintyCalibrationV1,
+              load_gauge_covariance_calibration,
+              load_point_uncertainty_calibration,
+              save_gauge_covariance_calibration,
+              save_point_uncertainty_calibration,
+          )
+          from .data import PredictionWindow
+          from .evaluation_modes import (
+              EvaluationModeResult,
+              EvaluationModes,
+              evaluate_sequence_modes,
+          )
+          from .observation_contract import (
+              OBSERVATION_BELIEF_SCHEMA,
+              OBSERVATION_BELIEF_VERSION,
+              ObservationBeliefExportV1,
+              save_observation_belief_export,
+          )
+          from .observation_export import (
+              JointGaugePosterior,
+              MetricGaugeAnchor,
+              build_prob4d_observation_belief,
+              deterministic_covariance_root,
+              estimate_joint_gauge_tree,
+              load_metric_gauge_anchor,
+              save_metric_gauge_anchor,
+          )
+          from .observation_factors import (
+              LinearizedObservationFactor,
+              ObservationFactor,
+              ObservationFactorBundle,
+              StackedObservationFactors,
+              load_observation_factor_bundle,
+              stack_observation_factors,
+              write_observation_factor_bundle,
+          )
+          from .observation_validation import load_observation_belief_export
+          from .sim3 import Sim3
+
+          try:
+              __version__ = version("prob4d")
+          except PackageNotFoundError:  # Source tree without installed distribution metadata.
+              __version__ = "0.2.0"
+
+          __all__ = [
+              "GAUGE_COVARIANCE_CALIBRATION_SCHEMA",
+              "GAUGE_COVARIANCE_CALIBRATION_VERSION",
+              "OBSERVATION_BELIEF_SCHEMA",
+              "OBSERVATION_BELIEF_VERSION",
+              "POINT_UNCERTAINTY_CALIBRATION_SCHEMA",
+              "POINT_UNCERTAINTY_CALIBRATION_VERSION",
+              "EvaluationModeResult",
+              "EvaluationModes",
+              "GaugeCovarianceCalibrationV1",
+              "JointGaugePosterior",
+              "LinearizedObservationFactor",
+              "MetricGaugeAnchor",
+              "ObservationBeliefExportV1",
+              "ObservationFactor",
+              "ObservationFactorBundle",
+              "PointUncertaintyCalibrationV1",
+              "PredictionWindow",
+              "Sim3",
+              "StackedObservationFactors",
+              "build_prob4d_observation_belief",
+              "deterministic_covariance_root",
+              "estimate_joint_gauge_tree",
+              "evaluate_sequence_modes",
+              "load_gauge_covariance_calibration",
+              "load_metric_gauge_anchor",
+              "load_observation_belief_export",
+              "load_observation_factor_bundle",
+              "load_point_uncertainty_calibration",
+              "save_gauge_covariance_calibration",
+              "save_metric_gauge_anchor",
+              "save_observation_belief_export",
+              "save_point_uncertainty_calibration",
+              "stack_observation_factors",
+              "write_observation_factor_bundle",
+          ]
+          PYEOF
+
+          cat > src/prob4d/provider_manifest.py <<'PYEOF'
+          """Versioned capability manifest for the Prob4D observation provider."""
+
+          from __future__ import annotations
+
+          import hashlib
+          import json
+          import os
+          from importlib.metadata import PackageNotFoundError, distribution, version
+          from typing import Any
+
+          PROB4D_PROVIDER_API_VERSION = 1
+          PROB4D_PROVIDER_PACKAGE_VERSION = "0.2.0"
+          PROB4D_CAUSAL_STREAM_CONTRACT_VERSION = 2
+          PROB4D_PROVIDER_CAPABILITIES = (
+              "append_invariant_causal_source_digest",
+              "association_reliability_separation",
+              "calibrated_observation_export",
+              "causal_prefix_selection",
+              "conditional_point_covariance",
+              "content_addressed_covariance_calibration",
+              "content_addressed_metric_gauge_anchor",
+              "content_addressed_observation_belief",
+              "fail_closed_provider_cluster_covariance",
+              "immutable_prediction_window_inputs",
+              "immutable_validated_core_arrays",
+              "joint_cross_window_sim3_gauge_covariance",
+              "metric_anchor_covariance_propagation",
+              "strict_observation_belief_validation",
+              "trace_audited_gauge_rank_reduction",
+              "versioned_causal_stream_contract",
+              "versioned_python_provider_api",
+          )
+          PROB4D_ARTIFACT_SCHEMA_VERSIONS = {
+              "GaugeCovarianceCalibrationV1": 1,
+              "MetricGaugeAnchor": 1,
+              "ObservationBeliefV1": 1,
+              "ObservationFactorBundle": 3,
+              "PointUncertaintyCalibrationV1": 1,
+              "Prob4DCausalObservationStream": PROB4D_CAUSAL_STREAM_CONTRACT_VERSION,
+          }
+          PROB4D_PROVIDER_LIMITATIONS = {
+              "joint_cross_window_gauge_covariance_in_observation_belief_v1": True,
+              "dense_alignment_edge_fusion_claim": False,
+              "fixed_lag_boundary_covariance_exactness_claim": False,
+              "prospective_covariance_calibration_claim": False,
+              "physical_twin_improvement_claim": False,
+              "provider_pointwise_covariance_fallback_default": False,
+          }
+
+
+          def _installed_version() -> str:
+              try:
+                  return version("prob4d")
+              except PackageNotFoundError:
+                  return PROB4D_PROVIDER_PACKAGE_VERSION
+
+
+          def _installed_revision() -> str | None:
+              try:
+                  direct_url = distribution("prob4d").read_text("direct_url.json")
+              except PackageNotFoundError:
+                  return None
+              if not direct_url:
+                  return None
+              try:
+                  payload = json.loads(direct_url)
+              except (TypeError, json.JSONDecodeError):
+                  return None
+              commit_id = payload.get("vcs_info", {}).get("commit_id")
+              return str(commit_id) if commit_id else None
+
+
+          def _canonical_json(value: dict[str, Any]) -> bytes:
+              return json.dumps(
+                  value,
+                  sort_keys=True,
+                  separators=(",", ":"),
+                  allow_nan=False,
+              ).encode("utf-8")
+
+
+          def prob4d_provider_manifest(
+              *,
+              provider_revision: str | None = None,
+          ) -> dict[str, object]:
+              """Return the auditable producer contract for Bayesian consumers."""
+
+              revision = (
+                  provider_revision
+                  or os.environ.get("PROB4D_REVISION")
+                  or _installed_revision()
+                  or "unversioned-install"
+              )
+              descriptor: dict[str, object] = {
+                  "provider_name": "prob4d",
+                  "provider_version": _installed_version(),
+                  "provider_revision": revision,
+                  "provider_api_version": PROB4D_PROVIDER_API_VERSION,
+                  "capabilities": list(PROB4D_PROVIDER_CAPABILITIES),
+                  "artifact_schema_versions": dict(PROB4D_ARTIFACT_SCHEMA_VERSIONS),
+                  "limitations": dict(PROB4D_PROVIDER_LIMITATIONS),
+                  "metadata": {
+                      "source_repository": "FlorianPfaff/Prob4D",
+                      "python_import_boundary": "prob4d.provider_v1",
+                      "observation_stream": "prob4d:causal-overlap-window-points",
+                      "observation_stream_contract_version": (
+                          PROB4D_CAUSAL_STREAM_CONTRACT_VERSION
+                      ),
+                      "observation_belief_covariance_semantics": (
+                          "conditional local covariance plus one shared low-rank root of "
+                          "the joint Sim(3) covariance induced by the metric-anchor prior "
+                          "and selected causal gauge tree"
+                      ),
+                      "gauge_posterior_semantics": (
+                          "causal sequential spanning tree by default; fixed-lag "
+                          "block-diagonal covariance is an explicit approximate "
+                          "reconstruction control"
+                      ),
+                      "calibration_semantics": (
+                          "content-addressed held-out gauge and point covariance artifacts; "
+                          "claim-bearing provider export requires both and records their IDs"
+                      ),
+                      "alignment_covariance_fallback_semantics": (
+                          "provider exports reject fewer than eight spatial clusters by "
+                          "default; pointwise fallback requires explicit opt-in and is recorded"
+                      ),
+                      "observation_factor_bundle_covariance_semantics": (
+                          "explicit gauge nuisance factors with schema-v3 reliability and "
+                          "correlation-group fields"
+                      ),
+                      "metric_boundary": (
+                          "the content-addressed anchor binds the exact first prediction "
+                          "payload and external calibration digest, identifies the world "
+                          "frame, and declares whether its covariance is zero-fixed or "
+                          "propagated through the shared joint factor"
+                      ),
+                  },
+              }
+              manifest_id = hashlib.sha256(_canonical_json(descriptor)).hexdigest()
+              return {"manifest_id": manifest_id, **descriptor}
+
+
+          __all__ = [
+              "PROB4D_ARTIFACT_SCHEMA_VERSIONS",
+              "PROB4D_CAUSAL_STREAM_CONTRACT_VERSION",
+              "PROB4D_PROVIDER_API_VERSION",
+              "PROB4D_PROVIDER_CAPABILITIES",
+              "PROB4D_PROVIDER_LIMITATIONS",
+              "PROB4D_PROVIDER_PACKAGE_VERSION",
+              "prob4d_provider_manifest",
+          ]
+          PYEOF
+
+          cat > src/prob4d/provider_v1.py <<'PYEOF'
+          """Stable Prob4D provider API for Bayesian-PhysTwin and Causal4D.
+
+          Downstream repositories should import this module rather than experiment helpers
+          or underscore-prefixed implementation modules. Breaking provider changes require
+          a new versioned module instead of silently changing this surface.
+          """
+
+          from __future__ import annotations
+
+          from dataclasses import replace
+          from pathlib import Path
+          from typing import Any
+
+          from ._causal_observation_source import (
+              CausalOverlapSelection,
+              SelectedOverlapWindow,
+              select_causal_overlap_windows,
+          )
+          from ._metric_gauge_anchor import (
+              METRIC_GAUGE_ANCHOR_SCHEMA,
+              METRIC_GAUGE_ANCHOR_VERSION,
+              MetricGaugeAnchor,
+              load_metric_gauge_anchor,
+              save_metric_gauge_anchor,
+          )
+          from .alignment import CovarianceFallbackPolicy, alignment_covariance_context
+          from .calibration import (
+              GAUGE_COVARIANCE_CALIBRATION_SCHEMA,
+              GAUGE_COVARIANCE_CALIBRATION_VERSION,
+              POINT_UNCERTAINTY_CALIBRATION_SCHEMA,
+              POINT_UNCERTAINTY_CALIBRATION_VERSION,
+              GaugeCovarianceCalibrationV1,
+              PointUncertaintyCalibrationV1,
+              load_gauge_covariance_calibration,
+              load_point_uncertainty_calibration,
+              save_gauge_covariance_calibration,
+              save_point_uncertainty_calibration,
+          )
+          from .causal_stream_contract import (
+              PROB4D_CAUSAL_STREAM_CONTRACT_VERSION,
+              bind_causal_stream_contract_v2,
+          )
+          from .observation_contract import (
+              OBSERVATION_BELIEF_SCHEMA,
+              OBSERVATION_BELIEF_VERSION,
+              ObservationBeliefExportV1,
+              save_observation_belief_export,
+          )
+          from .observation_export import build_prob4d_observation_belief
+          from .observation_factors import (
+              OBSERVATION_FACTOR_SCHEMA,
+              OBSERVATION_FACTOR_SCHEMA_VERSION,
+              ObservationFactorBundle,
+              load_observation_factor_bundle,
+              write_observation_factor_bundle,
+          )
+          from .observation_validation import load_observation_belief_export
+          from .provider_manifest import (
+              PROB4D_PROVIDER_API_VERSION,
+              prob4d_provider_manifest,
+          )
+          from .uncertainty import DepthDisagreementModel
+
+          PROVIDER_API_VERSION = PROB4D_PROVIDER_API_VERSION
+
+
+          def select_causal_source(
+              manifest_path: str | Path,
+              *,
+              causal_frame_stop: int,
+              metric_anchor: MetricGaugeAnchor,
+          ) -> CausalOverlapSelection:
+              """Select the complete independently decoded source prefix for prediction."""
+
+              return select_causal_overlap_windows(
+                  manifest_path,
+                  causal_frame_stop=causal_frame_stop,
+                  metric_anchor=metric_anchor,
+              )
+
+
+          def export_observation_belief(
+              manifest_path: str | Path,
+              *,
+              case_id: str,
+              causal_frame_stop: int,
+              metric_anchor: MetricGaugeAnchor,
+              pixel_stride: int = 4,
+              effective_samples_per_group: float = 64.0,
+              minimum_prior_reliability: float = 0.05,
+              gauge_mode: str = "sequential",
+              fixed_lag: int = 4,
+              allow_approximate_fixed_lag_covariance: bool = False,
+              max_gauge_rank: int | None = 64,
+              minimum_retained_gauge_trace: float = 0.999,
+              view_name: str = "camera0",
+              source_revision: str | None = None,
+              uncertainty_model: DepthDisagreementModel | None = None,
+              gauge_covariance_calibration: GaugeCovarianceCalibrationV1 | None = None,
+              point_uncertainty_calibration: PointUncertaintyCalibrationV1 | None = None,
+              allow_uncalibrated_exploratory_covariance: bool = True,
+              allow_pointwise_covariance_fallback: bool = False,
+          ) -> ObservationBeliefExportV1:
+              """Export a causally sealed portable observation belief.
+
+              The production sequential mode carries the joint cross-window gauge
+              covariance induced by the metric-anchor prior and selected causal gauge tree
+              through one shared low-rank latent factor. Content-addressed calibration
+              artifacts can be supplied for both dense point uncertainty and gauge-edge
+              covariance. Set ``allow_uncalibrated_exploratory_covariance=False`` for a
+              claim-bearing run; missing calibration then fails closed.
+
+              Spatial-cluster covariance also fails closed by default through this provider.
+              ``allow_pointwise_covariance_fallback`` is an explicit reconstruction-control
+              escape hatch and is recorded in artifact metadata. Sequential output is bound
+              to Prob4D causal stream contract v2 only after that metadata is attached;
+              fixed-lag output remains an explicitly acknowledged approximate control.
+              """
+
+              if uncertainty_model is not None and point_uncertainty_calibration is not None:
+                  raise ValueError(
+                      "uncertainty_model and point_uncertainty_calibration are mutually exclusive"
+                  )
+              if not allow_uncalibrated_exploratory_covariance and (
+                  gauge_covariance_calibration is None
+                  or point_uncertainty_calibration is None
+              ):
+                  raise ValueError(
+                      "claim-bearing exports require both gauge and point covariance "
+                      "calibration artifacts"
+                  )
+
+              resolved_uncertainty_model = (
+                  point_uncertainty_calibration.model
+                  if point_uncertainty_calibration is not None
+                  else uncertainty_model
+              )
+              fallback_policy: CovarianceFallbackPolicy = (
+                  "pointwise" if allow_pointwise_covariance_fallback else "error"
+              )
+              with alignment_covariance_context(
+                  calibration=gauge_covariance_calibration,
+                  fallback_policy=fallback_policy,
+              ) as alignment_diagnostics:
+                  artifact = build_prob4d_observation_belief(
+                      manifest_path,
+                      case_id=case_id,
+                      causal_frame_stop=causal_frame_stop,
+                      metric_anchor=metric_anchor,
+                      pixel_stride=pixel_stride,
+                      effective_samples_per_group=effective_samples_per_group,
+                      minimum_prior_reliability=minimum_prior_reliability,
+                      gauge_mode=gauge_mode,
+                      fixed_lag=fixed_lag,
+                      allow_approximate_fixed_lag_covariance=(
+                          allow_approximate_fixed_lag_covariance
+                      ),
+                      max_gauge_rank=max_gauge_rank,
+                      minimum_retained_gauge_trace=minimum_retained_gauge_trace,
+                      view_name=view_name,
+                      source_revision=source_revision,
+                      uncertainty_model=resolved_uncertainty_model,
+                  )
+
+              if isinstance(artifact, ObservationBeliefExportV1):
+                  if (
+                      gauge_covariance_calibration is not None
+                      and point_uncertainty_calibration is not None
+                  ):
+                      calibration_status = "calibrated"
+                  elif (
+                      gauge_covariance_calibration is not None
+                      or point_uncertainty_calibration is not None
+                  ):
+                      calibration_status = "partially_calibrated"
+                  else:
+                      calibration_status = "uncalibrated_exploratory"
+                  metadata = dict(artifact.metadata)
+                  metadata["covariance_calibration"] = {
+                      "status": calibration_status,
+                      "gauge_artifact_id": (
+                          None
+                          if gauge_covariance_calibration is None
+                          else gauge_covariance_calibration.artifact_id
+                      ),
+                      "point_artifact_id": (
+                          None
+                          if point_uncertainty_calibration is None
+                          else point_uncertainty_calibration.artifact_id
+                      ),
+                      "uncalibrated_exploratory_covariance_allowed": bool(
+                          allow_uncalibrated_exploratory_covariance
+                      ),
+                      "pointwise_covariance_fallback_allowed": bool(
+                          allow_pointwise_covariance_fallback
+                      ),
+                      "alignment_count": alignment_diagnostics.alignment_count,
+                      "gauge_calibrated_alignment_count": (
+                          alignment_diagnostics.calibrated_alignment_count
+                      ),
+                      "covariance_fallback_counts": alignment_diagnostics.fallback_counts,
+                  }
+                  artifact = replace(artifact, metadata=metadata)
+
+              if gauge_mode != "sequential":
+                  return artifact
+              return bind_causal_stream_contract_v2(
+                  artifact,
+                  metric_anchor=metric_anchor,
+              )
+
+
+          def export_calibrated_observation_belief(
+              manifest_path: str | Path,
+              *,
+              case_id: str,
+              causal_frame_stop: int,
+              metric_anchor: MetricGaugeAnchor,
+              gauge_covariance_calibration: GaugeCovarianceCalibrationV1,
+              point_uncertainty_calibration: PointUncertaintyCalibrationV1,
+              **kwargs: Any,
+          ) -> ObservationBeliefExportV1:
+              """Export a claim-bearing observation belief requiring both calibrations."""
+
+              if "uncertainty_model" in kwargs:
+                  raise ValueError(
+                      "export_calibrated_observation_belief derives its uncertainty model "
+                      "from point_uncertainty_calibration"
+                  )
+              if "allow_uncalibrated_exploratory_covariance" in kwargs:
+                  raise ValueError(
+                      "export_calibrated_observation_belief always fails closed on missing "
+                      "calibration"
+                  )
+              return export_observation_belief(
+                  manifest_path,
+                  case_id=case_id,
+                  causal_frame_stop=causal_frame_stop,
+                  metric_anchor=metric_anchor,
+                  gauge_covariance_calibration=gauge_covariance_calibration,
+                  point_uncertainty_calibration=point_uncertainty_calibration,
+                  allow_uncalibrated_exploratory_covariance=False,
+                  **kwargs,
+              )
+
+
+          __all__ = [
+              "GAUGE_COVARIANCE_CALIBRATION_SCHEMA",
+              "GAUGE_COVARIANCE_CALIBRATION_VERSION",
+              "METRIC_GAUGE_ANCHOR_SCHEMA",
+              "METRIC_GAUGE_ANCHOR_VERSION",
+              "OBSERVATION_BELIEF_SCHEMA",
+              "OBSERVATION_BELIEF_VERSION",
+              "OBSERVATION_FACTOR_SCHEMA",
+              "OBSERVATION_FACTOR_SCHEMA_VERSION",
+              "POINT_UNCERTAINTY_CALIBRATION_SCHEMA",
+              "POINT_UNCERTAINTY_CALIBRATION_VERSION",
+              "PROB4D_CAUSAL_STREAM_CONTRACT_VERSION",
+              "PROB4D_PROVIDER_API_VERSION",
+              "PROVIDER_API_VERSION",
+              "CausalOverlapSelection",
+              "GaugeCovarianceCalibrationV1",
+              "MetricGaugeAnchor",
+              "ObservationBeliefExportV1",
+              "ObservationFactorBundle",
+              "PointUncertaintyCalibrationV1",
+              "SelectedOverlapWindow",
+              "bind_causal_stream_contract_v2",
+              "export_calibrated_observation_belief",
+              "export_observation_belief",
+              "load_gauge_covariance_calibration",
+              "load_metric_gauge_anchor",
+              "load_observation_belief_export",
+              "load_observation_factor_bundle",
+              "load_point_uncertainty_calibration",
+              "prob4d_provider_manifest",
+              "save_gauge_covariance_calibration",
+              "save_metric_gauge_anchor",
+              "save_observation_belief_export",
+              "save_point_uncertainty_calibration",
+              "select_causal_source",
+              "write_observation_factor_bundle",
+          ]
+          PYEOF
+
+          cat > tests/test_provider_manifest.py <<'PYEOF'
+          from __future__ import annotations
+
+          import hashlib
+          import json
+          from pathlib import Path
+
+          from prob4d.provider_manifest import prob4d_provider_manifest
+          from prob4d.provider_manifest_cli import main
+
+
+          def test_provider_manifest_declares_covariance_boundary() -> None:
+              manifest = prob4d_provider_manifest(provider_revision="a" * 40)
+
+              assert manifest["provider_revision"] == "a" * 40
+              assert manifest["artifact_schema_versions"] == {
+                  "GaugeCovarianceCalibrationV1": 1,
+                  "MetricGaugeAnchor": 1,
+                  "ObservationBeliefV1": 1,
+                  "ObservationFactorBundle": 3,
+                  "PointUncertaintyCalibrationV1": 1,
+                  "Prob4DCausalObservationStream": 2,
+              }
+              assert "joint_cross_window_sim3_gauge_covariance" in manifest["capabilities"]
+              assert "content_addressed_covariance_calibration" in manifest["capabilities"]
+              assert "content_addressed_metric_gauge_anchor" in manifest["capabilities"]
+              assert "metric_anchor_covariance_propagation" in manifest["capabilities"]
+              assert "versioned_causal_stream_contract" in manifest["capabilities"]
+              assert manifest["metadata"]["observation_stream_contract_version"] == 2
+              assert manifest["limitations"][
+                  "joint_cross_window_gauge_covariance_in_observation_belief_v1"
+              ] is True
+              assert manifest["limitations"][
+                  "fixed_lag_boundary_covariance_exactness_claim"
+              ] is False
+              assert manifest["limitations"][
+                  "provider_pointwise_covariance_fallback_default"
+              ] is False
+              descriptor = {
+                  key: value for key, value in manifest.items() if key != "manifest_id"
+              }
+              expected = hashlib.sha256(
+                  json.dumps(
+                      descriptor,
+                      sort_keys=True,
+                      separators=(",", ":"),
+                      allow_nan=False,
+                  ).encode("utf-8")
+              ).hexdigest()
+              assert manifest["manifest_id"] == expected
+
+
+          def test_provider_manifest_cli_writes_exact_payload(
+              tmp_path: Path, capsys
+          ) -> None:
+              output = tmp_path / "provider.json"
+              assert main(["--provider-revision", "b" * 40, "--output", str(output)]) == 0
+              printed = capsys.readouterr().out
+              assert json.loads(printed) == json.loads(output.read_text(encoding="utf-8"))
+          PYEOF
+
+          git checkout --ours tests/test_provider_v1.py
+          git add \
+            src/prob4d/__init__.py \
+            src/prob4d/provider_manifest.py \
+            src/prob4d/provider_v1.py \
+            tests/test_provider_manifest.py \
+            tests/test_provider_v1.py
+
+          if git diff --name-only --diff-filter=U | grep -q .; then
+            echo 'unresolved conflicts remain' >&2
+            git diff --name-only --diff-filter=U >&2
+            exit 1
+          fi
+          git diff --check
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Validate merged branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -e '.[dev]'
+          python -m ruff format \
+            src/prob4d/__init__.py \
+            src/prob4d/provider_manifest.py \
+            src/prob4d/provider_v1.py \
+            tests/test_provider_manifest.py \
+            tests/test_provider_v1.py
+          python -m ruff check src tests
+          python -m mypy src
+          python -m pytest -q
+          git diff --check
+      - name: Commit and push resolved merge
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/agent-diagnose-pr20-conflicts.yml
+          git add -A
+          git commit -m 'Resolve covariance calibration conflicts with main'
+          git push origin HEAD:agent/content-addressed-covariance-calibration
+      - name: Summarize resolution on PR 20
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > /tmp/pr20-resolution.md <<'EOF'
+          ### Merge conflict resolved
+
+          Merged current `main` while preserving both sets of semantics:
+
+          - content-addressed gauge and point covariance calibration;
+          - fail-closed provider cluster covariance with explicit fallback audit;
+          - content-addressed metric-anchor provenance and covariance propagation;
+          - causal observation stream contract v2 for sequential exports;
+          - evaluation-mode APIs added on `main`.
+
+          Calibration metadata is attached before stream-v2 binding. Fixed-lag output remains explicitly unbound.
+
+          Validation completed with Ruff formatting/checks, mypy, and the complete pytest suite.
+          EOF
+          gh pr comment 20 --repo FlorianPfaff/Prob4D --body-file /tmp/pr20-resolution.md
