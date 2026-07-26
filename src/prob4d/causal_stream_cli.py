@@ -5,7 +5,9 @@ from __future__ import annotations
 import argparse
 import io
 import json
+import os
 import sys
+import tempfile
 from contextlib import redirect_stdout
 from pathlib import Path
 from typing import Any
@@ -30,12 +32,69 @@ def _paths(argv: list[str]) -> argparse.Namespace:
     return parsed
 
 
-def _write_json(path: Path, payload: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(payload, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
+def _temporary_path(parent: Path, *, prefix: str, suffix: str) -> Path:
+    parent.mkdir(parents=True, exist_ok=True)
+    handle = tempfile.NamedTemporaryFile(
+        dir=parent,
+        prefix=prefix,
+        suffix=suffix,
+        delete=False,
     )
+    path = Path(handle.name)
+    handle.close()
+    return path
+
+
+def _replace_option_value(
+    arguments: list[str],
+    option: str,
+    replacement: str,
+) -> list[str]:
+    result = list(arguments)
+    for index, argument in enumerate(result):
+        if argument == option:
+            if index + 1 >= len(result):
+                raise ValueError(f"{option} requires a value")
+            result[index + 1] = replacement
+            return result
+        if argument.startswith(f"{option}="):
+            result[index] = f"{option}={replacement}"
+            return result
+    return result
+
+
+def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
+    temporary = _temporary_path(
+        path.parent,
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+    )
+    try:
+        with temporary.open("w", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def _atomic_write_observation(path: Path, artifact) -> None:
+    temporary = _temporary_path(
+        path.parent,
+        prefix=f".{path.name}.",
+        suffix=".npz",
+    )
+    try:
+        save_observation_belief_export(temporary, artifact)
+        restored = load_observation_belief_export(temporary)
+        if restored.artifact_id != artifact.artifact_id:
+            raise RuntimeError("observation artifact changed during serialization")
+        with temporary.open("rb") as handle:
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -45,35 +104,64 @@ def main(argv: list[str] | None = None) -> int:
     if any(argument in {"-h", "--help"} for argument in arguments):
         return legacy_main(arguments)
     paths = _paths(arguments)
-    captured = io.StringIO()
-    with redirect_stdout(captured):
-        status = legacy_main(arguments)
-    if status != 0:
-        output = captured.getvalue()
-        if output:
-            print(output, end="")
-        return int(status)
-
-    summary = json.loads(captured.getvalue())
-    artifact = load_observation_belief_export(paths.output_npz)
-    anchor = load_metric_gauge_anchor(paths.metric_gauge_anchor)
-    if artifact.metadata.get("gauge_mode") == "sequential":
-        artifact = bind_causal_stream_contract_v2(
-            artifact,
-            metric_anchor=anchor,
+    temporary_output = _temporary_path(
+        paths.output_npz.parent,
+        prefix=f".{paths.output_npz.name}.legacy.",
+        suffix=".npz",
+    )
+    temporary_summary = None
+    legacy_arguments = list(arguments)
+    legacy_arguments[1] = str(temporary_output)
+    if paths.summary_json is not None:
+        temporary_summary = _temporary_path(
+            paths.summary_json.parent,
+            prefix=f".{paths.summary_json.name}.legacy.",
+            suffix=".json",
         )
-        save_observation_belief_export(paths.output_npz, artifact)
+        legacy_arguments = _replace_option_value(
+            legacy_arguments,
+            "--summary-json",
+            str(temporary_summary),
+        )
+
+    try:
+        captured = io.StringIO()
+        with redirect_stdout(captured):
+            status = legacy_main(legacy_arguments)
+        if status != 0:
+            output = captured.getvalue()
+            if output:
+                print(output, end="")
+            return int(status)
+
+        summary = json.loads(captured.getvalue())
+        artifact = load_observation_belief_export(temporary_output)
+        anchor = load_metric_gauge_anchor(paths.metric_gauge_anchor)
+        if artifact.metadata.get("gauge_mode") == "sequential":
+            artifact = bind_causal_stream_contract_v2(
+                artifact,
+                metric_anchor=anchor,
+            )
+            summary["prob4d_causal_stream_contract_version"] = (
+                PROB4D_CAUSAL_STREAM_CONTRACT_VERSION
+            )
+            summary["metric_gauge_anchor_id"] = anchor.artifact_id
+            summary["metric_anchor_covariance_treatment"] = (
+                anchor.covariance_treatment
+            )
+            summary["gauge_posterior"] = artifact.metadata["gauge_posterior"]
+
+        _atomic_write_observation(paths.output_npz, artifact)
         summary.update(artifact.summary())
-        summary["prob4d_causal_stream_contract_version"] = (
-            PROB4D_CAUSAL_STREAM_CONTRACT_VERSION
-        )
-        summary["metric_gauge_anchor_id"] = anchor.artifact_id
-        summary["gauge_posterior"] = artifact.metadata["gauge_posterior"]
+        summary["output"] = str(paths.output_npz.resolve())
         if paths.summary_json is not None:
-            _write_json(paths.summary_json, summary)
-
-    print(json.dumps(summary, indent=2, sort_keys=True))
-    return 0
+            _atomic_write_json(paths.summary_json, summary)
+        print(json.dumps(summary, indent=2, sort_keys=True))
+        return 0
+    finally:
+        temporary_output.unlink(missing_ok=True)
+        if temporary_summary is not None:
+            temporary_summary.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":
