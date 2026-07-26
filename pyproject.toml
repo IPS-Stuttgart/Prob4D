@@ -13,19 +13,23 @@ dependencies = ["numpy>=1.24"]
 
 [project.optional-dependencies]
 dev = [
+  "build>=1.2",
   "pytest>=7.4",
   "pytest-cov>=4.1",
   "ruff>=0.6",
+  "twine>=5.0",
 ]
 
 [project.scripts]
 prob4d-ablate = "prob4d.experiments:main"
 prob4d-benchmark = "prob4d.benchmark:main"
+prob4d-export-observation = "prob4d.observation_export:main"
 prob4d-motioncrafter = "prob4d.motioncrafter:main"
 prob4d-phystwin = "prob4d.phystwin_experiment:main"
 prob4d-phystwin-state = "prob4d.phystwin_state:main"
 prob4d-phystwin-uncertainty = "prob4d.phystwin_uncertainty:main"
 prob4d-sintel-uncertainty = "prob4d.sintel_uncertainty:main"
+prob4d-validate-observation = "prob4d.observation_contract:validate_main"
 prob4d-vggt-baseline = "prob4d.vggt_baseline:main"
 
 [tool.setuptools.packages.find]
