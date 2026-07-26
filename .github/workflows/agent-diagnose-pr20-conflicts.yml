@@ -1,15 +1,15 @@
 name: Diagnose PR 20 merge conflicts
 
 on:
-  push:
-    branches:
-      - agent/content-addressed-covariance-calibration
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: read
 
 jobs:
   diagnose:
+    if: github.event.pull_request.head.ref == 'agent/content-addressed-covariance-calibration'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
