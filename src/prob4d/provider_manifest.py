@@ -9,14 +9,14 @@ from importlib.metadata import PackageNotFoundError, distribution, version
 from typing import Any
 
 PROB4D_PROVIDER_API_VERSION = 1
-PROB4D_PROVIDER_PACKAGE_VERSION = "0.2.0"
+PROB4D_PROVIDER_PACKAGE_VERSION = "0.2.1"
 PROB4D_PROVIDER_CAPABILITIES = (
     "append_invariant_causal_source_digest",
     "association_reliability_separation",
     "causal_prefix_selection",
     "conditional_point_covariance",
+    "content_addressed_metric_gauge_anchor",
     "content_addressed_observation_belief",
-    "fixed_metric_gauge_anchor",
     "immutable_prediction_window_inputs",
     "joint_cross_window_sim3_gauge_covariance",
     "strict_observation_belief_validation",
@@ -24,8 +24,10 @@ PROB4D_PROVIDER_CAPABILITIES = (
     "versioned_python_provider_api",
 )
 PROB4D_ARTIFACT_SCHEMA_VERSIONS = {
+    "MetricGaugeAnchor": 2,
     "ObservationBeliefV1": 1,
     "ObservationFactorBundle": 3,
+    "Prob4DObservationContract": 2,
 }
 PROB4D_PROVIDER_LIMITATIONS = {
     "joint_cross_window_gauge_covariance_in_observation_belief_v1": True,
@@ -91,10 +93,18 @@ def prob4d_provider_manifest(
             "source_repository": "FlorianPfaff/Prob4D",
             "python_import_boundary": "prob4d.provider_v1",
             "observation_stream": "prob4d:causal-overlap-window-points",
+            "prob4d_observation_contract_version": 2,
+            "observation_belief_covariance_layout": "joint_sim3_tree_root_v1",
+            "approximate_fixed_lag_covariance_layout": (
+                "approximate_fixed_lag_block_diagonal_sim3_root_v1"
+            ),
+            "observation_belief_factor_group_semantics": (
+                "single_shared_standard_normal_latent"
+            ),
             "observation_belief_covariance_semantics": (
                 "conditional local covariance plus one shared low-rank root of the "
-                "joint Sim(3) covariance induced by the fixed metric anchor and "
-                "selected causal gauge tree"
+                "joint Sim(3) covariance induced by the metric anchor and selected "
+                "causal gauge tree"
             ),
             "gauge_posterior_semantics": (
                 "causal sequential spanning tree by default; fixed-lag block-diagonal "
@@ -105,8 +115,9 @@ def prob4d_provider_manifest(
                 "correlation-group fields"
             ),
             "metric_boundary": (
-                "ObservationBeliefV1 requires an independently checksummed fixed "
-                "metric Sim(3) anchor"
+                "the content-addressed metric anchor records world frame, exact "
+                "source payload, exact calibration artifact, and whether its "
+                "covariance is fixed or propagated through the shared joint factor"
             ),
         },
     }
