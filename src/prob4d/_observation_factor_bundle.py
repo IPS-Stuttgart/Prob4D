@@ -22,6 +22,7 @@ from .sim3 import Sim3, skew, so3_right_jacobian
 OBSERVATION_FACTOR_SCHEMA = "prob4d.observation-factor-bundle"
 OBSERVATION_FACTOR_SCHEMA_VERSION = 3
 LEGACY_OBSERVATION_FACTOR_SCHEMA_VERSION = 2
+OBSERVATION_FACTOR_SOURCE_REPOSITORY = "FlorianPfaff/Prob4D"
 GAUGE_PARAMETERIZATION = "log-scale-rotvec-translation-v1"
 
 
@@ -43,6 +44,9 @@ class ObservationFactorBundle:
     gauges: tuple[GaugeEstimate, ...]
     source_revision: str
     causal_frame_stop: int
+    case_id: str | None = None
+    stream_id: str | None = None
+    source_repository: str = OBSERVATION_FACTOR_SOURCE_REPOSITORY
     metadata: Mapping[str, Any] = field(default_factory=dict)
     schema_version: int = OBSERVATION_FACTOR_SCHEMA_VERSION
 
@@ -55,6 +59,11 @@ class ObservationFactorBundle:
     def __post_init__(self) -> None:
         if not self.sequence_id or not self.source_revision:
             raise ValueError("sequence_id and source_revision must not be empty")
+        case_id = self.sequence_id if self.case_id is None else str(self.case_id)
+        stream_id = self.sequence_id if self.stream_id is None else str(self.stream_id)
+        source_repository = str(self.source_repository)
+        if not case_id or not stream_id or not source_repository:
+            raise ValueError("case, stream, and source repository must not be empty")
         if self.schema_version != OBSERVATION_FACTOR_SCHEMA_VERSION:
             raise ValueError("unsupported observation-factor schema version")
         causal_frame_stop = int(self.causal_frame_stop)
@@ -99,6 +108,9 @@ class ObservationFactorBundle:
         object.__setattr__(self, "factors", factors)
         object.__setattr__(self, "gauges", gauges)
         object.__setattr__(self, "causal_frame_stop", causal_frame_stop)
+        object.__setattr__(self, "case_id", case_id)
+        object.__setattr__(self, "stream_id", stream_id)
+        object.__setattr__(self, "source_repository", source_repository)
         object.__setattr__(self, "metadata", _json_metadata(self.metadata))
 
     @property
