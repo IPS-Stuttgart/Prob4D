@@ -4,9 +4,17 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  test:
+  lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
@@ -15,4 +23,61 @@ jobs:
           cache: pip
       - run: python -m pip install -e ".[dev]"
       - run: ruff check src tests
+      - run: python -m compileall -q src
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12", "3.14"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - run: python -m pip install -e ".[dev]"
       - run: python -m pytest -q
+
+  package:
+    needs: [lint, test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install ".[dev]"
+      - run: python -m build
+      - run: python -m twine check dist/*
+      - run: python -m venv /tmp/prob4d-wheel
+      - run: /tmp/prob4d-wheel/bin/python -m pip install dist/*.whl
+      - run: /tmp/prob4d-wheel/bin/python -m pip check
+      - name: Smoke-test installed imports
+        run: |
+          /tmp/prob4d-wheel/bin/python - <<'PY'
+          import prob4d
+          import prob4d.provider_v1 as provider
+
+          print(prob4d.__version__)
+          assert provider.PROVIDER_API_VERSION == 1
+          PY
+      - name: Smoke-test installed command help
+        run: |
+          for command in \
+            prob4d-ablate \
+            prob4d-benchmark \
+            prob4d-export-observation-belief \
+            prob4d-motioncrafter \
+            prob4d-phystwin \
+            prob4d-phystwin-state \
+            prob4d-phystwin-uncertainty \
+            prob4d-sintel-uncertainty \
+            prob4d-vggt-baseline
+          do
+            "/tmp/prob4d-wheel/bin/${command}" --help >/dev/null
+          done
