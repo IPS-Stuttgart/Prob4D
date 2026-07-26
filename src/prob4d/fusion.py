@@ -8,6 +8,7 @@ from typing import Literal
 import numpy as np
 from numpy.typing import NDArray
 
+from .covariance import regularized_inverse_psd
 from .data import PredictionWindow
 from .sim3 import Sim3, so3_log, so3_right_jacobian
 from .uncertainty import StructuredCovariance
@@ -56,15 +57,11 @@ class FusedSequence:
 
 
 def _regularized_inverse(covariance: FloatArray, floor: float = 1e-12) -> FloatArray:
-    covariance = np.asarray(covariance, dtype=np.float64)
-    symmetric = 0.5 * (covariance + np.swapaxes(covariance, -1, -2))
-    identity = np.eye(symmetric.shape[-1])
-    try:
-        return np.linalg.inv(symmetric + floor * identity)
-    except np.linalg.LinAlgError:
-        eigenvalues, eigenvectors = np.linalg.eigh(symmetric)
-        eigenvalues = np.maximum(eigenvalues, floor)
-        return np.einsum("...ij,...j,...kj->...ik", eigenvectors, 1.0 / eigenvalues, eigenvectors)
+    return regularized_inverse_psd(
+        covariance,
+        name="fusion covariance",
+        eigenvalue_floor=floor,
+    )
 
 
 def fuse_gaussians_independent(
@@ -151,7 +148,9 @@ def fuse_gaussians_covariance_intersection(
                 weight * sampled_information_one + (1.0 - weight) * sampled_information_two
             )
             covariance = _regularized_inverse(information)
-            _, log_determinant = np.linalg.slogdet(covariance)
+            sign, log_determinant = np.linalg.slogdet(covariance)
+            if np.any(sign <= 0.0) or not np.all(np.isfinite(log_determinant)):
+                raise ValueError("covariance intersection produced a non-positive covariance")
             score = float(np.mean(log_determinant))
             if score < best_score - 1e-12:
                 best_score = score
@@ -168,7 +167,9 @@ def fuse_gaussians_covariance_intersection(
             ) + (1.0 - best_weight) * np.einsum(
                 "...ij,...j->...i", information_two, mean_two[start:stop]
             )
-            output_mean[start:stop] = np.einsum("...ij,...j->...i", covariance, information_vector)
+            output_mean[start:stop] = np.einsum(
+                "...ij,...j->...i", covariance, information_vector
+            )
             output_covariance[start:stop] = covariance
             output_weight[start:stop] = best_weight
         return (
@@ -190,7 +191,9 @@ def fuse_gaussians_covariance_intersection(
         for weight in weight_grid:
             information = weight * information_one + (1.0 - weight) * information_two
             covariance = _regularized_inverse(information)
-            _, log_determinant = np.linalg.slogdet(covariance)
+            sign, log_determinant = np.linalg.slogdet(covariance)
+            if np.any(sign <= 0.0) or not np.all(np.isfinite(log_determinant)):
+                raise ValueError("covariance intersection produced a non-positive covariance")
             improved = log_determinant < best_score - 1e-12
             best_score[improved] = log_determinant[improved]
             best_weight[improved] = weight
@@ -201,7 +204,9 @@ def fuse_gaussians_covariance_intersection(
         ) + (1.0 - best_weight)[:, None] * np.einsum(
             "...ij,...j->...i", information_two, mean_two[start:stop]
         )
-        output_mean[start:stop] = np.einsum("...ij,...j->...i", best_covariance, information_vector)
+        output_mean[start:stop] = np.einsum(
+            "...ij,...j->...i", best_covariance, information_vector
+        )
         output_covariance[start:stop] = best_covariance
         output_weight[start:stop] = best_weight
 
@@ -291,7 +296,9 @@ def _gauge_induced_covariance(
         )
         if include_translation:
             jacobian[:, :, 4:7] = identity
-        propagated[start:stop] = np.einsum("nij,jk,nlk->nil", jacobian, covariance, jacobian)
+        propagated[start:stop] = np.einsum(
+            "nij,jk,nlk->nil", jacobian, covariance, jacobian
+        )
     return propagated.reshape(values.shape + (3,))
 
 

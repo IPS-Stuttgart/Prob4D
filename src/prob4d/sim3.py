@@ -10,17 +10,27 @@ from numpy.typing import NDArray
 FloatArray = NDArray[np.floating]
 
 
+def _readonly_copy(value: FloatArray, *, shape: tuple[int, ...], name: str) -> FloatArray:
+    array = np.asarray(value, dtype=np.float64).copy()
+    if array.shape != shape:
+        raise ValueError(f"{name} must have shape {shape}")
+    if not np.all(np.isfinite(array)):
+        raise ValueError(f"{name} must be finite")
+    array.setflags(write=False)
+    return array
+
+
 def skew(vector: FloatArray) -> FloatArray:
     """Return the cross-product matrix for a three-vector."""
 
-    x, y, z = np.asarray(vector, dtype=np.float64)
+    x, y, z = _readonly_copy(vector, shape=(3,), name="vector")
     return np.array([[0.0, -z, y], [z, 0.0, -x], [-y, x, 0.0]])
 
 
 def so3_exp(rotation_vector: FloatArray) -> FloatArray:
     """Map an axis-angle vector to a rotation matrix."""
 
-    vector = np.asarray(rotation_vector, dtype=np.float64)
+    vector = _readonly_copy(rotation_vector, shape=(3,), name="rotation_vector")
     theta = float(np.linalg.norm(vector))
     generator = skew(vector)
     if theta < 1e-8:
@@ -33,11 +43,15 @@ def so3_exp(rotation_vector: FloatArray) -> FloatArray:
 def so3_log(rotation: FloatArray) -> FloatArray:
     """Map a rotation matrix to its shortest axis-angle vector."""
 
-    matrix = np.asarray(rotation, dtype=np.float64)
+    matrix = _readonly_copy(rotation, shape=(3, 3), name="rotation")
     cosine = float(np.clip((np.trace(matrix) - 1.0) * 0.5, -1.0, 1.0))
     theta = float(np.arccos(cosine))
     antisymmetric = np.array(
-        [matrix[2, 1] - matrix[1, 2], matrix[0, 2] - matrix[2, 0], matrix[1, 0] - matrix[0, 1]]
+        [
+            matrix[2, 1] - matrix[1, 2],
+            matrix[0, 2] - matrix[2, 0],
+            matrix[1, 0] - matrix[0, 1],
+        ]
     )
     if theta < 1e-8:
         return 0.5 * antisymmetric
@@ -53,9 +67,7 @@ def so3_log(rotation: FloatArray) -> FloatArray:
 def so3_right_jacobian(rotation_vector: FloatArray) -> FloatArray:
     """Return the right Jacobian of the SO(3) exponential coordinates."""
 
-    vector = np.asarray(rotation_vector, dtype=np.float64)
-    if vector.shape != (3,):
-        raise ValueError("rotation_vector must have shape (3,)")
+    vector = _readonly_copy(rotation_vector, shape=(3,), name="rotation_vector")
     angle = float(np.linalg.norm(vector))
     generator = skew(vector)
     if angle < 1e-6:
@@ -72,7 +84,8 @@ class Sim3:
     """A transform ``y = scale * rotation @ x + translation``.
 
     The seven-vector convention used by :meth:`as_vector` is
-    ``[log_scale, rotation_vector(3), translation(3)]``.
+    ``[log_scale, rotation_vector(3), translation(3)]``. Array fields are
+    defensively copied and read-only so validated transforms remain immutable.
     """
 
     scale: float = 1.0
@@ -81,17 +94,18 @@ class Sim3:
 
     def __post_init__(self) -> None:
         scale = float(self.scale)
-        rotation = np.asarray(self.rotation, dtype=np.float64)
-        translation = np.asarray(self.translation, dtype=np.float64)
+        rotation = _readonly_copy(self.rotation, shape=(3, 3), name="Sim3 rotation")
+        translation = _readonly_copy(
+            self.translation,
+            shape=(3,),
+            name="Sim3 translation",
+        )
         if not np.isfinite(scale) or scale <= 0:
             raise ValueError("Sim3 scale must be finite and strictly positive")
-        if rotation.shape != (3, 3):
-            raise ValueError("Sim3 rotation must have shape (3, 3)")
-        if translation.shape != (3,):
-            raise ValueError("Sim3 translation must have shape (3,)")
         if not np.allclose(rotation.T @ rotation, np.eye(3), atol=1e-7):
             raise ValueError("Sim3 rotation must be orthonormal")
-        if np.linalg.det(rotation) < 0.0:
+        determinant = float(np.linalg.det(rotation))
+        if not np.isclose(determinant, 1.0, atol=1e-7, rtol=1e-7):
             raise ValueError("Sim3 rotation must be proper")
         object.__setattr__(self, "scale", scale)
         object.__setattr__(self, "rotation", rotation)
@@ -106,6 +120,8 @@ class Sim3:
         vector = np.asarray(vector, dtype=np.float64)
         if vector.shape != (7,):
             raise ValueError("Sim3 parameter vector must have shape (7,)")
+        if not np.all(np.isfinite(vector)):
+            raise ValueError("Sim3 parameter vector must be finite")
         return cls(
             scale=float(np.exp(vector[0])),
             rotation=so3_exp(vector[1:4]),

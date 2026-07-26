@@ -14,11 +14,15 @@ PROB4D_CAUSAL_STREAM_CONTRACT_VERSION = 2
 PROB4D_PROVIDER_CAPABILITIES = (
     "append_invariant_causal_source_digest",
     "association_reliability_separation",
+    "calibrated_observation_export",
     "causal_prefix_selection",
     "conditional_point_covariance",
+    "content_addressed_covariance_calibration",
     "content_addressed_metric_gauge_anchor",
     "content_addressed_observation_belief",
+    "fail_closed_provider_cluster_covariance",
     "immutable_prediction_window_inputs",
+    "immutable_validated_core_arrays",
     "joint_cross_window_sim3_gauge_covariance",
     "metric_anchor_covariance_propagation",
     "strict_observation_belief_validation",
@@ -27,9 +31,11 @@ PROB4D_PROVIDER_CAPABILITIES = (
     "versioned_python_provider_api",
 )
 PROB4D_ARTIFACT_SCHEMA_VERSIONS = {
+    "GaugeCovarianceCalibrationV1": 1,
     "MetricGaugeAnchor": 1,
     "ObservationBeliefV1": 1,
     "ObservationFactorBundle": 3,
+    "PointUncertaintyCalibrationV1": 1,
     "Prob4DCausalObservationStream": PROB4D_CAUSAL_STREAM_CONTRACT_VERSION,
 }
 PROB4D_PROVIDER_LIMITATIONS = {
@@ -38,6 +44,7 @@ PROB4D_PROVIDER_LIMITATIONS = {
     "fixed_lag_boundary_covariance_exactness_claim": False,
     "prospective_covariance_calibration_claim": False,
     "physical_twin_improvement_claim": False,
+    "provider_pointwise_covariance_fallback_default": False,
 }
 
 
@@ -108,15 +115,23 @@ def prob4d_provider_manifest(
                 "causal sequential spanning tree by default; fixed-lag block-diagonal "
                 "covariance is an explicit approximate reconstruction control"
             ),
+            "calibration_semantics": (
+                "content-addressed held-out gauge and point covariance artifacts; "
+                "claim-bearing provider export requires both and records their IDs"
+            ),
+            "alignment_covariance_fallback_semantics": (
+                "provider exports reject fewer than eight spatial clusters by default; "
+                "pointwise fallback requires explicit opt-in and is recorded"
+            ),
             "observation_factor_bundle_covariance_semantics": (
                 "explicit gauge nuisance factors with schema-v3 reliability and "
                 "correlation-group fields"
             ),
             "metric_boundary": (
-                "the content-addressed anchor binds the exact first prediction "
-                "payload and external calibration digest, identifies the world "
-                "frame, and declares whether its covariance is zero-fixed or "
-                "propagated through the shared joint factor"
+                "the content-addressed anchor binds the exact first prediction payload "
+                "and external calibration digest, identifies the world frame, and "
+                "declares whether its covariance is zero-fixed or propagated through "
+                "the shared joint factor"
             ),
         },
     }

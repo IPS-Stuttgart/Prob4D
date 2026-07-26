@@ -7,6 +7,7 @@ from dataclasses import asdict, dataclass
 import numpy as np
 from numpy.typing import NDArray
 
+from .covariance import covariance_statistics
 from .fusion import FusedSequence
 
 FloatArray = NDArray[np.floating]
@@ -122,9 +123,10 @@ def uncertainty_diagnostics(
         raise ValueError("target_norms must have shape (N,)")
     if normalizers.shape != (errors.shape[0],):
         raise ValueError("uncertainty_normalizers must have shape (N,)")
+    if not np.all(np.isfinite(covariances)):
+        raise ValueError("diagnostic covariances must be finite")
     active = (
         np.all(np.isfinite(errors), axis=1)
-        & np.all(np.isfinite(covariances), axis=(1, 2))
         & np.isfinite(target_norms)
         & np.isfinite(normalizers)
     )
@@ -135,23 +137,26 @@ def uncertainty_diagnostics(
     target_norms = target_norms[active]
     normalizers = normalizers[active]
 
-    symmetric = 0.5 * (covariances + np.swapaxes(covariances, -1, -2))
-    eigenvalues, eigenvectors = np.linalg.eigh(symmetric)
-    eigenvalues = np.maximum(eigenvalues, 1e-12)
-    inverse = np.einsum("...ij,...j,...kj->...ik", eigenvectors, 1.0 / eigenvalues, eigenvectors)
+    symmetric, inverse, log_determinant = covariance_statistics(
+        covariances,
+        name="diagnostic covariance",
+    )
     mahalanobis_squared = np.einsum("...i,...ij,...j->...", errors, inverse, errors)
-    log_determinant = np.sum(np.log(eigenvalues), axis=-1)
     nll = 0.5 * (3.0 * np.log(2.0 * np.pi) + log_determinant + mahalanobis_squared)
     coverage = {
         level: float(np.mean(mahalanobis_squared <= threshold))
         for level, threshold in _CHI_SQUARED_3.items()
     }
-    calibration_error = float(np.mean([abs(coverage[level] - level) for level in _CHI_SQUARED_3]))
+    calibration_error = float(
+        np.mean([abs(coverage[level] - level) for level in _CHI_SQUARED_3])
+    )
 
     relative_error = np.linalg.norm(errors, axis=-1) / np.maximum(target_norms, 1e-2)
     # Match the relative point-error risk: covariance is in squared metric
     # units, so normalize it by the squared predicted point norm.
-    uncertainty_score = np.trace(symmetric, axis1=-2, axis2=-1) / np.maximum(normalizers, 1e-2) ** 2
+    uncertainty_score = np.trace(symmetric, axis1=-2, axis2=-1) / np.maximum(
+        normalizers, 1e-2
+    ) ** 2
     uncertainty_rank = _rankdata(uncertainty_score)
     error_rank = _rankdata(relative_error)
     if np.std(uncertainty_rank) <= 1e-12 or np.std(error_rank) <= 1e-12:
@@ -218,7 +223,9 @@ def evaluate_sequence(
     prediction_indices = [
         int(np.searchsorted(prediction.frame_indices, frame)) for frame in common_frames
     ]
-    truth_indices = [int(np.searchsorted(truth.frame_indices, frame)) for frame in common_frames]
+    truth_indices = [
+        int(np.searchsorted(truth.frame_indices, frame)) for frame in common_frames
+    ]
     predicted_points = prediction.point_map[prediction_indices].copy()
     predicted_covariance = prediction.point_covariance[prediction_indices].copy()
     predicted_mask = prediction.valid_mask[prediction_indices]
@@ -286,26 +293,32 @@ def evaluate_sequence(
 
     active_covariance = predicted_covariance[active]
     active_error = errors[active]
-    eigenvalues, eigenvectors = np.linalg.eigh(
-        0.5 * (active_covariance + np.swapaxes(active_covariance, -1, -2))
+    _, inverse_covariance, log_determinant = covariance_statistics(
+        active_covariance,
+        name="predicted point covariance",
     )
-    eigenvalues = np.maximum(eigenvalues, 1e-12)
-    inverse_covariance = np.einsum(
-        "...ij,...j,...kj->...ik", eigenvectors, 1.0 / eigenvalues, eigenvectors
+    mahalanobis = np.einsum(
+        "...i,...ij,...j->...", active_error, inverse_covariance, active_error
     )
-    mahalanobis = np.einsum("...i,...ij,...j->...", active_error, inverse_covariance, active_error)
-    log_determinant = np.sum(np.log(eigenvalues), axis=-1)
     nll = 0.5 * (3.0 * np.log(2.0 * np.pi) + log_determinant + mahalanobis)
 
     flow_epe: float | None = None
     if prediction.scene_flow is not None and truth.scene_flow is not None:
         predicted_flow = scale * prediction.scene_flow[prediction_indices]
-        flow_mask = prediction.deform_mask[prediction_indices] & truth.deform_mask[truth_indices]
+        truth_flow = truth.scene_flow[truth_indices]
+        flow_mask = (
+            prediction.deform_mask[prediction_indices]
+            & truth.deform_mask[truth_indices]
+            & predicted_mask
+            & truth_mask
+            & np.all(np.isfinite(predicted_flow), axis=-1)
+            & np.all(np.isfinite(truth_flow), axis=-1)
+        )
         if np.any(flow_mask):
             flow_epe = float(
                 np.mean(
                     np.linalg.norm(
-                        predicted_flow[flow_mask] - truth.scene_flow[truth_indices][flow_mask],
+                        predicted_flow[flow_mask] - truth_flow[flow_mask],
                         axis=-1,
                     )
                 )

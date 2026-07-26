@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections import Counter
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
+from dataclasses import dataclass, field, replace
+from typing import Literal, Protocol
 
 import numpy as np
 from numpy.typing import NDArray
@@ -12,9 +17,106 @@ from .sim3 import Sim3, skew, so3_log, so3_right_jacobian
 
 FloatArray = NDArray[np.floating]
 IntArray = NDArray[np.integer]
+CovarianceFallbackPolicy = Literal["error", "pointwise"]
 
 DEFAULT_COVARIANCE_CLUSTER_SIZE = 32
 DENSE_ALIGNMENT_COVARIANCE_METHOD = "frame_spatial_cluster_robust_v1"
+POINTWISE_COVARIANCE_FALLBACK = "insufficient_spatial_clusters_pointwise_v1"
+IID_COVARIANCE_FALLBACK = "insufficient_spatial_clusters_iid_v1"
+
+
+class AlignmentCovarianceCalibration(Protocol):
+    """Structural contract used by the provider without importing artifact types."""
+
+    @property
+    def artifact_id(self) -> str: ...
+
+    def apply(self, covariance: FloatArray) -> FloatArray: ...
+
+
+@dataclass
+class AlignmentCovarianceDiagnostics:
+    """Task-local audit of covariance calibration and approximation use."""
+
+    alignment_count: int = 0
+    calibrated_alignment_count: int = 0
+    covariance_fallbacks: list[str] = field(default_factory=list)
+
+    def record(self, result: AlignmentResult) -> None:
+        self.alignment_count += 1
+        if result.covariance_calibration_id is not None:
+            self.calibrated_alignment_count += 1
+        if result.covariance_fallback is not None:
+            self.covariance_fallbacks.append(result.covariance_fallback)
+
+    @property
+    def fallback_counts(self) -> dict[str, int]:
+        return dict(sorted(Counter(self.covariance_fallbacks).items()))
+
+
+@dataclass(frozen=True)
+class _AlignmentCovarianceContext:
+    calibration: AlignmentCovarianceCalibration | None
+    fallback_policy: CovarianceFallbackPolicy
+    diagnostics: AlignmentCovarianceDiagnostics | None
+
+
+_DEFAULT_ALIGNMENT_COVARIANCE_CONTEXT = _AlignmentCovarianceContext(
+    calibration=None,
+    fallback_policy="pointwise",
+    diagnostics=None,
+)
+_ALIGNMENT_COVARIANCE_CONTEXT: ContextVar[_AlignmentCovarianceContext] = ContextVar(
+    "prob4d_alignment_covariance_context",
+    default=_DEFAULT_ALIGNMENT_COVARIANCE_CONTEXT,
+)
+
+
+@contextmanager
+def alignment_covariance_context(
+    *,
+    calibration: AlignmentCovarianceCalibration | None = None,
+    fallback_policy: CovarianceFallbackPolicy = "error",
+) -> Iterator[AlignmentCovarianceDiagnostics]:
+    """Apply one task-local calibration and covariance-fallback policy.
+
+    The stable provider enters this context around an export. Direct low-level
+    alignment calls retain the historical pointwise fallback unless they opt in.
+    Context-local state avoids process-global mutation and is safe for concurrent
+    tasks and threads with independently copied contexts.
+    """
+
+    if fallback_policy not in {"error", "pointwise"}:
+        raise ValueError("fallback_policy must be 'error' or 'pointwise'")
+    diagnostics = AlignmentCovarianceDiagnostics()
+    token = _ALIGNMENT_COVARIANCE_CONTEXT.set(
+        _AlignmentCovarianceContext(
+            calibration=calibration,
+            fallback_policy=fallback_policy,
+            diagnostics=diagnostics,
+        )
+    )
+    try:
+        yield diagnostics
+    finally:
+        _ALIGNMENT_COVARIANCE_CONTEXT.reset(token)
+
+
+def _validated_integer(
+    value: int,
+    *,
+    name: str,
+    minimum: int = 0,
+    maximum: int | None = None,
+) -> int:
+    normalized = int(value)
+    if normalized != value:
+        raise ValueError(f"{name} must be an integer")
+    if normalized < minimum or (maximum is not None and normalized > maximum):
+        if maximum is None:
+            raise ValueError(f"{name} must be at least {minimum}")
+        raise ValueError(f"{name} must lie in [{minimum}, {maximum}]")
+    return normalized
 
 
 @dataclass(frozen=True)
@@ -30,16 +132,65 @@ class AlignmentResult:
     num_covariance_clusters: int = 0
     information_rank: int = 7
     information_condition: float = 1.0
+    covariance_calibration_id: str | None = None
+    covariance_fallback: str | None = None
 
     def __post_init__(self) -> None:
-        covariance = np.asarray(self.covariance, dtype=np.float64)
+        covariance = np.asarray(self.covariance, dtype=np.float64).copy()
         if covariance.shape != (7, 7):
             raise ValueError("alignment covariance must have shape (7, 7)")
-        if self.num_covariance_clusters < 0:
-            raise ValueError("num_covariance_clusters must be non-negative")
-        if not 0 <= self.information_rank <= 7:
-            raise ValueError("information_rank must be between zero and seven")
-        object.__setattr__(self, "covariance", covariance)
+        if not np.all(np.isfinite(covariance)):
+            raise ValueError("alignment covariance must be finite")
+        symmetric = 0.5 * (covariance + covariance.T)
+        if not np.allclose(covariance, symmetric, atol=1e-12, rtol=1e-10):
+            raise ValueError("alignment covariance must be symmetric")
+        if np.min(np.linalg.eigvalsh(symmetric)) < -1e-10:
+            raise ValueError("alignment covariance must be positive semidefinite")
+        residual_rms = float(self.residual_rms)
+        inlier_fraction = float(self.inlier_fraction)
+        information_condition = float(self.information_condition)
+        if not np.isfinite(residual_rms) or residual_rms < 0.0:
+            raise ValueError("residual_rms must be finite and non-negative")
+        if not np.isfinite(inlier_fraction) or not 0.0 <= inlier_fraction <= 1.0:
+            raise ValueError("inlier_fraction must lie in [0, 1]")
+        num_correspondences = _validated_integer(
+            self.num_correspondences,
+            name="num_correspondences",
+        )
+        if not self.covariance_method:
+            raise ValueError("covariance_method must be nonempty")
+        num_covariance_clusters = _validated_integer(
+            self.num_covariance_clusters,
+            name="num_covariance_clusters",
+        )
+        information_rank = _validated_integer(
+            self.information_rank,
+            name="information_rank",
+            maximum=7,
+        )
+        if not np.isfinite(information_condition) or information_condition <= 0.0:
+            raise ValueError("information_condition must be finite and positive")
+        calibration_id = self.covariance_calibration_id
+        if calibration_id is not None and (
+            len(calibration_id) != 64
+            or any(character not in "0123456789abcdef" for character in calibration_id)
+        ):
+            raise ValueError("covariance_calibration_id must be a lowercase SHA-256 digest")
+        fallback = self.covariance_fallback
+        if fallback is not None and not fallback:
+            raise ValueError("covariance_fallback must be nonempty when supplied")
+        symmetric.setflags(write=False)
+        object.__setattr__(self, "covariance", symmetric)
+        object.__setattr__(self, "residual_rms", residual_rms)
+        object.__setattr__(self, "inlier_fraction", inlier_fraction)
+        object.__setattr__(self, "num_correspondences", num_correspondences)
+        object.__setattr__(
+            self,
+            "num_covariance_clusters",
+            num_covariance_clusters,
+        )
+        object.__setattr__(self, "information_rank", information_rank)
+        object.__setattr__(self, "information_condition", information_condition)
 
 
 @dataclass(frozen=True)
@@ -50,6 +201,28 @@ class WindowAlignment:
     moving_id: str
     common_frames: NDArray[np.integer]
     result: AlignmentResult
+
+    def __post_init__(self) -> None:
+        reference_id = str(self.reference_id)
+        moving_id = str(self.moving_id)
+        frames = np.asarray(self.common_frames, dtype=np.int64).copy()
+        if not reference_id or not moving_id:
+            raise ValueError("alignment window IDs must be nonempty")
+        if reference_id == moving_id:
+            raise ValueError("alignment window IDs must be distinct")
+        if (
+            frames.ndim != 1
+            or frames.size == 0
+            or np.any(frames < 0)
+            or np.any(np.diff(frames) <= 0)
+        ):
+            raise ValueError(
+                "common_frames must be nonempty, nonnegative, and strictly increasing"
+            )
+        frames.setflags(write=False)
+        object.__setattr__(self, "reference_id", reference_id)
+        object.__setattr__(self, "moving_id", moving_id)
+        object.__setattr__(self, "common_frames", frames)
 
 
 @dataclass(frozen=True)
@@ -290,6 +463,23 @@ def estimate_sim3_robust(
     )
 
 
+def _fallback_clusters(
+    source: FloatArray,
+    *,
+    fallback_policy: CovarianceFallbackPolicy,
+    fallback: str,
+) -> tuple[IntArray | None, str | None]:
+    if fallback_policy == "error":
+        raise ValueError(
+            "spatial covariance clustering produced fewer than eight independent "
+            "clusters; explicitly allow the pointwise approximation for a "
+            "reconstruction control"
+        )
+    if source.shape[0] > 7:
+        return np.arange(source.shape[0], dtype=np.int64), fallback
+    return None, IID_COVARIANCE_FALLBACK
+
+
 def _overlapping_correspondence_data(
     reference: PredictionWindow,
     moving: PredictionWindow,
@@ -297,13 +487,22 @@ def _overlapping_correspondence_data(
     max_correspondences: int,
     seed: int,
     covariance_cluster_size: int | None,
-) -> tuple[FloatArray, FloatArray, NDArray[np.integer], IntArray | None]:
+    fallback_policy: CovarianceFallbackPolicy = "pointwise",
+) -> tuple[
+    FloatArray,
+    FloatArray,
+    NDArray[np.integer],
+    IntArray | None,
+    str | None,
+]:
     if reference.shape[1:] != moving.shape[1:]:
         raise ValueError("overlapping windows must use the same spatial resolution")
     if max_correspondences < 4:
         raise ValueError("max_correspondences must be at least four")
     if covariance_cluster_size is not None and covariance_cluster_size <= 0:
         raise ValueError("covariance_cluster_size must be positive or None")
+    if fallback_policy not in {"error", "pointwise"}:
+        raise ValueError("fallback_policy must be 'error' or 'pointwise'")
     common_frames = reference.common_frames(moving)
     if common_frames.size == 0:
         raise ValueError("windows do not overlap")
@@ -335,14 +534,15 @@ def _overlapping_correspondence_data(
     if source.shape[0] < 4:
         raise ValueError("overlap has fewer than four valid point correspondences")
     clusters: IntArray | None = None
+    covariance_fallback: str | None = None
     if covariance_cluster_size is not None:
         clusters = np.concatenate(cluster_parts)
-        if np.unique(clusters).size <= 7 and source.shape[0] > 7:
-            # Tiny synthetic images may contain fewer than eight requested tiles.
-            # Pointwise clusters preserve the robust covariance contract there.
-            clusters = np.arange(source.shape[0], dtype=np.int64)
-        elif source.shape[0] <= 7:
-            clusters = None
+        if np.unique(clusters).size <= 7:
+            clusters, covariance_fallback = _fallback_clusters(
+                source,
+                fallback_policy=fallback_policy,
+                fallback=POINTWISE_COVARIANCE_FALLBACK,
+            )
 
     if source.shape[0] > max_correspondences:
         generator = np.random.default_rng(seed)
@@ -353,9 +553,13 @@ def _overlapping_correspondence_data(
         target = target[selection]
         if clusters is not None:
             clusters = clusters[selection]
-            if np.unique(clusters).size <= 7 and source.shape[0] > 7:
-                clusters = np.arange(source.shape[0], dtype=np.int64)
-    return source, target, common_frames, clusters
+            if np.unique(clusters).size <= 7:
+                clusters, covariance_fallback = _fallback_clusters(
+                    source,
+                    fallback_policy=fallback_policy,
+                    fallback=POINTWISE_COVARIANCE_FALLBACK,
+                )
+    return source, target, common_frames, clusters, covariance_fallback
 
 
 def overlapping_correspondences(
@@ -367,7 +571,7 @@ def overlapping_correspondences(
 ) -> tuple[FloatArray, FloatArray, NDArray[np.integer]]:
     """Collect same-frame, same-pixel points from two decoded windows."""
 
-    source, target, common_frames, _ = _overlapping_correspondence_data(
+    source, target, common_frames, _, _ = _overlapping_correspondence_data(
         reference,
         moving,
         max_correspondences=max_correspondences,
@@ -384,23 +588,60 @@ def align_windows(
     max_correspondences: int = 100_000,
     seed: int = 0,
     covariance_cluster_size: int | None = DEFAULT_COVARIANCE_CLUSTER_SIZE,
+    covariance_calibration: AlignmentCovarianceCalibration | None = None,
+    fallback_policy: CovarianceFallbackPolicy | None = None,
 ) -> WindowAlignment:
     """Estimate a moving-to-reference transform and correlation-aware covariance."""
 
-    source, target, common_frames, clusters = _overlapping_correspondence_data(
-        reference,
-        moving,
-        max_correspondences=max_correspondences,
-        seed=seed,
-        covariance_cluster_size=covariance_cluster_size,
+    context = _ALIGNMENT_COVARIANCE_CONTEXT.get()
+    resolved_fallback_policy = (
+        context.fallback_policy if fallback_policy is None else fallback_policy
     )
+    source, target, common_frames, clusters, covariance_fallback = (
+        _overlapping_correspondence_data(
+            reference,
+            moving,
+            max_correspondences=max_correspondences,
+            seed=seed,
+            covariance_cluster_size=covariance_cluster_size,
+            fallback_policy=resolved_fallback_policy,
+        )
+    )
+    result = estimate_sim3_robust(
+        source,
+        target,
+        covariance_cluster_ids=clusters,
+    )
+    result = replace(result, covariance_fallback=covariance_fallback)
+    calibration = covariance_calibration or context.calibration
+    if calibration is not None:
+        result = replace(
+            result,
+            covariance=calibration.apply(result.covariance),
+            covariance_calibration_id=calibration.artifact_id,
+        )
+    if context.diagnostics is not None:
+        context.diagnostics.record(result)
     return WindowAlignment(
         reference_id=reference.window_id,
         moving_id=moving.window_id,
         common_frames=common_frames,
-        result=estimate_sim3_robust(
-            source,
-            target,
-            covariance_cluster_ids=clusters,
-        ),
+        result=result,
     )
+
+
+__all__ = [
+    "DENSE_ALIGNMENT_COVARIANCE_METHOD",
+    "DEFAULT_COVARIANCE_CLUSTER_SIZE",
+    "IID_COVARIANCE_FALLBACK",
+    "POINTWISE_COVARIANCE_FALLBACK",
+    "AlignmentCovarianceCalibration",
+    "AlignmentCovarianceDiagnostics",
+    "AlignmentResult",
+    "CovarianceFallbackPolicy",
+    "WindowAlignment",
+    "align_windows",
+    "alignment_covariance_context",
+    "estimate_sim3_robust",
+    "overlapping_correspondences",
+]

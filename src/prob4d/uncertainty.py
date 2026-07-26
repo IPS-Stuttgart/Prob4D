@@ -14,6 +14,12 @@ from .sim3 import Sim3
 FloatArray = NDArray[np.floating]
 
 
+def _readonly_copy(values: np.ndarray, *, dtype: type = np.float64) -> np.ndarray:
+    result = np.asarray(values, dtype=dtype).copy()
+    result.setflags(write=False)
+    return result
+
+
 @dataclass(frozen=True)
 class StructuredCovariance:
     """Along-ray and per-lateral-axis variance on a dense sample grid."""
@@ -23,20 +29,26 @@ class StructuredCovariance:
     lateral_variance: FloatArray
 
     def __post_init__(self) -> None:
-        rays = np.asarray(self.ray_directions, dtype=np.float64)
-        parallel = np.asarray(self.parallel_variance, dtype=np.float64)
-        lateral = np.asarray(self.lateral_variance, dtype=np.float64)
+        rays = np.asarray(self.ray_directions, dtype=np.float64).copy()
+        parallel = np.asarray(self.parallel_variance, dtype=np.float64).copy()
+        lateral = np.asarray(self.lateral_variance, dtype=np.float64).copy()
         if rays.shape[:-1] != parallel.shape or rays.shape[-1] != 3:
             raise ValueError("ray_directions must have shape parallel_variance.shape + (3,)")
         if lateral.shape != parallel.shape:
             raise ValueError("parallel and lateral variance must have matching shapes")
+        if not np.all(np.isfinite(rays)):
+            raise ValueError("ray_directions must be finite")
+        if not np.all(np.isfinite(parallel)) or not np.all(np.isfinite(lateral)):
+            raise ValueError("structured variances must be finite")
         if np.any(parallel <= 0) or np.any(lateral <= 0):
             raise ValueError("structured variances must be strictly positive")
         norms = np.linalg.norm(rays, axis=-1, keepdims=True)
-        rays = np.divide(rays, norms, out=np.zeros_like(rays), where=norms > 1e-12)
-        object.__setattr__(self, "ray_directions", rays)
-        object.__setattr__(self, "parallel_variance", parallel)
-        object.__setattr__(self, "lateral_variance", lateral)
+        if np.any(norms <= 1e-12):
+            raise ValueError("ray_directions must be nonzero")
+        rays = rays / norms
+        object.__setattr__(self, "ray_directions", _readonly_copy(rays))
+        object.__setattr__(self, "parallel_variance", _readonly_copy(parallel))
+        object.__setattr__(self, "lateral_variance", _readonly_copy(lateral))
 
     def matrices(self) -> FloatArray:
         identity = np.eye(3)
@@ -93,6 +105,29 @@ class CalibrationReport:
     parallel_normalized_mse: float
     lateral_normalized_mse: float
 
+    def __post_init__(self) -> None:
+        count = int(self.count)
+        values = np.asarray(
+            [
+                self.parallel_scale_update,
+                self.lateral_scale_update,
+                self.parallel_normalized_mse,
+                self.lateral_normalized_mse,
+            ],
+            dtype=np.float64,
+        )
+        if count < 1:
+            raise ValueError("calibration report count must be positive")
+        if not np.all(np.isfinite(values)) or np.any(values < 0.0):
+            raise ValueError("calibration report values must be finite and non-negative")
+        if values[0] <= 0.0 or values[1] <= 0.0:
+            raise ValueError("calibration scale updates must be strictly positive")
+        object.__setattr__(self, "count", count)
+        object.__setattr__(self, "parallel_scale_update", float(values[0]))
+        object.__setattr__(self, "lateral_scale_update", float(values[1]))
+        object.__setattr__(self, "parallel_normalized_mse", float(values[2]))
+        object.__setattr__(self, "lateral_normalized_mse", float(values[3]))
+
 
 @dataclass(frozen=True)
 class DepthDisagreementModel:
@@ -105,6 +140,33 @@ class DepthDisagreementModel:
     disagreement_gain: float = 0.5
     parallel_scale: float = 1.0
     lateral_scale: float = 1.0
+
+    def __post_init__(self) -> None:
+        coefficients = np.asarray(
+            [
+                self.parallel_floor,
+                self.parallel_depth_coefficient,
+                self.lateral_floor,
+                self.lateral_depth_coefficient,
+                self.disagreement_gain,
+            ],
+            dtype=np.float64,
+        )
+        scales = np.asarray([self.parallel_scale, self.lateral_scale], dtype=np.float64)
+        if not np.all(np.isfinite(coefficients)) or np.any(coefficients < 0.0):
+            raise ValueError("uncertainty coefficients must be finite and non-negative")
+        if not np.all(np.isfinite(scales)) or np.any(scales <= 0.0):
+            raise ValueError("uncertainty scales must be finite and strictly positive")
+        for name, value in (
+            ("parallel_floor", coefficients[0]),
+            ("parallel_depth_coefficient", coefficients[1]),
+            ("lateral_floor", coefficients[2]),
+            ("lateral_depth_coefficient", coefficients[3]),
+            ("disagreement_gain", coefficients[4]),
+            ("parallel_scale", scales[0]),
+            ("lateral_scale", scales[1]),
+        ):
+            object.__setattr__(self, name, float(value))
 
     def predict(
         self,
@@ -143,9 +205,14 @@ class DepthDisagreementModel:
         errors = np.asarray(errors, dtype=np.float64)
         if errors.shape != covariance.ray_directions.shape:
             raise ValueError("errors and covariance rays must have matching shapes")
+        if not np.isfinite(trim_quantile) or not 0.0 < trim_quantile <= 1.0:
+            raise ValueError("trim_quantile must lie in (0, 1]")
         active = np.all(np.isfinite(errors), axis=-1)
         if mask is not None:
-            active &= np.asarray(mask, dtype=bool)
+            supplied_mask = np.asarray(mask, dtype=bool)
+            if supplied_mask.shape != active.shape:
+                raise ValueError("calibration mask shape does not match errors")
+            active &= supplied_mask
         if not np.any(active):
             raise ValueError("calibration set has no valid residuals")
 

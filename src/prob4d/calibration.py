@@ -1,0 +1,31 @@
+"""Content-addressed covariance calibration contracts for Prob4D providers."""
+
+from ._calibration_common import (
+    GAUGE_COVARIANCE_CALIBRATION_SCHEMA,
+    GAUGE_COVARIANCE_CALIBRATION_VERSION,
+    POINT_UNCERTAINTY_CALIBRATION_SCHEMA,
+    POINT_UNCERTAINTY_CALIBRATION_VERSION,
+)
+from ._gauge_calibration import (
+    GaugeCovarianceCalibrationV1,
+    load_gauge_covariance_calibration,
+    save_gauge_covariance_calibration,
+)
+from ._point_calibration import (
+    PointUncertaintyCalibrationV1,
+    load_point_uncertainty_calibration,
+    save_point_uncertainty_calibration,
+)
+
+__all__ = [
+    "GAUGE_COVARIANCE_CALIBRATION_SCHEMA",
+    "GAUGE_COVARIANCE_CALIBRATION_VERSION",
+    "POINT_UNCERTAINTY_CALIBRATION_SCHEMA",
+    "POINT_UNCERTAINTY_CALIBRATION_VERSION",
+    "GaugeCovarianceCalibrationV1",
+    "PointUncertaintyCalibrationV1",
+    "load_gauge_covariance_calibration",
+    "load_point_uncertainty_calibration",
+    "save_gauge_covariance_calibration",
+    "save_point_uncertainty_calibration",
+]
