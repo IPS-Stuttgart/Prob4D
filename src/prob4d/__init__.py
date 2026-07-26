@@ -3,6 +3,11 @@
 from importlib.metadata import PackageNotFoundError, version
 
 from .data import PredictionWindow
+from .evaluation_modes import (
+    EvaluationModeResult,
+    EvaluationModes,
+    evaluate_sequence_modes,
+)
 from .observation_contract import (
     OBSERVATION_BELIEF_SCHEMA,
     OBSERVATION_BELIEF_VERSION,
@@ -38,6 +43,8 @@ except PackageNotFoundError:  # Source tree without installed distribution metad
 __all__ = [
     "OBSERVATION_BELIEF_SCHEMA",
     "OBSERVATION_BELIEF_VERSION",
+    "EvaluationModeResult",
+    "EvaluationModes",
     "JointGaugePosterior",
     "LinearizedObservationFactor",
     "MetricGaugeAnchor",
@@ -50,6 +57,7 @@ __all__ = [
     "build_prob4d_observation_belief",
     "deterministic_covariance_root",
     "estimate_joint_gauge_tree",
+    "evaluate_sequence_modes",
     "load_metric_gauge_anchor",
     "load_observation_belief_export",
     "load_observation_factor_bundle",
