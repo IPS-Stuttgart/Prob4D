@@ -128,10 +128,10 @@ def prob4d_provider_manifest(
                 "correlation-group fields"
             ),
             "metric_boundary": (
-                "the content-addressed anchor binds the exact first prediction "
-                "payload and external calibration digest, identifies the world "
-                "frame, and declares whether its covariance is zero-fixed or "
-                "propagated through the shared joint factor"
+                "the content-addressed anchor binds the exact first prediction payload "
+                "and external calibration digest, identifies the world frame, and "
+                "declares whether its covariance is zero-fixed or propagated through "
+                "the shared joint factor"
             ),
         },
     }

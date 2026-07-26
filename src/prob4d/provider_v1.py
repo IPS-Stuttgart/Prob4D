@@ -36,6 +36,10 @@ from .calibration import (
     save_gauge_covariance_calibration,
     save_point_uncertainty_calibration,
 )
+from .causal_stream_contract import (
+    PROB4D_CAUSAL_STREAM_CONTRACT_VERSION,
+    bind_causal_stream_contract_v2,
+)
 from .observation_contract import (
     OBSERVATION_BELIEF_SCHEMA,
     OBSERVATION_BELIEF_VERSION,
@@ -99,16 +103,18 @@ def export_observation_belief(
 ) -> ObservationBeliefExportV1:
     """Export a causally sealed portable observation belief.
 
-    The production sequential mode carries the joint cross-window gauge
-    covariance induced by the fixed metric anchor and selected causal gauge tree
-    through one shared low-rank latent factor. Content-addressed calibration
-    artifacts can be supplied for both dense point uncertainty and gauge-edge
-    covariance. Set ``allow_uncalibrated_exploratory_covariance=False`` for a
-    claim-bearing run; missing calibration then fails closed.
+    The production sequential mode carries the joint cross-window gauge covariance
+    induced by the metric-anchor prior and selected causal gauge tree through one
+    shared low-rank latent factor. Content-addressed calibration artifacts can be
+    supplied for both dense point uncertainty and gauge-edge covariance. Set
+    ``allow_uncalibrated_exploratory_covariance=False`` for a claim-bearing run;
+    missing calibration then fails closed.
 
     Spatial-cluster covariance also fails closed by default through this provider.
     ``allow_pointwise_covariance_fallback`` is an explicit reconstruction-control
-    escape hatch and is recorded in artifact metadata.
+    escape hatch and is recorded in artifact metadata. Sequential output is bound
+    to Prob4D causal stream contract v2 only after that metadata is attached;
+    fixed-lag output remains an explicitly acknowledged approximate control.
     """
 
     if uncertainty_model is not None and point_uncertainty_calibration is not None:
@@ -116,11 +122,12 @@ def export_observation_belief(
             "uncertainty_model and point_uncertainty_calibration are mutually exclusive"
         )
     if not allow_uncalibrated_exploratory_covariance and (
-        gauge_covariance_calibration is None or point_uncertainty_calibration is None
+        gauge_covariance_calibration is None
+        or point_uncertainty_calibration is None
     ):
         raise ValueError(
-            "claim-bearing exports require both gauge and point covariance calibration "
-            "artifacts"
+            "claim-bearing exports require both gauge and point covariance "
+            "calibration artifacts"
         )
 
     resolved_uncertainty_model = (
@@ -155,42 +162,52 @@ def export_observation_belief(
             uncertainty_model=resolved_uncertainty_model,
         )
 
-    if not isinstance(artifact, ObservationBeliefExportV1):
-        # Keeps monkeypatched provider-boundary tests and third-party wrappers simple.
-        return artifact
+    if isinstance(artifact, ObservationBeliefExportV1):
+        if (
+            gauge_covariance_calibration is not None
+            and point_uncertainty_calibration is not None
+        ):
+            calibration_status = "calibrated"
+        elif (
+            gauge_covariance_calibration is not None
+            or point_uncertainty_calibration is not None
+        ):
+            calibration_status = "partially_calibrated"
+        else:
+            calibration_status = "uncalibrated_exploratory"
+        metadata = dict(artifact.metadata)
+        metadata["covariance_calibration"] = {
+            "status": calibration_status,
+            "gauge_artifact_id": (
+                None
+                if gauge_covariance_calibration is None
+                else gauge_covariance_calibration.artifact_id
+            ),
+            "point_artifact_id": (
+                None
+                if point_uncertainty_calibration is None
+                else point_uncertainty_calibration.artifact_id
+            ),
+            "uncalibrated_exploratory_covariance_allowed": bool(
+                allow_uncalibrated_exploratory_covariance
+            ),
+            "pointwise_covariance_fallback_allowed": bool(
+                allow_pointwise_covariance_fallback
+            ),
+            "alignment_count": alignment_diagnostics.alignment_count,
+            "gauge_calibrated_alignment_count": (
+                alignment_diagnostics.calibrated_alignment_count
+            ),
+            "covariance_fallback_counts": alignment_diagnostics.fallback_counts,
+        }
+        artifact = replace(artifact, metadata=metadata)
 
-    if gauge_covariance_calibration is not None and point_uncertainty_calibration is not None:
-        calibration_status = "calibrated"
-    elif gauge_covariance_calibration is not None or point_uncertainty_calibration is not None:
-        calibration_status = "partially_calibrated"
-    else:
-        calibration_status = "uncalibrated_exploratory"
-    metadata = dict(artifact.metadata)
-    metadata["covariance_calibration"] = {
-        "status": calibration_status,
-        "gauge_artifact_id": (
-            None
-            if gauge_covariance_calibration is None
-            else gauge_covariance_calibration.artifact_id
-        ),
-        "point_artifact_id": (
-            None
-            if point_uncertainty_calibration is None
-            else point_uncertainty_calibration.artifact_id
-        ),
-        "uncalibrated_exploratory_covariance_allowed": bool(
-            allow_uncalibrated_exploratory_covariance
-        ),
-        "pointwise_covariance_fallback_allowed": bool(
-            allow_pointwise_covariance_fallback
-        ),
-        "alignment_count": alignment_diagnostics.alignment_count,
-        "gauge_calibrated_alignment_count": (
-            alignment_diagnostics.calibrated_alignment_count
-        ),
-        "covariance_fallback_counts": alignment_diagnostics.fallback_counts,
-    }
-    return replace(artifact, metadata=metadata)
+    if gauge_mode != "sequential":
+        return artifact
+    return bind_causal_stream_contract_v2(
+        artifact,
+        metric_anchor=metric_anchor,
+    )
 
 
 def export_calibrated_observation_belief(
@@ -212,7 +229,8 @@ def export_calibrated_observation_belief(
         )
     if "allow_uncalibrated_exploratory_covariance" in kwargs:
         raise ValueError(
-            "export_calibrated_observation_belief always fails closed on missing calibration"
+            "export_calibrated_observation_belief always fails closed on missing "
+            "calibration"
         )
     return export_observation_belief(
         manifest_path,
@@ -237,6 +255,7 @@ __all__ = [
     "OBSERVATION_FACTOR_SCHEMA_VERSION",
     "POINT_UNCERTAINTY_CALIBRATION_SCHEMA",
     "POINT_UNCERTAINTY_CALIBRATION_VERSION",
+    "PROB4D_CAUSAL_STREAM_CONTRACT_VERSION",
     "PROB4D_PROVIDER_API_VERSION",
     "PROVIDER_API_VERSION",
     "CausalOverlapSelection",
@@ -246,6 +265,7 @@ __all__ = [
     "ObservationFactorBundle",
     "PointUncertaintyCalibrationV1",
     "SelectedOverlapWindow",
+    "bind_causal_stream_contract_v2",
     "export_calibrated_observation_belief",
     "export_observation_belief",
     "load_gauge_covariance_calibration",

@@ -14,6 +14,7 @@ def test_provider_manifest_declares_covariance_boundary() -> None:
     assert manifest["provider_revision"] == "a" * 40
     assert manifest["artifact_schema_versions"] == {
         "GaugeCovarianceCalibrationV1": 1,
+        "MetricGaugeAnchor": 1,
         "ObservationBeliefV1": 1,
         "ObservationFactorBundle": 3,
         "PointUncertaintyCalibrationV1": 1,
@@ -21,6 +22,8 @@ def test_provider_manifest_declares_covariance_boundary() -> None:
     }
     assert "joint_cross_window_sim3_gauge_covariance" in manifest["capabilities"]
     assert "content_addressed_covariance_calibration" in manifest["capabilities"]
+    assert "content_addressed_metric_gauge_anchor" in manifest["capabilities"]
+    assert "metric_anchor_covariance_propagation" in manifest["capabilities"]
     assert "versioned_causal_stream_contract" in manifest["capabilities"]
     assert manifest["metadata"]["observation_stream_contract_version"] == 2
     assert manifest["limitations"][
@@ -44,7 +47,9 @@ def test_provider_manifest_declares_covariance_boundary() -> None:
     assert manifest["manifest_id"] == expected
 
 
-def test_provider_manifest_cli_writes_exact_payload(tmp_path: Path, capsys) -> None:
+def test_provider_manifest_cli_writes_exact_payload(
+    tmp_path: Path, capsys
+) -> None:
     output = tmp_path / "provider.json"
     assert main(["--provider-revision", "b" * 40, "--output", str(output)]) == 0
     printed = capsys.readouterr().out
