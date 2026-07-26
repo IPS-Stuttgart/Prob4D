@@ -109,52 +109,6 @@ class CausalFrameAudit:
         return payload
 
 
-@dataclass(frozen=True)
-class CausalOverlapWindowAudit:
-    """Causal admission of independently decoded overlap-window archives."""
-
-    cutoff_frame: int
-    included_window_ids: tuple[str, ...]
-    excluded_window_ids: tuple[str, ...]
-    source_bounds: tuple[tuple[str, int, int], ...]
-    lineage_source: str
-
-    def __post_init__(self) -> None:
-        if self.cutoff_frame < 1:
-            raise ValueError("cutoff_frame must be positive")
-        if not self.included_window_ids:
-            raise ValueError("no causally complete overlap window remains")
-        all_ids = self.included_window_ids + self.excluded_window_ids
-        if len(set(all_ids)) != len(all_ids):
-            raise ValueError("overlap-window IDs must be unique")
-        if tuple(window_id for window_id, _, _ in self.source_bounds) != all_ids:
-            raise ValueError("source bounds must follow included then excluded window order")
-
-    def to_dict(self) -> dict[str, object]:
-        return {
-            "cutoff_frame_exclusive": self.cutoff_frame,
-            "included_window_ids": list(self.included_window_ids),
-            "excluded_window_ids": list(self.excluded_window_ids),
-            "source_bounds": [
-                {
-                    "window_id": window_id,
-                    "source_frame_start": start,
-                    "source_frame_stop_exclusive": stop,
-                    "admissible": stop <= self.cutoff_frame,
-                }
-                for window_id, start, stop in self.source_bounds
-            ],
-            "lineage_source": self.lineage_source,
-            "admissibility_rule": "source_frame_stop_exclusive <= cutoff_frame_exclusive",
-            "recompute_after_selection": [
-                "relative alignment",
-                "gauge estimation and smoothing",
-                "overlap disagreement",
-                "uncertainty and reliability",
-            ],
-        }
-
-
 def motioncrafter_temporal_lineage_manifest(
     *,
     window_size: int,
@@ -180,83 +134,6 @@ def motioncrafter_temporal_lineage_manifest(
     }
 
 
-def _validated_temporal_lineage(manifest: Mapping[str, Any]) -> Mapping[str, Any]:
-    lineage = manifest.get("temporal_lineage")
-    if not isinstance(lineage, Mapping):
-        raise ValueError(
-            "prediction manifest has no explicit temporal lineage; regenerate the bundle"
-        )
-    version = int(lineage.get("schema_version", -1))
-    if version != MOTIONCRAFTER_LINEAGE_SCHEMA_VERSION:
-        raise ValueError(f"unsupported temporal-lineage schema_version {version}")
-    if lineage.get("model") != MOTIONCRAFTER_WINDOWING_MODEL:
-        raise ValueError("unsupported temporal-lineage model")
-    products = lineage.get("products")
-    if not isinstance(products, Mapping):
-        raise ValueError("temporal lineage has no products mapping")
-    return products
-
-
-def audit_causal_overlap_windows(
-    manifest: Mapping[str, Any],
-    window_frame_indices: Mapping[str, IntArray],
-    *,
-    cutoff_frame: int,
-) -> CausalOverlapWindowAudit:
-    """Select complete overlap archives before any alignment or calibration.
-
-    An independently decoded overlap archive is a single MotionCrafter input
-    window. Every output row from that archive may depend on every source frame
-    in the archive. A window that reaches the causal cutoff is therefore removed
-    in full; slicing its pre-cutoff rows would not remove future dependence.
-    """
-
-    if cutoff_frame < 1:
-        raise ValueError("cutoff_frame must be positive")
-    products = _validated_temporal_lineage(manifest)
-    settings = products.get("overlap_windows")
-    if not isinstance(settings, Mapping):
-        raise ValueError("temporal lineage is missing overlap_windows")
-    if settings.get("window_size_source") != "prediction archive frame count":
-        raise ValueError("unsupported overlap-window lineage source")
-    if int(settings.get("overlap", -1)) != 0:
-        raise ValueError("overlap-window archives must describe one independent window")
-    if not window_frame_indices:
-        raise ValueError("prediction manifest has no overlap windows")
-
-    included: list[str] = []
-    excluded: list[str] = []
-    included_bounds: list[tuple[str, int, int]] = []
-    excluded_bounds: list[tuple[str, int, int]] = []
-    for window_id, values in window_frame_indices.items():
-        if not window_id:
-            raise ValueError("overlap-window ID must be nonempty")
-        frames = np.asarray(values, dtype=np.int64)
-        if (
-            frames.ndim != 1
-            or len(frames) == 0
-            or np.any(frames < 0)
-            or np.any(np.diff(frames) <= 0)
-        ):
-            raise ValueError(
-                f"overlap window {window_id!r} has invalid source frame indices"
-            )
-        bounds = (window_id, int(frames[0]), int(frames[-1]) + 1)
-        if frames[-1] < cutoff_frame:
-            included.append(window_id)
-            included_bounds.append(bounds)
-        else:
-            excluded.append(window_id)
-            excluded_bounds.append(bounds)
-    return CausalOverlapWindowAudit(
-        cutoff_frame=cutoff_frame,
-        included_window_ids=tuple(included),
-        excluded_window_ids=tuple(excluded),
-        source_bounds=tuple(included_bounds + excluded_bounds),
-        lineage_source="manifest_temporal_lineage_v1",
-    )
-
-
 def _windowing_from_manifest(
     manifest: Mapping[str, Any],
     product: str,
@@ -266,8 +143,15 @@ def _windowing_from_manifest(
     product_key = _PRODUCT_MANIFEST_KEYS[product]
     lineage = manifest.get("temporal_lineage")
     if lineage is not None:
-        products = _validated_temporal_lineage(manifest)
-        if product_key not in products:
+        if not isinstance(lineage, Mapping):
+            raise ValueError("temporal_lineage must be a mapping")
+        version = int(lineage.get("schema_version", -1))
+        if version != MOTIONCRAFTER_LINEAGE_SCHEMA_VERSION:
+            raise ValueError(f"unsupported temporal-lineage schema_version {version}")
+        if lineage.get("model") != MOTIONCRAFTER_WINDOWING_MODEL:
+            raise ValueError("unsupported temporal-lineage model")
+        products = lineage.get("products")
+        if not isinstance(products, Mapping) or product_key not in products:
             raise ValueError(f"temporal lineage is missing {product_key}")
         settings = products[product_key]
         if not isinstance(settings, Mapping):
