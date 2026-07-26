@@ -15,7 +15,7 @@ dependencies = ["numpy>=1.24"]
 Repository = "https://github.com/FlorianPfaff/Prob4D"
 Documentation = "https://github.com/FlorianPfaff/Prob4D/tree/main/docs"
 Issues = "https://github.com/FlorianPfaff/Prob4D/issues"
-Project-Notes = "https://github.com/FlorianPfaff/2026-07-Causal4D-BPT-Paper"
+Project-Notes = "https://github.com/FlorianPfaff/BayesianPhysTwin-Paper"
 
 [project.optional-dependencies]
 dev = [
