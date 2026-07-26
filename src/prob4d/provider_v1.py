@@ -21,6 +21,10 @@ from ._metric_gauge_anchor import (
     load_metric_gauge_anchor,
     save_metric_gauge_anchor,
 )
+from .causal_stream_contract import (
+    PROB4D_CAUSAL_STREAM_CONTRACT_VERSION,
+    bind_causal_stream_contract_v2,
+)
 from .observation_contract import (
     OBSERVATION_BELIEF_SCHEMA,
     OBSERVATION_BELIEF_VERSION,
@@ -82,11 +86,12 @@ def export_observation_belief(
 
     The production sequential mode carries the joint cross-window gauge
     covariance induced by the fixed metric anchor and selected causal gauge tree
-    through one shared low-rank latent factor. The fixed-lag mode is available
-    only as an explicitly acknowledged approximate reconstruction control.
+    through one shared low-rank latent factor. It is bound to Prob4D causal stream
+    contract v2. The fixed-lag mode remains an explicitly acknowledged
+    approximate reconstruction control and is not labelled as the strict stream.
     """
 
-    return build_prob4d_observation_belief(
+    artifact = build_prob4d_observation_belief(
         manifest_path,
         case_id=case_id,
         causal_frame_stop=causal_frame_stop,
@@ -105,6 +110,12 @@ def export_observation_belief(
         source_revision=source_revision,
         uncertainty_model=uncertainty_model,
     )
+    if gauge_mode != "sequential":
+        return artifact
+    return bind_causal_stream_contract_v2(
+        artifact,
+        metric_anchor=metric_anchor,
+    )
 
 
 __all__ = [
@@ -114,6 +125,7 @@ __all__ = [
     "OBSERVATION_BELIEF_VERSION",
     "OBSERVATION_FACTOR_SCHEMA",
     "OBSERVATION_FACTOR_SCHEMA_VERSION",
+    "PROB4D_CAUSAL_STREAM_CONTRACT_VERSION",
     "PROB4D_PROVIDER_API_VERSION",
     "PROVIDER_API_VERSION",
     "CausalOverlapSelection",
@@ -121,6 +133,7 @@ __all__ = [
     "ObservationBeliefExportV1",
     "ObservationFactorBundle",
     "SelectedOverlapWindow",
+    "bind_causal_stream_contract_v2",
     "export_observation_belief",
     "load_metric_gauge_anchor",
     "load_observation_belief_export",

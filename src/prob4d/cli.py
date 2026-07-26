@@ -25,7 +25,7 @@ _ROUTES: Final[dict[Route, tuple[str, str, str]]] = {
         "generate MotionCrafter prediction products",
     ),
     ("observation", "export"): (
-        "prob4d.observation_export",
+        "prob4d.causal_stream_cli",
         "main",
         "export a causally sealed observation belief",
     ),

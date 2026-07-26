@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -15,6 +17,9 @@ from .sim3 import Sim3
 
 METRIC_GAUGE_ANCHOR_SCHEMA = "prob4d.metric-gauge-anchor"
 METRIC_GAUGE_ANCHOR_VERSION = 1
+CALIBRATION_ARTIFACT_SHA256_KEY = "calibration_artifact_sha256"
+FIXED_EXTERNAL_CALIBRATION = "fixed_external_calibration"
+PROPAGATED_EXTERNAL_PRIOR = "propagated_external_prior"
 
 
 def _require_sha256(value: str, *, name: str) -> None:
@@ -31,9 +36,36 @@ def _finite_json_copy(value: Mapping[str, Any], *, name: str) -> dict[str, Any]:
         raise ValueError(f"{name} must be finite JSON data") from error
 
 
+def _atomic_write_text(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    handle = tempfile.NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        dir=path.parent,
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        delete=False,
+    )
+    temporary = Path(handle.name)
+    try:
+        with handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 @dataclass(frozen=True)
 class MetricGaugeAnchor:
-    """Metric prior for the first retained overlap-window gauge."""
+    """Metric prior for the first retained overlap-window gauge.
+
+    The anchor content-addresses its transform, covariance, reference prediction
+    payload, and finite metadata. Strict causal-stream export additionally
+    requires ``metadata["calibration_artifact_sha256"]`` so the metric prior is
+    traceable to the exact external calibration artifact that produced it.
+    """
 
     window_id: str
     global_from_local: Sim3
@@ -50,7 +82,7 @@ class MetricGaugeAnchor:
             self.source_artifact_sha256,
             name="metric gauge-anchor source_artifact_sha256",
         )
-        covariance = np.asarray(self.covariance, dtype=np.float64)
+        covariance = np.asarray(self.covariance, dtype=np.float64).copy()
         if covariance.shape != (7, 7) or not np.all(np.isfinite(covariance)):
             raise ValueError(
                 "metric gauge-anchor covariance must have finite shape (7, 7)"
@@ -62,12 +94,35 @@ class MetricGaugeAnchor:
             raise ValueError(
                 "metric gauge-anchor covariance must be positive semidefinite"
             )
-        object.__setattr__(self, "covariance", symmetric)
-        object.__setattr__(
-            self,
-            "metadata",
-            _finite_json_copy(self.metadata, name="metric gauge-anchor metadata"),
+        symmetric.setflags(write=False)
+        metadata = _finite_json_copy(
+            self.metadata,
+            name="metric gauge-anchor metadata",
         )
+        calibration_digest = metadata.get(CALIBRATION_ARTIFACT_SHA256_KEY)
+        if calibration_digest is not None:
+            _require_sha256(
+                str(calibration_digest),
+                name="metric gauge-anchor calibration_artifact_sha256",
+            )
+            metadata[CALIBRATION_ARTIFACT_SHA256_KEY] = str(calibration_digest)
+        object.__setattr__(self, "covariance", symmetric)
+        object.__setattr__(self, "metadata", metadata)
+
+    @property
+    def calibration_artifact_sha256(self) -> str | None:
+        """Return the exact external-calibration digest when declared."""
+
+        value = self.metadata.get(CALIBRATION_ARTIFACT_SHA256_KEY)
+        return None if value is None else str(value)
+
+    @property
+    def covariance_treatment(self) -> str:
+        """Describe whether anchor uncertainty is fixed or propagated."""
+
+        if np.max(np.abs(self.covariance), initial=0.0) <= 1e-18:
+            return FIXED_EXTERNAL_CALIBRATION
+        return PROPAGATED_EXTERNAL_PRIOR
 
     def descriptor(self) -> dict[str, Any]:
         return {
@@ -81,6 +136,33 @@ class MetricGaugeAnchor:
             "source_kind": self.source_kind,
             "source_artifact_sha256": self.source_artifact_sha256,
             "metadata": self.metadata,
+        }
+
+    def contract_metadata(self, *, case_id: str) -> dict[str, Any]:
+        """Return the complete anchor record embedded in strict stream v2."""
+
+        calibration_digest = self.calibration_artifact_sha256
+        if calibration_digest is None:
+            raise ValueError(
+                "strict causal-stream export requires metric-anchor metadata "
+                "with calibration_artifact_sha256"
+            )
+        if not case_id:
+            raise ValueError("metric gauge-anchor case_id must be nonempty")
+        return {
+            "schema_name": METRIC_GAUGE_ANCHOR_SCHEMA,
+            "schema_version": METRIC_GAUGE_ANCHOR_VERSION,
+            "artifact_id": self.artifact_id,
+            "case_id": case_id,
+            "window_id": self.window_id,
+            "coordinate_frame": self.coordinate_frame,
+            "world_frame_id": self.coordinate_frame,
+            "metric_units": "m",
+            "source_kind": self.source_kind,
+            "source_artifact_sha256": self.source_artifact_sha256,
+            "calibration_artifact_sha256": calibration_digest,
+            "covariance_treatment": self.covariance_treatment,
+            "metadata": dict(self.metadata),
         }
 
     @property
@@ -117,21 +199,22 @@ def load_metric_gauge_anchor(path: str | Path) -> MetricGaugeAnchor:
 
 
 def save_metric_gauge_anchor(path: str | Path, anchor: MetricGaugeAnchor) -> None:
-    """Write a canonical metric gauge-anchor JSON document."""
+    """Atomically write a canonical metric gauge-anchor JSON document."""
 
     payload = anchor.descriptor()
     payload["artifact_id"] = anchor.artifact_id
-    target = Path(path)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(
-        json.dumps(payload, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
+    _atomic_write_text(
+        Path(path),
+        json.dumps(payload, indent=2, sort_keys=True, allow_nan=False) + "\n",
     )
 
 
 __all__ = [
+    "CALIBRATION_ARTIFACT_SHA256_KEY",
+    "FIXED_EXTERNAL_CALIBRATION",
     "METRIC_GAUGE_ANCHOR_SCHEMA",
     "METRIC_GAUGE_ANCHOR_VERSION",
+    "PROPAGATED_EXTERNAL_PRIOR",
     "MetricGaugeAnchor",
     "load_metric_gauge_anchor",
     "save_metric_gauge_anchor",
