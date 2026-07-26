@@ -78,6 +78,8 @@ def _bundle() -> ObservationFactorBundle:
         gauges=gauges,
         source_revision="0123456789abcdef",
         causal_frame_stop=9,
+        case_id="double-stretch-sloth",
+        stream_id="prob4d:camera-points",
         metadata={"producer": "unit-test", "metric": True},
     )
 
@@ -97,6 +99,9 @@ def test_bundle_roundtrip_preserves_unfused_provenance(tmp_path: Path) -> None:
     assert record["causal_frame_stop_convention"] == "exclusive"
     assert loaded.sequence_id == bundle.sequence_id
     assert loaded.source_revision == bundle.source_revision
+    assert loaded.case_id == "double-stretch-sloth"
+    assert loaded.stream_id == "prob4d:camera-points"
+    assert loaded.source_repository == "FlorianPfaff/Prob4D"
     assert loaded.causal_frame_stop == 9
     assert loaded.causal_frame_limit == 8
     assert [factor.factor_id for factor in loaded.factors] == ["factor-0", "factor-1"]
