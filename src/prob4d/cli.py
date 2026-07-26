@@ -24,8 +24,13 @@ _ROUTES: Final[dict[Route, tuple[str, str, str]]] = {
         "main",
         "generate MotionCrafter prediction products",
     ),
+    ("observation", "create-anchor"): (
+        "prob4d.metric_anchor_cli",
+        "main",
+        "create a content-addressed metric gauge anchor",
+    ),
     ("observation", "export"): (
-        "prob4d.observation_export",
+        "prob4d.portable_observation",
         "main",
         "export a causally sealed observation belief",
     ),
