@@ -68,6 +68,49 @@ video frame IDs directly into every baseline and overlap window. PhysTwin
 evaluation requires these absolute IDs because its calibration, depth frames,
 manual tracks, and physical trajectories all use the original sequence index.
 
+## Portable Observation Belief
+
+`prob4d-export-observation-belief` writes the provider-neutral
+`phys4d.observation_belief` version-1 NPZ consumed by Bayesian-PhysTwin and
+validated independently by Causal4D. Its descriptor and every array name, dtype,
+shape, and byte payload are covered by one artifact ID.
+
+The exporter admits only independently decoded overlap windows whose complete
+source interval lies before the exclusive `causal_frame_stop`. It decides
+admissibility from the manifest before opening prediction payloads and then
+recomputes alignment, gauge estimation, overlap disagreement, uncertainty, and
+prior reliability on the admitted prefix. A content-addressed metric gauge
+anchor for the first retained window is mandatory before coordinates can be
+labelled in metres.
+
+The arrays are:
+
+| Field | Shape | Meaning |
+| --- | --- | --- |
+| `declared_frame_ids` | `F` | Sorted absolute frames authorized by the artifact |
+| `mean_xyz_m` | `N x 3` | Metric observation means |
+| `frame_ids` | `N` | Absolute frame identity per row |
+| `entity_ids` | `N` | Dense pixel/entity identity per row |
+| `view_indices` | `N` | Index into descriptor `view_names` |
+| `window_indices` | `N` | Index into descriptor `window_names` |
+| `correlation_group_ids` | `N` | Effective composite-likelihood group |
+| `factor_group_ids` | `N` | Shared gauge-latent group |
+| `prior_reliability` | `N` | Residual-independent nominal-source support |
+| `association_probability` | `N` | Association support, kept separate from reliability |
+| `local_covariance_m2` | `N x 3 x 3` | Conditional point covariance in square metres |
+| `low_rank_factor_m` | `N x 3 x R` | Shared coherent gauge/window covariance factor |
+| `group_ids` | `G` | Sorted effective group IDs |
+| `group_prior_nominal_probability` | `G` | Prior nominal probability per group |
+| `group_composite_weight` | `G` | Information-cap weight in `(0, 1]` |
+
+For a row assigned to window gauge `k`, the exported factor is
+`U_i = J_i L_k`, with `L_k L_k^T = Sigma_gauge,k`. A downstream estimator that
+keeps these factors as explicit nuisance variables must use
+`local_covariance_m2` without adding the gauge marginal again.
+
+See [the causal export contract](observation-belief-export.md) for the metric
+anchor schema, append-invariant source digest, command, and claim boundary.
+
 ## Ground Truth
 
 Real evaluation expects a compressed NumPy archive with:
