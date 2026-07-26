@@ -5,7 +5,11 @@ from dataclasses import replace
 import numpy as np
 import pytest
 
-from prob4d._metric_gauge_anchor import MetricGaugeAnchor
+from prob4d._metric_gauge_anchor import (
+    FIXED_EXTERNAL_CALIBRATION,
+    PROPAGATED_EXTERNAL_PRIOR,
+    MetricGaugeAnchor,
+)
 from prob4d.causal_stream_contract import (
     bind_causal_stream_contract_v2,
 )
@@ -13,15 +17,22 @@ from prob4d.observation_contract import ObservationBeliefExportV1
 from prob4d.sim3 import Sim3
 
 
-def _anchor() -> MetricGaugeAnchor:
+def _anchor(*, fixed: bool = False, with_calibration: bool = True) -> MetricGaugeAnchor:
+    metadata = {"calibration_split": "train-prefix"}
+    if with_calibration:
+        metadata["calibration_artifact_sha256"] = "b" * 64
     return MetricGaugeAnchor(
         window_id="window-0",
         global_from_local=Sim3.identity(),
-        covariance=np.eye(7) * 1e-4,
+        covariance=(
+            np.zeros((7, 7), dtype=np.float64)
+            if fixed
+            else np.eye(7) * 1e-4
+        ),
         coordinate_frame="phystwin-world",
         source_kind="prefix_registration",
         source_artifact_sha256="1" * 64,
-        metadata={"calibration_split": "train-prefix"},
+        metadata=metadata,
     )
 
 
@@ -64,6 +75,14 @@ def _artifact(anchor: MetricGaugeAnchor) -> ObservationBeliefExportV1:
                 "source_kind": anchor.source_kind,
                 "source_artifact_sha256": anchor.source_artifact_sha256,
             },
+            "causal_source_lineage": {
+                "selected_windows": [
+                    {
+                        "window_id": "window-0",
+                        "payload_sha256": anchor.source_artifact_sha256,
+                    }
+                ]
+            },
             "gauge_mode": "sequential",
             "joint_cross_window_gauge_covariance_represented": True,
             "gauge_posterior": {
@@ -93,16 +112,44 @@ def test_bind_causal_stream_contract_v2_enriches_anchor_and_version() -> None:
         "schema_name": "prob4d.metric-gauge-anchor",
         "schema_version": 1,
         "artifact_id": anchor.artifact_id,
+        "case_id": "case",
         "window_id": "window-0",
         "coordinate_frame": "phystwin-world",
+        "world_frame_id": "phystwin-world",
         "metric_units": "m",
         "source_kind": "prefix_registration",
         "source_artifact_sha256": "1" * 64,
-        "covariance_treatment": "fixed_external_calibration",
-        "metadata": {"calibration_split": "train-prefix"},
+        "calibration_artifact_sha256": "b" * 64,
+        "covariance_treatment": PROPAGATED_EXTERNAL_PRIOR,
+        "metadata": {
+            "calibration_artifact_sha256": "b" * 64,
+            "calibration_split": "train-prefix",
+        },
     }
+    assert bound.metadata["metric_anchor_covariance_in_joint_factor"] is True
     assert bound.artifact_id != raw.artifact_id
     np.testing.assert_array_equal(bound.mean_xyz_m, raw.mean_xyz_m)
+
+
+def test_bind_causal_stream_contract_declares_fixed_zero_covariance_anchor() -> None:
+    anchor = _anchor(fixed=True)
+    bound = bind_causal_stream_contract_v2(
+        _artifact(anchor),
+        metric_anchor=anchor,
+    )
+    assert (
+        bound.metadata["metric_gauge_anchor"]["covariance_treatment"]
+        == FIXED_EXTERNAL_CALIBRATION
+    )
+
+
+def test_bind_causal_stream_contract_rejects_missing_calibration_digest() -> None:
+    anchor = _anchor(with_calibration=False)
+    with pytest.raises(ValueError, match="calibration_artifact_sha256"):
+        bind_causal_stream_contract_v2(
+            _artifact(anchor),
+            metric_anchor=anchor,
+        )
 
 
 def test_bind_causal_stream_contract_rejects_approximate_fixed_lag() -> None:
