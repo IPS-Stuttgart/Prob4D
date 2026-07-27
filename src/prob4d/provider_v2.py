@@ -27,6 +27,14 @@ from .composition_jacobian import (
     composition_jacobian_mode,
 )
 from .covariance_root import CovarianceRootMode, covariance_root_mode
+from .provider_attestation import (
+    PROVIDER_ATTESTATION_SCHEMA,
+    PROVIDER_ATTESTATION_VERSION,
+    build_provider_attestation,
+    compute_provider_manifest_id,
+    validate_provider_attestation,
+    validate_provider_manifest,
+)
 from .provider_v1 import (
     GAUGE_COVARIANCE_CALIBRATION_SCHEMA,
     GAUGE_COVARIANCE_CALIBRATION_VERSION,
@@ -129,10 +137,10 @@ def prob4d_provider_manifest(
                 "eigenspace covariance roots, and forbids pointwise covariance fallback"
             ),
             "provider_attestation_semantics": (
-                "every provider-v2 export embeds the version-2 manifest identity, "
-                "export mode, covariance-root and composition-Jacobian modes, and "
-                "runtime-revision evidence; claim-bearing export fails closed on "
-                "unavailable, mismatched, dirty, or non-independent runtime provenance"
+                "every provider-v2 export embeds the complete content-addressed "
+                "provider manifest, export mode, covariance-root and composition-"
+                "Jacobian modes, and runtime-revision evidence; downstream consumers "
+                "can validate the attestation without importing Prob4D"
             ),
         }
     )
@@ -173,21 +181,16 @@ def _provider_attested_artifact(
             "gauge_artifact_id": calibration.get("gauge_artifact_id"),
             "point_artifact_id": calibration.get("point_artifact_id"),
         }
-    metadata["prob4d_provider_attestation"] = {
-        "provider_api_version": PROVIDER_API_VERSION,
-        "provider_manifest_id": manifest["manifest_id"],
-        "provider_revision": artifact.source_revision,
-        "python_import_boundary": "prob4d.provider_v2",
-        "export_mode": export_mode,
-        "claim_bearing": export_mode == "calibrated",
-        "calibration_compatibility_validated": bool(
-            calibration_compatibility_validated
-        ),
-        "calibration_artifact_ids": calibration_ids,
-        "covariance_root_mode": covariance_root_mode_name,
-        "composition_jacobian_mode": composition_jacobian_mode_name,
-        "runtime_revision": runtime_attestation.as_metadata(),
-    }
+    metadata["prob4d_provider_attestation"] = build_provider_attestation(
+        provider_manifest=manifest,
+        provider_revision=artifact.source_revision,
+        export_mode=export_mode,
+        calibration_compatibility_validated=calibration_compatibility_validated,
+        calibration_artifact_ids=calibration_ids,
+        covariance_root_mode=covariance_root_mode_name,
+        composition_jacobian_mode=composition_jacobian_mode_name,
+        runtime_revision=runtime_attestation.as_metadata(),
+    )
     return replace(artifact, metadata=metadata)
 
 
@@ -335,6 +338,8 @@ __all__ = [
     "PROB4D_CAUSAL_STREAM_CONTRACT_VERSION",
     "PROB4D_PROVIDER_API_VERSION",
     "PROVIDER_API_VERSION",
+    "PROVIDER_ATTESTATION_SCHEMA",
+    "PROVIDER_ATTESTATION_VERSION",
     "CalibrationCompatibilityError",
     "CausalOverlapSelection",
     "CompositionJacobianMode",
@@ -351,6 +356,8 @@ __all__ = [
     "assert_calibration_pair_compatible",
     "assert_runtime_revision",
     "bind_causal_stream_contract_v2",
+    "build_provider_attestation",
+    "compute_provider_manifest_id",
     "export_calibrated_observation_belief",
     "export_exploratory_observation_belief",
     "inspect_runtime_revision",
@@ -367,5 +374,7 @@ __all__ = [
     "save_observation_belief_export",
     "save_point_uncertainty_calibration",
     "select_causal_source",
+    "validate_provider_attestation",
+    "validate_provider_manifest",
     "write_observation_factor_bundle",
 ]
