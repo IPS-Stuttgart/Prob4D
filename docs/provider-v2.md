@@ -54,16 +54,16 @@ record binds:
   whether the observation was independently verified from VCS metadata.
 
 Claim-bearing export fails closed when runtime provenance is unavailable,
-mismatched, or obtained from a dirty source checkout. VCS installations and clean
-source checkouts are independently verified. A wheel or source distribution that
-has no VCS metadata must be launched with an explicit deployment attestation:
+mismatched, dirty, or not independently verified. It accepts only a VCS-installed
+package whose PEP 610 metadata identifies the commit or a clean source checkout at
+the declared revision.
 
-```bash
-export PROB4D_RUNTIME_REVISION="<commit used to build the package>"
-```
+`PROB4D_RUNTIME_REVISION` may annotate a packaged exploratory deployment. It is
+recorded as `deployment_environment`, but an unauthenticated environment variable
+cannot prove which code bytes are executing and therefore never satisfies the
+claim-bearing entry point.
 
-That fallback is recorded as `deployment_environment` and is deliberately not
-labelled independent VCS verification. CI emits both provider manifests with:
+CI emits both provider manifests with:
 
 ```bash
 prob4d provider manifest --api-version 1 --provider-revision "<commit>"
