@@ -1,4 +1,4 @@
-name: Apply observation contract consolidation
+name: Publish observation contract consolidation
 
 on:
   pull_request:
@@ -12,38 +12,30 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  apply:
+  publish:
     if: >-
       github.actor != 'github-actions[bot]' &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 1
           show-progress: false
-      - name: Apply source consolidation
+      - name: Materialize source consolidation
         run: |
+          set -euo pipefail
           python .github/agent-patches/apply_observation_contract.py
           rm .github/agent-patches/apply_observation_contract.py
+          rm .github/workflows/agent-apply-observation-contract.yml
           rm -f .github/workflows/observation-contract-conformance.yml
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: pyproject.toml
-      - name: Validate and format
+      - name: Commit generated source for normal PR validation
         run: |
-          python -m pip install -e ".[dev]"
-          python -m ruff format src/prob4d/observation_contract.py src/prob4d/observation_validation.py src/prob4d/observation_contract_bundle.py tests/test_observation_contract_bundle.py
-          python -m ruff check src/prob4d/observation_contract.py src/prob4d/observation_validation.py src/prob4d/observation_contract_bundle.py tests/test_observation_contract_bundle.py
-          python -m pytest -q tests/test_observation_contract_bundle.py tests/test_observation_contract.py tests/test_joint_observation_contract_fixture.py
-      - name: Commit consolidated contract
-        run: |
+          set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
-          git commit -m 'Consolidate the observation-belief contract'
+          git commit -m 'Materialize observation-belief contract consolidation'
           git push origin HEAD:${{ github.event.pull_request.head.ref }}
