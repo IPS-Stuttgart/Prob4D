@@ -7,8 +7,8 @@ from dataclasses import dataclass
 import numpy as np
 from numpy.typing import NDArray
 
+from ._gauge_ci import fuse_sim3_covariance_intersection
 from .alignment import WindowAlignment
-from .fusion import fuse_gaussians_covariance_intersection
 from .sim3 import Sim3
 
 FloatArray = NDArray[np.floating]
@@ -263,9 +263,11 @@ def _whitener(covariance: FloatArray, floor: float = 1e-10) -> FloatArray:
 
 
 class SequentialGaugeEstimator:
-    """Initialize global gauges from all available backward overlap constraints."""
+    """Initialize gauges with deterministic multi-estimate covariance intersection."""
 
     def __init__(self, *, covariance_intersection_grid_size: int = 21) -> None:
+        if covariance_intersection_grid_size < 3:
+            raise ValueError("covariance_intersection_grid_size must be at least three")
         self.covariance_intersection_grid_size = covariance_intersection_grid_size
 
     def estimate(
@@ -318,18 +320,17 @@ class SequentialGaugeEstimator:
             if not candidates:
                 raise ValueError(f"window {window_id!r} has no constraint to an initialized gauge")
 
-            transform, covariance = candidates[0]
-            mean = transform.as_vector()
-            for candidate_transform, candidate_covariance in candidates[1:]:
-                mean, covariance, _ = fuse_gaussians_covariance_intersection(
-                    mean,
-                    covariance,
-                    candidate_transform.as_vector(),
-                    candidate_covariance,
-                    grid_size=self.covariance_intersection_grid_size,
-                    minimum_weight=0.05,
-                )
-            estimates[window_id] = GaugeEstimate(window_id, Sim3.from_vector(mean), covariance)
+            minimum_weight = min(0.05, 0.5 / len(candidates))
+            transform, covariance, _ = fuse_sim3_covariance_intersection(
+                candidates,
+                minimum_weight=minimum_weight,
+                max_sweeps=max(16, self.covariance_intersection_grid_size),
+                line_search_iterations=max(
+                    32,
+                    2 * self.covariance_intersection_grid_size,
+                ),
+            )
+            estimates[window_id] = GaugeEstimate(window_id, transform, covariance)
         return estimates
 
 
