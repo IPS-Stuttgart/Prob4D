@@ -11,6 +11,9 @@ from prob4d.covariance_root import current_covariance_root_mode
 from prob4d.observation_contract import ObservationBeliefExportV1
 from prob4d.runtime_revision import RuntimeRevisionAttestation
 
+GAUGE_CALIBRATION_ID = "1" * 64
+POINT_CALIBRATION_ID = "2" * 64
+
 
 def _observation() -> ObservationBeliefExportV1:
     return ObservationBeliefExportV1(
@@ -41,8 +44,8 @@ def _observation() -> ObservationBeliefExportV1:
         metadata={
             "existing": True,
             "covariance_calibration": {
-                "gauge_artifact_id": "gauge-id",
-                "point_artifact_id": "point-id",
+                "gauge_artifact_id": GAUGE_CALIBRATION_ID,
+                "point_artifact_id": POINT_CALIBRATION_ID,
             },
         },
     )
@@ -126,11 +129,20 @@ def test_exploratory_export_is_explicit_context_local_and_attested(
     assert captured["allow_pointwise_covariance_fallback"] is True
     assert captured["sampling_mode"] == "information_stratified"
     attestation = result.metadata["prob4d_provider_attestation"]
+    assert attestation["schema_name"] == provider.PROVIDER_ATTESTATION_SCHEMA
+    assert attestation["schema_version"] == provider.PROVIDER_ATTESTATION_VERSION
     assert attestation["export_mode"] == "exploratory"
     assert attestation["claim_bearing"] is False
     assert attestation["calibration_compatibility_validated"] is False
     assert attestation["composition_jacobian_mode"] == "analytic"
+    assert attestation["provider_manifest_id"] == attestation["provider_manifest"][
+        "manifest_id"
+    ]
     assert attestation["runtime_revision"]["independently_verified"] is False
+    provider.validate_provider_attestation(
+        attestation,
+        source_revision=result.source_revision,
+    )
 
 
 def test_exploratory_export_can_reproduce_legacy_root_basis(monkeypatch) -> None:
@@ -239,10 +251,18 @@ def test_calibrated_export_validates_runtime_and_calibration_before_delegating(
     assert attestation["calibration_compatibility_validated"] is True
     assert attestation["composition_jacobian_mode"] == "analytic"
     assert attestation["calibration_artifact_ids"] == {
-        "gauge_artifact_id": "gauge-id",
-        "point_artifact_id": "point-id",
+        "gauge_artifact_id": GAUGE_CALIBRATION_ID,
+        "point_artifact_id": POINT_CALIBRATION_ID,
     }
+    assert attestation["provider_manifest_id"] == attestation["provider_manifest"][
+        "manifest_id"
+    ]
     assert attestation["runtime_revision"]["matched"] is True
+    provider.validate_provider_attestation(
+        attestation,
+        source_revision=result.source_revision,
+        require_claim_bearing=True,
+    )
 
 
 def test_calibrated_export_stops_before_manifest_on_runtime_failure(monkeypatch) -> None:
