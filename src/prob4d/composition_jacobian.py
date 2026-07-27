@@ -59,25 +59,33 @@ def analytic_sim3_compose_jacobians(
     """Return exact first derivatives of ``parent.compose(relative)``.
 
     Coordinates follow :meth:`prob4d.sim3.Sim3.as_vector`:
-    ``[log_scale, rotation_vector(3), translation(3)]``. The SO(3) logarithm is
-    non-differentiable at its pi branch cut, so that numerically ambiguous boundary
-    fails closed instead of producing a platform-dependent covariance.
+    ``[log_scale, rotation_vector(3), translation(3)]``. Axis-angle coordinates
+    are non-differentiable at the SO(3) logarithm's pi branch cut, so ambiguous
+    parent, relative, or composed coordinates fail closed rather than producing
+    platform-dependent covariance.
     """
 
     tolerance = float(branch_cut_tolerance)
     if not np.isfinite(tolerance) or tolerance < 0.0:
         raise ValueError("branch_cut_tolerance must be finite and non-negative")
 
+    parent_rotation = so3_log(parent.rotation)
+    relative_rotation = so3_log(relative.rotation)
     output_rotation = so3_log(parent.rotation @ relative.rotation)
-    output_angle = float(np.linalg.norm(output_rotation))
-    if np.pi - output_angle <= tolerance:
-        raise ValueError(
-            "Sim(3) composition Jacobian is undefined at the SO(3) log branch cut"
-        )
+    for label, vector in (
+        ("parent", parent_rotation),
+        ("relative", relative_rotation),
+        ("composed", output_rotation),
+    ):
+        if np.pi - float(np.linalg.norm(vector)) <= tolerance:
+            raise ValueError(
+                f"Sim(3) composition Jacobian is undefined at the {label} "
+                "SO(3) log branch cut"
+            )
 
     output_right_inverse = so3_right_jacobian_inverse(output_rotation)
-    parent_right = so3_right_jacobian(parent.as_vector()[1:4])
-    relative_right = so3_right_jacobian(relative.as_vector()[1:4])
+    parent_right = so3_right_jacobian(parent_rotation)
+    relative_right = so3_right_jacobian(relative_rotation)
 
     parent_jacobian = np.zeros((7, 7), dtype=np.float64)
     relative_jacobian = np.zeros((7, 7), dtype=np.float64)
