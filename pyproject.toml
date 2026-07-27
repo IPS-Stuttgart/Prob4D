@@ -44,6 +44,12 @@ prob4d-vggt-baseline = "prob4d.vggt_baseline:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+prob4d = [
+    "contract_data/observation_belief_v1/*.json",
+    "contract_data/observation_belief_v1/vectors/*.json",
+]
+
 [tool.pytest.ini_options]
 addopts = "-ra"
 testpaths = ["tests"]

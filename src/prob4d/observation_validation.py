@@ -14,38 +14,14 @@ from .observation_contract import (
     OBSERVATION_BELIEF_VERSION,
     ObservationBeliefExportV1,
 )
+from .observation_contract_bundle import observation_contract_schema
 
-_REQUIRED_ARRAYS = {
-    "declared_frame_ids",
-    "mean_xyz_m",
-    "frame_ids",
-    "entity_ids",
-    "view_indices",
-    "window_indices",
-    "correlation_group_ids",
-    "factor_group_ids",
-    "prior_reliability",
-    "association_probability",
-    "local_covariance_m2",
-    "low_rank_factor_m",
-    "group_ids",
-    "group_prior_nominal_probability",
-    "group_composite_weight",
-}
-_REQUIRED_DESCRIPTOR_FIELDS = {
-    "schema_name",
-    "schema_version",
-    "artifact_id",
-    "case_id",
-    "stream_id",
-    "causal_frame_stop",
-    "view_names",
-    "window_names",
-    "factor_names",
-    "source_repository",
-    "source_revision",
-    "source_artifact_sha256",
-    "metadata",
+_SCHEMA = observation_contract_schema()
+_REQUIRED_ARRAYS = frozenset(_SCHEMA["arrays"]["fields"])
+_REQUIRED_DESCRIPTOR_FIELDS = frozenset(_SCHEMA["descriptor"]["fields"])
+_ARRAY_DTYPES = {
+    name: np.dtype(str(specification["dtype"]))
+    for name, specification in _SCHEMA["arrays"]["fields"].items()
 }
 
 
@@ -104,6 +80,12 @@ def load_observation_belief_export(
             "observation artifact arrays changed; "
             f"missing={sorted(missing_arrays)}, extra={sorted(extra_arrays)}"
         )
+    for name, expected_dtype in _ARRAY_DTYPES.items():
+        if arrays[name].dtype != expected_dtype:
+            raise ValueError(
+                f"observation artifact array {name!r} has dtype "
+                f"{arrays[name].dtype}, expected {expected_dtype}"
+            )
 
     expected_artifact_id = str(descriptor["artifact_id"])
     _require_sha256(expected_artifact_id, name="artifact_id")
