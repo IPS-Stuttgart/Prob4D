@@ -13,12 +13,7 @@ from pathlib import Path
 from typing import cast
 
 from . import provider_v1 as _v1
-from .alignment import (
-    DEFAULT_COVARIANCE_CLUSTER_SIZE,
-    DENSE_ALIGNMENT_COVARIANCE_METHOD,
-)
 from .calibration_compatibility import (
-    POINT_UNCERTAINTY_COVARIANCE_METHOD,
     CalibrationCompatibilityError,
     PredictionCalibrationTargetV1,
     assert_calibration_pair_compatible,
@@ -190,18 +185,10 @@ def export_calibrated_observation_belief(
     max_gauge_rank: int | None = 64,
     minimum_retained_gauge_trace: float = 0.999,
     view_name: str = "camera0",
-    covariance_cluster_size: int = DEFAULT_COVARIANCE_CLUSTER_SIZE,
-    gauge_covariance_method: str = DENSE_ALIGNMENT_COVARIANCE_METHOD,
-    point_covariance_method: str = POINT_UNCERTAINTY_COVARIANCE_METHOD,
 ) -> ObservationBeliefExportV1:
     """Export a claim-bearing observation after strict compatibility validation."""
 
-    target = load_prediction_calibration_target(
-        manifest_path,
-        covariance_cluster_size=covariance_cluster_size,
-        gauge_covariance_method=gauge_covariance_method,
-        point_covariance_method=point_covariance_method,
-    )
+    target = load_prediction_calibration_target(manifest_path)
     assert_calibration_pair_compatible(
         gauge_covariance_calibration,
         point_uncertainty_calibration,
