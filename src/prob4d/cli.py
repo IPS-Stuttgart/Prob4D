@@ -27,12 +27,22 @@ _ROUTES: Final[dict[Route, tuple[str, str, str]]] = {
     ("observation", "export"): (
         "prob4d.causal_stream_cli",
         "main",
-        "export a causally sealed observation belief",
+        "export through the frozen provider-v1 compatibility CLI",
+    ),
+    ("observation", "export-calibrated"): (
+        "prob4d.provider_v2_cli",
+        "main_calibrated",
+        "export a claim-bearing provider-v2 observation belief",
+    ),
+    ("observation", "export-exploratory"): (
+        "prob4d.provider_v2_cli",
+        "main_exploratory",
+        "export an explicitly exploratory provider-v2 observation belief",
     ),
     ("provider", "manifest"): (
         "prob4d.provider_manifest_cli",
         "main",
-        "print the observation-provider manifest",
+        "print a versioned observation-provider manifest",
     ),
     ("phystwin", "evaluate"): (
         "prob4d.phystwin_experiment",
@@ -88,7 +98,7 @@ def _render_help(prefix: Route = ()) -> str:
         candidate = (*prefix, child)
         route = _ROUTES.get(candidate)
         description = route[2] if route is not None else f"{child} commands"
-        lines.append(f"  {child:<14} {description}")
+        lines.append(f"  {child:<20} {description}")
     lines.extend(
         [
             "",

@@ -1,14 +1,16 @@
 """Safe-by-default Prob4D provider API for claim-bearing development.
 
 Version 1 remains frozen for exact reproduction. Version 2 separates exploratory
-and calibrated export entry points and validates calibration compatibility against
-prediction-manifest metadata before opening any decoded prediction payload.
+and calibrated export entry points, validates calibration compatibility before
+opening prediction payloads, and binds provider/runtime provenance into exports.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Mapping
+from dataclasses import replace
 from pathlib import Path
 from typing import cast
 
@@ -54,6 +56,11 @@ from .provider_v1 import (
     select_causal_source,
     write_observation_factor_bundle,
 )
+from .runtime_revision import (
+    RuntimeRevisionAttestation,
+    assert_runtime_revision,
+    inspect_runtime_revision,
+)
 from .uncertainty import DepthDisagreementModel
 
 PROVIDER_API_VERSION = 2
@@ -83,6 +90,8 @@ def prob4d_provider_manifest(
     for capability in (
         "canonical_repeated_eigenspace_covariance_root",
         "explicit_exploratory_and_claim_bearing_exports",
+        "provider_attested_observation_artifacts",
+        "runtime_revision_attestation",
         "strict_prediction_calibration_compatibility",
     ):
         if capability not in capabilities:
@@ -107,10 +116,17 @@ def prob4d_provider_manifest(
                 "export fixes sequential gauge propagation, uses canonical repeated-"
                 "eigenspace covariance roots, and forbids pointwise covariance fallback"
             ),
+            "provider_attestation_semantics": (
+                "every provider-v2 export embeds the version-2 manifest identity, "
+                "export mode, covariance-root mode, and runtime-revision evidence; "
+                "claim-bearing export fails closed on unavailable, mismatched, or dirty "
+                "runtime source provenance"
+            ),
         }
     )
     limitations = dict(cast(dict[str, object], inherited["limitations"]))
     limitations["uncalibrated_export_is_default"] = False
+    limitations["deployment_environment_revision_is_independent_vcs_evidence"] = False
     descriptor: dict[str, object] = {
         **inherited,
         "provider_api_version": PROVIDER_API_VERSION,
@@ -120,6 +136,45 @@ def prob4d_provider_manifest(
     }
     manifest_id = hashlib.sha256(_canonical_json(descriptor)).hexdigest()
     return {"manifest_id": manifest_id, **descriptor}
+
+
+def _provider_attested_artifact(
+    artifact: ObservationBeliefExportV1,
+    *,
+    export_mode: str,
+    covariance_root_mode_name: CovarianceRootMode,
+    calibration_compatibility_validated: bool,
+    runtime_attestation: RuntimeRevisionAttestation,
+) -> ObservationBeliefExportV1:
+    metadata = dict(artifact.metadata)
+    manifest = prob4d_provider_manifest(
+        provider_revision=artifact.source_revision,
+    )
+    calibration = metadata.get("covariance_calibration")
+    calibration_ids: dict[str, object] = {
+        "gauge_artifact_id": None,
+        "point_artifact_id": None,
+    }
+    if isinstance(calibration, Mapping):
+        calibration_ids = {
+            "gauge_artifact_id": calibration.get("gauge_artifact_id"),
+            "point_artifact_id": calibration.get("point_artifact_id"),
+        }
+    metadata["prob4d_provider_attestation"] = {
+        "provider_api_version": PROVIDER_API_VERSION,
+        "provider_manifest_id": manifest["manifest_id"],
+        "provider_revision": artifact.source_revision,
+        "python_import_boundary": "prob4d.provider_v2",
+        "export_mode": export_mode,
+        "claim_bearing": export_mode == "calibrated",
+        "calibration_compatibility_validated": bool(
+            calibration_compatibility_validated
+        ),
+        "calibration_artifact_ids": calibration_ids,
+        "covariance_root_mode": covariance_root_mode_name,
+        "runtime_revision": runtime_attestation.as_metadata(),
+    }
+    return replace(artifact, metadata=metadata)
 
 
 def export_exploratory_observation_belief(
@@ -145,14 +200,15 @@ def export_exploratory_observation_belief(
     point_uncertainty_calibration: PointUncertaintyCalibrationV1 | None = None,
     allow_pointwise_covariance_fallback: bool = False,
 ) -> ObservationBeliefExportV1:
-    """Export an explicitly exploratory observation belief.
+    """Export an explicitly exploratory, provider-attested observation belief.
 
     The output retains v1 artifact and causal-stream schemas. The distinct function
     name prevents an uncalibrated run from being mistaken for the claim-bearing API.
+    Runtime provenance is recorded but is not required to be independently verified.
     """
 
     with covariance_root_mode(gauge_root_mode):
-        return _v1.export_observation_belief(
+        artifact = _v1.export_observation_belief(
             manifest_path,
             case_id=case_id,
             causal_frame_stop=causal_frame_stop,
@@ -176,6 +232,14 @@ def export_exploratory_observation_belief(
             allow_uncalibrated_exploratory_covariance=True,
             allow_pointwise_covariance_fallback=allow_pointwise_covariance_fallback,
         )
+    runtime_attestation = inspect_runtime_revision(artifact.source_revision)
+    return _provider_attested_artifact(
+        artifact,
+        export_mode="exploratory",
+        covariance_root_mode_name=gauge_root_mode,
+        calibration_compatibility_validated=False,
+        runtime_attestation=runtime_attestation,
+    )
 
 
 def export_calibrated_observation_belief(
@@ -195,8 +259,9 @@ def export_calibrated_observation_belief(
     minimum_retained_gauge_trace: float = 0.999,
     view_name: str = "camera0",
 ) -> ObservationBeliefExportV1:
-    """Export a claim-bearing observation after strict compatibility validation."""
+    """Export a claim-bearing observation after strict provenance validation."""
 
+    runtime_attestation = assert_runtime_revision(source_revision)
     target = load_prediction_calibration_target(manifest_path)
     assert_calibration_pair_compatible(
         gauge_covariance_calibration,
@@ -204,7 +269,7 @@ def export_calibrated_observation_belief(
         target,
     )
     with covariance_root_mode("canonical_eigenspaces"):
-        return _v1.export_calibrated_observation_belief(
+        artifact = _v1.export_calibrated_observation_belief(
             manifest_path,
             case_id=case_id,
             causal_frame_stop=causal_frame_stop,
@@ -222,6 +287,13 @@ def export_calibrated_observation_belief(
             view_name=view_name,
             allow_pointwise_covariance_fallback=False,
         )
+    return _provider_attested_artifact(
+        artifact,
+        export_mode="calibrated",
+        covariance_root_mode_name="canonical_eigenspaces",
+        calibration_compatibility_validated=True,
+        runtime_attestation=runtime_attestation,
+    )
 
 
 __all__ = [
@@ -247,12 +319,15 @@ __all__ = [
     "ObservationFactorBundle",
     "PointUncertaintyCalibrationV1",
     "PredictionCalibrationTargetV1",
+    "RuntimeRevisionAttestation",
     "SamplingMode",
     "SelectedOverlapWindow",
     "assert_calibration_pair_compatible",
+    "assert_runtime_revision",
     "bind_causal_stream_contract_v2",
     "export_calibrated_observation_belief",
     "export_exploratory_observation_belief",
+    "inspect_runtime_revision",
     "load_gauge_covariance_calibration",
     "load_metric_gauge_anchor",
     "load_observation_belief_export",

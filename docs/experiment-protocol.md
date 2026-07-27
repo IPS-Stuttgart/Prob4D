@@ -23,10 +23,13 @@ and uses covariance intersection when several previous windows constrain a new
 one. Gauge-covariance calibration artifacts are tied to the covariance model
 that produced them and must be regenerated after changing that model.
 
-The fixed-lag smoother minimizes whitened nonlinear relative-gauge residuals.
-It supports full gauge priors, log-scale observations, and associated sparse 3D
-points. Old states leave the optimization window and remain fixed, preserving
-the online-capable interpretation.
+The fixed-lag smoother minimizes whitened nonlinear relative-gauge residuals. It
+supports full gauge priors, log-scale observations, and associated sparse 3D
+points. When a gauge leaves the active window, its local factors are linearized
+and Schur-marginalized into a quadratic boundary prior rather than fixing the
+expired state with zero uncertainty. Portable historical output still retains
+only per-window marginal blocks, so fixed-lag covariance remains an explicitly
+approximate reconstruction control rather than a strict causal-stream artifact.
 
 ## Dense Uncertainty
 
@@ -48,13 +51,22 @@ window's uncertain `Sim(3)` gauge.
 Overlapping predictions share both the model and most input frames. The naive
 precision baseline intentionally assumes independence and therefore tends to
 underestimate covariance. Covariance intersection uses an unknown-correlation
-fusion rule. Production runs optimize one weight per overlapping frame from a
-representative covariance sample. Pointwise CI weights remain available as an
-explicit small-scale diagnostic. The sequential pairwise implementation processes
-windows in a canonical `(start, stop, window_id)` order, so the public fusion
-result is invariant to caller list order. This is not a claim of generalized
-multiway CI; the unfused factor interface remains the preferred downstream
-Bayesian representation.
+fusion rule.
+
+For one active contributor, the estimate is returned unchanged. Two contributors
+retain the frozen scalar grid-search implementation. For three or more active
+contributors, production fusion solves one generalized covariance-intersection
+simplex problem over all contributors simultaneously. Uniform and independent
+precision baselines likewise use one joint multi-input calculation rather than
+repeated pairwise updates.
+
+Pixels are grouped by their exact contributor mask. One coherent weight vector is
+optimized per frame and mask pattern from a deterministic representative covariance
+sample, then applied in chunks. Pointwise CI weights remain an explicit small-scale
+diagnostic. Contributor and window order are canonicalized, and the public result
+is permutation invariant. This estimator change does not reinterpret the unfused
+observation-factor or `ObservationBeliefV1` contracts, which remain the preferred
+downstream Bayesian representations when explicit nuisance structure is required.
 
 ## Seven Variants
 

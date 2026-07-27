@@ -16,8 +16,59 @@ one of two functions:
   calibration artifacts, an exact Prob4D source revision, sequential gauge
   covariance propagation, and the fail-closed spatial-cluster covariance path.
 
-The calibrated function validates compatibility before any decoded prediction
-payload is opened.
+The calibrated function verifies the executing Prob4D revision and validates
+calibration compatibility before any decoded prediction payload is opened.
+
+The grouped CLI exposes the same distinction:
+
+```bash
+prob4d observation export-calibrated \
+  outputs/test/predictions.json \
+  outputs/test/observation_belief.npz \
+  --case-id held-out-case \
+  --causal-frame-stop 134 \
+  --metric-gauge-anchor outputs/test/metric-anchor.json \
+  --gauge-covariance-calibration outputs/calibration/gauge.json \
+  --point-uncertainty-calibration outputs/calibration/point.json \
+  --source-revision "$(git rev-parse HEAD)" \
+  --summary-json outputs/test/observation_belief_summary.json
+```
+
+Use `prob4d observation export-exploratory` for labelled reconstruction controls.
+The older `prob4d observation export` and
+`prob4d-export-observation-belief` commands remain frozen provider-v1
+compatibility surfaces.
+
+## Provider and runtime attestation
+
+Every provider-v2 artifact contains `metadata.prob4d_provider_attestation`. The
+record binds:
+
+- provider API version 2 and the content-addressed provider-v2 manifest;
+- the artifact's exact Prob4D source revision;
+- calibrated versus exploratory export mode;
+- whether prediction/calibration compatibility was validated;
+- gauge and point calibration artifact identifiers;
+- covariance-root mode; and
+- the observed runtime revision, its evidence source, checkout cleanliness, and
+  whether the observation was independently verified from VCS metadata.
+
+Claim-bearing export fails closed when runtime provenance is unavailable,
+mismatched, dirty, or not independently verified. It accepts only a VCS-installed
+package whose PEP 610 metadata identifies the commit or a clean source checkout at
+the declared revision.
+
+`PROB4D_RUNTIME_REVISION` may annotate a packaged exploratory deployment. It is
+recorded as `deployment_environment`, but an unauthenticated environment variable
+cannot prove which code bytes are executing and therefore never satisfies the
+claim-bearing entry point.
+
+CI emits both provider manifests with:
+
+```bash
+prob4d provider manifest --api-version 1 --provider-revision "<commit>"
+prob4d provider manifest --api-version 2 --provider-revision "<commit>"
+```
 
 ## Canonical covariance-root basis
 
@@ -79,7 +130,7 @@ The calibration case identifiers and input digests are deliberately not compared
 to the target sequence. They identify the independent calibration data and should
 normally differ from the target artifact.
 
-## Example
+## Python example
 
 ```python
 from prob4d.provider_v2 import (
