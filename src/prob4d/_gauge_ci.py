@@ -8,6 +8,7 @@ from dataclasses import dataclass
 import numpy as np
 from numpy.typing import NDArray
 
+from .covariance import covariance_statistics, regularized_inverse_psd
 from .sim3 import Sim3
 
 FloatArray = NDArray[np.floating]
@@ -31,34 +32,15 @@ def _validated_covariance(
     matrix = np.asarray(values, dtype=np.float64)
     if matrix.shape != (_GAUGE_DIMENSION, _GAUGE_DIMENSION):
         raise ValueError(f"{name} must have shape (7, 7)")
-    if not np.all(np.isfinite(matrix)):
-        raise ValueError(f"{name} must be finite")
-    symmetric = 0.5 * (matrix + matrix.T)
-    scale = max(1.0, float(np.max(np.abs(symmetric))))
-    symmetry_tolerance = 64.0 * np.finfo(np.float64).eps * scale
-    if not np.allclose(
+    symmetric, precision, log_determinant = covariance_statistics(
         matrix,
-        symmetric,
-        atol=symmetry_tolerance,
-        rtol=1e-12,
-    ):
-        raise ValueError(f"{name} must be symmetric")
-    eigenvalues, eigenvectors = np.linalg.eigh(symmetric)
-    spectral_scale = max(
-        1.0,
-        float(np.max(np.abs(eigenvalues), initial=0.0)),
+        name=name,
     )
-    negative_tolerance = 128.0 * np.finfo(np.float64).eps * spectral_scale
-    if float(np.min(eigenvalues)) < -negative_tolerance:
-        raise ValueError(f"{name} must be positive semidefinite")
-    eigenvalue_floor = max(
-        float(np.max(eigenvalues, initial=0.0)) * 1e-12,
-        1e-12,
+    return (
+        np.asarray(symmetric, dtype=np.float64),
+        np.asarray(precision, dtype=np.float64),
+        float(log_determinant),
     )
-    regularized = np.maximum(eigenvalues, eigenvalue_floor)
-    precision = (eigenvectors * (1.0 / regularized)) @ eigenvectors.T
-    log_determinant = float(np.sum(np.log(regularized)))
-    return symmetric, 0.5 * (precision + precision.T), log_determinant
 
 
 def _canonical_candidate_key(transform: Sim3, covariance: np.ndarray) -> bytes:
@@ -85,12 +67,10 @@ def _central_numerical_jacobian(function, vector: np.ndarray) -> np.ndarray:
 
 def _information_inverse(information: np.ndarray) -> np.ndarray:
     symmetric = 0.5 * (information + information.T)
-    eigenvalues, eigenvectors = np.linalg.eigh(symmetric)
-    if float(np.min(eigenvalues)) <= 0.0:
-        raise ValueError(
-            "covariance-intersection information must be positive definite"
-        )
-    covariance = (eigenvectors * (1.0 / eigenvalues)) @ eigenvectors.T
+    covariance = regularized_inverse_psd(
+        symmetric,
+        name="covariance-intersection information",
+    )
     return 0.5 * (covariance + covariance.T)
 
 
