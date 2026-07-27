@@ -1,0 +1,309 @@
+][flow_overlap],
+-                    transformed_flow_covariance[local_index][flow_overlap],
+-                )
+-                scene_flow[output_index][flow_overlap] = updated_mean
+-                flow_covariance[output_index][flow_overlap] = updated_covariance
+-                flow_contributors[output_index][flow_overlap] += 1
++            flow_means.append(transformed_flow)
++            flow_covariances.append(transformed_flow_covariance)
++            flow_masks.append(window.deform_mask[local_index])
++
++        if point_means:
++            (
++                point_map[output_index],
++                point_covariance[output_index],
++                valid_mask[output_index],
++                contributors[output_index],
++            ) = _fuse_frame_fields(
++                point_means,
++                point_covariances,
++                point_masks,
++                method=method,
++            )
++        if has_flow and flow_means:
++            (
++                scene_flow[output_index],
++                flow_covariance[output_index],
++                deform_mask[output_index],
++                _,
++            ) = _fuse_frame_fields(
++                flow_means,
++                flow_covariances,
++                flow_masks,
++                method=method,
++            )
+ 
+     return FusedSequence(
+         frame_indices=all_frames,
+@@ -421,3 +688,4 @@
+         deform_mask=deform_mask,
+         flow_covariance=flow_covariance,
+     )
++
+diff -ruN '--exclude=__pycache__' '--exclude=.pytest_cache' prob4d_clean/src/prob4d/observation_export.py prob4d_current/src/prob4d/observation_export.py
+--- prob4d_clean/src/prob4d/observation_export.py	2026-07-27 06:18:23.000000000 +0000
++++ prob4d_current/src/prob4d/observation_export.py	2026-07-27 06:26:53.585644903 +0000
+@@ -27,6 +27,7 @@
+ )
+ from .alignment import WindowAlignment, align_windows
+ from .data import PredictionWindow
++from .dependence import correlation_group_information
+ from .gauge import (
+     FixedLagGaugeSmoother,
+     RelativeGaugeConstraint,
+@@ -122,8 +123,17 @@
+     *,
+     max_rank: int | None = None,
+     relative_eigenvalue_floor: float = 1e-12,
++    metric: np.ndarray | None = None,
+ ) -> tuple[np.ndarray, float]:
+-    """Return a deterministic PSD square root and retained trace fraction."""
++    """Return a deterministic PSD root under a declared tangent-space metric.
++
++    When ``metric`` is supplied, eigenmodes are ranked by the covariance of the
++    metric-whitened tangent vector. For a point-Jacobian Gram metric this makes
++    the retained fraction equal the fraction of sampled observation variance
++    preserved, rather than a unit-dependent trace over log-scale, radians, and
++    metres. Semidefinite metrics are supported; directions that cannot affect
++    any declared observation are omitted.
++    """
+ 
+     matrix = np.asarray(covariance, dtype=np.float64)
+     if matrix.ndim != 2 or matrix.shape[0] != matrix.shape[1]:
+@@ -135,9 +145,39 @@
+     if not 0.0 <= relative_eigenvalue_floor < 1.0:
+         raise ValueError("relative_eigenvalue_floor must lie in [0, 1)")
+     symmetric = 0.5 * (matrix + matrix.T)
+-    eigenvalues, eigenvectors = np.linalg.eigh(symmetric)
+-    if np.min(eigenvalues) < -1e-9:
++    covariance_eigenvalues = np.linalg.eigvalsh(symmetric)
++    covariance_tolerance = 1e-9 * max(1.0, float(np.max(np.abs(covariance_eigenvalues))))
++    if np.min(covariance_eigenvalues) < -covariance_tolerance:
+         raise ValueError("covariance root requires positive semidefinite input")
++
++    tangent_metric = (
++        np.eye(len(matrix), dtype=np.float64)
++        if metric is None
++        else np.asarray(metric, dtype=np.float64)
++    )
++    if tangent_metric.shape != matrix.shape or not np.all(np.isfinite(tangent_metric)):
++        raise ValueError("covariance root metric must be a finite matching matrix")
++    tangent_metric = 0.5 * (tangent_metric + tangent_metric.T)
++    metric_eigenvalues, metric_eigenvectors = np.linalg.eigh(tangent_metric)
++    metric_scale = max(1.0, float(np.max(np.abs(metric_eigenvalues))))
++    if np.min(metric_eigenvalues) < -1e-10 * metric_scale:
++        raise ValueError("covariance root metric must be positive semidefinite")
++    active_metric = metric_eigenvalues > metric_scale * 1e-14
++    if not np.any(active_metric):
++        return np.zeros((len(matrix), 0), dtype=np.float64), 1.0
++    metric_basis = metric_eigenvectors[:, active_metric]
++    metric_values = np.maximum(metric_eigenvalues[active_metric], 0.0)
++    metric_root = (metric_basis * np.sqrt(metric_values)[None]) @ metric_basis.T
++    metric_inverse_root = (
++        metric_basis * (1.0 / np.sqrt(metric_values))[None]
++    ) @ metric_basis.T
++
++    weighted_covariance = metric_root @ symmetric @ metric_root
++    weighted_covariance = 0.5 * (weighted_covariance + weighted_covariance.T)
++    eigenvalues, eigenvectors = np.linalg.eigh(weighted_covariance)
++    weighted_scale = max(1.0, float(np.max(np.abs(eigenvalues))))
++    if np.min(eigenvalues) < -1e-9 * weighted_scale:
++        raise ValueError("metric-weighted covariance is not positive semidefinite")
+     order = np.argsort(eigenvalues)[::-1]
+     eigenvalues = np.maximum(eigenvalues[order], 0.0)
+     eigenvectors = eigenvectors[:, order]
+@@ -154,8 +194,52 @@
+         pivot = int(np.argmax(np.abs(selected_vectors[:, column])))
+         if selected_vectors[pivot, column] < 0.0:
+             selected_vectors[:, column] *= -1.0
+-    root = selected_vectors * np.sqrt(eigenvalues[indices])[None]
+-    return root, retained_fraction
++    weighted_root = selected_vectors * np.sqrt(eigenvalues[indices])[None]
++    return metric_inverse_root @ weighted_root, retained_fraction
++
++
++def joint_gauge_observation_metric(
++    windows: Sequence[PredictionWindow],
++    estimates: Mapping[str, Sim3],
++    *,
++    pixel_stride: int,
++) -> np.ndarray:
++    """Return a block metric whose covariance trace is mean point variance."""
++
++    if pixel_stride < 1:
++        raise ValueError("pixel_stride must be positive")
++    if not windows:
++        raise ValueError("observation metric requires at least one window")
++    dimension = 7 * len(windows)
++    metric = np.zeros((dimension, dimension), dtype=np.float64)
++    for window_index, window in enumerate(windows):
++        try:
++            transform = estimates[window.window_id]
++        except KeyError as error:
++            raise KeyError(f"missing gauge estimate for window {window.window_id!r}") from error
++        height, width = window.shape[1:]
++        sample_mask = np.zeros((height, width), dtype=bool)
++        sample_mask[::pixel_stride, ::pixel_stride] = True
++        information = np.zeros((7, 7), dtype=np.float64)
++        count = 0
++        for local_index in range(window.shape[0]):
++            selected = window.valid_mask[local_index] & sample_mask
++            if not np.any(selected):
++                continue
++            jacobian = sim3_point_jacobian(
++                transform,
++                window.point_map[local_index][selected],
++            )
++            information += np.einsum("nki,nkj->ij", jacobian, jacobian, optimize=True)
++            count += len(jacobian)
++        if count == 0:
++            raise ValueError(
++                f"window {window.window_id!r} has no valid sampled point for rank metric"
++            )
++        block = information / float(count)
++        block_slice = slice(7 * window_index, 7 * (window_index + 1))
++        metric[block_slice, block_slice] = 0.5 * (block + block.T)
++    return metric
+ 
+ 
+ def _deterministic_covariance_root(covariance: np.ndarray) -> np.ndarray:
+@@ -529,14 +613,20 @@
+             allow_approximate_fixed_lag_covariance
+         ),
+     )
++    gauge_rank_metric = joint_gauge_observation_metric(
++        windows,
++        posterior.estimates,
++        pixel_stride=pixel_stride,
++    )
+     joint_root, retained_trace_fraction = deterministic_covariance_root(
+         posterior.joint_covariance,
+         max_rank=max_gauge_rank,
++        metric=gauge_rank_metric,
+     )
+     if retained_trace_fraction + 1e-12 < minimum_retained_gauge_trace:
+         raise ValueError(
+             "gauge covariance rank cap retains only "
+-            f"{retained_trace_fraction:.6f} of covariance trace; increase "
++            f"{retained_trace_fraction:.6f} of sampled observation variance; increase "
+             "max_gauge_rank or lower minimum_retained_gauge_trace explicitly"
+         )
+     factor_rank = joint_root.shape[1]
+@@ -645,19 +735,16 @@
+     local_covariance_array = np.concatenate(local_covariances)
+     factor_array = np.concatenate(factors)
+ 
+-    group_ids = np.unique(correlation_array)
++    group_information = correlation_group_information(
++        correlation_array,
++        entity_array,
++        effective_sample_cap=effective_samples_per_group,
++    )
++    group_ids = group_information.group_ids
+     # No independently calibrated nominal/outlier prior is available here. Use
+     # the neutral value instead of applying overlap reliability a second time.
+     group_prior = np.ones(len(group_ids), dtype=np.float64)
+-    group_weight = np.empty(len(group_ids), dtype=np.float64)
+-    for position, group_id in enumerate(group_ids):
+-        selected = correlation_array == group_id
+-        unique_entities = len(np.unique(entity_array[selected]))
+-        effective = min(effective_samples_per_group, float(unique_entities))
+-        group_weight[position] = min(
+-            1.0,
+-            effective / float(np.count_nonzero(selected)),
+-        )
++    group_weight = group_information.composite_weight
+ 
+     selected_alignment_indices = {
+         value
+@@ -698,6 +785,8 @@
+             "full_dimension": int(posterior.joint_covariance.shape[0]),
+             "exported_factor_rank": factor_rank,
+             "retained_covariance_trace_fraction": retained_trace_fraction,
++            "retained_observation_variance_fraction": retained_trace_fraction,
++            "rank_reduction_metric": "mean_sampled_point_jacobian_gram_v1",
+             "minimum_retained_gauge_trace": minimum_retained_gauge_trace,
+             "max_gauge_rank": max_gauge_rank,
+             "cross_window_covariance_preserved": (
+@@ -711,6 +800,10 @@
+         },
+         "pixel_stride": pixel_stride,
+         "effective_samples_per_group": effective_samples_per_group,
++        "correlation_group_information": group_information.metadata(),
++        "group_composite_weight_semantics": (
++            group_information.metadata()["semantics"]
++        ),
+         "minimum_prior_reliability": minimum_prior_reliability,
+         "uncertainty_model": asdict(model),
+         "group_definition": "absolute source frame across overlap windows",
+@@ -913,6 +1006,7 @@
+     "estimate_joint_gauge_tree",
+     "gauge_covariance_factor",
+     "joint_gauge_factor",
++    "joint_gauge_observation_metric",
+     "load_metric_gauge_anchor",
+     "save_metric_gauge_anchor",
+     "select_causal_overlap_windows",
+diff -ruN '--exclude=__pycache__' '--exclude=.pytest_cache' prob4d_clean/src/prob4d/provider_manifest.py prob4d_current/src/prob4d/provider_manifest.py
+--- prob4d_clean/src/prob4d/provider_manifest.py	2026-07-27 06:18:23.000000000 +0000
++++ prob4d_current/src/prob4d/provider_manifest.py	2026-07-27 06:35:01.717634319 +0000
+@@ -8,6 +8,8 @@
+ from importlib.metadata import PackageNotFoundError, distribution, version
+ from typing import Any
+ 
++from .dependence import PROVIDER_FINAL_COMPOSITE_WEIGHT_SEMANTICS
++
+ PROB4D_PROVIDER_API_VERSION = 1
+ PROB4D_PROVIDER_PACKAGE_VERSION = "0.2.0"
+ PROB4D_CAUSAL_STREAM_CONTRACT_VERSION = 2
+@@ -25,6 +27,9 @@
+     "immutable_validated_core_arrays",
+     "joint_cross_window_sim3_gauge_covariance",
+     "metric_anchor_covariance_propagation",
++    "observation_metric_gauge_rank_reduction",
++    "permutation_invariant_multi_window_fusion",
++    "provider_owned_group_information_mass",
+     "strict_observation_belief_validation",
+     "trace_audited_gauge_rank_reduction",
+     "versioned_causal_stream_contract",
+@@ -45,6 +50,7 @@
+     "prospective_covariance_calibration_claim": False,
+     "physical_twin_improvement_claim": False,
+     "provider_pointwise_covariance_fallback_default": False,
++    "raw_coordinate_trace_rank_reduction_default": False,
+ }
+ 
+ 
+@@ -123,6 +129,22 @@
+                 "provider exports reject fewer than eight spatial clusters by default; "
+                 "pointwise fallback requires explicit opt-in and is recorded"
+             ),
++            "group_composite_weight_semantics": (
++                PROVIDER_FINAL_COMPOSITE_WEIGHT_SEMANTICS
++            ),
++            "group_information_mass_semantics": (
++                "Prob4D computes a final per-row generalized-Bayes power from the "
++                "raw row count, unique entity count, and declared effective-sample "
++                "cap; consumers must not apply another row-count cap"
++            ),
++            "gauge_rank_reduction_semantics": (
++                "joint gauge modes are ranked by sampled point-Jacobian observation "
++                "variance, not by the unit-dependent raw Sim(3) coordinate trace"
++            ),
++            "multi_window_fusion_semantics": (
++                "all contributors to a frame/pixel are fused jointly in canonical "
++                "window-ID order; CI uses one generalized simplex problem"
++            ),
+             "observation_factor_bundle_covariance_semantics": (
+                 "explicit gauge nuisance factors with schema-v3 reliability and "
+                 "correlation-group fields"
+diff -ruN '--exclude=__pycache__' '--exclude=.pytest_cache' prob4d_clean/tests/test_dependence.py prob4d_current/tests/test_dependence.py
+--- prob4d_clean/tests/test_dependence.py	1970-01-01 00:00:00.000000000 +0000
++++ prob4d_current/tests/test_dependence.py	2026-07-27 06:25:54.541646184 +0000
+@@ -0,0 +1,64 @@
++from __future__ import annotations
++
++import numpy as np
++import pytest
++
++from prob4d.depe

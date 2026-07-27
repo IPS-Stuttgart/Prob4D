@@ -1,0 +1,51 @@
+name: Apply provider mass, rank, and GCI improvements
+
+on:
+  push:
+    branches: [agent/provider-mass-rank-gci]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-provider-mass-rank-gci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: agent/provider-mass-rank-gci
+          fetch-depth: 0
+      - name: Apply exact tested patch
+        shell: bash
+        run: |
+          cat .github/agent-patches/prob4d-improvements.patch.part-* > /tmp/prob4d-improvements.patch
+          patch -p1 --fuzz=0 < /tmp/prob4d-improvements.patch
+          rm -f .github/agent-patches/prob4d-improvements.patch.part-*
+          rm -f .github/workflows/agent-apply-provider-mass-rank-gci.yml
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Validate implementation
+        run: |
+          python -m pip install -e '.[dev]'
+          python -m ruff check src tests
+          python -m mypy src/prob4d/provider_manifest.py src/prob4d/provider_v1.py
+          python -m pytest --tb=short
+          git diff --check
+      - name: Commit applied implementation
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Implement provider mass, observation rank, and joint GCI'
+          git push origin HEAD:agent/provider-mass-rank-gci

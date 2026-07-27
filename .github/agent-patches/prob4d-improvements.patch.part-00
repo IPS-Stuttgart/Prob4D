@@ -1,0 +1,305 @@
+diff -ruN '--exclude=__pycache__' '--exclude=.pytest_cache' prob4d_clean/README.md prob4d_current/README.md
+--- prob4d_clean/README.md	2026-07-27 06:18:23.000000000 +0000
++++ prob4d_current/README.md	2026-07-27 06:35:02.249634307 +0000
+@@ -124,6 +124,7 @@
+ 
+ See [the experiment protocol](docs/experiment-protocol.md) for estimator and
+ evaluation details, [the theoretical benefit and its assumptions](docs/theoretical-benefit.md),
++[dependence, rank-reduction, and joint-fusion semantics](docs/dependence-rank-and-fusion.md),
+ and [the data format](docs/data-format.md) for artifact schemas.
+ 
+ Run the sequence-family-held-out Sintel uncertainty analysis on cached
+diff -ruN '--exclude=__pycache__' '--exclude=.pytest_cache' prob4d_clean/docs/dependence-rank-and-fusion.md prob4d_current/docs/dependence-rank-and-fusion.md
+--- prob4d_clean/docs/dependence-rank-and-fusion.md	1970-01-01 00:00:00.000000000 +0000
++++ prob4d_current/docs/dependence-rank-and-fusion.md	2026-07-27 06:35:01.833634316 +0000
+@@ -0,0 +1,55 @@
++# Dependency mass, gauge-rank reduction, and multi-window fusion
++
++This document records three estimator semantics that downstream physical-twin
++consumers must preserve.
++
++## Provider-owned correlation-group information mass
++
++For correlation group `g`, Prob4D exports
++
++```text
++m_g = min(effective_sample_cap, unique_entity_count_g)
++w_g = m_g / raw_row_count_g.
++```
++
++`group_composite_weight[g] = w_g` is the final per-row generalized-Bayes
++likelihood power. Summing it over all rows in the group recovers `m_g`. A
++consumer may multiply this value by source reliability and a nominal-component
++probability, but it must **not** apply another row-count cap. Doing so would make
++total information shrink as duplicate rows are added.
++
++The observation metadata records the raw, unique, and effective counts, the
++weight, and the versioned semantic identifier
++`provider-final-per-row-information-weight-v1`. Legacy providers without this
++declaration remain consumer-capped.
++
++## Observation-space gauge-rank reduction
++
++A joint `Sim(3)` covariance mixes log scale, radians, and metres, so retaining a
++fraction of its raw coordinate trace is unit dependent. Prob4D instead forms a
++block metric from the mean sampled point-Jacobian Gram matrix,
++
++```text
++M_k = mean_i J_ki^T J_ki,
++```
++
++and ranks modes through the covariance of the metric-whitened tangent vector.
++The retained fraction is therefore the fraction of sampled point variance
++preserved. Re-expressing translation in millimetres while transforming both the
++covariance and metric leaves the selected physical covariance unchanged.
++
++Semidefinite metrics are supported. Tangent directions that affect none of the
++sampled observations need not consume low-rank capacity.
++
++## Joint, permutation-invariant fusion
++
++Prob4D no longer folds overlapping windows into a pairwise sequence. For each
++frame and valid-mask pattern, all contributors are fused in one batch:
++
++- uniform fusion uses the exact Gaussian-mixture second moment;
++- independent precision fusion sums all information matrices at once; and
++- covariance intersection solves one generalized simplex-weight problem.
++
++Windows are canonicalized by immutable window ID. Reordering the caller's input
++list therefore cannot change means, covariances, contributor counts, or flow
++products.
+diff -ruN '--exclude=__pycache__' '--exclude=.pytest_cache' prob4d_clean/src/prob4d/dependence.py prob4d_current/src/prob4d/dependence.py
+--- prob4d_clean/src/prob4d/dependence.py	1970-01-01 00:00:00.000000000 +0000
++++ prob4d_current/src/prob4d/dependence.py	2026-07-27 06:27:00.721644749 +0000
+@@ -0,0 +1,128 @@
++"""Residual-dependency accounting for dense observation groups."""
++
++from __future__ import annotations
++
++from dataclasses import dataclass
++
++import numpy as np
++from numpy.typing import NDArray
++
++FloatArray = NDArray[np.floating]
++IntArray = NDArray[np.integer]
++
++PROVIDER_FINAL_COMPOSITE_WEIGHT_SEMANTICS = (
++    "provider-final-per-row-information-weight-v1"
++)
++
++
++def _readonly(value: np.ndarray) -> np.ndarray:
++    copied = np.asarray(value).copy()
++    copied.setflags(write=False)
++    return copied
++
++
++@dataclass(frozen=True)
++class CorrelationGroupInformation:
++    """Per-group row counts and the final provider-owned information power.
++
++    ``composite_weight`` is a *per-row* generalized-Bayes power. Multiplying it
++    by the raw row count recovers ``effective_sample_count``. A downstream
++    consumer must not apply another row-count cap to this value.
++    """
++
++    group_ids: IntArray
++    raw_row_count: IntArray
++    unique_entity_count: IntArray
++    effective_sample_count: FloatArray
++    composite_weight: FloatArray
++    effective_sample_cap: float
++
++    def __post_init__(self) -> None:
++        group_ids = np.asarray(self.group_ids, dtype=np.int64)
++        raw = np.asarray(self.raw_row_count, dtype=np.int64)
++        unique = np.asarray(self.unique_entity_count, dtype=np.int64)
++        effective = np.asarray(self.effective_sample_count, dtype=np.float64)
++        weight = np.asarray(self.composite_weight, dtype=np.float64)
++        shape = group_ids.shape
++        if group_ids.ndim != 1 or any(
++            value.shape != shape for value in (raw, unique, effective, weight)
++        ):
++            raise ValueError("correlation-group summaries must be one-dimensional")
++        if len(group_ids) == 0 or len(np.unique(group_ids)) != len(group_ids):
++            raise ValueError("correlation-group IDs must be nonempty and unique")
++        if np.any(raw < 1) or np.any(unique < 1) or np.any(unique > raw):
++            raise ValueError("correlation-group counts are inconsistent")
++        if not np.isfinite(self.effective_sample_cap) or self.effective_sample_cap <= 0.0:
++            raise ValueError("effective_sample_cap must be finite and positive")
++        if not np.all(np.isfinite(effective)) or np.any(effective <= 0.0):
++            raise ValueError("effective sample counts must be finite and positive")
++        if np.any(effective > unique + 1e-12):
++            raise ValueError("effective sample count cannot exceed unique entities")
++        if not np.allclose(weight * raw, effective, rtol=1e-12, atol=1e-12):
++            raise ValueError("composite weights do not match effective sample counts")
++        object.__setattr__(self, "group_ids", _readonly(group_ids))
++        object.__setattr__(self, "raw_row_count", _readonly(raw))
++        object.__setattr__(self, "unique_entity_count", _readonly(unique))
++        object.__setattr__(self, "effective_sample_count", _readonly(effective))
++        object.__setattr__(self, "composite_weight", _readonly(weight))
++        object.__setattr__(self, "effective_sample_cap", float(self.effective_sample_cap))
++
++    def metadata(self) -> dict[str, object]:
++        """Return finite JSON metadata aligned with ``group_ids``."""
++
++        return {
++            "semantics": PROVIDER_FINAL_COMPOSITE_WEIGHT_SEMANTICS,
++            "provider_owns_effective_sample_cap": True,
++            "effective_sample_cap": self.effective_sample_cap,
++            "group_ids": self.group_ids.tolist(),
++            "raw_row_count": self.raw_row_count.tolist(),
++            "unique_entity_count": self.unique_entity_count.tolist(),
++            "effective_sample_count": self.effective_sample_count.tolist(),
++            "composite_weight": self.composite_weight.tolist(),
++        }
++
++
++def correlation_group_information(
++    correlation_group_ids: IntArray,
++    entity_ids: IntArray,
++    *,
++    effective_sample_cap: float,
++) -> CorrelationGroupInformation:
++    """Compute one final per-row information weight for each dependence group."""
++
++    groups = np.asarray(correlation_group_ids, dtype=np.int64)
++    entities = np.asarray(entity_ids, dtype=np.int64)
++    if groups.ndim != 1 or entities.shape != groups.shape or len(groups) == 0:
++        raise ValueError("group and entity IDs must be matching nonempty vectors")
++    if not np.isfinite(effective_sample_cap) or effective_sample_cap <= 0.0:
++        raise ValueError("effective_sample_cap must be finite and positive")
++
++    group_ids = np.unique(groups)
++    raw = np.empty(len(group_ids), dtype=np.int64)
++    unique = np.empty(len(group_ids), dtype=np.int64)
++    effective = np.empty(len(group_ids), dtype=np.float64)
++    weight = np.empty(len(group_ids), dtype=np.float64)
++    for position, group_id in enumerate(group_ids):
++        selected = groups == group_id
++        raw[position] = int(np.count_nonzero(selected))
++        unique[position] = int(len(np.unique(entities[selected])))
++        effective[position] = min(float(effective_sample_cap), float(unique[position]))
++        weight[position] = effective[position] / float(raw[position])
++
++    return CorrelationGroupInformation(
++        group_ids=group_ids,
++        raw_row_count=raw,
++        unique_entity_count=unique,
++        effective_sample_count=effective,
++        composite_weight=weight,
++        effective_sample_cap=float(effective_sample_cap),
++    )
++
++
++__all__ = [
++    "PROVIDER_FINAL_COMPOSITE_WEIGHT_SEMANTICS",
++    "CorrelationGroupInformation",
++    "correlation_group_information",
++]
+diff -ruN '--exclude=__pycache__' '--exclude=.pytest_cache' prob4d_clean/src/prob4d/fusion.py prob4d_current/src/prob4d/fusion.py
+--- prob4d_clean/src/prob4d/fusion.py	2026-07-27 06:18:23.000000000 +0000
++++ prob4d_current/src/prob4d/fusion.py	2026-07-27 06:30:22.329640377 +0000
+@@ -217,6 +217,249 @@
+     )
+ 
+ 
++def _project_bounded_simplex(
++    values: FloatArray,
++    *,
++    minimum_weight: float,
++) -> FloatArray:
++    """Project a vector onto ``sum(w)=1`` with a common lower bound."""
++
++    vector = np.asarray(values, dtype=np.float64)
++    if vector.ndim != 1 or len(vector) == 0 or not np.all(np.isfinite(vector)):
++        raise ValueError("simplex projection requires a finite nonempty vector")
++    if not 0.0 <= minimum_weight < 1.0 / len(vector):
++        raise ValueError("minimum_weight is incompatible with contributor count")
++    remaining = 1.0 - len(vector) * minimum_weight
++    shifted = vector - minimum_weight
++    ordered = np.sort(shifted)[::-1]
++    cumulative = np.cumsum(ordered) - remaining
++    candidates = ordered - cumulative / np.arange(1, len(vector) + 1) > 0.0
++    rho = int(np.flatnonzero(candidates)[-1]) if np.any(candidates) else 0
++    threshold = cumulative[rho] / float(rho + 1)
++    projected = np.maximum(shifted - threshold, 0.0) + minimum_weight
++    projected /= np.sum(projected)
++    return projected
++
++
++def fuse_gaussians_generalized_covariance_intersection(
++    means: FloatArray,
++    covariances: FloatArray,
++    *,
++    minimum_weight: float = 0.0,
++    weight_sample_size: int = 4_096,
++    maximum_iterations: int = 100,
++    tolerance: float = 1e-10,
++) -> tuple[FloatArray, FloatArray, FloatArray]:
++    """Fuse two or more estimates through one symmetric generalized-CI problem.
++
++    The first axis indexes contributors. One global simplex weight vector minimizes
++    mean log-determinant covariance on a deterministic sample. The optimization is
++    independent of the order in which windows were supplied to :func:`fuse_windows`
++    because that function canonicalizes contributors by immutable window ID.
++    """
++
++    values = np.asarray(means, dtype=np.float64)
++    matrices = np.asarray(covariances, dtype=np.float64)
++    if values.ndim < 3 or values.shape[0] < 1:
++        raise ValueError("generalized CI means must have shape (M, ..., D)")
++    contributor_count = values.shape[0]
++    dimension = values.shape[-1]
++    if matrices.shape != values.shape + (dimension,):
++        raise ValueError("generalized CI covariance shape does not match means")
++    if maximum_iterations < 1 or tolerance <= 0.0:
++        raise ValueError("generalized CI iteration settings must be positive")
++    if weight_sample_size < 1:
++        raise ValueError("weight_sample_size must be positive")
++    if contributor_count == 1:
++        return values[0].copy(), matrices[0].copy(), np.ones(1, dtype=np.float64)
++    if contributor_count == 2:
++        mean, covariance, weight = fuse_gaussians_covariance_intersection(
++            values[0],
++            matrices[0],
++            values[1],
++            matrices[1],
++            minimum_weight=minimum_weight,
++            weight_sample_size=weight_sample_size,
++        )
++        return mean, covariance, np.asarray([float(weight.flat[0]), 1.0 - float(weight.flat[0])])
++
++    flattened_means = values.reshape(contributor_count, -1, dimension)
++    flattened_covariances = matrices.reshape(
++        contributor_count, -1, dimension, dimension
++    )
++    row_count = flattened_means.shape[1]
++    if row_count <= weight_sample_size:
++        sample = np.arange(row_count)
++    else:
++        sample = np.linspace(0, row_count - 1, weight_sample_size, dtype=np.int64)
++    sampled_information = _regularized_inverse(flattened_covariances[:, sample])
++
++    def objective_and_gradient(weights: np.ndarray) -> tuple[float, np.ndarray]:
++        information = np.einsum(
++            "m,mnij->nij",
++            weights,
++            sampled_information,
++            optimize=True,
++        )
++        covariance = _regularized_inverse(information)
++        sign, log_determinant = np.linalg.slogdet(covariance)
++        if np.any(sign <= 0.0) or not np.all(np.isfinite(log_determinant)):
++            raise ValueError("generalized covariance intersection lost positive definiteness")
++        gradient = -np.mean(
++            np.einsum(
++                "nij,mnji->mn",
++                covariance,
++                sampled_information,
++                optimize=True,
++            ),
++            axis=1,
++        )
++        return float(np.mean(log_determinant)), gradient

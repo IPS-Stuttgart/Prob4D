@@ -1,0 +1,278 @@
+ndence import (
++    PROVIDER_FINAL_COMPOSITE_WEIGHT_SEMANTICS,
++    correlation_group_information,
++)
++
++
++def test_provider_group_weight_has_declared_total_information_mass() -> None:
++    groups = np.asarray([0, 0, 0, 1, 1], dtype=np.int64)
++    entities = np.asarray([10, 10, 11, 20, 21], dtype=np.int64)
++
++    summary = correlation_group_information(
++        groups,
++        entities,
++        effective_sample_cap=64.0,
++    )
++
++    np.testing.assert_array_equal(summary.group_ids, [0, 1])
++    np.testing.assert_array_equal(summary.raw_row_count, [3, 2])
++    np.testing.assert_array_equal(summary.unique_entity_count, [2, 2])
++    np.testing.assert_allclose(summary.effective_sample_count, [2.0, 2.0])
++    np.testing.assert_allclose(summary.composite_weight, [2.0 / 3.0, 1.0])
++    np.testing.assert_allclose(
++        summary.raw_row_count * summary.composite_weight,
++        summary.effective_sample_count,
++    )
++    assert summary.metadata()["semantics"] == (
++        PROVIDER_FINAL_COMPOSITE_WEIGHT_SEMANTICS
++    )
++    assert summary.metadata()["provider_owns_effective_sample_cap"] is True
++
++
++def test_duplicate_rows_do_not_increase_declared_information_mass() -> None:
++    groups = np.zeros(4, dtype=np.int64)
++    entities = np.asarray([0, 1, 2, 3], dtype=np.int64)
++    base = correlation_group_information(
++        groups,
++        entities,
++        effective_sample_cap=3.0,
++    )
++    repeated = correlation_group_information(
++        np.repeat(groups, 10),
++        np.repeat(entities, 10),
++        effective_sample_cap=3.0,
++    )
++
++    assert base.effective_sample_count[0] == pytest.approx(3.0)
++    assert repeated.effective_sample_count[0] == pytest.approx(3.0)
++    assert base.raw_row_count[0] * base.composite_weight[0] == pytest.approx(3.0)
++    assert repeated.raw_row_count[0] * repeated.composite_weight[0] == pytest.approx(3.0)
++
++
++@pytest.mark.parametrize("cap", [0.0, -1.0, np.inf, np.nan])
++def test_group_information_rejects_invalid_cap(cap: float) -> None:
++    with pytest.raises(ValueError, match="effective_sample_cap"):
++        correlation_group_information(
++            np.asarray([0]),
++            np.asarray([0]),
++            effective_sample_cap=cap,
++        )
+diff -ruN '--exclude=__pycache__' '--exclude=.pytest_cache' prob4d_clean/tests/test_fusion.py prob4d_current/tests/test_fusion.py
+--- prob4d_clean/tests/test_fusion.py	2026-07-27 06:18:23.000000000 +0000
++++ prob4d_current/tests/test_fusion.py	2026-07-27 06:35:01.717634319 +0000
+@@ -1,8 +1,12 @@
++import itertools
++
+ import numpy as np
++import pytest
+ 
+ from prob4d.data import PredictionWindow
+ from prob4d.fusion import (
+     fuse_gaussians_covariance_intersection,
++    fuse_gaussians_generalized_covariance_intersection,
+     fuse_gaussians_independent,
+     fuse_windows,
+ )
+@@ -143,3 +147,83 @@
+         jacobian[:, index] = (Sim3.from_vector(perturbed).transform_points(point) - baseline) / 1e-6
+     expected = jacobian @ covariance @ jacobian.T
+     np.testing.assert_allclose(result.point_covariance[0, 0, 0], expected, rtol=2e-6, atol=2e-6)
++
++
++def test_generalized_ci_uses_symmetric_weights_for_equal_covariances() -> None:
++    means = np.asarray(
++        [
++            [[0.0, 0.0, 0.0]],
++            [[1.0, 0.0, 0.0]],
++            [[2.0, 0.0, 0.0]],
++        ]
++    )
++    covariances = np.broadcast_to(np.eye(3), (3, 1, 3, 3)).copy()
++
++    mean, covariance, weights = fuse_gaussians_generalized_covariance_intersection(
++        means,
++        covariances,
++    )
++
++    np.testing.assert_allclose(weights, np.full(3, 1.0 / 3.0), atol=1e-12)
++    np.testing.assert_allclose(mean, [[1.0, 0.0, 0.0]], atol=1e-12)
++    np.testing.assert_allclose(covariance, np.eye(3)[None], atol=1e-12)
++
++
++@pytest.mark.parametrize(
++    "method",
++    ["uniform", "precision", "covariance_intersection"],
++)
++def test_fuse_windows_is_invariant_to_window_permutation(method: str) -> None:
++    first = make_window("a", [0, 1], 0.0)
++    second = make_window("b", [0, 1], 1.0)
++    third = make_window("c", [0, 1], -1.0)
++    windows = [first, second, third]
++    gauges = {window.window_id: Sim3.identity() for window in windows}
++    uncertainties = {
++        "a": make_uncertainty(first, 1.0),
++        "b": make_uncertainty(second, 2.0),
++        "c": make_uncertainty(third, 3.0),
++    }
++
++    reference = fuse_windows(
++        windows,
++        gauges,
++        uncertainties,
++        method=method,
++    )
++    for permutation in itertools.permutations(windows):
++        actual = fuse_windows(
++            list(permutation),
++            gauges,
++            uncertainties,
++            method=method,
++        )
++        np.testing.assert_array_equal(actual.valid_mask, reference.valid_mask)
++        np.testing.assert_array_equal(actual.contributors, reference.contributors)
++        np.testing.assert_allclose(actual.point_map, reference.point_map, atol=1e-12)
++        np.testing.assert_allclose(
++            actual.point_covariance,
++            reference.point_covariance,
++            atol=1e-12,
++        )
++
++
++def test_generalized_ci_prefers_the_more_informative_contributor() -> None:
++    means = np.zeros((3, 4, 3), dtype=np.float64)
++    covariances = np.stack(
++        [
++            np.broadcast_to(np.eye(3), (4, 3, 3)),
++            np.broadcast_to(4.0 * np.eye(3), (4, 3, 3)),
++            np.broadcast_to(9.0 * np.eye(3), (4, 3, 3)),
++        ]
++    ).copy()
++
++    _, covariance, weights = fuse_gaussians_generalized_covariance_intersection(
++        means,
++        covariances,
++    )
++
++    assert weights[0] > 0.999
++    assert weights[1] < 1e-6
++    assert weights[2] < 1e-6
++    np.testing.assert_allclose(covariance, np.broadcast_to(np.eye(3), covariance.shape), atol=1e-8)
+diff -ruN '--exclude=__pycache__' '--exclude=.pytest_cache' prob4d_clean/tests/test_observation_export.py prob4d_current/tests/test_observation_export.py
+--- prob4d_clean/tests/test_observation_export.py	2026-07-27 06:18:23.000000000 +0000
++++ prob4d_current/tests/test_observation_export.py	2026-07-27 06:37:16.637631393 +0000
+@@ -16,6 +16,7 @@
+     estimate_joint_gauge_tree,
+     gauge_covariance_factor,
+     joint_gauge_factor,
++    joint_gauge_observation_metric,
+     load_metric_gauge_anchor,
+     save_metric_gauge_anchor,
+     select_causal_overlap_windows,
+@@ -191,6 +192,19 @@
+         "not downstream physical-node association"
+     )
+     assert np.all(first.factor_group_ids == 0)
++    group_information = first.metadata["correlation_group_information"]
++    assert group_information["provider_owns_effective_sample_cap"] is True
++    assert first.metadata["group_composite_weight_semantics"] == (
++        "provider-final-per-row-information-weight-v1"
++    )
++    np.testing.assert_allclose(
++        np.asarray(group_information["raw_row_count"])
++        * first.group_composite_weight,
++        group_information["effective_sample_count"],
++    )
++    assert first.metadata["gauge_posterior"]["rank_reduction_metric"] == (
++        "mean_sampled_point_jacobian_gram_v1"
++    )
+ 
+ 
+ def test_export_requires_exact_source_revision(
+@@ -352,6 +366,61 @@
+     assert retained == pytest.approx((7.0 + 6.0) / 28.0)
+ 
+ 
++def test_metric_rank_reduction_is_invariant_to_translation_units() -> None:
++    generator = np.random.default_rng(91)
++    basis = generator.normal(size=(7, 7))
++    covariance = basis @ basis.T
++    metric = np.diag([4.0, 3.0, 2.0, 1.0, 1.0, 1.0, 1.0])
++
++    root_m, retained_m = deterministic_covariance_root(
++        covariance,
++        max_rank=3,
++        metric=metric,
++    )
++    metres_to_millimetres = np.diag([1.0, 1.0, 1.0, 1.0, 1000.0, 1000.0, 1000.0])
++    inverse_units = np.linalg.inv(metres_to_millimetres)
++    covariance_mm = metres_to_millimetres @ covariance @ metres_to_millimetres.T
++    metric_mm = inverse_units.T @ metric @ inverse_units
++    root_mm, retained_mm = deterministic_covariance_root(
++        covariance_mm,
++        max_rank=3,
++        metric=metric_mm,
++    )
++
++    assert retained_mm == pytest.approx(retained_m, rel=1e-12)
++    reconstructed_m = root_m @ root_m.T
++    reconstructed_from_mm = inverse_units @ root_mm @ root_mm.T @ inverse_units.T
++    np.testing.assert_allclose(
++        reconstructed_from_mm,
++        reconstructed_m,
++        rtol=1e-11,
++        atol=1e-11,
++    )
++
++
++def test_joint_gauge_observation_metric_matches_point_jacobian_energy() -> None:
++    points = np.asarray([
++        [[[1.0, 0.0, 2.0], [0.0, 1.0, 2.0]]],
++        [[[1.5, 0.0, 2.0], [0.0, 1.5, 2.0]]],
++    ])
++    window = PredictionWindow(
++        "window",
++        np.asarray([0, 1]),
++        points,
++        np.ones(points.shape[:-1], dtype=bool),
++    )
++    transform = Sim3(scale=1.2, translation=np.asarray([0.1, -0.2, 0.3]))
++
++    metric = joint_gauge_observation_metric(
++        [window],
++        {"window": transform},
++        pixel_stride=1,
++    )
++    jacobian = sim3_point_jacobian(transform, points.reshape(-1, 3))
++    expected = np.einsum("nki,nkj->ij", jacobian, jacobian) / len(jacobian)
++    np.testing.assert_allclose(metric, expected, atol=1e-12)
++
++
+ def test_fixed_lag_export_requires_explicit_approximation_opt_in(
+     tmp_path: Path,
+ ) -> None:
+diff -ruN '--exclude=__pycache__' '--exclude=.pytest_cache' prob4d_clean/tests/test_provider_manifest.py prob4d_current/tests/test_provider_manifest.py
+--- prob4d_clean/tests/test_provider_manifest.py	2026-07-27 06:18:23.000000000 +0000
++++ prob4d_current/tests/test_provider_manifest.py	2026-07-27 06:35:01.717634319 +0000
+@@ -24,6 +24,9 @@
+     assert "content_addressed_covariance_calibration" in manifest["capabilities"]
+     assert "content_addressed_metric_gauge_anchor" in manifest["capabilities"]
+     assert "metric_anchor_covariance_propagation" in manifest["capabilities"]
++    assert "observation_metric_gauge_rank_reduction" in manifest["capabilities"]
++    assert "provider_owned_group_information_mass" in manifest["capabilities"]
++    assert "permutation_invariant_multi_window_fusion" in manifest["capabilities"]
+     assert "versioned_causal_stream_contract" in manifest["capabilities"]
+     assert manifest["metadata"]["observation_stream_contract_version"] == 2
+     assert manifest["limitations"][
+@@ -35,6 +38,12 @@
+     assert manifest["limitations"][
+         "provider_pointwise_covariance_fallback_default"
+     ] is False
++    assert manifest["limitations"][
++        "raw_coordinate_trace_rank_reduction_default"
++    ] is False
++    assert manifest["metadata"]["group_composite_weight_semantics"] == (
++        "provider-final-per-row-information-weight-v1"
++    )
+     descriptor = {key: value for key, value in manifest.items() if key != "manifest_id"}
+     expected = hashlib.sha256(
+         json.dumps(
