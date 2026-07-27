@@ -22,9 +22,10 @@ All notable changes to Prob4D are documented here.
 - Runtime source-revision attestation for provider-v2 export. Claim-bearing runs
   require independent VCS metadata or a clean source checkout; an environment-only
   `PROB4D_RUNTIME_REVISION` assertion is recorded only for exploratory deployments.
-- Content-addressed provider-v2 artifact metadata binding the provider manifest,
-  export mode, calibration IDs, covariance-root and composition-Jacobian modes, and
-  runtime revision evidence.
+- A versioned self-contained provider-attestation schema that embeds the complete
+  content-addressed provider manifest, export mode, calibration IDs, covariance-root
+  and composition-Jacobian modes, and runtime revision evidence. Consumers can
+  recompute and validate it without importing Prob4D.
 - Version-selectable provider manifest emission through
   `prob4d provider manifest --api-version {1,2}`.
 - Provider-v2 unit, type, import, wheel, and source-distribution coverage.
@@ -37,9 +38,9 @@ All notable changes to Prob4D are documented here.
 - Documentation now recommends the calibrated provider-v2 command for new
   claim-bearing experiments and labels provider-v1 commands as frozen compatibility
   surfaces.
-- CI verifies analytic-versus-finite-difference derivative parity, clean-checkout
-  runtime attestation, both provider manifests, and every provider-v2 command from
-  installed wheel and source artifacts.
+- CI verifies analytic-versus-finite-difference derivative parity, provider-manifest
+  and attestation hashing, clean-checkout runtime provenance, and every provider-v2
+  command from installed wheel and source artifacts.
 
 ## 0.2.0 — 2026-07-26
 
