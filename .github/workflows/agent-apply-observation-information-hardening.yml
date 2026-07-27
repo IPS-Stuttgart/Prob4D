@@ -32,7 +32,20 @@ jobs:
           git fetch origin main
           git merge --no-edit origin/main
       - name: Apply deterministic source transformations
-        run: python .github/agent-patches/apply_observation_information_hardening.py
+        id: patch
+        continue-on-error: true
+        run: python .github/agent-patches/apply_observation_information_hardening.py 2>patch-error.txt
+      - name: Upload patch diagnostics
+        if: steps.patch.outcome == 'failure'
+        uses: actions/upload-artifact@v7
+        with:
+          name: observation-hardening-patch-error
+          path: patch-error.txt
+          if-no-files-found: error
+          retention-days: 2
+      - name: Stop after patch failure
+        if: steps.patch.outcome == 'failure'
+        run: exit 1
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
@@ -53,6 +66,15 @@ jobs:
             tests/test_fusion.py
       - name: Run Ruff
         run: |
+          python -m ruff check --fix \
+            src/prob4d/observation_export.py \
+            src/prob4d/provider_v1.py \
+            src/prob4d/provider_manifest.py \
+            src/prob4d/fusion.py \
+            tests/test_observation_export.py \
+            tests/test_provider_v1.py \
+            tests/test_provider_manifest.py \
+            tests/test_fusion.py
           python -m ruff check \
             src/prob4d/observation_export.py \
             src/prob4d/provider_v1.py \
