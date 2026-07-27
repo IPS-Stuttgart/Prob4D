@@ -54,6 +54,7 @@ jobs:
           python -m mypy
           src/prob4d/cli.py
           src/prob4d/calibration_compatibility.py
+          src/prob4d/composition_jacobian.py
           src/prob4d/covariance_root.py
           src/prob4d/provider_manifest.py
           src/prob4d/provider_manifest_cli.py
@@ -125,6 +126,7 @@ jobs:
           import sys
 
           import prob4d.cli
+          import prob4d.composition_jacobian
           import prob4d.covariance_root
           import prob4d.provider_manifest
           import prob4d.provider_v1
@@ -208,10 +210,12 @@ jobs:
           import prob4d
           import prob4d.provider_v1 as provider_v1
           import prob4d.provider_v2 as provider_v2
+          from prob4d.composition_jacobian import current_composition_jacobian_mode
 
           print(prob4d.__version__)
           assert provider_v1.PROVIDER_API_VERSION == 1
           assert provider_v2.PROVIDER_API_VERSION == 2
+          assert current_composition_jacobian_mode() == "legacy_finite_difference"
           PY
       - name: Exercise grouped and legacy command help
         shell: bash
