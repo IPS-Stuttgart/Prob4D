@@ -35,16 +35,19 @@ jobs:
           mv fusion.py.tmp src/prob4d/fusion.py
       - name: Install development tools
         run: python -m pip install -e ".[dev]"
-      - name: Validate focused and complete suites
-        run: |
-          python -m ruff check src tests
-          python -m mypy \
-            src/prob4d/cli.py \
-            src/prob4d/provider_manifest.py \
-            src/prob4d/provider_manifest_cli.py \
-            src/prob4d/provider_v1.py
-          python -m pytest --tb=short
-          python -m compileall -q src tests
+      - name: Run Ruff
+        run: python -m ruff check src tests
+      - name: Type-check stable provider interfaces
+        run: >-
+          python -m mypy
+          src/prob4d/cli.py
+          src/prob4d/provider_manifest.py
+          src/prob4d/provider_manifest_cli.py
+          src/prob4d/provider_v1.py
+      - name: Run complete suite
+        run: python -m pytest --tb=short
+      - name: Compile sources
+        run: python -m compileall -q src tests
       - name: Publish the validated implementation and remove staging
         shell: bash
         run: |
