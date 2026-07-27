@@ -21,16 +21,27 @@ Prob4D experiment helpers or underscore-prefixed modules.
 
 ## Stable provider surfaces
 
-Downstream Python code should import `prob4d.provider_v1`. Version 1 exposes the
-causal source selector, fixed metric-anchor contract, portable observation
-belief, strict artifact loader, factor-bundle contract, and provider manifest.
-A breaking change requires a new provider module rather than silently changing
-version 1. Frozen experiments should still record exact repository commits and
-input artifact hashes.
+`prob4d.provider_v1` is frozen for existing experiments and exact reproduction. It
+exposes the causal source selector, fixed metric-anchor contract, portable
+observation belief, strict artifact loader, factor-bundle contract, and the
+version-1 provider manifest.
 
-`prob4d provider manifest` provides the corresponding machine-readable
-compatibility descriptor. The grouped `prob4d` CLI is the discoverable command
-surface; legacy `prob4d-*` commands remain available for frozen run manifests.
+New claim-bearing development should import `prob4d.provider_v2`. Version 2 keeps
+the same artifact and causal-stream schemas, but separates exploratory and
+calibrated exports. Its calibrated entry point validates the prediction manifest
+against both covariance calibrations before opening decoded payloads, requires an
+exact Prob4D source revision, fixes sequential gauge propagation, and forbids the
+pointwise covariance fallback. See [Provider API version 2](provider-v2.md).
+
+A breaking change requires another versioned provider module rather than silently
+changing version 1 or 2. Frozen experiments must still record exact repository
+commits and input artifact hashes.
+
+`prob4d provider manifest` continues to emit the version-1 descriptor for frozen
+CLI compatibility. `prob4d.provider_v2.prob4d_provider_manifest()` emits the
+version-2 Python capability descriptor. The grouped `prob4d` CLI is the
+discoverable command surface; legacy `prob4d-*` commands remain available for
+frozen run manifests.
 
 ## Causal information boundary
 
