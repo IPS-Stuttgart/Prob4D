@@ -25,6 +25,12 @@ jobs:
         with:
           ref: agent/observation-information-hardening
           fetch-depth: 0
+      - name: Merge the current main branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git merge --no-edit origin/main
       - name: Apply deterministic source transformations
         run: python .github/agent-patches/apply_observation_information_hardening.py
       - uses: actions/setup-python@v6
@@ -73,8 +79,6 @@ jobs:
         run: git diff --check
       - name: Commit applied patch
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           git commit -m "Harden observation information semantics"
           git push origin HEAD:agent/observation-information-hardening
