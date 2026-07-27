@@ -315,10 +315,22 @@ def fuse_windows(
 
     if not windows:
         raise ValueError("at least one prediction window is required")
-    height, width = windows[0].shape[1:]
-    if any(window.shape[1:] != (height, width) for window in windows):
+    if len({window.window_id for window in windows}) != len(windows):
+        raise ValueError("prediction window IDs must be unique")
+    ordered_windows = sorted(
+        windows,
+        key=lambda window: (
+            window.start_frame,
+            window.stop_frame,
+            window.window_id,
+        ),
+    )
+    height, width = ordered_windows[0].shape[1:]
+    if any(window.shape[1:] != (height, width) for window in ordered_windows):
         raise ValueError("all windows must use the same spatial resolution")
-    all_frames = np.unique(np.concatenate([window.frame_indices for window in windows]))
+    all_frames = np.unique(
+        np.concatenate([window.frame_indices for window in ordered_windows])
+    )
     frame_positions = {int(frame): index for index, frame in enumerate(all_frames)}
     shape = (all_frames.size, height, width)
     point_map = np.zeros(shape + (3,), dtype=np.float64)
@@ -326,13 +338,13 @@ def fuse_windows(
     point_covariance = np.zeros(shape + (3, 3), dtype=np.float64)
     contributors = np.zeros(shape, dtype=np.uint16)
 
-    has_flow = any(window.scene_flow is not None for window in windows)
+    has_flow = any(window.scene_flow is not None for window in ordered_windows)
     scene_flow = np.zeros_like(point_map) if has_flow else None
     deform_mask = np.zeros(shape, dtype=bool) if has_flow else None
     flow_covariance = np.zeros_like(point_covariance) if has_flow else None
     flow_contributors = np.zeros(shape, dtype=np.uint16) if has_flow else None
 
-    for window in windows:
+    for window in ordered_windows:
         if window.window_id not in gauges or window.window_id not in point_uncertainties:
             raise KeyError(f"missing gauge or uncertainty for window {window.window_id!r}")
         gauge = gauges[window.window_id]

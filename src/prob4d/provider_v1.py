@@ -46,7 +46,7 @@ from .observation_contract import (
     ObservationBeliefExportV1,
     save_observation_belief_export,
 )
-from .observation_export import build_prob4d_observation_belief
+from .observation_export import SamplingMode, build_prob4d_observation_belief
 from .observation_factors import (
     OBSERVATION_FACTOR_SCHEMA,
     OBSERVATION_FACTOR_SCHEMA_VERSION,
@@ -86,6 +86,7 @@ def export_observation_belief(
     causal_frame_stop: int,
     metric_anchor: MetricGaugeAnchor,
     pixel_stride: int = 4,
+    sampling_mode: SamplingMode = "fixed_grid",
     effective_samples_per_group: float = 64.0,
     minimum_prior_reliability: float = 0.05,
     gauge_mode: str = "sequential",
@@ -148,6 +149,7 @@ def export_observation_belief(
             causal_frame_stop=causal_frame_stop,
             metric_anchor=metric_anchor,
             pixel_stride=pixel_stride,
+            sampling_mode=sampling_mode,
             effective_samples_per_group=effective_samples_per_group,
             minimum_prior_reliability=minimum_prior_reliability,
             gauge_mode=gauge_mode,
@@ -265,6 +267,7 @@ __all__ = [
     "ObservationFactorBundle",
     "PointUncertaintyCalibrationV1",
     "SelectedOverlapWindow",
+    "SamplingMode",
     "bind_causal_stream_contract_v2",
     "export_calibrated_observation_belief",
     "export_observation_belief",

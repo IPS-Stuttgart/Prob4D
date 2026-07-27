@@ -50,7 +50,11 @@ precision baseline intentionally assumes independence and therefore tends to
 underestimate covariance. Covariance intersection uses an unknown-correlation
 fusion rule. Production runs optimize one weight per overlapping frame from a
 representative covariance sample. Pointwise CI weights remain available as an
-explicit small-scale diagnostic.
+explicit small-scale diagnostic. The sequential pairwise implementation processes
+windows in a canonical `(start, stop, window_id)` order, so the public fusion
+result is invariant to caller list order. This is not a claim of generalized
+multiway CI; the unfused factor interface remains the preferred downstream
+Bayesian representation.
 
 ## Seven Variants
 

@@ -8,7 +8,7 @@ import subprocess
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 
@@ -44,6 +44,13 @@ from .uncertainty import DepthDisagreementModel, accumulate_disagreement
 # ``joint_gauge_latent_*`` names because one latent vector now carries the joint
 # cross-window covariance.
 GAUGE_FACTOR_NAMES = tuple(f"gauge_latent_{index}" for index in range(7))
+GROUP_COMPOSITE_WEIGHT_SEMANTICS = "final-per-row-effective-sample-cap-v1"
+GAUGE_RANK_REDUCTION_METRIC = "sim3-observation-displacement-v1"
+SamplingMode = Literal["fixed_grid", "information_stratified"]
+SAMPLING_MODES: tuple[SamplingMode, ...] = (
+    "fixed_grid",
+    "information_stratified",
+)
 
 
 @dataclass(frozen=True)
@@ -117,13 +124,158 @@ def _validated_source_revision(value: str | None) -> str:
     return revision
 
 
+def _validated_sampling_mode(value: str) -> SamplingMode:
+    if value not in SAMPLING_MODES:
+        raise ValueError(f"sampling_mode must be one of {SAMPLING_MODES}")
+    return value  # type: ignore[return-value]
+
+
+def observation_sample_mask(
+    valid_mask: np.ndarray,
+    points_local: np.ndarray,
+    parallel_variance: np.ndarray,
+    lateral_variance: np.ndarray,
+    reliability: np.ndarray,
+    *,
+    pixel_stride: int,
+    sampling_mode: SamplingMode,
+) -> np.ndarray:
+    """Select at most one deterministic, high-information row per spatial tile."""
+
+    valid = np.asarray(valid_mask, dtype=bool)
+    points = np.asarray(points_local, dtype=np.float64)
+    parallel = np.asarray(parallel_variance, dtype=np.float64)
+    lateral = np.asarray(lateral_variance, dtype=np.float64)
+    reliability_array = np.asarray(reliability, dtype=np.float64)
+    if valid.ndim != 2 or points.shape != valid.shape + (3,):
+        raise ValueError("sampling inputs must contain one H x W point map")
+    if (
+        parallel.shape != valid.shape
+        or lateral.shape != valid.shape
+        or reliability_array.shape != valid.shape
+    ):
+        raise ValueError("sampling variance and reliability shapes must match valid_mask")
+    if pixel_stride < 1:
+        raise ValueError("pixel_stride must be positive")
+    mode = _validated_sampling_mode(sampling_mode)
+    if not np.all(np.isfinite(points[valid])):
+        raise ValueError("valid sampling points must be finite")
+    if not np.all(np.isfinite(parallel[valid])) or not np.all(
+        np.isfinite(lateral[valid])
+    ):
+        raise ValueError("valid sampling variances must be finite")
+    if np.any(parallel[valid] <= 0.0) or np.any(lateral[valid] <= 0.0):
+        raise ValueError("valid sampling variances must be positive")
+    if not np.all(np.isfinite(reliability_array[valid])) or np.any(
+        reliability_array[valid] < 0.0
+    ):
+        raise ValueError("valid sampling reliability must be finite and nonnegative")
+
+    if mode == "fixed_grid":
+        selected = np.zeros(valid.shape, dtype=bool)
+        selected[::pixel_stride, ::pixel_stride] = True
+        return selected & valid
+
+    selected = np.zeros(valid.shape, dtype=bool)
+    if not np.any(valid):
+        return selected
+    depth = np.linalg.norm(points, axis=-1)
+    depth_values = depth[valid]
+    depth_scale = max(
+        float(np.median(depth_values)),
+        np.finfo(np.float64).tiny,
+    )
+    total_variance = parallel + 2.0 * lateral
+    variance_scale = max(
+        float(np.median(total_variance[valid])),
+        np.finfo(np.float64).tiny,
+    )
+    safe_total_variance = np.where(valid, total_variance, 1.0)
+    score = (
+        reliability_array
+        * (1.0 + np.square(depth / depth_scale))
+        * variance_scale
+        / safe_total_variance
+    )
+    score = np.where(valid, score, -np.inf)
+    height, width = valid.shape
+    for row_start in range(0, height, pixel_stride):
+        row_stop = min(row_start + pixel_stride, height)
+        for column_start in range(0, width, pixel_stride):
+            column_stop = min(column_start + pixel_stride, width)
+            tile_score = score[row_start:row_stop, column_start:column_stop]
+            flat_index = int(np.argmax(tile_score))
+            best_score = float(tile_score.reshape(-1)[flat_index])
+            if not np.isfinite(best_score):
+                continue
+            row_offset, column_offset = np.unravel_index(
+                flat_index,
+                tile_score.shape,
+            )
+            selected[row_start + row_offset, column_start + column_offset] = True
+    return selected
+
+
+def _window_reference_radius(
+    window: PredictionWindow,
+    transform: Sim3,
+    *,
+    max_samples: int = 4_096,
+) -> float:
+    """Return a deterministic robust metric radius for Sim(3) normalization."""
+
+    if max_samples < 1:
+        raise ValueError("max_samples must be positive")
+    valid_indices = np.flatnonzero(window.valid_mask.reshape(-1))
+    if not len(valid_indices):
+        return float(transform.scale)
+    if len(valid_indices) > max_samples:
+        positions = np.linspace(
+            0,
+            len(valid_indices) - 1,
+            max_samples,
+            dtype=np.int64,
+        )
+        valid_indices = valid_indices[positions]
+    points = window.point_map.reshape(-1, 3)[valid_indices]
+    radii = transform.scale * np.linalg.norm(points, axis=1)
+    positive = radii[radii > np.finfo(np.float64).eps * transform.scale]
+    if not len(positive):
+        return float(transform.scale)
+    return float(np.median(positive))
+
+
+def _joint_gauge_coordinate_normalizer(
+    windows: Sequence[PredictionWindow],
+    posterior: JointGaugePosterior,
+) -> tuple[np.ndarray, tuple[float, ...]]:
+    """Map mixed-unit Sim(3) coordinates to representative point displacement."""
+
+    radii = tuple(
+        _window_reference_radius(window, posterior.estimates[window.window_id])
+        for window in windows
+    )
+    normalizer = np.concatenate(
+        [
+            np.asarray([radius, radius, radius, radius, 1.0, 1.0, 1.0])
+            for radius in radii
+        ]
+    )
+    return normalizer, radii
+
+
 def deterministic_covariance_root(
     covariance: np.ndarray,
     *,
     max_rank: int | None = None,
     relative_eigenvalue_floor: float = 1e-12,
+    coordinate_normalizer: np.ndarray | None = None,
 ) -> tuple[np.ndarray, float]:
-    """Return a deterministic PSD square root and retained trace fraction."""
+    """Return a deterministic PSD root and retained normalized-trace fraction.
+
+    ``coordinate_normalizer`` maps covariance coordinates into a common metric
+    before truncation. The returned root remains in the original coordinates.
+    """
 
     matrix = np.asarray(covariance, dtype=np.float64)
     if matrix.ndim != 2 or matrix.shape[0] != matrix.shape[1]:
@@ -134,9 +286,25 @@ def deterministic_covariance_root(
         raise ValueError("max_rank must be positive when supplied")
     if not 0.0 <= relative_eigenvalue_floor < 1.0:
         raise ValueError("relative_eigenvalue_floor must lie in [0, 1)")
+    if coordinate_normalizer is None:
+        normalizer = np.ones(matrix.shape[0], dtype=np.float64)
+    else:
+        normalizer = np.asarray(coordinate_normalizer, dtype=np.float64)
+        if normalizer.shape != (matrix.shape[0],):
+            raise ValueError("coordinate_normalizer must match covariance dimension")
+        if not np.all(np.isfinite(normalizer)) or np.any(normalizer <= 0.0):
+            raise ValueError("coordinate_normalizer must be finite and positive")
+
     symmetric = 0.5 * (matrix + matrix.T)
-    eigenvalues, eigenvectors = np.linalg.eigh(symmetric)
-    if np.min(eigenvalues) < -1e-9:
+    normalized = normalizer[:, None] * symmetric * normalizer[None, :]
+    eigenvalues, eigenvectors = np.linalg.eigh(normalized)
+    spectral_scale = max(
+        float(np.max(np.abs(eigenvalues), initial=0.0)),
+        np.finfo(np.float64).tiny,
+    )
+    if float(np.min(eigenvalues, initial=0.0)) < -(
+        1e-14 + 1e-10 * spectral_scale
+    ):
         raise ValueError("covariance root requires positive semidefinite input")
     order = np.argsort(eigenvalues)[::-1]
     eigenvalues = np.maximum(eigenvalues[order], 0.0)
@@ -154,7 +322,8 @@ def deterministic_covariance_root(
         pivot = int(np.argmax(np.abs(selected_vectors[:, column])))
         if selected_vectors[pivot, column] < 0.0:
             selected_vectors[:, column] *= -1.0
-    root = selected_vectors * np.sqrt(eigenvalues[indices])[None]
+    normalized_root = selected_vectors * np.sqrt(eigenvalues[indices])[None]
+    root = normalized_root / normalizer[:, None]
     return root, retained_fraction
 
 
@@ -504,6 +673,7 @@ def _build_prob4d_observation_belief(
     view_name: str = "camera0",
     source_revision: str | None = None,
     uncertainty_model: DepthDisagreementModel | None = None,
+    sampling_mode: SamplingMode = "fixed_grid",
 ) -> ObservationBeliefExportV1:
     """Build an artifact without opening or using post-cutoff prediction payloads."""
 
@@ -517,6 +687,7 @@ def _build_prob4d_observation_belief(
         raise ValueError("effective_samples_per_group must be positive")
     if not 0.0 < minimum_retained_gauge_trace <= 1.0:
         raise ValueError("minimum_retained_gauge_trace must lie in (0, 1]")
+    sampling_mode = _validated_sampling_mode(sampling_mode)
 
     revision = _validated_source_revision(source_revision)
     windows = selection.predictions
@@ -529,14 +700,19 @@ def _build_prob4d_observation_belief(
             allow_approximate_fixed_lag_covariance
         ),
     )
+    gauge_coordinate_normalizer, gauge_reference_radii = (
+        _joint_gauge_coordinate_normalizer(windows, posterior)
+    )
     joint_root, retained_trace_fraction = deterministic_covariance_root(
         posterior.joint_covariance,
         max_rank=max_gauge_rank,
+        coordinate_normalizer=gauge_coordinate_normalizer,
     )
     if retained_trace_fraction + 1e-12 < minimum_retained_gauge_trace:
         raise ValueError(
             "gauge covariance rank cap retains only "
-            f"{retained_trace_fraction:.6f} of covariance trace; increase "
+            f"{retained_trace_fraction:.6f} of normalized observation-displacement "
+            "covariance trace; increase "
             "max_gauge_rank or lower minimum_retained_gauge_trace explicitly"
         )
     factor_rank = joint_root.shape[1]
@@ -585,14 +761,20 @@ def _build_prob4d_observation_belief(
             7 * window_index : 7 * (window_index + 1), :
         ]
         height, width = window.shape[1:]
-        sample_mask = np.zeros((height, width), dtype=bool)
-        sample_mask[::pixel_stride, ::pixel_stride] = True
         linear_entity = np.arange(height * width, dtype=np.int64).reshape(
             height, width
         )
         for local_index, frame in enumerate(window.frame_indices):
             absolute_frame = int(frame)
-            selected = window.valid_mask[local_index] & sample_mask
+            selected = observation_sample_mask(
+                window.valid_mask[local_index],
+                window.point_map[local_index],
+                uncertainty.parallel_variance[local_index],
+                uncertainty.lateral_variance[local_index],
+                reliability[local_index],
+                pixel_stride=pixel_stride,
+                sampling_mode=sampling_mode,
+            )
             if not np.any(selected):
                 continue
             count = int(np.count_nonzero(selected))
@@ -650,13 +832,25 @@ def _build_prob4d_observation_belief(
     # the neutral value instead of applying overlap reliability a second time.
     group_prior = np.ones(len(group_ids), dtype=np.float64)
     group_weight = np.empty(len(group_ids), dtype=np.float64)
+    group_statistics: list[dict[str, int | float]] = []
     for position, group_id in enumerate(group_ids):
         selected = correlation_array == group_id
-        unique_entities = len(np.unique(entity_array[selected]))
-        effective = min(effective_samples_per_group, float(unique_entities))
-        group_weight[position] = min(
-            1.0,
-            effective / float(np.count_nonzero(selected)),
+        raw_row_count = int(np.count_nonzero(selected))
+        unique_entity_count = int(len(np.unique(entity_array[selected])))
+        effective = min(
+            effective_samples_per_group,
+            float(unique_entity_count),
+        )
+        per_row_weight = min(1.0, effective / float(raw_row_count))
+        group_weight[position] = per_row_weight
+        group_statistics.append(
+            {
+                "group_id": int(group_id),
+                "raw_row_count": raw_row_count,
+                "unique_entity_count": unique_entity_count,
+                "effective_sample_count": float(effective),
+                "per_row_composite_weight": float(per_row_weight),
+            }
         )
 
     selected_alignment_indices = {
@@ -698,6 +892,18 @@ def _build_prob4d_observation_belief(
             "full_dimension": int(posterior.joint_covariance.shape[0]),
             "exported_factor_rank": factor_rank,
             "retained_covariance_trace_fraction": retained_trace_fraction,
+            "retained_normalized_covariance_trace_fraction": (
+                retained_trace_fraction
+            ),
+            "rank_reduction_metric": GAUGE_RANK_REDUCTION_METRIC,
+            "rank_reduction_reference_radius_m_by_window": {
+                window_id: radius
+                for window_id, radius in zip(
+                    posterior.window_ids,
+                    gauge_reference_radii,
+                    strict=True,
+                )
+            },
             "minimum_retained_gauge_trace": minimum_retained_gauge_trace,
             "max_gauge_rank": max_gauge_rank,
             "cross_window_covariance_preserved": (
@@ -710,7 +916,15 @@ def _build_prob4d_observation_belief(
             ),
         },
         "pixel_stride": pixel_stride,
+        "sampling_mode": sampling_mode,
+        "sampling_semantics": (
+            "one deterministic maximum-information valid row per pixel_stride tile"
+            if sampling_mode == "information_stratified"
+            else "legacy fixed upper-left grid sample"
+        ),
         "effective_samples_per_group": effective_samples_per_group,
+        "group_composite_weight_semantics": GROUP_COMPOSITE_WEIGHT_SEMANTICS,
+        "group_statistics": group_statistics,
         "minimum_prior_reliability": minimum_prior_reliability,
         "uncertainty_model": asdict(model),
         "group_definition": "absolute source frame across overlap windows",
@@ -781,6 +995,7 @@ def build_prob4d_observation_belief(
     view_name: str = "camera0",
     source_revision: str | None = None,
     uncertainty_model: DepthDisagreementModel | None = None,
+    sampling_mode: SamplingMode = "fixed_grid",
 ) -> ObservationBeliefExportV1:
     """Select a causal source prefix and export a portable observation belief."""
 
@@ -807,6 +1022,7 @@ def build_prob4d_observation_belief(
         view_name=view_name,
         source_revision=source_revision,
         uncertainty_model=uncertainty_model,
+        sampling_mode=sampling_mode,
     )
 
 
@@ -826,6 +1042,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--causal-frame-stop", type=int, required=True)
     parser.add_argument("--metric-gauge-anchor", type=Path, required=True)
     parser.add_argument("--pixel-stride", type=int, default=4)
+    parser.add_argument(
+        "--sampling-mode",
+        choices=SAMPLING_MODES,
+        default="fixed_grid",
+        help=(
+            "fixed_grid preserves frozen artifacts; information_stratified chooses "
+            "one deterministic high-information valid row per stride tile"
+        ),
+    )
     parser.add_argument("--effective-samples-per-group", type=float, default=64.0)
     parser.add_argument("--minimum-prior-reliability", type=float, default=0.05)
     parser.add_argument(
@@ -869,6 +1094,7 @@ def main(argv: list[str] | None = None) -> int:
         causal_frame_stop=args.causal_frame_stop,
         metric_anchor=anchor,
         pixel_stride=args.pixel_stride,
+        sampling_mode=args.sampling_mode,
         effective_samples_per_group=args.effective_samples_per_group,
         minimum_prior_reliability=args.minimum_prior_reliability,
         gauge_mode=args.gauge_mode,
@@ -902,6 +1128,10 @@ if __name__ == "__main__":
 __all__ = [
     "CAUSAL_SOURCE_LINEAGE_SCHEMA_VERSION",
     "GAUGE_FACTOR_NAMES",
+    "GAUGE_RANK_REDUCTION_METRIC",
+    "GROUP_COMPOSITE_WEIGHT_SEMANTICS",
+    "SAMPLING_MODES",
+    "SamplingMode",
     "METRIC_GAUGE_ANCHOR_SCHEMA",
     "METRIC_GAUGE_ANCHOR_VERSION",
     "CausalOverlapSelection",
@@ -913,6 +1143,7 @@ __all__ = [
     "estimate_joint_gauge_tree",
     "gauge_covariance_factor",
     "joint_gauge_factor",
+    "observation_sample_mask",
     "load_metric_gauge_anchor",
     "save_metric_gauge_anchor",
     "select_causal_overlap_windows",

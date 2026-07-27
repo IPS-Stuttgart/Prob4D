@@ -24,7 +24,13 @@ def test_provider_manifest_declares_covariance_boundary() -> None:
     assert "content_addressed_covariance_calibration" in manifest["capabilities"]
     assert "content_addressed_metric_gauge_anchor" in manifest["capabilities"]
     assert "metric_anchor_covariance_propagation" in manifest["capabilities"]
+    assert "provider_final_composite_group_weight" in manifest["capabilities"]
+    assert "sim3_observation_displacement_rank_reduction" in manifest["capabilities"]
+    assert "information_stratified_observation_sampling" in manifest["capabilities"]
     assert "versioned_causal_stream_contract" in manifest["capabilities"]
+    assert manifest["metadata"]["group_composite_weight_semantics"].startswith(
+        "final-per-row-effective-sample-cap-v1"
+    )
     assert manifest["metadata"]["observation_stream_contract_version"] == 2
     assert manifest["limitations"][
         "joint_cross_window_gauge_covariance_in_observation_belief_v1"

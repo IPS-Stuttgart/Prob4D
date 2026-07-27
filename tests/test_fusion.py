@@ -1,3 +1,5 @@
+from itertools import permutations
+
 import numpy as np
 
 from prob4d.data import PredictionWindow
@@ -143,3 +145,40 @@ def test_gauge_covariance_propagation_matches_parameter_finite_difference() -> N
         jacobian[:, index] = (Sim3.from_vector(perturbed).transform_points(point) - baseline) / 1e-6
     expected = jacobian @ covariance @ jacobian.T
     np.testing.assert_allclose(result.point_covariance[0, 0, 0], expected, rtol=2e-6, atol=2e-6)
+
+
+
+def test_covariance_intersection_fusion_is_invariant_to_window_input_order() -> None:
+    windows = [
+        make_window("window-c", [0, 1], 0.25),
+        make_window("window-a", [0, 1], -0.10),
+        make_window("window-b", [0, 1], 0.05),
+    ]
+    gauges = {window.window_id: Sim3.identity() for window in windows}
+    uncertainties = {
+        "window-a": make_uncertainty(windows[1], 0.8),
+        "window-b": make_uncertainty(windows[2], 1.2),
+        "window-c": make_uncertainty(windows[0], 2.0),
+    }
+
+    reference = fuse_windows(
+        windows,
+        gauges,
+        uncertainties,
+        method="covariance_intersection",
+    )
+    for ordering in permutations(windows):
+        candidate = fuse_windows(
+            list(ordering),
+            gauges,
+            uncertainties,
+            method="covariance_intersection",
+        )
+        np.testing.assert_array_equal(candidate.frame_indices, reference.frame_indices)
+        np.testing.assert_array_equal(candidate.valid_mask, reference.valid_mask)
+        np.testing.assert_array_equal(candidate.contributors, reference.contributors)
+        np.testing.assert_allclose(candidate.point_map, reference.point_map)
+        np.testing.assert_allclose(
+            candidate.point_covariance,
+            reference.point_covariance,
+        )
