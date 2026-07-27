@@ -122,13 +122,14 @@ export fails when `--max-gauge-rank` would retain less than
 `--minimum-retained-gauge-trace` under this declared metric. Rank reduction is
 therefore explicit and auditable rather than a silent memory optimization.
 
-The legacy `--gauge-mode fixed_lag` path remains available only with
-`--allow-approximate-fixed-lag-covariance`. Its current covariance treats gauges
-outside the active lag as exact posterior means and exports only block-diagonal
-marginals. It is suitable for a labelled reconstruction ablation, not for the
-strict stream-v2 Bayesian uncertainty claim. A future fixed-lag implementation
-must carry a marginalized boundary information prior before this acknowledgement
-can be removed.
+The `--gauge-mode fixed_lag` path remains available only with
+`--allow-approximate-fixed-lag-covariance`. When the oldest active gauge expires,
+its factors and the previous boundary prior are linearized and eliminated through
+a Schur complement. The active boundary therefore retains that uncertainty. The
+portable all-window artifact still exports only block-diagonal historical
+marginals and cannot reconstruct historical cross-window covariance. Fixed-lag
+mode is consequently suitable for a labelled reconstruction ablation, not for
+the strict stream-v2 Bayesian uncertainty claim.
 
 ## Artifact semantics
 

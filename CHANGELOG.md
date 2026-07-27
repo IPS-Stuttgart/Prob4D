@@ -2,6 +2,14 @@
 
 All notable changes to Prob4D are documented here.
 
+## Unreleased
+
+### Changed
+
+- Fixed-lag gauge smoothing now Schur-marginalizes expired gauges into an
+  uncertainty-bearing boundary prior. Portable historical covariance remains an
+  explicit block-diagonal reconstruction approximation.
+
 ## 0.2.0 — 2026-07-26
 
 ### Changed

@@ -55,10 +55,11 @@ digest, or inclusion flag is absent or inconsistent.
 
 The production default is a causal sequential spanning tree. It preserves the
 uncertainty of the selected causal constraints without pretending that redundant
-dense alignment edges are independent. The fixed-lag covariance path remains an
-explicit reconstruction control and is not labelled as strict stream contract
-v2 because its current boundary treatment fixes marginalized gauges at posterior
-means.
+dense alignment edges are independent. Fixed-lag smoothing now carries a
+Schur-complement information prior across the moving boundary, but its portable
+all-window covariance contains only block-diagonal historical marginals. It
+therefore remains an explicit reconstruction control and is not labelled as
+strict stream contract v2.
 
 Prob4D 0.2.0 artifacts that already contain canonical
 `joint_gauge_latent_####` factors but predate the explicit version field can be

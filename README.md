@@ -104,10 +104,11 @@ inside each local covariance.
 The production default is a causal sequential spanning tree with the **full
 joint cross-window gauge covariance** propagated from the metric anchor. A rank
 cap is accepted only when the retained covariance-trace fraction satisfies the
-explicit threshold. The legacy fixed-lag covariance is available solely as an
-opt-in reconstruction ablation because its current boundary treatment fixes
-marginalized gauges at their posterior means. See [the causal observation export
-contract](docs/observation-belief-export.md).
+explicit threshold. Fixed-lag mode now carries a Schur-complement information
+prior when a gauge leaves the active window, rather than fixing that boundary
+with zero uncertainty. Its portable all-window covariance still contains only
+historical marginal blocks, so it remains an opt-in reconstruction ablation. See
+[the causal observation export contract](docs/observation-belief-export.md).
 
 Prepare a separate calibration sequence and world-coordinate truth files, then
 run the real ablation:
