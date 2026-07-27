@@ -52,6 +52,7 @@ jobs:
           python -m mypy
           src/prob4d/cli.py
           src/prob4d/calibration_compatibility.py
+          src/prob4d/covariance_root.py
           src/prob4d/provider_manifest.py
           src/prob4d/provider_manifest_cli.py
           src/prob4d/provider_v1.py
@@ -90,6 +91,7 @@ jobs:
           import sys
 
           import prob4d.cli
+          import prob4d.covariance_root
           import prob4d.provider_manifest
           import prob4d.provider_v1
           import prob4d.provider_v2
