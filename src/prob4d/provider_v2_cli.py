@@ -99,8 +99,8 @@ def _add_common_arguments(
         "--source-revision",
         required=require_source_revision,
         help=(
-            "exact executing Prob4D commit; calibrated export verifies it against "
-            "installed VCS metadata, a clean checkout, or PROB4D_RUNTIME_REVISION"
+            "exact executing Prob4D commit; calibrated export independently verifies "
+            "installed VCS metadata or a clean source checkout"
         ),
     )
     parser.add_argument("--summary-json", type=Path)
