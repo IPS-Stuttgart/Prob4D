@@ -19,7 +19,14 @@ The resulting prior is retained on the remaining active gauges. Relative factors
 whose temporal span is at least the configured lag fail closed because one of
 their endpoints would otherwise be eliminated before the factor arrives.
 
-This fixes the zero-uncertainty boundary approximation. The portable fixed-lag
-observation export still contains block-diagonal historical marginals rather
-than one exact all-window covariance, so fixed-lag mode remains an explicitly
-acknowledged reconstruction control and still requires opt-in.
+## Linearization and compatibility
+
+The Schur prior is the Gauss--Newton linearization at the accepted active-window
+solution. When every factor is admitted before either endpoint leaves the lag,
+increasing the lag approaches the corresponding batch solution; the regression
+suite checks exact chain-model marginals and full-batch parity.
+
+This change does not alter the production sequential `ObservationBeliefV1`
+contract. The fixed-lag export still contains block-diagonal historical marginals
+rather than one exact all-window covariance, so fixed-lag mode remains an
+explicitly acknowledged reconstruction control and still requires opt-in.
