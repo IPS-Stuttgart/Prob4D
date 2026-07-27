@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 
 import prob4d.provider_v2 as provider
+from prob4d.composition_jacobian import current_composition_jacobian_mode
 from prob4d.covariance_root import current_covariance_root_mode
 from prob4d.observation_contract import ObservationBeliefExportV1
 from prob4d.runtime_revision import RuntimeRevisionAttestation
@@ -74,10 +75,14 @@ def test_provider_v2_exposes_safe_capabilities() -> None:
     assert (
         "canonical_repeated_eigenspace_covariance_root" in manifest["capabilities"]
     )
+    assert "analytic_sim3_composition_jacobians" in manifest["capabilities"]
     assert "runtime_revision_attestation" in manifest["capabilities"]
     assert "provider_attested_observation_artifacts" in manifest["capabilities"]
     assert manifest["metadata"]["python_import_boundary"] == "prob4d.provider_v2"
     assert "canonical basis" in manifest["metadata"]["covariance_root_semantics"]
+    assert "closed-form derivatives" in manifest["metadata"][
+        "composition_jacobian_semantics"
+    ]
     assert manifest["limitations"]["uncalibrated_export_is_default"] is False
 
 
@@ -91,6 +96,7 @@ def test_exploratory_export_is_explicit_context_local_and_attested(
         captured.update(
             manifest_path=manifest_path,
             root_mode=current_covariance_root_mode(),
+            composition_mode=current_composition_jacobian_mode(),
             **kwargs,
         )
         return original
@@ -113,7 +119,9 @@ def test_exploratory_export_is_explicit_context_local_and_attested(
 
     assert result.artifact_id != original.artifact_id
     assert captured["root_mode"] == "canonical_eigenspaces"
+    assert captured["composition_mode"] == "analytic"
     assert current_covariance_root_mode() == "legacy_eigenvectors"
+    assert current_composition_jacobian_mode() == "legacy_finite_difference"
     assert captured["allow_uncalibrated_exploratory_covariance"] is True
     assert captured["allow_pointwise_covariance_fallback"] is True
     assert captured["sampling_mode"] == "information_stratified"
@@ -121,6 +129,7 @@ def test_exploratory_export_is_explicit_context_local_and_attested(
     assert attestation["export_mode"] == "exploratory"
     assert attestation["claim_bearing"] is False
     assert attestation["calibration_compatibility_validated"] is False
+    assert attestation["composition_jacobian_mode"] == "analytic"
     assert attestation["runtime_revision"]["independently_verified"] is False
 
 
@@ -129,6 +138,7 @@ def test_exploratory_export_can_reproduce_legacy_root_basis(monkeypatch) -> None
 
     def fake_export(manifest_path, **kwargs):
         captured["root_mode"] = current_covariance_root_mode()
+        captured["composition_mode"] = current_composition_jacobian_mode()
         return _observation()
 
     monkeypatch.setattr(provider._v1, "export_observation_belief", fake_export)
@@ -146,9 +156,13 @@ def test_exploratory_export_can_reproduce_legacy_root_basis(monkeypatch) -> None
         source_revision="a" * 40,
     )
     assert captured["root_mode"] == "legacy_eigenvectors"
+    assert captured["composition_mode"] == "analytic"
     assert result.metadata["prob4d_provider_attestation"][
         "covariance_root_mode"
     ] == "legacy_eigenvectors"
+    assert result.metadata["prob4d_provider_attestation"][
+        "composition_jacobian_mode"
+    ] == "analytic"
 
 
 def test_calibrated_export_validates_runtime_and_calibration_before_delegating(
@@ -185,6 +199,7 @@ def test_calibrated_export_validates_runtime_and_calibration_before_delegating(
                 manifest_path,
                 kwargs,
                 current_covariance_root_mode(),
+                current_composition_jacobian_mode(),
             )
         )
         return original
@@ -211,7 +226,9 @@ def test_calibrated_export_validates_runtime_and_calibration_before_delegating(
     assert [call[0] for call in calls] == ["runtime", "target", "assert", "export"]
     export_kwargs = calls[-1][2]
     assert calls[-1][3] == "canonical_eigenspaces"
+    assert calls[-1][4] == "analytic"
     assert current_covariance_root_mode() == "legacy_eigenvectors"
+    assert current_composition_jacobian_mode() == "legacy_finite_difference"
     assert export_kwargs["gauge_mode"] == "sequential"
     assert export_kwargs["allow_pointwise_covariance_fallback"] is False
     assert export_kwargs["source_revision"] == "a" * 40
@@ -220,6 +237,7 @@ def test_calibrated_export_validates_runtime_and_calibration_before_delegating(
     assert attestation["export_mode"] == "calibrated"
     assert attestation["claim_bearing"] is True
     assert attestation["calibration_compatibility_validated"] is True
+    assert attestation["composition_jacobian_mode"] == "analytic"
     assert attestation["calibration_artifact_ids"] == {
         "gauge_artifact_id": "gauge-id",
         "point_artifact_id": "point-id",
