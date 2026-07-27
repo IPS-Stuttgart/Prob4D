@@ -97,10 +97,17 @@ def test_analytic_composition_jacobians_handle_near_identity_rotation() -> None:
     )
 
 
-def test_analytic_jacobian_fails_closed_at_so3_log_branch() -> None:
-    parent = Sim3(rotation=so3_exp(np.asarray([np.pi, 0.0, 0.0])))
-    with pytest.raises(ValueError, match="log branch cut"):
-        analytic_sim3_compose_jacobians(parent, Sim3.identity())
+def test_analytic_jacobian_fails_closed_at_composed_so3_log_branch() -> None:
+    parent = Sim3(rotation=so3_exp(np.asarray([0.5 * np.pi, 0.0, 0.0])))
+    relative = Sim3(rotation=so3_exp(np.asarray([0.5 * np.pi, 0.0, 0.0])))
+    with pytest.raises(ValueError, match="composed SO\(3\) log branch cut"):
+        analytic_sim3_compose_jacobians(parent, relative)
+
+
+def test_analytic_jacobian_fails_closed_at_input_so3_log_branch() -> None:
+    half_turn = Sim3(rotation=so3_exp(np.asarray([np.pi, 0.0, 0.0])))
+    with pytest.raises(ValueError, match="parent SO\(3\) log branch cut"):
+        analytic_sim3_compose_jacobians(half_turn, half_turn)
 
 
 def test_dispatcher_preserves_provider_v1_default_and_context_locality() -> None:
