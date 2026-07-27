@@ -3,6 +3,8 @@ name: Apply generalized dense fusion
 on:
   push:
     branches: [agent/generalized-dense-ci]
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: write
