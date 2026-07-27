@@ -34,6 +34,8 @@ def _manifest() -> dict[str, object]:
             "guidance_scale": 1.0,
             "decode_chunk_size": 25,
             "low_memory_usage": False,
+            "seed": 42,
+            "frame_stride": 1,
             "height": 384,
             "width": 640,
             "window_size": 16,
