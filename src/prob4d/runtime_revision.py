@@ -1,4 +1,4 @@
-"""Runtime source-revision attestation for claim-bearing provider exports."""
+"""Runtime source-revision attestation for versioned provider exports."""
 
 from __future__ import annotations
 
@@ -136,7 +136,11 @@ def inspect_runtime_revision(
     *,
     checkout_root: Path | None = None,
 ) -> RuntimeRevisionAttestation:
-    """Inspect available runtime provenance without requiring a successful match."""
+    """Inspect available runtime provenance without requiring a successful match.
+
+    Exploratory callers may record an environment-supplied deployment assertion,
+    but it is deliberately not labelled independent verification.
+    """
 
     expected = _validated_revision(expected_revision, name="expected revision")
     observed, source, clean = _resolve_runtime_revision(checkout_root=checkout_root)
@@ -162,12 +166,12 @@ def assert_runtime_revision(
     *,
     checkout_root: Path | None = None,
 ) -> RuntimeRevisionAttestation:
-    """Fail closed unless the executing package is attested to the expected commit.
+    """Fail closed unless the executing package independently matches the commit.
 
-    A VCS-installed package or a clean source checkout supplies independent evidence.
-    A packaged deployment may instead set ``PROB4D_RUNTIME_REVISION`` explicitly;
-    that fallback is accepted but identified as deployment attestation rather than
-    independent VCS verification in the exported metadata.
+    Claim-bearing export accepts only VCS installation metadata or a clean source
+    checkout. ``PROB4D_RUNTIME_REVISION`` can describe an exploratory packaged
+    deployment, but an unauthenticated environment variable cannot establish which
+    code bytes are executing and therefore never satisfies this function.
     """
 
     attestation = inspect_runtime_revision(
@@ -177,8 +181,7 @@ def assert_runtime_revision(
     if attestation.observed_revision is None:
         raise RuntimeError(
             "claim-bearing export cannot determine the executing Prob4D revision; "
-            "install from VCS, run from a clean checkout, or set "
-            "PROB4D_RUNTIME_REVISION to the packaged build commit"
+            "install from VCS or run from a clean source checkout"
         )
     if not attestation.matched:
         raise RuntimeError(
@@ -189,6 +192,11 @@ def assert_runtime_revision(
     if attestation.clean_checkout is False:
         raise RuntimeError(
             "claim-bearing export refuses a source checkout with tracked modifications"
+        )
+    if not attestation.independently_verified:
+        raise RuntimeError(
+            "claim-bearing export requires independent VCS revision evidence; "
+            f"{attestation.source} is recordable only for exploratory export"
         )
     return attestation
 
