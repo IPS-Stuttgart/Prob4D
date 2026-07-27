@@ -60,3 +60,20 @@ def test_provider_manifest_cli_writes_exact_payload(
     assert main(["--provider-revision", "b" * 40, "--output", str(output)]) == 0
     printed = capsys.readouterr().out
     assert json.loads(printed) == json.loads(output.read_text(encoding="utf-8"))
+
+
+def test_provider_manifest_cli_can_emit_version_two(capsys) -> None:
+    assert (
+        main(
+            [
+                "--api-version",
+                "2",
+                "--provider-revision",
+                "c" * 40,
+            ]
+        )
+        == 0
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["provider_api_version"] == 2
+    assert "runtime_revision_attestation" in payload["capabilities"]
