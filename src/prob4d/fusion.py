@@ -167,7 +167,9 @@ def fuse_gaussians_covariance_intersection(
             ) + (1.0 - best_weight) * np.einsum(
                 "...ij,...j->...i", information_two, mean_two[start:stop]
             )
-            output_mean[start:stop] = np.einsum("...ij,...j->...i", covariance, information_vector)
+            output_mean[start:stop] = np.einsum(
+                "...ij,...j->...i", covariance, information_vector
+            )
             output_covariance[start:stop] = covariance
             output_weight[start:stop] = best_weight
         return (
@@ -202,7 +204,9 @@ def fuse_gaussians_covariance_intersection(
         ) + (1.0 - best_weight)[:, None] * np.einsum(
             "...ij,...j->...i", information_two, mean_two[start:stop]
         )
-        output_mean[start:stop] = np.einsum("...ij,...j->...i", best_covariance, information_vector)
+        output_mean[start:stop] = np.einsum(
+            "...ij,...j->...i", best_covariance, information_vector
+        )
         output_covariance[start:stop] = best_covariance
         output_weight[start:stop] = best_weight
 
@@ -292,7 +296,9 @@ def _gauge_induced_covariance(
         )
         if include_translation:
             jacobian[:, :, 4:7] = identity
-        propagated[start:stop] = np.einsum("nij,jk,nlk->nil", jacobian, covariance, jacobian)
+        propagated[start:stop] = np.einsum(
+            "nij,jk,nlk->nil", jacobian, covariance, jacobian
+        )
     return propagated.reshape(values.shape + (3,))
 
 
@@ -322,7 +328,9 @@ def fuse_windows(
     height, width = ordered_windows[0].shape[1:]
     if any(window.shape[1:] != (height, width) for window in ordered_windows):
         raise ValueError("all windows must use the same spatial resolution")
-    all_frames = np.unique(np.concatenate([window.frame_indices for window in ordered_windows]))
+    all_frames = np.unique(
+        np.concatenate([window.frame_indices for window in ordered_windows])
+    )
     frame_positions = {int(frame): index for index, frame in enumerate(all_frames)}
     shape = (all_frames.size, height, width)
     point_map = np.zeros(shape + (3,), dtype=np.float64)

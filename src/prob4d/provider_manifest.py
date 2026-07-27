@@ -106,7 +106,9 @@ def prob4d_provider_manifest(
             "source_repository": "FlorianPfaff/Prob4D",
             "python_import_boundary": "prob4d.provider_v1",
             "observation_stream": "prob4d:causal-overlap-window-points",
-            "observation_stream_contract_version": (PROB4D_CAUSAL_STREAM_CONTRACT_VERSION),
+            "observation_stream_contract_version": (
+                PROB4D_CAUSAL_STREAM_CONTRACT_VERSION
+            ),
             "observation_belief_covariance_semantics": (
                 "conditional local covariance plus one shared low-rank root of the "
                 "joint Sim(3) covariance induced by the metric-anchor prior and "

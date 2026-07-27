@@ -147,6 +147,7 @@ def test_gauge_covariance_propagation_matches_parameter_finite_difference() -> N
     np.testing.assert_allclose(result.point_covariance[0, 0, 0], expected, rtol=2e-6, atol=2e-6)
 
 
+
 def test_covariance_intersection_fusion_is_invariant_to_window_input_order() -> None:
     windows = [
         make_window("window-c", [0, 1], 0.25),

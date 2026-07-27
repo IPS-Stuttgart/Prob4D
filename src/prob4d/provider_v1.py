@@ -123,10 +123,12 @@ def export_observation_belief(
             "uncertainty_model and point_uncertainty_calibration are mutually exclusive"
         )
     if not allow_uncalibrated_exploratory_covariance and (
-        gauge_covariance_calibration is None or point_uncertainty_calibration is None
+        gauge_covariance_calibration is None
+        or point_uncertainty_calibration is None
     ):
         raise ValueError(
-            "claim-bearing exports require both gauge and point covariance calibration artifacts"
+            "claim-bearing exports require both gauge and point covariance "
+            "calibration artifacts"
         )
 
     resolved_uncertainty_model = (
@@ -152,7 +154,9 @@ def export_observation_belief(
             minimum_prior_reliability=minimum_prior_reliability,
             gauge_mode=gauge_mode,
             fixed_lag=fixed_lag,
-            allow_approximate_fixed_lag_covariance=(allow_approximate_fixed_lag_covariance),
+            allow_approximate_fixed_lag_covariance=(
+                allow_approximate_fixed_lag_covariance
+            ),
             max_gauge_rank=max_gauge_rank,
             minimum_retained_gauge_trace=minimum_retained_gauge_trace,
             view_name=view_name,
@@ -161,9 +165,15 @@ def export_observation_belief(
         )
 
     if isinstance(artifact, ObservationBeliefExportV1):
-        if gauge_covariance_calibration is not None and point_uncertainty_calibration is not None:
+        if (
+            gauge_covariance_calibration is not None
+            and point_uncertainty_calibration is not None
+        ):
             calibration_status = "calibrated"
-        elif gauge_covariance_calibration is not None or point_uncertainty_calibration is not None:
+        elif (
+            gauge_covariance_calibration is not None
+            or point_uncertainty_calibration is not None
+        ):
             calibration_status = "partially_calibrated"
         else:
             calibration_status = "uncalibrated_exploratory"
@@ -183,9 +193,13 @@ def export_observation_belief(
             "uncalibrated_exploratory_covariance_allowed": bool(
                 allow_uncalibrated_exploratory_covariance
             ),
-            "pointwise_covariance_fallback_allowed": bool(allow_pointwise_covariance_fallback),
+            "pointwise_covariance_fallback_allowed": bool(
+                allow_pointwise_covariance_fallback
+            ),
             "alignment_count": alignment_diagnostics.alignment_count,
-            "gauge_calibrated_alignment_count": (alignment_diagnostics.calibrated_alignment_count),
+            "gauge_calibrated_alignment_count": (
+                alignment_diagnostics.calibrated_alignment_count
+            ),
             "covariance_fallback_counts": alignment_diagnostics.fallback_counts,
         }
         artifact = replace(artifact, metadata=metadata)
@@ -217,7 +231,8 @@ def export_calibrated_observation_belief(
         )
     if "allow_uncalibrated_exploratory_covariance" in kwargs:
         raise ValueError(
-            "export_calibrated_observation_belief always fails closed on missing calibration"
+            "export_calibrated_observation_belief always fails closed on missing "
+            "calibration"
         )
     return export_observation_belief(
         manifest_path,

@@ -150,12 +150,9 @@ def test_causal_selection_does_not_open_future_payload(tmp_path: Path) -> None:
         "window_0001",
     ]
     assert selection.skipped_window_count == 1
-    assert (
-        selection.artifact_lineage_metadata(causal_frame_stop=6)[
-            "future_prediction_payloads_opened"
-        ]
-        == 0
-    )
+    assert selection.artifact_lineage_metadata(causal_frame_stop=6)[
+        "future_prediction_payloads_opened"
+    ] == 0
 
 
 def test_future_append_does_not_change_exported_artifact(
@@ -326,7 +323,10 @@ def test_joint_tree_preserves_anchor_uncertainty_and_cross_covariance() -> None:
         anchor_covariance,
         atol=2e-6,
     )
-    assert np.all(np.diag(posterior.joint_covariance[7:, 7:]) >= np.diag(anchor_covariance) - 1e-6)
+    assert np.all(
+        np.diag(posterior.joint_covariance[7:, 7:])
+        >= np.diag(anchor_covariance) - 1e-6
+    )
     assert posterior.cross_window_covariance_preserved is True
 
 
@@ -361,17 +361,23 @@ def test_covariance_root_reports_rank_truncation() -> None:
     assert retained == pytest.approx((7.0 + 6.0) / 28.0)
 
 
+
 def test_sim3_rank_reduction_is_metric_unit_invariant() -> None:
     generator = np.random.default_rng(91)
     basis = generator.normal(size=(14, 9))
     covariance_m = basis @ basis.T + np.eye(14) * 1e-4
     radii_m = (0.4, 1.7)
     normalizer_m = np.concatenate(
-        [np.asarray([radius, radius, radius, radius, 1.0, 1.0, 1.0]) for radius in radii_m]
+        [
+            np.asarray([radius, radius, radius, radius, 1.0, 1.0, 1.0])
+            for radius in radii_m
+        ]
     )
     unit_transform = np.diag(
         np.tile(
-            np.asarray([1.0, 1.0, 1.0, 1.0, 1_000.0, 1_000.0, 1_000.0]),
+            np.asarray(
+                [1.0, 1.0, 1.0, 1.0, 1_000.0, 1_000.0, 1_000.0]
+            ),
             2,
         )
     )

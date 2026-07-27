@@ -32,12 +32,15 @@ def test_provider_manifest_declares_covariance_boundary() -> None:
         "final-per-row-effective-sample-cap-v1"
     )
     assert manifest["metadata"]["observation_stream_contract_version"] == 2
-    assert (
-        manifest["limitations"]["joint_cross_window_gauge_covariance_in_observation_belief_v1"]
-        is True
-    )
-    assert manifest["limitations"]["fixed_lag_boundary_covariance_exactness_claim"] is False
-    assert manifest["limitations"]["provider_pointwise_covariance_fallback_default"] is False
+    assert manifest["limitations"][
+        "joint_cross_window_gauge_covariance_in_observation_belief_v1"
+    ] is True
+    assert manifest["limitations"][
+        "fixed_lag_boundary_covariance_exactness_claim"
+    ] is False
+    assert manifest["limitations"][
+        "provider_pointwise_covariance_fallback_default"
+    ] is False
     descriptor = {key: value for key, value in manifest.items() if key != "manifest_id"}
     expected = hashlib.sha256(
         json.dumps(
@@ -50,7 +53,9 @@ def test_provider_manifest_declares_covariance_boundary() -> None:
     assert manifest["manifest_id"] == expected
 
 
-def test_provider_manifest_cli_writes_exact_payload(tmp_path: Path, capsys) -> None:
+def test_provider_manifest_cli_writes_exact_payload(
+    tmp_path: Path, capsys
+) -> None:
     output = tmp_path / "provider.json"
     assert main(["--provider-revision", "b" * 40, "--output", str(output)]) == 0
     printed = capsys.readouterr().out

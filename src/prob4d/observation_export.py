@@ -80,7 +80,9 @@ class JointGaugePosterior:
         if np.min(np.linalg.eigvalsh(symmetric)) < -1e-9:
             raise ValueError("joint gauge covariance must be positive semidefinite")
         parent_ids = self.parent_window_ids or tuple(None for _ in self.window_ids)
-        alignment_indices = self.selected_alignment_indices or tuple(None for _ in self.window_ids)
+        alignment_indices = self.selected_alignment_indices or tuple(
+            None for _ in self.window_ids
+        )
         if len(parent_ids) != len(self.window_ids) or len(alignment_indices) != len(
             self.window_ids
         ):
@@ -158,11 +160,15 @@ def observation_sample_mask(
     mode = _validated_sampling_mode(sampling_mode)
     if not np.all(np.isfinite(points[valid])):
         raise ValueError("valid sampling points must be finite")
-    if not np.all(np.isfinite(parallel[valid])) or not np.all(np.isfinite(lateral[valid])):
+    if not np.all(np.isfinite(parallel[valid])) or not np.all(
+        np.isfinite(lateral[valid])
+    ):
         raise ValueError("valid sampling variances must be finite")
     if np.any(parallel[valid] <= 0.0) or np.any(lateral[valid] <= 0.0):
         raise ValueError("valid sampling variances must be positive")
-    if not np.all(np.isfinite(reliability_array[valid])) or np.any(reliability_array[valid] < 0.0):
+    if not np.all(np.isfinite(reliability_array[valid])) or np.any(
+        reliability_array[valid] < 0.0
+    ):
         raise ValueError("valid sampling reliability must be finite and nonnegative")
 
     if mode == "fixed_grid":
@@ -250,7 +256,10 @@ def _joint_gauge_coordinate_normalizer(
         for window in windows
     )
     normalizer = np.concatenate(
-        [np.asarray([radius, radius, radius, radius, 1.0, 1.0, 1.0]) for radius in radii]
+        [
+            np.asarray([radius, radius, radius, radius, 1.0, 1.0, 1.0])
+            for radius in radii
+        ]
     )
     return normalizer, radii
 
@@ -293,7 +302,9 @@ def deterministic_covariance_root(
         float(np.max(np.abs(eigenvalues), initial=0.0)),
         np.finfo(np.float64).tiny,
     )
-    if float(np.min(eigenvalues, initial=0.0)) < -(1e-14 + 1e-10 * spectral_scale):
+    if float(np.min(eigenvalues, initial=0.0)) < -(
+        1e-14 + 1e-10 * spectral_scale
+    ):
         raise ValueError("covariance root requires positive semidefinite input")
     order = np.argsort(eigenvalues)[::-1]
     eigenvalues = np.maximum(eigenvalues[order], 0.0)
@@ -462,10 +473,13 @@ def estimate_joint_gauge_tree(
         candidates = [
             (index, alignment)
             for index, alignment in enumerate(alignments)
-            if alignment.moving_id == child_id and alignment.reference_id in estimates
+            if alignment.moving_id == child_id
+            and alignment.reference_id in estimates
         ]
         if not candidates:
-            raise ValueError(f"window {child_id!r} has no causal overlap with an earlier window")
+            raise ValueError(
+                f"window {child_id!r} has no causal overlap with an earlier window"
+            )
         selected_index, selected = min(
             candidates,
             key=lambda item: (
@@ -489,10 +503,14 @@ def estimate_joint_gauge_tree(
             joint[previous_slice, child_slice] = cross.T
         relative_covariance = np.asarray(selected.result.covariance, dtype=np.float64)
         child_covariance = (
-            parent_jacobian @ joint[parent_slice, parent_slice] @ parent_jacobian.T
+            parent_jacobian
+            @ joint[parent_slice, parent_slice]
+            @ parent_jacobian.T
             + relative_jacobian @ relative_covariance @ relative_jacobian.T
         )
-        joint[child_slice, child_slice] = 0.5 * (child_covariance + child_covariance.T)
+        joint[child_slice, child_slice] = 0.5 * (
+            child_covariance + child_covariance.T
+        )
         estimates[child_id] = child
         parent_ids.append(parent_id)
         alignment_indices.append(selected_index)
@@ -536,7 +554,8 @@ def _fixed_lag_marginal_posterior(
     if fixed_lag < 2:
         raise ValueError("fixed_lag must be at least two")
     constraints = [
-        RelativeGaugeConstraint.from_window_alignment(alignment) for alignment in alignments
+        RelativeGaugeConstraint.from_window_alignment(alignment)
+        for alignment in alignments
     ]
     ordered_ids = [window.window_id for window in windows]
     sequential = SequentialGaugeEstimator().estimate(
@@ -555,7 +574,10 @@ def _fixed_lag_marginal_posterior(
     )
     return JointGaugePosterior(
         window_ids=tuple(ordered_ids),
-        estimates={window_id: estimates[window_id].global_from_local for window_id in ordered_ids},
+        estimates={
+            window_id: estimates[window_id].global_from_local
+            for window_id in ordered_ids
+        },
         joint_covariance=covariance,
         mode="fixed_lag_block_diagonal_approximation_v1",
         cross_window_covariance_preserved=False,
@@ -609,9 +631,10 @@ def _prior_reliability(
 
     if not 0.0 < minimum <= 1.0:
         raise ValueError("minimum prior reliability must lie in (0, 1]")
-    normalized = parallel_disagreement / np.maximum(
-        parallel_variance, 1e-12
-    ) + lateral_disagreement / np.maximum(lateral_variance, 1e-12)
+    normalized = (
+        parallel_disagreement / np.maximum(parallel_variance, 1e-12)
+        + lateral_disagreement / np.maximum(lateral_variance, 1e-12)
+    )
     reliability = np.exp(-0.5 * np.minimum(normalized, 50.0))
     reliability = np.where(overlap_count > 0.0, reliability, 1.0)
     return np.clip(reliability, minimum, 1.0)
@@ -628,7 +651,9 @@ def _row_covariance(
     lateral = transform.scale**2 * np.asarray(lateral_variance, dtype=np.float64)
     outer = np.einsum("ni,nj->nij", rays_world, rays_world)
     identity = np.eye(3, dtype=np.float64)
-    return lateral[:, None, None] * identity + (parallel - lateral)[:, None, None] * outer
+    return lateral[:, None, None] * identity + (
+        parallel - lateral
+    )[:, None, None] * outer
 
 
 def _build_prob4d_observation_belief(
@@ -656,7 +681,9 @@ def _build_prob4d_observation_belief(
         raise ValueError("case_id and view_name must be nonempty")
     if pixel_stride < 1:
         raise ValueError("pixel_stride must be positive")
-    if not np.isfinite(effective_samples_per_group) or (effective_samples_per_group <= 0.0):
+    if not np.isfinite(effective_samples_per_group) or (
+        effective_samples_per_group <= 0.0
+    ):
         raise ValueError("effective_samples_per_group must be positive")
     if not 0.0 < minimum_retained_gauge_trace <= 1.0:
         raise ValueError("minimum_retained_gauge_trace must lie in (0, 1]")
@@ -669,10 +696,12 @@ def _build_prob4d_observation_belief(
         gauge_mode=gauge_mode,
         fixed_lag=fixed_lag,
         metric_anchor=metric_anchor,
-        allow_approximate_fixed_lag_covariance=(allow_approximate_fixed_lag_covariance),
+        allow_approximate_fixed_lag_covariance=(
+            allow_approximate_fixed_lag_covariance
+        ),
     )
-    gauge_coordinate_normalizer, gauge_reference_radii = _joint_gauge_coordinate_normalizer(
-        windows, posterior
+    gauge_coordinate_normalizer, gauge_reference_radii = (
+        _joint_gauge_coordinate_normalizer(windows, posterior)
     )
     joint_root, retained_trace_fraction = deterministic_covariance_root(
         posterior.joint_covariance,
@@ -687,15 +716,21 @@ def _build_prob4d_observation_belief(
             "max_gauge_rank or lower minimum_retained_gauge_trace explicitly"
         )
     factor_rank = joint_root.shape[1]
-    factor_names = tuple(f"joint_gauge_latent_{index:04d}" for index in range(factor_rank))
+    factor_names = tuple(
+        f"joint_gauge_latent_{index:04d}" for index in range(factor_rank)
+    )
     window_map = {window.window_id: window for window in windows}
     evidence = accumulate_disagreement(window_map, alignments)
     model = uncertainty_model or DepthDisagreementModel()
 
-    eligible_frames = sorted({int(frame) for window in windows for frame in window.frame_indices})
+    eligible_frames = sorted(
+        {int(frame) for window in windows for frame in window.frame_indices}
+    )
     if not eligible_frames or eligible_frames[-1] >= causal_frame_stop:
         raise RuntimeError("causal overlap selection produced an invalid frame set")
-    frame_to_group = {frame: group for group, frame in enumerate(eligible_frames)}
+    frame_to_group = {
+        frame: group for group, frame in enumerate(eligible_frames)
+    }
 
     means: list[np.ndarray] = []
     frame_ids: list[np.ndarray] = []
@@ -722,9 +757,13 @@ def _build_prob4d_observation_belief(
             minimum=minimum_prior_reliability,
         )
         rays = window.rays()
-        root_block = joint_root[7 * window_index : 7 * (window_index + 1), :]
+        root_block = joint_root[
+            7 * window_index : 7 * (window_index + 1), :
+        ]
         height, width = window.shape[1:]
-        linear_entity = np.arange(height * width, dtype=np.int64).reshape(height, width)
+        linear_entity = np.arange(height * width, dtype=np.int64).reshape(
+            height, width
+        )
         for local_index, frame in enumerate(window.frame_indices):
             absolute_frame = int(frame)
             selected = observation_sample_mask(
@@ -815,7 +854,9 @@ def _build_prob4d_observation_belief(
         )
 
     selected_alignment_indices = {
-        value for value in posterior.selected_alignment_indices if value is not None
+        value
+        for value in posterior.selected_alignment_indices
+        if value is not None
     }
     alignment_records = [
         {
@@ -851,7 +892,9 @@ def _build_prob4d_observation_belief(
             "full_dimension": int(posterior.joint_covariance.shape[0]),
             "exported_factor_rank": factor_rank,
             "retained_covariance_trace_fraction": retained_trace_fraction,
-            "retained_normalized_covariance_trace_fraction": (retained_trace_fraction),
+            "retained_normalized_covariance_trace_fraction": (
+                retained_trace_fraction
+            ),
             "rank_reduction_metric": GAUGE_RANK_REDUCTION_METRIC,
             "rank_reduction_reference_radius_m_by_window": {
                 window_id: radius
@@ -863,10 +906,14 @@ def _build_prob4d_observation_belief(
             },
             "minimum_retained_gauge_trace": minimum_retained_gauge_trace,
             "max_gauge_rank": max_gauge_rank,
-            "cross_window_covariance_preserved": (posterior.cross_window_covariance_preserved),
+            "cross_window_covariance_preserved": (
+                posterior.cross_window_covariance_preserved
+            ),
             "parent_window_ids": list(posterior.parent_window_ids),
             "alignments": alignment_records,
-            "fixed_lag_boundary_covariance_is_approximate": (gauge_mode == "fixed_lag"),
+            "fixed_lag_boundary_covariance_is_approximate": (
+                gauge_mode == "fixed_lag"
+            ),
         },
         "pixel_stride": pixel_stride,
         "sampling_mode": sampling_mode,
@@ -967,7 +1014,9 @@ def build_prob4d_observation_belief(
         minimum_prior_reliability=minimum_prior_reliability,
         gauge_mode=gauge_mode,
         fixed_lag=fixed_lag,
-        allow_approximate_fixed_lag_covariance=(allow_approximate_fixed_lag_covariance),
+        allow_approximate_fixed_lag_covariance=(
+            allow_approximate_fixed_lag_covariance
+        ),
         max_gauge_rank=max_gauge_rank,
         minimum_retained_gauge_trace=minimum_retained_gauge_trace,
         view_name=view_name,
@@ -1050,7 +1099,9 @@ def main(argv: list[str] | None = None) -> int:
         minimum_prior_reliability=args.minimum_prior_reliability,
         gauge_mode=args.gauge_mode,
         fixed_lag=args.fixed_lag,
-        allow_approximate_fixed_lag_covariance=(args.allow_approximate_fixed_lag_covariance),
+        allow_approximate_fixed_lag_covariance=(
+            args.allow_approximate_fixed_lag_covariance
+        ),
         max_gauge_rank=args.max_gauge_rank,
         minimum_retained_gauge_trace=args.minimum_retained_gauge_trace,
         view_name=args.view_name,
