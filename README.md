@@ -77,21 +77,37 @@ source-frame bounds and contributing internal windows for any output frame.
 
 ### Portable Bayesian observation export
 
-Export a provider-neutral observation artifact only after supplying an
-independent metric `Sim(3)` prior for the first retained overlap window:
+New claim-bearing experiments should use the explicit provider-v2 calibrated
+command. It requires an independent metric `Sim(3)` prior for the first retained
+window plus independently fitted gauge and point covariance calibrations:
 
 ```bash
-prob4d-export-observation-belief \
+prob4d observation export-calibrated \
   outputs/sequence_name/predictions.json \
   outputs/sequence_name/observation_belief.npz \
   --case-id sequence_name \
   --causal-frame-stop 134 \
   --metric-gauge-anchor outputs/sequence_name/metric_gauge_anchor.json \
+  --gauge-covariance-calibration outputs/calibration/gauge.json \
+  --point-uncertainty-calibration outputs/calibration/point.json \
+  --source-revision "$(git rev-parse HEAD)" \
   --summary-json outputs/sequence_name/observation_belief_summary.json
 
 prob4d-validate-observation \
   outputs/sequence_name/observation_belief.npz
 ```
+
+Provider v2 verifies the executing Prob4D revision and prediction/calibration
+compatibility before decoded prediction payloads are opened. The final artifact
+binds the provider-v2 manifest identity, export mode, covariance-root mode,
+calibration artifact IDs, and runtime-revision evidence into its content address.
+A packaged deployment without VCS metadata must set `PROB4D_RUNTIME_REVISION` to
+the exact build commit.
+
+Use `prob4d observation export-exploratory` for labelled uncalibrated,
+pointwise-fallback, legacy-root, or fixed-lag reconstruction controls. The older
+`prob4d observation export` and `prob4d-export-observation-belief` commands remain
+frozen provider-v1 compatibility surfaces.
 
 The exporter opens only independently decoded windows wholly before the
 exclusive cutoff. It recomputes alignment, gauge estimation, overlap
@@ -108,7 +124,8 @@ explicit threshold. Fixed-lag mode now carries a Schur-complement information
 prior when a gauge leaves the active window, rather than fixing that boundary
 with zero uncertainty. Its portable all-window covariance still contains only
 historical marginal blocks, so it remains an opt-in reconstruction ablation. See
-[the causal observation export contract](docs/observation-belief-export.md).
+[the causal observation export contract](docs/observation-belief-export.md) and
+[provider API version 2](docs/provider-v2.md).
 
 Prepare a separate calibration sequence and world-coordinate truth files, then
 run the real ablation:
@@ -272,9 +289,10 @@ The core package intentionally depends only on NumPy. Torch, Diffusers, Decord,
 and model-loading dependencies are imported lazily by `prob4d-motioncrafter`.
 The tested GPU environment is pinned separately under `environments/`.
 
-Continuous integration tests Python 3.10, 3.12, and 3.14, builds the source and
-wheel distributions, validates package metadata, installs the wheel in an
-isolated environment, and smoke-tests every installed command.
+Continuous integration tests Python 3.10, 3.12, and 3.14, checks both provider
+manifests and clean-checkout runtime attestation, builds source and wheel
+distributions, installs each artifact in isolation, and smoke-tests every
+installed command including the explicit provider-v2 surfaces.
 
 The implementation has been exercised at full `25 x 320 x 640` window size on
 an RTX 6000 Ada host. Frame-level covariance intersection is the production
