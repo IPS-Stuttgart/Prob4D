@@ -13,6 +13,16 @@ All notable changes to Prob4D are documented here.
   cluster size, and gauge/point covariance methods before payload loading.
 - A context-local canonical covariance-root basis for repeated eigenspaces in
   provider v2, with fail-closed rank boundaries and unchanged provider-v1 defaults.
+- Explicit `prob4d observation export-calibrated` and
+  `prob4d observation export-exploratory` commands, plus installed legacy-style
+  entry points for scripted use.
+- Runtime source-revision attestation for claim-bearing provider-v2 export. Clean
+  source checkouts and VCS-installed packages are verified directly; packaged
+  deployments can provide a labelled `PROB4D_RUNTIME_REVISION` attestation.
+- Content-addressed provider-v2 artifact metadata binding the provider manifest,
+  export mode, calibration IDs, covariance-root mode, and runtime revision evidence.
+- Version-selectable provider manifest emission through
+  `prob4d provider manifest --api-version {1,2}`.
 - Provider-v2 unit, type, import, wheel, and source-distribution coverage.
 
 ### Changed
@@ -20,6 +30,11 @@ All notable changes to Prob4D are documented here.
 - Fixed-lag gauge smoothing now Schur-marginalizes expired gauges into an
   uncertainty-bearing boundary prior. Portable historical covariance remains an
   explicit block-diagonal reconstruction approximation.
+- Documentation now recommends the calibrated provider-v2 command for new
+  claim-bearing experiments and labels provider-v1 commands as frozen compatibility
+  surfaces.
+- CI verifies clean-checkout runtime attestation, publishes both provider manifests,
+  and smoke-tests every provider-v2 command from installed wheel and source artifacts.
 
 ## 0.2.0 — 2026-07-26
 
