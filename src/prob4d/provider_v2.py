@@ -22,6 +22,10 @@ from .calibration_compatibility import (
     load_prediction_calibration_target,
     motioncrafter_model_identifier,
 )
+from .composition_jacobian import (
+    CompositionJacobianMode,
+    composition_jacobian_mode,
+)
 from .covariance_root import CovarianceRootMode, covariance_root_mode
 from .provider_v1 import (
     GAUGE_COVARIANCE_CALIBRATION_SCHEMA,
@@ -88,6 +92,7 @@ def prob4d_provider_manifest(
     inherited.pop("manifest_id", None)
     capabilities = list(cast(list[str], inherited["capabilities"]))
     for capability in (
+        "analytic_sim3_composition_jacobians",
         "canonical_repeated_eigenspace_covariance_root",
         "explicit_exploratory_and_claim_bearing_exports",
         "provider_attested_observation_artifacts",
@@ -106,6 +111,13 @@ def prob4d_provider_manifest(
                 "geometry, covariance cluster size, and gauge/point covariance methods "
                 "before opening prediction payloads"
             ),
+            "composition_jacobian_semantics": (
+                "provider-v2 sequential joint-gauge propagation uses closed-form "
+                "derivatives in log-scale, axis-angle, and translation coordinates; "
+                "the SO(3) log branch cut fails closed, while provider v1 and the "
+                "exploratory fixed-lag reconstruction path retain frozen finite-"
+                "difference behavior"
+            ),
             "covariance_root_semantics": (
                 "version 2 uses a context-local canonical basis for numerically "
                 "repeated covariance eigenspaces and fails closed if a rank boundary "
@@ -118,9 +130,9 @@ def prob4d_provider_manifest(
             ),
             "provider_attestation_semantics": (
                 "every provider-v2 export embeds the version-2 manifest identity, "
-                "export mode, covariance-root mode, and runtime-revision evidence; "
-                "claim-bearing export fails closed on unavailable, mismatched, or dirty "
-                "runtime source provenance"
+                "export mode, covariance-root and composition-Jacobian modes, and "
+                "runtime-revision evidence; claim-bearing export fails closed on "
+                "unavailable, mismatched, dirty, or non-independent runtime provenance"
             ),
         }
     )
@@ -143,6 +155,7 @@ def _provider_attested_artifact(
     *,
     export_mode: str,
     covariance_root_mode_name: CovarianceRootMode,
+    composition_jacobian_mode_name: CompositionJacobianMode,
     calibration_compatibility_validated: bool,
     runtime_attestation: RuntimeRevisionAttestation,
 ) -> ObservationBeliefExportV1:
@@ -172,6 +185,7 @@ def _provider_attested_artifact(
         ),
         "calibration_artifact_ids": calibration_ids,
         "covariance_root_mode": covariance_root_mode_name,
+        "composition_jacobian_mode": composition_jacobian_mode_name,
         "runtime_revision": runtime_attestation.as_metadata(),
     }
     return replace(artifact, metadata=metadata)
@@ -207,7 +221,13 @@ def export_exploratory_observation_belief(
     Runtime provenance is recorded but is not required to be independently verified.
     """
 
-    with covariance_root_mode(gauge_root_mode):
+    selected_composition_mode: CompositionJacobianMode = (
+        "analytic" if gauge_mode == "sequential" else "legacy_finite_difference"
+    )
+    with (
+        covariance_root_mode(gauge_root_mode),
+        composition_jacobian_mode(selected_composition_mode),
+    ):
         artifact = _v1.export_observation_belief(
             manifest_path,
             case_id=case_id,
@@ -237,6 +257,7 @@ def export_exploratory_observation_belief(
         artifact,
         export_mode="exploratory",
         covariance_root_mode_name=gauge_root_mode,
+        composition_jacobian_mode_name=selected_composition_mode,
         calibration_compatibility_validated=False,
         runtime_attestation=runtime_attestation,
     )
@@ -268,7 +289,10 @@ def export_calibrated_observation_belief(
         point_uncertainty_calibration,
         target,
     )
-    with covariance_root_mode("canonical_eigenspaces"):
+    with (
+        covariance_root_mode("canonical_eigenspaces"),
+        composition_jacobian_mode("analytic"),
+    ):
         artifact = _v1.export_calibrated_observation_belief(
             manifest_path,
             case_id=case_id,
@@ -291,6 +315,7 @@ def export_calibrated_observation_belief(
         artifact,
         export_mode="calibrated",
         covariance_root_mode_name="canonical_eigenspaces",
+        composition_jacobian_mode_name="analytic",
         calibration_compatibility_validated=True,
         runtime_attestation=runtime_attestation,
     )
@@ -312,6 +337,7 @@ __all__ = [
     "PROVIDER_API_VERSION",
     "CalibrationCompatibilityError",
     "CausalOverlapSelection",
+    "CompositionJacobianMode",
     "CovarianceRootMode",
     "GaugeCovarianceCalibrationV1",
     "MetricGaugeAnchor",

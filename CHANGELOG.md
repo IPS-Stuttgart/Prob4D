@@ -13,6 +13,9 @@ All notable changes to Prob4D are documented here.
   cluster size, and gauge/point covariance methods before payload loading.
 - A context-local canonical covariance-root basis for repeated eigenspaces in
   provider v2, with fail-closed rank boundaries and unchanged provider-v1 defaults.
+- Context-local analytic `Sim(3)` composition Jacobians for provider-v2 sequential
+  covariance propagation, with fail-closed handling at the SO(3) logarithm branch
+  cut and exact provider-v1 finite-difference compatibility.
 - Explicit `prob4d observation export-calibrated` and
   `prob4d observation export-exploratory` commands, plus installed legacy-style
   entry points for scripted use.
@@ -20,7 +23,8 @@ All notable changes to Prob4D are documented here.
   require independent VCS metadata or a clean source checkout; an environment-only
   `PROB4D_RUNTIME_REVISION` assertion is recorded only for exploratory deployments.
 - Content-addressed provider-v2 artifact metadata binding the provider manifest,
-  export mode, calibration IDs, covariance-root mode, and runtime revision evidence.
+  export mode, calibration IDs, covariance-root and composition-Jacobian modes, and
+  runtime revision evidence.
 - Version-selectable provider manifest emission through
   `prob4d provider manifest --api-version {1,2}`.
 - Provider-v2 unit, type, import, wheel, and source-distribution coverage.
@@ -33,8 +37,9 @@ All notable changes to Prob4D are documented here.
 - Documentation now recommends the calibrated provider-v2 command for new
   claim-bearing experiments and labels provider-v1 commands as frozen compatibility
   surfaces.
-- CI verifies clean-checkout runtime attestation, publishes both provider manifests,
-  and smoke-tests every provider-v2 command from installed wheel and source artifacts.
+- CI verifies analytic-versus-finite-difference derivative parity, clean-checkout
+  runtime attestation, both provider manifests, and every provider-v2 command from
+  installed wheel and source artifacts.
 
 ## 0.2.0 — 2026-07-26
 

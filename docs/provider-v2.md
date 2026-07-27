@@ -49,7 +49,7 @@ record binds:
 - calibrated versus exploratory export mode;
 - whether prediction/calibration compatibility was validated;
 - gauge and point calibration artifact identifiers;
-- covariance-root mode; and
+- covariance-root and composition-Jacobian modes; and
 - the observed runtime revision, its evidence source, checkout cleanliness, and
   whether the observation was independently verified from VCS metadata.
 
@@ -69,6 +69,42 @@ CI emits both provider manifests with:
 prob4d provider manifest --api-version 1 --provider-revision "<commit>"
 prob4d provider manifest --api-version 2 --provider-revision "<commit>"
 ```
+
+## Analytic Sim(3) composition Jacobians
+
+Sequential gauge covariance propagation composes a parent gauge with an uncertain
+relative gauge. Provider v2 now differentiates that composition analytically in
+the repository's seven-coordinate convention:
+
+```text
+[log scale, axis-angle rotation (3), translation (3)].
+```
+
+For `G = G_parent compose G_relative`, the derivatives account for:
+
+- additive log scale;
+- the SO(3) right Jacobians of the parent, relative, and composed rotations;
+- scale and rotation transport of the relative translation; and
+- the direct parent and relative translation blocks.
+
+The SO(3) logarithm is not differentiable at its pi branch cut. Provider-v2
+sequential export fails closed at that numerically ambiguous boundary instead of
+exporting a platform-dependent covariance. Random-transform, near-identity, and
+right-Jacobian inverse tests compare the analytic result with the frozen
+central-difference implementation.
+
+A task-local dispatcher keeps the compatibility boundary explicit:
+
+- provider-v2 sequential joint-gauge export uses `analytic`;
+- provider v1 defaults to `legacy_finite_difference` even after provider v2 has
+  been imported;
+- the exploratory fixed-lag reconstruction path retains
+  `legacy_finite_difference`, because its rolling smoother has separate nonlinear
+  derivatives; and
+- nested or concurrent export contexts cannot leak the provider-v2 sequential
+  choice into a frozen provider-v1 run.
+
+The selected mode is recorded in the provider-v2 artifact attestation.
 
 ## Canonical covariance-root basis
 
