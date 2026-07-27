@@ -1,0 +1,73 @@
+name: Apply observation information hardening
+
+on:
+  push:
+    branches:
+      - agent/observation-information-hardening
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+concurrency:
+  group: agent-observation-information-hardening
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: github.event_name == 'push' || github.head_ref == 'agent/observation-information-hardening'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: agent/observation-information-hardening
+          fetch-depth: 0
+      - name: Apply deterministic source transformations
+        run: python .github/agent-patches/apply_observation_information_hardening.py
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install development tools
+        run: python -m pip install -e ".[dev]"
+      - name: Format and validate
+        run: |
+          python -m ruff format \
+            src/prob4d/observation_export.py \
+            src/prob4d/provider_v1.py \
+            src/prob4d/provider_manifest.py \
+            src/prob4d/fusion.py \
+            tests/test_observation_export.py \
+            tests/test_provider_v1.py \
+            tests/test_provider_manifest.py \
+            tests/test_fusion.py
+          python -m ruff check \
+            src/prob4d/observation_export.py \
+            src/prob4d/provider_v1.py \
+            src/prob4d/provider_manifest.py \
+            src/prob4d/fusion.py \
+            tests/test_observation_export.py \
+            tests/test_provider_v1.py \
+            tests/test_provider_manifest.py \
+            tests/test_fusion.py
+          python -m mypy \
+            src/prob4d/provider_v1.py \
+            src/prob4d/provider_manifest.py
+          python -m pytest -q \
+            tests/test_observation_export.py \
+            tests/test_fusion.py \
+            tests/test_provider_manifest.py \
+            tests/test_provider_v1.py \
+            tests/test_cli.py
+          git diff --check
+      - name: Commit applied patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Harden observation information semantics"
+          git push origin HEAD:agent/observation-information-hardening
