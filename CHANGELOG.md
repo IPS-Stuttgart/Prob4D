@@ -2,6 +2,19 @@
 
 All notable changes to Prob4D are documented here.
 
+## Unreleased
+
+### Added
+
+- `prob4d.provider_v2` as a safe-by-default Python surface with distinct
+  exploratory and claim-bearing export functions.
+- Strict prediction/calibration compatibility checks covering MotionCrafter
+  revision, canonical model settings, resolution, window geometry, covariance
+  cluster size, and gauge/point covariance methods before payload loading.
+- A context-local canonical covariance-root basis for repeated eigenspaces in
+  provider v2, with fail-closed rank boundaries and unchanged provider-v1 defaults.
+- Provider-v2 unit, type, import, wheel, and source-distribution coverage.
+
 ## 0.2.0 — 2026-07-26
 
 ### Changed
