@@ -112,10 +112,11 @@ def prob4d_provider_manifest(
                 "before opening prediction payloads"
             ),
             "composition_jacobian_semantics": (
-                "provider v2 propagates sequential Sim(3) gauge covariance with "
-                "closed-form derivatives in log-scale, axis-angle, and translation "
-                "coordinates; the SO(3) log branch cut fails closed and provider v1 "
-                "retains its frozen finite-difference behavior"
+                "provider-v2 sequential joint-gauge propagation uses closed-form "
+                "derivatives in log-scale, axis-angle, and translation coordinates; "
+                "the SO(3) log branch cut fails closed, while provider v1 and the "
+                "exploratory fixed-lag reconstruction path retain frozen finite-"
+                "difference behavior"
             ),
             "covariance_root_semantics": (
                 "version 2 uses a context-local canonical basis for numerically "
@@ -220,9 +221,12 @@ def export_exploratory_observation_belief(
     Runtime provenance is recorded but is not required to be independently verified.
     """
 
+    selected_composition_mode: CompositionJacobianMode = (
+        "analytic" if gauge_mode == "sequential" else "legacy_finite_difference"
+    )
     with (
         covariance_root_mode(gauge_root_mode),
-        composition_jacobian_mode("analytic"),
+        composition_jacobian_mode(selected_composition_mode),
     ):
         artifact = _v1.export_observation_belief(
             manifest_path,
@@ -253,7 +257,7 @@ def export_exploratory_observation_belief(
         artifact,
         export_mode="exploratory",
         covariance_root_mode_name=gauge_root_mode,
-        composition_jacobian_mode_name="analytic",
+        composition_jacobian_mode_name=selected_composition_mode,
         calibration_compatibility_validated=False,
         runtime_attestation=runtime_attestation,
     )
