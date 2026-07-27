@@ -19,6 +19,24 @@ one of two functions:
 The calibrated function validates compatibility before any decoded prediction
 payload is opened.
 
+## Canonical covariance-root basis
+
+Provider version 1 retains the frozen eigenvector/sign convention used by existing
+artifacts. Version 2 selects a context-local canonical basis for numerically
+repeated covariance eigenspaces. The basis is derived from each eigenspace
+projector rather than from an arbitrary orthonormal basis returned by the linear
+algebra backend.
+
+Version 2 also fails closed when an eigenvalue floor or `max_gauge_rank` boundary
+would split a numerically repeated eigenspace. Such a split would make the retained
+subspace depend on an arbitrary eigensolver basis. Exploratory callers can request
+`gauge_root_mode="legacy_eigenvectors"` when reproducing a version-1 factor basis;
+the claim-bearing entry point always uses `canonical_eigenspaces`.
+
+The mode is context-local, so concurrent version-1 and version-2 exports retain
+their declared semantics without process-global mode leakage. The low-rank factor
+bytes remain covered by the observation artifact ID.
+
 ## Canonical MotionCrafter model identifier
 
 Calibration artifacts used through version 2 must set `model_identifier` to the

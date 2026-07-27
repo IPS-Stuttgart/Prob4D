@@ -20,6 +20,7 @@ from .calibration_compatibility import (
     load_prediction_calibration_target,
     motioncrafter_model_identifier,
 )
+from .covariance_root import CovarianceRootMode, covariance_root_mode
 from .provider_v1 import (
     GAUGE_COVARIANCE_CALIBRATION_SCHEMA,
     GAUGE_COVARIANCE_CALIBRATION_VERSION,
@@ -80,6 +81,7 @@ def prob4d_provider_manifest(
     inherited.pop("manifest_id", None)
     capabilities = list(cast(list[str], inherited["capabilities"]))
     for capability in (
+        "canonical_repeated_eigenspace_covariance_root",
         "explicit_exploratory_and_claim_bearing_exports",
         "strict_prediction_calibration_compatibility",
     ):
@@ -95,10 +97,15 @@ def prob4d_provider_manifest(
                 "geometry, covariance cluster size, and gauge/point covariance methods "
                 "before opening prediction payloads"
             ),
+            "covariance_root_semantics": (
+                "version 2 uses a context-local canonical basis for numerically "
+                "repeated covariance eigenspaces and fails closed if a rank boundary "
+                "would split one; provider v1 retains its frozen legacy basis"
+            ),
             "export_mode_semantics": (
                 "exploratory and calibrated entry points are distinct; calibrated "
-                "export fixes sequential gauge propagation and forbids pointwise "
-                "covariance fallback"
+                "export fixes sequential gauge propagation, uses canonical repeated-"
+                "eigenspace covariance roots, and forbids pointwise covariance fallback"
             ),
         }
     )
@@ -129,6 +136,7 @@ def export_exploratory_observation_belief(
     fixed_lag: int = 4,
     allow_approximate_fixed_lag_covariance: bool = False,
     max_gauge_rank: int | None = 64,
+    gauge_root_mode: CovarianceRootMode = "canonical_eigenspaces",
     minimum_retained_gauge_trace: float = 0.999,
     view_name: str = "camera0",
     source_revision: str | None = None,
@@ -143,30 +151,31 @@ def export_exploratory_observation_belief(
     name prevents an uncalibrated run from being mistaken for the claim-bearing API.
     """
 
-    return _v1.export_observation_belief(
-        manifest_path,
-        case_id=case_id,
-        causal_frame_stop=causal_frame_stop,
-        metric_anchor=metric_anchor,
-        pixel_stride=pixel_stride,
-        sampling_mode=sampling_mode,
-        effective_samples_per_group=effective_samples_per_group,
-        minimum_prior_reliability=minimum_prior_reliability,
-        gauge_mode=gauge_mode,
-        fixed_lag=fixed_lag,
-        allow_approximate_fixed_lag_covariance=(
-            allow_approximate_fixed_lag_covariance
-        ),
-        max_gauge_rank=max_gauge_rank,
-        minimum_retained_gauge_trace=minimum_retained_gauge_trace,
-        view_name=view_name,
-        source_revision=source_revision,
-        uncertainty_model=uncertainty_model,
-        gauge_covariance_calibration=gauge_covariance_calibration,
-        point_uncertainty_calibration=point_uncertainty_calibration,
-        allow_uncalibrated_exploratory_covariance=True,
-        allow_pointwise_covariance_fallback=allow_pointwise_covariance_fallback,
-    )
+    with covariance_root_mode(gauge_root_mode):
+        return _v1.export_observation_belief(
+            manifest_path,
+            case_id=case_id,
+            causal_frame_stop=causal_frame_stop,
+            metric_anchor=metric_anchor,
+            pixel_stride=pixel_stride,
+            sampling_mode=sampling_mode,
+            effective_samples_per_group=effective_samples_per_group,
+            minimum_prior_reliability=minimum_prior_reliability,
+            gauge_mode=gauge_mode,
+            fixed_lag=fixed_lag,
+            allow_approximate_fixed_lag_covariance=(
+                allow_approximate_fixed_lag_covariance
+            ),
+            max_gauge_rank=max_gauge_rank,
+            minimum_retained_gauge_trace=minimum_retained_gauge_trace,
+            view_name=view_name,
+            source_revision=source_revision,
+            uncertainty_model=uncertainty_model,
+            gauge_covariance_calibration=gauge_covariance_calibration,
+            point_uncertainty_calibration=point_uncertainty_calibration,
+            allow_uncalibrated_exploratory_covariance=True,
+            allow_pointwise_covariance_fallback=allow_pointwise_covariance_fallback,
+        )
 
 
 def export_calibrated_observation_belief(
@@ -194,24 +203,25 @@ def export_calibrated_observation_belief(
         point_uncertainty_calibration,
         target,
     )
-    return _v1.export_calibrated_observation_belief(
-        manifest_path,
-        case_id=case_id,
-        causal_frame_stop=causal_frame_stop,
-        metric_anchor=metric_anchor,
-        gauge_covariance_calibration=gauge_covariance_calibration,
-        point_uncertainty_calibration=point_uncertainty_calibration,
-        source_revision=source_revision,
-        pixel_stride=pixel_stride,
-        sampling_mode=sampling_mode,
-        effective_samples_per_group=effective_samples_per_group,
-        minimum_prior_reliability=minimum_prior_reliability,
-        gauge_mode="sequential",
-        max_gauge_rank=max_gauge_rank,
-        minimum_retained_gauge_trace=minimum_retained_gauge_trace,
-        view_name=view_name,
-        allow_pointwise_covariance_fallback=False,
-    )
+    with covariance_root_mode("canonical_eigenspaces"):
+        return _v1.export_calibrated_observation_belief(
+            manifest_path,
+            case_id=case_id,
+            causal_frame_stop=causal_frame_stop,
+            metric_anchor=metric_anchor,
+            gauge_covariance_calibration=gauge_covariance_calibration,
+            point_uncertainty_calibration=point_uncertainty_calibration,
+            source_revision=source_revision,
+            pixel_stride=pixel_stride,
+            sampling_mode=sampling_mode,
+            effective_samples_per_group=effective_samples_per_group,
+            minimum_prior_reliability=minimum_prior_reliability,
+            gauge_mode="sequential",
+            max_gauge_rank=max_gauge_rank,
+            minimum_retained_gauge_trace=minimum_retained_gauge_trace,
+            view_name=view_name,
+            allow_pointwise_covariance_fallback=False,
+        )
 
 
 __all__ = [
@@ -230,6 +240,7 @@ __all__ = [
     "PROVIDER_API_VERSION",
     "CalibrationCompatibilityError",
     "CausalOverlapSelection",
+    "CovarianceRootMode",
     "GaugeCovarianceCalibrationV1",
     "MetricGaugeAnchor",
     "ObservationBeliefExportV1",
