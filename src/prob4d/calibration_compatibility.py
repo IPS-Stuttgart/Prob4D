@@ -27,6 +27,8 @@ _MODEL_CONFIG_KEYS = (
     "guidance_scale",
     "decode_chunk_size",
     "low_memory_usage",
+    "seed",
+    "frame_stride",
 )
 
 
