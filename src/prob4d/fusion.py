@@ -104,7 +104,7 @@ def fuse_gaussians_covariance_intersection(
     weight_mode: Literal["global", "pointwise"] = "global",
     weight_sample_size: int = 4_096,
 ) -> tuple[FloatArray, FloatArray, FloatArray]:
-    """Conservatively fuse estimates with unknown cross-correlation.
+    """Conservatively fuse two estimates with unknown cross-correlation.
 
     By default, one CI weight minimizes mean log determinant over a representative
     sample. In :func:`fuse_windows` this means one weight per overlapping frame,
@@ -217,45 +217,172 @@ def fuse_gaussians_covariance_intersection(
     )
 
 
-def _uniform_update(
-    mean: FloatArray,
-    covariance: FloatArray,
-    count: NDArray[np.integer],
-    incoming_mean: FloatArray,
-    incoming_covariance: FloatArray,
-) -> tuple[FloatArray, FloatArray]:
-    next_count = count + 1
-    next_mean = mean + (incoming_mean - mean) / next_count[..., None]
-    old_offset = mean - next_mean
-    new_offset = incoming_mean - next_mean
-    next_covariance = (
-        count[..., None, None]
-        * (covariance + np.einsum("...i,...j->...ij", old_offset, old_offset))
-        + incoming_covariance
-        + np.einsum("...i,...j->...ij", new_offset, new_offset)
-    ) / next_count[..., None, None]
-    return next_mean, next_covariance
+
+def fuse_gaussians_generalized_covariance_intersection(
+    means: FloatArray,
+    covariances: FloatArray,
+    *,
+    grid_size: int = 21,
+    minimum_weight: float = 0.0,
+    chunk_size: int = 16_384,
+    weight_sample_size: int = 4_096,
+    maximum_iterations: int = 100,
+    tolerance: float = 1e-10,
+) -> tuple[FloatArray, FloatArray, FloatArray]:
+    """Fuse one or more estimates in one generalized-CI problem.
+
+    The first axis indexes contributors. One global simplex weight vector is
+    optimized jointly, avoiding the non-associativity of repeated pairwise CI.
+    One contributor is returned unchanged, while two contributors delegate to
+    :func:`fuse_gaussians_covariance_intersection` for exact numerical parity.
+    """
+
+    values = np.asarray(means, dtype=np.float64)
+    matrices = np.asarray(covariances, dtype=np.float64)
+    if values.ndim < 2 or values.shape[0] < 1:
+        raise ValueError("generalized CI means must have shape (K, ..., D)")
+    if not np.all(np.isfinite(values)):
+        raise ValueError("generalized CI means must be finite")
+    contributor_count = values.shape[0]
+    dimension = values.shape[-1]
+    if matrices.shape != values.shape + (dimension,):
+        raise ValueError("generalized CI covariance shape does not match means")
+    if not 0.0 <= minimum_weight < 1.0 / contributor_count:
+        raise ValueError("minimum_weight must lie in [0, 1 / contributor_count)")
+    if chunk_size < 1 or weight_sample_size < 1 or maximum_iterations < 1:
+        raise ValueError("generalized CI sizes and iteration count must be positive")
+    if not np.isfinite(tolerance) or tolerance <= 0.0:
+        raise ValueError("generalized CI tolerance must be finite and positive")
+    if contributor_count == 1:
+        _regularized_inverse(matrices)
+        return values[0].copy(), matrices[0].copy(), np.ones(1, dtype=np.float64)
+    if contributor_count == 2:
+        mean, covariance, first_weight = fuse_gaussians_covariance_intersection(
+            values[0],
+            matrices[0],
+            values[1],
+            matrices[1],
+            grid_size=grid_size,
+            minimum_weight=minimum_weight,
+            chunk_size=chunk_size,
+            weight_mode="global",
+            weight_sample_size=weight_sample_size,
+        )
+        value = float(np.ravel(first_weight)[0])
+        return mean, covariance, np.asarray([value, 1.0 - value])
+
+    from ._generalized_ci import fuse_nway_covariance_intersection
+
+    return fuse_nway_covariance_intersection(
+        values,
+        matrices,
+        minimum_weight=minimum_weight,
+        weight_sample_size=weight_sample_size,
+        maximum_iterations=maximum_iterations,
+        tolerance=tolerance,
+        chunk_size=chunk_size,
+    )
 
 
-def _fuse_update(
+def _fuse_contributor_stack(
+    means: FloatArray,
+    covariances: FloatArray,
+    *,
     method: FusionMethod,
-    mean: FloatArray,
-    covariance: FloatArray,
-    count: NDArray[np.integer],
-    incoming_mean: FloatArray,
-    incoming_covariance: FloatArray,
 ) -> tuple[FloatArray, FloatArray]:
+    contributor_count = means.shape[0]
+    if contributor_count == 1:
+        return means[0], covariances[0]
     if method == "uniform":
-        return _uniform_update(mean, covariance, count, incoming_mean, incoming_covariance)
+        fused_mean = np.mean(means, axis=0)
+        offsets = means - fused_mean[None]
+        fused_covariance = np.mean(
+            covariances + np.einsum("mni,mnj->mnij", offsets, offsets),
+            axis=0,
+        )
+        return fused_mean, fused_covariance
     if method == "precision":
-        return fuse_gaussians_independent(mean, covariance, incoming_mean, incoming_covariance)
+        information = _regularized_inverse(covariances)
+        fused_covariance = _regularized_inverse(np.sum(information, axis=0))
+        information_vector = np.sum(
+            np.einsum("mnij,mnj->mni", information, means),
+            axis=0,
+        )
+        fused_mean = np.einsum("nij,nj->ni", fused_covariance, information_vector)
+        return fused_mean, fused_covariance
     if method == "covariance_intersection":
-        fused_mean, fused_covariance, _ = fuse_gaussians_covariance_intersection(
-            mean, covariance, incoming_mean, incoming_covariance
+        if contributor_count == 2:
+            fused_mean, fused_covariance, _ = fuse_gaussians_covariance_intersection(
+                means[0],
+                covariances[0],
+                means[1],
+                covariances[1],
+            )
+            return fused_mean, fused_covariance
+        from ._generalized_ci import fuse_nway_covariance_intersection
+
+        fused_mean, fused_covariance, _ = fuse_nway_covariance_intersection(
+            means,
+            covariances,
+            canonicalize=False,
         )
         return fused_mean, fused_covariance
     raise ValueError(f"unknown fusion method {method!r}")
 
+
+def _fuse_frame_fields(
+    means: list[FloatArray],
+    covariances: list[FloatArray],
+    masks: list[NDArray[np.bool_]],
+    *,
+    method: FusionMethod,
+) -> tuple[FloatArray, FloatArray, NDArray[np.bool_], NDArray[np.uint16]]:
+    """Fuse all contributors to one frame without pairwise ordering effects."""
+
+    stacked_means = np.stack(means)
+    stacked_covariances = np.stack(covariances)
+    stacked_masks = np.stack(masks)
+    contributor_count, height, width = stacked_masks.shape
+    active_rows = stacked_masks.reshape(contributor_count, -1).T
+    patterns, inverse = np.unique(active_rows, axis=0, return_inverse=True)
+    output_mean = np.zeros((height * width, 3), dtype=np.float64)
+    output_covariance = np.zeros((height * width, 3, 3), dtype=np.float64)
+    output_count = np.sum(active_rows, axis=1, dtype=np.uint16)
+    flat_means = stacked_means.reshape(contributor_count, -1, 3)
+    flat_covariances = stacked_covariances.reshape(contributor_count, -1, 3, 3)
+    for pattern_index, pattern in enumerate(patterns):
+        active = np.flatnonzero(pattern)
+        if len(active) == 0:
+            continue
+        selected = inverse == pattern_index
+        fused_mean, fused_covariance = _fuse_contributor_stack(
+            flat_means[active][:, selected],
+            flat_covariances[active][:, selected],
+            method=method,
+        )
+        output_mean[selected] = fused_mean
+        output_covariance[selected] = fused_covariance
+    valid = output_count > 0
+    return (
+        output_mean.reshape(height, width, 3),
+        output_covariance.reshape(height, width, 3, 3),
+        valid.reshape(height, width),
+        output_count.reshape(height, width),
+    )
+
+
+def _structured_covariance_frame(
+    uncertainty: StructuredCovariance,
+    transform: Sim3,
+    local_index: int,
+) -> FloatArray:
+    rays = transform.rotate_directions(uncertainty.ray_directions[local_index])
+    parallel = transform.scale**2 * uncertainty.parallel_variance[local_index]
+    lateral = transform.scale**2 * uncertainty.lateral_variance[local_index]
+    outer = np.einsum("...i,...j->...ij", rays, rays)
+    return lateral[..., None, None] * np.eye(3) + (
+        parallel - lateral
+    )[..., None, None] * outer
 
 def _gauge_induced_covariance(
     values: FloatArray,
@@ -302,6 +429,7 @@ def _gauge_induced_covariance(
     return propagated.reshape(values.shape + (3,))
 
 
+
 def fuse_windows(
     windows: list[PredictionWindow],
     gauges: dict[str, Sim3],
@@ -311,7 +439,12 @@ def fuse_windows(
     flow_uncertainties: dict[str, StructuredCovariance] | None = None,
     gauge_covariances: dict[str, FloatArray] | None = None,
 ) -> FusedSequence:
-    """Transform decoded windows to a common gauge and fuse duplicate pixels."""
+    """Transform and jointly fuse duplicate pixels in canonical window order.
+
+    Every frame/mask pattern is fused in one batch. Uniform and independent
+    precision fusion use their exact multi-input formulas; covariance intersection
+    solves one generalized simplex problem for all contributors.
+    """
 
     if not windows:
         raise ValueError("at least one prediction window is required")
@@ -328,100 +461,112 @@ def fuse_windows(
     height, width = ordered_windows[0].shape[1:]
     if any(window.shape[1:] != (height, width) for window in ordered_windows):
         raise ValueError("all windows must use the same spatial resolution")
+    if method not in {"uniform", "precision", "covariance_intersection"}:
+        raise ValueError(f"unknown fusion method {method!r}")
+    for window in ordered_windows:
+        if window.window_id not in gauges or window.window_id not in point_uncertainties:
+            raise KeyError(f"missing gauge or uncertainty for window {window.window_id!r}")
+        if gauge_covariances is not None and window.window_id not in gauge_covariances:
+            raise KeyError(f"missing gauge covariance for window {window.window_id!r}")
+        if (
+            window.scene_flow is not None
+            and flow_uncertainties is not None
+            and window.window_id not in flow_uncertainties
+        ):
+            raise KeyError(f"missing flow uncertainty for window {window.window_id!r}")
+
     all_frames = np.unique(
         np.concatenate([window.frame_indices for window in ordered_windows])
     )
-    frame_positions = {int(frame): index for index, frame in enumerate(all_frames)}
     shape = (all_frames.size, height, width)
     point_map = np.zeros(shape + (3,), dtype=np.float64)
     valid_mask = np.zeros(shape, dtype=bool)
     point_covariance = np.zeros(shape + (3, 3), dtype=np.float64)
     contributors = np.zeros(shape, dtype=np.uint16)
-
     has_flow = any(window.scene_flow is not None for window in ordered_windows)
     scene_flow = np.zeros_like(point_map) if has_flow else None
     deform_mask = np.zeros(shape, dtype=bool) if has_flow else None
     flow_covariance = np.zeros_like(point_covariance) if has_flow else None
-    flow_contributors = np.zeros(shape, dtype=np.uint16) if has_flow else None
 
-    for window in ordered_windows:
-        if window.window_id not in gauges or window.window_id not in point_uncertainties:
-            raise KeyError(f"missing gauge or uncertainty for window {window.window_id!r}")
-        gauge = gauges[window.window_id]
-        transformed_points = gauge.transform_points(window.point_map)
-        transformed_point_covariance = (
-            point_uncertainties[window.window_id].transformed(gauge).matrices()
-        )
-        if gauge_covariances is not None:
-            if window.window_id not in gauge_covariances:
-                raise KeyError(f"missing gauge covariance for window {window.window_id!r}")
-            transformed_point_covariance += _gauge_induced_covariance(
-                window.point_map,
+    for output_index, frame in enumerate(all_frames):
+        point_means: list[FloatArray] = []
+        point_covariances: list[FloatArray] = []
+        point_masks: list[NDArray[np.bool_]] = []
+        flow_means: list[FloatArray] = []
+        flow_covariances: list[FloatArray] = []
+        flow_masks: list[NDArray[np.bool_]] = []
+        for window in ordered_windows:
+            try:
+                local_index = window.local_index(int(frame))
+            except KeyError:
+                continue
+            gauge = gauges[window.window_id]
+            local_points = window.point_map[local_index]
+            transformed_points = gauge.transform_points(local_points)
+            transformed_point_covariance = _structured_covariance_frame(
+                point_uncertainties[window.window_id],
                 gauge,
-                gauge_covariances[window.window_id],
-                include_translation=True,
+                local_index,
             )
-        if window.scene_flow is not None:
+            if gauge_covariances is not None:
+                transformed_point_covariance += _gauge_induced_covariance(
+                    local_points,
+                    gauge,
+                    gauge_covariances[window.window_id],
+                    include_translation=True,
+                )
+            point_means.append(transformed_points)
+            point_covariances.append(transformed_point_covariance)
+            point_masks.append(window.valid_mask[local_index])
+
+            if window.scene_flow is None:
+                continue
             uncertainty = (
                 flow_uncertainties[window.window_id]
                 if flow_uncertainties is not None
                 else point_uncertainties[window.window_id]
             )
-            transformed_flow = gauge.transform_vectors(window.scene_flow)
-            transformed_flow_covariance = uncertainty.transformed(gauge).matrices()
+            local_flow = window.scene_flow[local_index]
+            transformed_flow = gauge.transform_vectors(local_flow)
+            transformed_flow_covariance = _structured_covariance_frame(
+                uncertainty,
+                gauge,
+                local_index,
+            )
             if gauge_covariances is not None:
                 transformed_flow_covariance += _gauge_induced_covariance(
-                    window.scene_flow,
+                    local_flow,
                     gauge,
                     gauge_covariances[window.window_id],
                     include_translation=False,
                 )
+            flow_means.append(transformed_flow)
+            flow_covariances.append(transformed_flow_covariance)
+            flow_masks.append(window.deform_mask[local_index])
 
-        for local_index, frame in enumerate(window.frame_indices):
-            output_index = frame_positions[int(frame)]
-            incoming = window.valid_mask[local_index]
-            new = incoming & ~valid_mask[output_index]
-            overlap = incoming & valid_mask[output_index]
-            point_map[output_index][new] = transformed_points[local_index][new]
-            point_covariance[output_index][new] = transformed_point_covariance[local_index][new]
-            valid_mask[output_index][new] = True
-            contributors[output_index][new] = 1
-            if np.any(overlap):
-                updated_mean, updated_covariance = _fuse_update(
-                    method,
-                    point_map[output_index][overlap],
-                    point_covariance[output_index][overlap],
-                    contributors[output_index][overlap],
-                    transformed_points[local_index][overlap],
-                    transformed_point_covariance[local_index][overlap],
-                )
-                point_map[output_index][overlap] = updated_mean
-                point_covariance[output_index][overlap] = updated_covariance
-                contributors[output_index][overlap] += 1
-
-            if window.scene_flow is None:
-                continue
-            flow_incoming = window.deform_mask[local_index]
-            flow_new = flow_incoming & ~deform_mask[output_index]
-            flow_overlap = flow_incoming & deform_mask[output_index]
-            scene_flow[output_index][flow_new] = transformed_flow[local_index][flow_new]
-            flow_covariance[output_index][flow_new] = transformed_flow_covariance[local_index][
-                flow_new
-            ]
-            deform_mask[output_index][flow_new] = True
-            flow_contributors[output_index][flow_new] = 1
-            if np.any(flow_overlap):
-                updated_mean, updated_covariance = _fuse_update(
-                    method,
-                    scene_flow[output_index][flow_overlap],
-                    flow_covariance[output_index][flow_overlap],
-                    flow_contributors[output_index][flow_overlap],
-                    transformed_flow[local_index][flow_overlap],
-                    transformed_flow_covariance[local_index][flow_overlap],
-                )
-                scene_flow[output_index][flow_overlap] = updated_mean
-                flow_covariance[output_index][flow_overlap] = updated_covariance
-                flow_contributors[output_index][flow_overlap] += 1
+        (
+            point_map[output_index],
+            point_covariance[output_index],
+            valid_mask[output_index],
+            contributors[output_index],
+        ) = _fuse_frame_fields(
+            point_means,
+            point_covariances,
+            point_masks,
+            method=method,
+        )
+        if flow_means:
+            (
+                scene_flow[output_index],
+                flow_covariance[output_index],
+                deform_mask[output_index],
+                _,
+            ) = _fuse_frame_fields(
+                flow_means,
+                flow_covariances,
+                flow_masks,
+                method=method,
+            )
 
     return FusedSequence(
         frame_indices=all_frames,
