@@ -87,19 +87,22 @@ For `G = G_parent compose G_relative`, the derivatives account for:
 - scale and rotation transport of the relative translation; and
 - the direct parent and relative translation blocks.
 
-The SO(3) logarithm is not differentiable at its pi branch cut. Provider v2 fails
-closed at that numerically ambiguous boundary instead of exporting a
-platform-dependent covariance. Random-transform, near-identity, and right-Jacobian
-inverse tests compare the analytic result with the frozen central-difference
-implementation.
+The SO(3) logarithm is not differentiable at its pi branch cut. Provider-v2
+sequential export fails closed at that numerically ambiguous boundary instead of
+exporting a platform-dependent covariance. Random-transform, near-identity, and
+right-Jacobian inverse tests compare the analytic result with the frozen
+central-difference implementation.
 
 A task-local dispatcher keeps the compatibility boundary explicit:
 
-- provider v2 uses `analytic`;
+- provider-v2 sequential joint-gauge export uses `analytic`;
 - provider v1 defaults to `legacy_finite_difference` even after provider v2 has
-  been imported; and
-- nested or concurrent export contexts cannot leak the provider-v2 choice into a
-  frozen provider-v1 run.
+  been imported;
+- the exploratory fixed-lag reconstruction path retains
+  `legacy_finite_difference`, because its rolling smoother has separate nonlinear
+  derivatives; and
+- nested or concurrent export contexts cannot leak the provider-v2 sequential
+  choice into a frozen provider-v1 run.
 
 The selected mode is recorded in the provider-v2 artifact attestation.
 
