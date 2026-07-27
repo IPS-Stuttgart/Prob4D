@@ -36,7 +36,20 @@ jobs:
       - name: Install development tools
         run: python -m pip install -e ".[dev]"
       - name: Run Ruff
-        run: python -m ruff check src tests
+        id: ruff
+        continue-on-error: true
+        run: python -m ruff check src tests 2>&1 | tee ruff-output.txt
+      - name: Upload Ruff diagnostics
+        if: steps.ruff.outcome == 'failure'
+        uses: actions/upload-artifact@v7
+        with:
+          name: generalized-dense-ci-ruff
+          path: ruff-output.txt
+          if-no-files-found: error
+          retention-days: 7
+      - name: Fail on Ruff diagnostics
+        if: steps.ruff.outcome == 'failure'
+        run: exit 1
       - name: Type-check stable provider interfaces
         run: >-
           python -m mypy
