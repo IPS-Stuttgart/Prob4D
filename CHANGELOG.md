@@ -16,9 +16,9 @@ All notable changes to Prob4D are documented here.
 - Explicit `prob4d observation export-calibrated` and
   `prob4d observation export-exploratory` commands, plus installed legacy-style
   entry points for scripted use.
-- Runtime source-revision attestation for claim-bearing provider-v2 export. Clean
-  source checkouts and VCS-installed packages are verified directly; packaged
-  deployments can provide a labelled `PROB4D_RUNTIME_REVISION` attestation.
+- Runtime source-revision attestation for provider-v2 export. Claim-bearing runs
+  require independent VCS metadata or a clean source checkout; an environment-only
+  `PROB4D_RUNTIME_REVISION` assertion is recorded only for exploratory deployments.
 - Content-addressed provider-v2 artifact metadata binding the provider manifest,
   export mode, calibration IDs, covariance-root mode, and runtime revision evidence.
 - Version-selectable provider manifest emission through
