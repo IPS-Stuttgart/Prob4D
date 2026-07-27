@@ -1,26 +1,27 @@
 name: Publish observation contract consolidation
 
 on:
-  push:
-    branches:
-      - agent/observation-contract-conformance
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: write
 
 concurrency:
-  group: observation-contract-publish
+  group: observation-contract-publish-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
   publish:
-    if: github.actor != 'github-actions[bot]'
+    if: >-
+      github.actor != 'github-actions[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: agent/observation-contract-conformance
+          ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 1
           show-progress: false
       - name: Materialize source consolidation
@@ -30,6 +31,8 @@ jobs:
           rm .github/agent-patches/apply_observation_contract.py
           rm .github/workflows/agent-apply-observation-contract.yml
           rm -f .github/workflows/observation-contract-conformance.yml
+          git fetch --depth=1 origin main
+          git checkout origin/main -- .github/workflows/tests.yml
       - name: Commit generated source for normal PR validation
         run: |
           set -euo pipefail
@@ -37,4 +40,4 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
           git commit -m 'Materialize observation-belief contract consolidation'
-          git push origin HEAD:agent/observation-contract-conformance
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
