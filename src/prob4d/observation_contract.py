@@ -11,6 +11,12 @@ from typing import Any
 
 import numpy as np
 
+from .observation_contract_bundle import (
+    observation_contract_array_sha256,
+    observation_contract_artifact_id,
+    observation_contract_canonical_json_sha256,
+)
+
 OBSERVATION_BELIEF_SCHEMA = "phys4d.observation_belief"
 OBSERVATION_BELIEF_VERSION = 1
 
@@ -18,12 +24,7 @@ OBSERVATION_BELIEF_VERSION = 1
 def array_sha256(values: np.ndarray) -> str:
     """Hash an array including dtype and shape."""
 
-    array = np.ascontiguousarray(np.asarray(values))
-    digest = hashlib.sha256()
-    digest.update(array.dtype.str.encode("ascii"))
-    digest.update(json.dumps(array.shape, separators=(",", ":")).encode("ascii"))
-    digest.update(array.view(np.uint8))
-    return digest.hexdigest()
+    return observation_contract_array_sha256(values)
 
 
 def file_sha256(path: str | Path) -> str:
@@ -39,7 +40,7 @@ def file_sha256(path: str | Path) -> str:
 def canonical_json_sha256(value: Mapping[str, Any]) -> str:
     """Hash finite JSON data using the observation-contract canonicalization."""
 
-    return hashlib.sha256(_canonical_json(value)).hexdigest()
+    return observation_contract_canonical_json_sha256(value)
 
 
 def _canonical_json(value: Mapping[str, Any]) -> bytes:
@@ -54,12 +55,7 @@ def _canonical_json(value: Mapping[str, Any]) -> bytes:
 def _artifact_id(
     descriptor: Mapping[str, Any], arrays: Mapping[str, np.ndarray]
 ) -> str:
-    digest = hashlib.sha256()
-    digest.update(_canonical_json(descriptor))
-    for name, values in sorted(arrays.items()):
-        digest.update(name.encode("utf-8"))
-        digest.update(array_sha256(values).encode("ascii"))
-    return digest.hexdigest()
+    return observation_contract_artifact_id(descriptor, arrays)
 
 
 def _validate_sha256(value: str, *, name: str) -> None:
