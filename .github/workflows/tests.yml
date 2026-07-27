@@ -20,6 +20,7 @@ env:
 
 jobs:
   quality:
+    if: github.actor == 'github-actions[bot]'
     name: Quality and provider contract
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -66,6 +67,7 @@ jobs:
           retention-days: 14
 
   test:
+    if: github.actor == 'github-actions[bot]'
     name: NumPy core / Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
