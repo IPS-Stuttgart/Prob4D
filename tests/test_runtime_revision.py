@@ -18,17 +18,19 @@ def test_matching_clean_checkout_is_independently_verified(monkeypatch) -> None:
     assert attestation.as_metadata()["clean_checkout"] is True
 
 
-def test_matching_deployment_attestation_is_recorded_as_nonindependent(monkeypatch) -> None:
+def test_matching_deployment_assertion_is_exploratory_only(monkeypatch) -> None:
     monkeypatch.setattr(
         runtime_revision,
         "_resolve_runtime_revision",
         lambda **kwargs: ("a" * 40, "deployment_environment", None),
     )
-    attestation = runtime_revision.assert_runtime_revision("a" * 40)
+    inspected = runtime_revision.inspect_runtime_revision("a" * 40)
 
-    assert attestation.matched is True
-    assert attestation.independently_verified is False
-    assert attestation.source == "deployment_environment"
+    assert inspected.matched is True
+    assert inspected.independently_verified is False
+    assert inspected.source == "deployment_environment"
+    with pytest.raises(RuntimeError, match="independent VCS revision evidence"):
+        runtime_revision.assert_runtime_revision("a" * 40)
 
 
 def test_claim_bearing_revision_mismatch_fails_closed(monkeypatch) -> None:
