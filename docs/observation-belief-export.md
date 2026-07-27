@@ -65,6 +65,7 @@ prob4d observation export \
   --causal-frame-stop 134 \
   --metric-gauge-anchor outputs/metric_gauge_anchor.json \
   --pixel-stride 4 \
+  --sampling-mode information_stratified \
   --max-gauge-rank 64 \
   --minimum-retained-gauge-trace 0.999 \
   --source-revision <full-prob4d-commit> \
@@ -79,8 +80,16 @@ exact absolute frame IDs implied by the declared bounds and frame stride.
 Unknown lineage schemas, path traversal, inconsistent frame IDs, non-prefix
 window selections, an anchor for the wrong first payload, and incomplete
 calibration provenance fail closed. The exporter records an exact 40- or
-64-character Prob4D commit. It also fails closed when that revision cannot be
+64-character Prob4D commit.
+The export fails when that revision cannot be
 obtained from the checkout and is not provided explicitly.
+
+`fixed_grid` sampling remains available to reproduce frozen artifacts.
+`information_stratified` partitions each frame into `pixel_stride` tiles and
+selects at most one valid row per tile using a deterministic score combining
+source reliability, depth leverage, and conditional precision. This avoids
+dropping an otherwise valid tile merely because its upper-left grid pixel is
+invalid. The selected mode is content-addressed metadata.
 
 The strict command first writes a hidden temporary archive, reloads it through
 the strict validator, verifies the content address, flushes it, and atomically
@@ -103,9 +112,14 @@ including the cross-covariance between windows. Redundant alignment edges are
 reported but are not fused into the production tree, which avoids silently
 assuming independence between dense shared-backbone constraints.
 
-A deterministic eigendecomposition produces a shared covariance root. The
+A deterministic eigendecomposition produces a shared covariance root. Before
+truncation, each window's log-scale and rotation coordinates are normalized by a
+robust representative metric point radius; translation already has displacement
+units. The retained trace is therefore an observation-displacement proxy rather
+than a raw sum of squared radians, metres, and dimensionless log scale. It is
+invariant to expressing the same metric geometry in metres or millimetres. The
 export fails when `--max-gauge-rank` would retain less than
-`--minimum-retained-gauge-trace` of the joint covariance trace. Rank reduction is
+`--minimum-retained-gauge-trace` under this declared metric. Rank reduction is
 therefore explicit and auditable rather than a silent memory optimization.
 
 The legacy `--gauge-mode fixed_lag` path remains available only with
@@ -143,7 +157,12 @@ physical innovation.
 The exporter has no independently calibrated group-level nominal/outlier prior.
 It therefore writes the neutral value `1.0` for
 `group_prior_nominal_probability`; overlap reliability is not applied a second
-time. `group_composite_weight` separately caps dense duplicate information.
+time. `group_composite_weight` is the final per-row generalized-Bayes power
+that caps dense duplicate information. The artifact declares
+`group_composite_weight_semantics = final-per-row-effective-sample-cap-v1`;
+downstream consumers must not apply a second effective-sample cap to those rows.
+Per-group raw-row, unique-entity, effective-sample, and per-row-weight statistics
+are embedded for audit.
 
 The descriptor, all array names, dtypes, shapes, and bytes are covered by the
 artifact ID. The source digest covers only admitted payload hashes and stable

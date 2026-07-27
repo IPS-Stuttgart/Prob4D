@@ -13,7 +13,6 @@ from prob4d.calibration import (
 from prob4d.observation_contract import ObservationBeliefExportV1
 from prob4d.uncertainty import CalibrationReport, DepthDisagreementModel
 
-
 PROVENANCE = {
     "calibration_case_ids": ("scene-a",),
     "source_repository": "FlorianPfaff/Prob4D",
@@ -157,6 +156,7 @@ def test_export_observation_belief_forwards_and_binds_stable_parameters(
         causal_frame_stop=134,
         metric_anchor=anchor,
         pixel_stride=8,
+        sampling_mode="information_stratified",
         effective_samples_per_group=32.0,
         minimum_prior_reliability=0.1,
         gauge_mode="sequential",
@@ -176,6 +176,7 @@ def test_export_observation_belief_forwards_and_binds_stable_parameters(
         "causal_frame_stop": 134,
         "metric_anchor": anchor,
         "pixel_stride": 8,
+        "sampling_mode": "information_stratified",
         "effective_samples_per_group": 32.0,
         "minimum_prior_reliability": 0.1,
         "gauge_mode": "sequential",

@@ -25,6 +25,9 @@ PROB4D_PROVIDER_CAPABILITIES = (
     "immutable_validated_core_arrays",
     "joint_cross_window_sim3_gauge_covariance",
     "metric_anchor_covariance_propagation",
+    "provider_final_composite_group_weight",
+    "sim3_observation_displacement_rank_reduction",
+    "information_stratified_observation_sampling",
     "strict_observation_belief_validation",
     "trace_audited_gauge_rank_reduction",
     "versioned_causal_stream_contract",
@@ -103,9 +106,7 @@ def prob4d_provider_manifest(
             "source_repository": "FlorianPfaff/Prob4D",
             "python_import_boundary": "prob4d.provider_v1",
             "observation_stream": "prob4d:causal-overlap-window-points",
-            "observation_stream_contract_version": (
-                PROB4D_CAUSAL_STREAM_CONTRACT_VERSION
-            ),
+            "observation_stream_contract_version": (PROB4D_CAUSAL_STREAM_CONTRACT_VERSION),
             "observation_belief_covariance_semantics": (
                 "conditional local covariance plus one shared low-rank root of the "
                 "joint Sim(3) covariance induced by the metric-anchor prior and "
@@ -126,6 +127,18 @@ def prob4d_provider_manifest(
             "observation_factor_bundle_covariance_semantics": (
                 "explicit gauge nuisance factors with schema-v3 reliability and "
                 "correlation-group fields"
+            ),
+            "group_composite_weight_semantics": (
+                "final-per-row-effective-sample-cap-v1; downstream consumers must "
+                "not apply another effective-sample cap to the same rows"
+            ),
+            "gauge_rank_reduction_semantics": (
+                "Sim(3) covariance is normalized by representative metric point "
+                "radius before eigentruncation, then mapped back to native coordinates"
+            ),
+            "observation_sampling_semantics": (
+                "fixed-grid remains the frozen default; information-stratified mode "
+                "selects one deterministic high-information valid row per spatial tile"
             ),
             "metric_boundary": (
                 "the content-addressed anchor binds the exact first prediction payload "

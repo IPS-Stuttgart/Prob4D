@@ -17,6 +17,7 @@ from prob4d.observation_export import (
     gauge_covariance_factor,
     joint_gauge_factor,
     load_metric_gauge_anchor,
+    observation_sample_mask,
     save_metric_gauge_anchor,
     select_causal_overlap_windows,
 )
@@ -149,9 +150,12 @@ def test_causal_selection_does_not_open_future_payload(tmp_path: Path) -> None:
         "window_0001",
     ]
     assert selection.skipped_window_count == 1
-    assert selection.artifact_lineage_metadata(causal_frame_stop=6)[
-        "future_prediction_payloads_opened"
-    ] == 0
+    assert (
+        selection.artifact_lineage_metadata(causal_frame_stop=6)[
+            "future_prediction_payloads_opened"
+        ]
+        == 0
+    )
 
 
 def test_future_append_does_not_change_exported_artifact(
@@ -187,6 +191,14 @@ def test_future_append_does_not_change_exported_artifact(
         np.ones_like(first.group_prior_nominal_probability),
     )
     assert first.metadata["joint_cross_window_gauge_covariance_represented"] is True
+    assert first.metadata["group_composite_weight_semantics"] == (
+        "final-per-row-effective-sample-cap-v1"
+    )
+    assert first.metadata["sampling_mode"] == "fixed_grid"
+    for statistics in first.metadata["group_statistics"]:
+        assert statistics["raw_row_count"] * statistics[
+            "per_row_composite_weight"
+        ] == pytest.approx(statistics["effective_sample_count"])
     assert first.metadata["association_probability_definition"].endswith(
         "not downstream physical-node association"
     )
@@ -314,10 +326,7 @@ def test_joint_tree_preserves_anchor_uncertainty_and_cross_covariance() -> None:
         anchor_covariance,
         atol=2e-6,
     )
-    assert np.all(
-        np.diag(posterior.joint_covariance[7:, 7:])
-        >= np.diag(anchor_covariance) - 1e-6
-    )
+    assert np.all(np.diag(posterior.joint_covariance[7:, 7:]) >= np.diag(anchor_covariance) - 1e-6)
     assert posterior.cross_window_covariance_preserved is True
 
 
@@ -350,6 +359,97 @@ def test_covariance_root_reports_rank_truncation() -> None:
     root, retained = deterministic_covariance_root(covariance, max_rank=2)
     assert root.shape == (7, 2)
     assert retained == pytest.approx((7.0 + 6.0) / 28.0)
+
+
+def test_sim3_rank_reduction_is_metric_unit_invariant() -> None:
+    generator = np.random.default_rng(91)
+    basis = generator.normal(size=(14, 9))
+    covariance_m = basis @ basis.T + np.eye(14) * 1e-4
+    radii_m = (0.4, 1.7)
+    normalizer_m = np.concatenate(
+        [np.asarray([radius, radius, radius, radius, 1.0, 1.0, 1.0]) for radius in radii_m]
+    )
+    unit_transform = np.diag(
+        np.tile(
+            np.asarray([1.0, 1.0, 1.0, 1.0, 1_000.0, 1_000.0, 1_000.0]),
+            2,
+        )
+    )
+    covariance_mm = unit_transform @ covariance_m @ unit_transform.T
+    normalizer_mm = np.concatenate(
+        [
+            np.asarray(
+                [1_000.0 * radius] * 4 + [1.0, 1.0, 1.0],
+                dtype=np.float64,
+            )
+            for radius in radii_m
+        ]
+    )
+
+    root_m, retained_m = deterministic_covariance_root(
+        covariance_m,
+        max_rank=5,
+        coordinate_normalizer=normalizer_m,
+    )
+    root_mm, retained_mm = deterministic_covariance_root(
+        covariance_mm,
+        max_rank=5,
+        coordinate_normalizer=normalizer_mm,
+    )
+
+    assert retained_mm == pytest.approx(retained_m, rel=1e-12, abs=1e-12)
+    np.testing.assert_allclose(
+        np.linalg.solve(unit_transform, root_mm),
+        root_m,
+        rtol=1e-10,
+        atol=1e-10,
+    )
+
+
+def test_information_stratified_sampling_recovers_valid_rows_inside_tiles() -> None:
+    valid = np.zeros((4, 4), dtype=bool)
+    valid[1, 1] = True
+    valid[0, 3] = True
+    valid[3, 0] = True
+    valid[3, 3] = True
+    points = np.zeros((4, 4, 3), dtype=np.float64)
+    points[..., 2] = 1.0
+    parallel = np.ones((4, 4), dtype=np.float64)
+    lateral = np.ones((4, 4), dtype=np.float64)
+    reliability = np.ones((4, 4), dtype=np.float64)
+
+    fixed = observation_sample_mask(
+        valid,
+        points,
+        parallel,
+        lateral,
+        reliability,
+        pixel_stride=2,
+        sampling_mode="fixed_grid",
+    )
+    first = observation_sample_mask(
+        valid,
+        points,
+        parallel,
+        lateral,
+        reliability,
+        pixel_stride=2,
+        sampling_mode="information_stratified",
+    )
+    second = observation_sample_mask(
+        valid,
+        points,
+        parallel,
+        lateral,
+        reliability,
+        pixel_stride=2,
+        sampling_mode="information_stratified",
+    )
+
+    assert not fixed[1, 1]
+    assert first[1, 1]
+    assert np.count_nonzero(first) == 4
+    np.testing.assert_array_equal(first, second)
 
 
 def test_fixed_lag_export_requires_explicit_approximation_opt_in(
