@@ -42,17 +42,14 @@ def test_rejects_factor_arriving_after_marginalization() -> None:
 
 
 def test_rejects_invalid_factor_covariance() -> None:
-    window_ids, estimates, constraints = _inputs()
+    window_ids, _, _ = _inputs()
     covariance = np.eye(7)
     covariance[-1, -1] = -0.1
-    constraints[0] = RelativeGaugeConstraint(
-        window_ids[0],
-        window_ids[1],
-        Sim3.identity(),
-        covariance,
-    )
 
     with pytest.raises(ValueError, match="positive semidefinite"):
-        MarginalizedFixedLagGaugeSmoother(lag=2).smooth(
-            window_ids, estimates, constraints
+        RelativeGaugeConstraint(
+            window_ids[0],
+            window_ids[1],
+            Sim3.identity(),
+            covariance,
         )
