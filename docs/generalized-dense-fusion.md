@@ -69,6 +69,13 @@ covered by tests for:
 - scene-flow parity; and
 - a 4,096-row numerical smoke case.
 
+## Provider Boundary
+
+This changes the decoded reconstruction estimator only. The causally sealed
+`ObservationBeliefV1` export retains unfused window rows and its existing joint
+gauge-factor semantics, so the provider wire contract and artifact IDs are not
+silently reinterpreted by this change.
+
 ## Claim Boundary
 
 Joint fusion removes an implementation-level ordering artifact. It does not by
