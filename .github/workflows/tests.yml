@@ -51,9 +51,11 @@ jobs:
         run: >-
           python -m mypy
           src/prob4d/cli.py
+          src/prob4d/calibration_compatibility.py
           src/prob4d/provider_manifest.py
           src/prob4d/provider_manifest_cli.py
           src/prob4d/provider_v1.py
+          src/prob4d/provider_v2.py
       - name: Emit provider manifest
         run: >-
           prob4d provider manifest
@@ -90,6 +92,7 @@ jobs:
           import prob4d.cli
           import prob4d.provider_manifest
           import prob4d.provider_v1
+          import prob4d.provider_v2
 
           forbidden = {"torch", "diffusers", "decord"}
           loaded = sorted(forbidden & set(sys.modules))
@@ -165,10 +168,12 @@ jobs:
           "$python_bin" -m pip check
           "$python_bin" - <<'PY'
           import prob4d
-          import prob4d.provider_v1 as provider
+          import prob4d.provider_v1 as provider_v1
+          import prob4d.provider_v2 as provider_v2
 
           print(prob4d.__version__)
-          assert provider.PROVIDER_API_VERSION == 1
+          assert provider_v1.PROVIDER_API_VERSION == 1
+          assert provider_v2.PROVIDER_API_VERSION == 2
           PY
       - name: Exercise grouped and legacy command help
         shell: bash
