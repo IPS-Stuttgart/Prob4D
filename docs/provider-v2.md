@@ -34,8 +34,10 @@ model_identifier = motioncrafter_model_identifier(manifest)
 ```
 
 The identifier hashes the model type, UNet and VAE identifiers, inference-step
-configuration, guidance scale, decode chunk size, and low-memory mode. The exact
-MotionCrafter commit is checked separately.
+configuration, guidance scale, decode chunk size, low-memory mode, random seed,
+and temporal frame stride. Image resolution and window geometry remain separate
+compatibility fields so mismatch diagnostics identify them directly. The exact
+MotionCrafter source commit is checked separately.
 
 ## Compatibility fields
 
@@ -44,7 +46,7 @@ and runtime settings in all of the following fields:
 
 - source repository;
 - MotionCrafter revision;
-- canonical model identifier;
+- canonical model identifier, including seed and temporal stride;
 - image resolution;
 - window size and overlap;
 - covariance cluster size; and
