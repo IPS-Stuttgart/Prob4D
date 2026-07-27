@@ -465,7 +465,7 @@ def test_fixed_lag_export_requires_explicit_approximation_opt_in(
     _window(tmp_path / "window_0001.npz", [2, 3, 4, 5], offset=0.1)
     manifest = _manifest(tmp_path, name="predictions.json", include_future=False)
 
-    with pytest.raises(ValueError, match="marginalized boundary gauges as exact"):
+    with pytest.raises(ValueError, match="not historical cross-window covariance"):
         build_prob4d_observation_belief(
             manifest,
             case_id="case-a",

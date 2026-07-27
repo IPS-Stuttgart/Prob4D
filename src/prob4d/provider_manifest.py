@@ -25,6 +25,7 @@ PROB4D_PROVIDER_CAPABILITIES = (
     "immutable_validated_core_arrays",
     "joint_cross_window_sim3_gauge_covariance",
     "metric_anchor_covariance_propagation",
+    "marginalized_fixed_lag_boundary_prior",
     "provider_final_composite_group_weight",
     "sim3_observation_displacement_rank_reduction",
     "information_stratified_observation_sampling",
@@ -115,8 +116,13 @@ def prob4d_provider_manifest(
                 "selected causal gauge tree"
             ),
             "gauge_posterior_semantics": (
-                "causal sequential spanning tree by default; fixed-lag block-diagonal "
-                "covariance is an explicit approximate reconstruction control"
+                "causal sequential spanning tree by default; fixed-lag carries a "
+                "Schur-marginalized boundary prior but exports block-diagonal historical "
+                "marginals as an approximate reconstruction control"
+            ),
+            "fixed_lag_covariance_semantics": (
+                "expired gauges are Schur-marginalized into the active boundary; the "
+                "portable all-window covariance remains block-diagonal and non-strict"
             ),
             "calibration_semantics": (
                 "content-addressed held-out gauge and point covariance artifacts; "

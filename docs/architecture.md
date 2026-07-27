@@ -69,9 +69,11 @@ and fails closed below the declared retained-covariance threshold.
 gauge contribution again. `ObservationFactorBundle` remains the richer interface
 when a downstream estimator keeps explicit gauge nuisance variables.
 
-The legacy fixed-lag covariance is an opt-in reconstruction control because its
-current boundary treatment fixes marginalized gauges at posterior means. The
-provider makes no prospective calibration or physical-twin-improvement claim.
+Fixed-lag smoothing carries a Schur-complement information prior when gauges
+leave the active window, so the moving boundary does not become exact. The
+portable all-window covariance still exports only historical marginal blocks and
+therefore remains an opt-in reconstruction control. The provider makes no
+prospective calibration or physical-twin-improvement claim.
 
 ## Immutable validated inputs
 

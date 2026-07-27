@@ -15,6 +15,12 @@ All notable changes to Prob4D are documented here.
   provider v2, with fail-closed rank boundaries and unchanged provider-v1 defaults.
 - Provider-v2 unit, type, import, wheel, and source-distribution coverage.
 
+### Changed
+
+- Fixed-lag gauge smoothing now Schur-marginalizes expired gauges into an
+  uncertainty-bearing boundary prior. Portable historical covariance remains an
+  explicit block-diagonal reconstruction approximation.
+
 ## 0.2.0 — 2026-07-26
 
 ### Changed

@@ -27,11 +27,8 @@ from ._metric_gauge_anchor import (
 )
 from .alignment import WindowAlignment, align_windows
 from .data import PredictionWindow
-from .gauge import (
-    FixedLagGaugeSmoother,
-    RelativeGaugeConstraint,
-    SequentialGaugeEstimator,
-)
+from .gauge import RelativeGaugeConstraint, SequentialGaugeEstimator
+from .marginalized_gauge import MarginalizedFixedLagGaugeSmoother
 from .observation_contract import (
     ObservationBeliefExportV1,
     save_observation_belief_export,
@@ -549,7 +546,7 @@ def _fixed_lag_marginal_posterior(
     fixed_lag: int,
     metric_anchor: MetricGaugeAnchor,
 ) -> JointGaugePosterior:
-    """Return the legacy fixed-lag marginals as an explicitly approximate posterior."""
+    """Return fixed-lag marginals with a Schur-marginalized boundary prior."""
 
     if fixed_lag < 2:
         raise ValueError("fixed_lag must be at least two")
@@ -564,7 +561,7 @@ def _fixed_lag_marginal_posterior(
         initial_transform=metric_anchor.global_from_local,
         initial_covariance=metric_anchor.covariance,
     )
-    estimates = FixedLagGaugeSmoother(lag=fixed_lag).smooth(
+    estimates = MarginalizedFixedLagGaugeSmoother(lag=fixed_lag).smooth(
         ordered_ids,
         sequential,
         constraints,
@@ -579,7 +576,7 @@ def _fixed_lag_marginal_posterior(
             for window_id in ordered_ids
         },
         joint_covariance=covariance,
-        mode="fixed_lag_block_diagonal_approximation_v1",
+        mode="fixed_lag_schur_boundary_block_diagonal_v2",
         cross_window_covariance_preserved=False,
     )
 
@@ -596,9 +593,9 @@ def _gauge_posterior(
         raise ValueError("gauge_mode must be 'sequential' or 'fixed_lag'")
     if gauge_mode == "fixed_lag" and not allow_approximate_fixed_lag_covariance:
         raise ValueError(
-            "fixed_lag covariance treats marginalized boundary gauges as exact; "
-            "pass allow_approximate_fixed_lag_covariance=True only for an explicitly "
-            "labelled reconstruction ablation"
+            "fixed_lag preserves its moving boundary prior but not historical "
+            "cross-window covariance; pass allow_approximate_fixed_lag_covariance=True "
+            "only for an explicitly labelled reconstruction ablation"
         )
     alignments = _build_alignments(windows)
     if gauge_mode == "sequential":
@@ -913,6 +910,9 @@ def _build_prob4d_observation_belief(
             "alignments": alignment_records,
             "fixed_lag_boundary_covariance_is_approximate": (
                 gauge_mode == "fixed_lag"
+            ),
+            "fixed_lag_boundary_prior": (
+                "schur_complement_v1" if gauge_mode == "fixed_lag" else None
             ),
         },
         "pixel_stride": pixel_stride,
