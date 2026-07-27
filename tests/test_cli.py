@@ -11,9 +11,12 @@ def test_grouped_cli_lists_provider_and_observation(capsys) -> None:
     assert "phystwin" in output
 
 
-def test_grouped_cli_lists_nested_commands(capsys) -> None:
+def test_grouped_cli_lists_explicit_provider_v2_exports(capsys) -> None:
     assert main(["observation"]) == 0
-    assert "export" in capsys.readouterr().out
+    output = capsys.readouterr().out
+    assert "export" in output
+    assert "export-calibrated" in output
+    assert "export-exploratory" in output
 
 
 def test_grouped_cli_rejects_unknown_command(capsys) -> None:
