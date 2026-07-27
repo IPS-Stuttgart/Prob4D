@@ -101,8 +101,9 @@ Provider v2 verifies the executing Prob4D revision and prediction/calibration
 compatibility before decoded prediction payloads are opened. The final artifact
 binds the provider-v2 manifest identity, export mode, covariance-root mode,
 calibration artifact IDs, and runtime-revision evidence into its content address.
-A packaged deployment without VCS metadata must set `PROB4D_RUNTIME_REVISION` to
-the exact build commit.
+Claim-bearing export accepts only installed VCS metadata or a clean source
+checkout. `PROB4D_RUNTIME_REVISION` can annotate an exploratory packaged
+deployment, but an environment assertion is not accepted as independent evidence.
 
 Use `prob4d observation export-exploratory` for labelled uncalibrated,
 pointwise-fallback, legacy-root, or fixed-lag reconstruction controls. The older
