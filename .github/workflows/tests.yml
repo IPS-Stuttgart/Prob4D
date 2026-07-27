@@ -48,6 +48,8 @@ jobs:
         if: steps.ruff.outcome == 'failure'
         run: exit 1
       - name: Type-check stable provider interfaces
+        id: mypy
+        continue-on-error: true
         run: >-
           python -m mypy
           src/prob4d/cli.py
@@ -57,6 +59,18 @@ jobs:
           src/prob4d/provider_manifest_cli.py
           src/prob4d/provider_v1.py
           src/prob4d/provider_v2.py
+          2>&1 | tee mypy-output.txt
+      - name: Upload mypy diagnostics
+        if: steps.mypy.outcome == 'failure'
+        uses: actions/upload-artifact@v7
+        with:
+          name: mypy-diagnostics
+          path: mypy-output.txt
+          if-no-files-found: error
+          retention-days: 14
+      - name: Fail on mypy diagnostics
+        if: steps.mypy.outcome == 'failure'
+        run: exit 1
       - name: Emit provider manifest
         run: >-
           prob4d provider manifest
