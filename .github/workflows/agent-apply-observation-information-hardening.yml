@@ -31,6 +31,25 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch origin main
           git merge --no-edit origin/main
+      - name: Normalize the documentation insertion marker
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("docs/observation-belief-export.md")
+          text = path.read_text(encoding="utf-8")
+          old = (
+              "64-character Prob4D commit. It also fails closed when that revision "
+              "cannot be\nobtained from the checkout and is not provided explicitly.\n"
+          )
+          new = (
+              "64-character Prob4D commit.\nThe export fails when that revision "
+              "cannot be\nobtained from the checkout and is not provided explicitly.\n"
+          )
+          if text.count(old) != 1:
+              raise SystemExit("documentation insertion marker changed unexpectedly")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
       - name: Apply deterministic source transformations
         id: patch
         continue-on-error: true
