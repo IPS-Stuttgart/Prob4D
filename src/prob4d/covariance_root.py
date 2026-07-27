@@ -243,11 +243,7 @@ def install_covariance_root_dispatch() -> None:
     current = _observation_export.deterministic_covariance_root
     if current is not _LEGACY_ROOT:
         raise RuntimeError("observation covariance-root function changed before dispatch")
-    setattr(
-        _observation_export,
-        "deterministic_covariance_root",
-        _dispatch_covariance_root,
-    )
+    _observation_export.deterministic_covariance_root = _dispatch_covariance_root
     _DISPATCH_INSTALLED = True
 
 
