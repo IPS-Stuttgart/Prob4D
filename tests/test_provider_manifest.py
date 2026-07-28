@@ -76,4 +76,12 @@ def test_provider_manifest_cli_can_emit_version_two(capsys) -> None:
     )
     payload = json.loads(capsys.readouterr().out)
     assert payload["provider_api_version"] == 2
+    assert payload["artifact_schema_versions"]["ObservationFactorBundle"] == 4
     assert "runtime_revision_attestation" in payload["capabilities"]
+    assert (
+        "joint_cross_window_sim3_gauge_covariance_in_factor_bundle"
+        in payload["capabilities"]
+    )
+    assert payload["limitations"][
+        "schema_v2_v3_factor_bundles_preserve_cross_window_gauge_covariance"
+    ] is False
