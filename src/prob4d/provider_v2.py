@@ -27,6 +27,11 @@ from .composition_jacobian import (
     composition_jacobian_mode,
 )
 from .covariance_root import CovarianceRootMode, covariance_root_mode
+from .observation_factors import (
+    JOINT_GAUGE_COVARIANCE_SEMANTICS,
+    JOINT_OBSERVATION_FACTOR_SCHEMA_VERSION,
+    JointObservationFactorBundle,
+)
 from .provider_attestation import (
     PROVIDER_ATTESTATION_SCHEMA,
     PROVIDER_ATTESTATION_VERSION,
@@ -103,12 +108,19 @@ def prob4d_provider_manifest(
         "analytic_sim3_composition_jacobians",
         "canonical_repeated_eigenspace_covariance_root",
         "explicit_exploratory_and_claim_bearing_exports",
+        "joint_observation_factor_gauge_covariance",
         "provider_attested_observation_artifacts",
         "runtime_revision_attestation",
         "strict_prediction_calibration_compatibility",
     ):
         if capability not in capabilities:
             capabilities.append(capability)
+    artifact_schema_versions = dict(
+        cast(dict[str, int], inherited["artifact_schema_versions"])
+    )
+    artifact_schema_versions["JointObservationFactorBundle"] = (
+        JOINT_OBSERVATION_FACTOR_SCHEMA_VERSION
+    )
     metadata = dict(cast(dict[str, object], inherited["metadata"]))
     metadata.update(
         {
@@ -136,6 +148,11 @@ def prob4d_provider_manifest(
                 "export fixes sequential gauge propagation, uses canonical repeated-"
                 "eigenspace covariance roots, and forbids pointwise covariance fallback"
             ),
+            "joint_observation_factor_gauge_covariance_semantics": (
+                f"{JOINT_GAUGE_COVARIANCE_SEMANTICS}; schema v4 carries one ordered "
+                "full Sim(3) covariance whose diagonal blocks must match the per-gauge "
+                "marginals; provider-v1 schema v3 remains frozen and block diagonal"
+            ),
             "provider_attestation_semantics": (
                 "every provider-v2 export embeds the complete content-addressed "
                 "provider manifest, export mode, covariance-root and composition-"
@@ -150,6 +167,7 @@ def prob4d_provider_manifest(
     descriptor: dict[str, object] = {
         **inherited,
         "provider_api_version": PROVIDER_API_VERSION,
+        "artifact_schema_versions": artifact_schema_versions,
         "capabilities": capabilities,
         "limitations": limitations,
         "metadata": metadata,
@@ -333,6 +351,8 @@ __all__ = [
     "OBSERVATION_BELIEF_VERSION",
     "OBSERVATION_FACTOR_SCHEMA",
     "OBSERVATION_FACTOR_SCHEMA_VERSION",
+    "JOINT_GAUGE_COVARIANCE_SEMANTICS",
+    "JOINT_OBSERVATION_FACTOR_SCHEMA_VERSION",
     "POINT_UNCERTAINTY_CALIBRATION_SCHEMA",
     "POINT_UNCERTAINTY_CALIBRATION_VERSION",
     "PROB4D_CAUSAL_STREAM_CONTRACT_VERSION",
@@ -345,6 +365,7 @@ __all__ = [
     "CompositionJacobianMode",
     "CovarianceRootMode",
     "GaugeCovarianceCalibrationV1",
+    "JointObservationFactorBundle",
     "MetricGaugeAnchor",
     "ObservationBeliefExportV1",
     "ObservationFactorBundle",
