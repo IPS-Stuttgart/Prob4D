@@ -4,6 +4,7 @@ from test_io import write_problem_bundle
 from prob4d.composition_jacobian import composition_jacobian_mode
 from prob4d.observation_export import estimate_joint_gauge_tree
 from prob4d.provider_v2_gauge_ablation import (
+    ALIGNMENT_COVARIANCE_POLICY,
     PROVIDER_V2_COMPOSITION_JACOBIAN_MODE,
     PROVIDER_V2_GAUGE_POSTERIOR_MODE,
     build_provider_v2_alignments,
@@ -107,5 +108,8 @@ def test_provider_v2_gauge_ablation_preserves_seven_row_contract(tmp_path) -> No
         "composition_jacobian_mode": PROVIDER_V2_COMPOSITION_JACOBIAN_MODE,
         "joint_cross_window_covariance_available": True,
         "dense_fusion_covariance_adapter": "per_window_marginals",
+        "alignment_covariance_policy": ALIGNMENT_COVARIANCE_POLICY,
+        "gauge_covariance_calibration_id": None,
+        "claim_bearing_provider_export": False,
         "legacy_ablation_runner_unchanged": True,
     }
