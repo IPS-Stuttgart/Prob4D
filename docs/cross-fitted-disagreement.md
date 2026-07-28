@@ -28,7 +28,8 @@ print(report.to_dict())
 ## Information boundary
 
 The fit for a held-out fold cannot read any point in that fold. Fold assignment
-is deterministic for a fixed seed and uses the same frame-by-spatial-tile
+is deterministic for a fixed seed, derives its random stream from the alignment
+identity rather than list position, and uses the same frame-by-spatial-tile
 clustering concept as the dense gauge-covariance estimator.
 
 When a fold has fewer than four usable training correspondences, rank-deficient
