@@ -6,6 +6,12 @@ All notable changes to Prob4D are documented here.
 
 ### Added
 
+- `JointObservationFactorBundle` schema v4 for provider-v2 explicit-gauge
+  consumers. It serializes one ordered full cross-window `Sim(3)` covariance,
+  validates every marginal block against its `GaugeEstimate`, and preserves the
+  complete nuisance prior when factors are stacked.
+- Provider-v2 capability and schema declarations for joint observation-factor
+  gauge covariance while provider v1 continues to advertise frozen schema v3.
 - `prob4d.provider_v2` as a safe-by-default Python surface with distinct
   exploratory and claim-bearing export functions.
 - Strict prediction/calibration compatibility checks covering MotionCrafter
@@ -32,6 +38,10 @@ All notable changes to Prob4D are documented here.
 
 ### Changed
 
+- Observation-factor serialization now loads schema versions 2, 3, and 4 without
+  inventing cross-window covariance for legacy artifacts. Schema v3 retains its
+  historical block-diagonal stacked gauge prior; only schema v4 declares and
+  preserves a joint gauge covariance.
 - Fixed-lag gauge smoothing now Schur-marginalizes expired gauges into an
   uncertainty-bearing boundary prior. Portable historical covariance remains an
   explicit block-diagonal reconstruction approximation.
