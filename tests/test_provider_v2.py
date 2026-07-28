@@ -72,6 +72,7 @@ def _runtime_attestation(
 def test_provider_v2_exposes_safe_capabilities() -> None:
     assert provider.PROVIDER_API_VERSION == 2
     assert provider.PROB4D_PROVIDER_API_VERSION == 2
+    assert provider.JOINT_OBSERVATION_FACTOR_SCHEMA_VERSION == 4
     manifest = provider.prob4d_provider_manifest(provider_revision="a" * 40)
     assert manifest["provider_api_version"] == 2
     assert "strict_prediction_calibration_compatibility" in manifest["capabilities"]
@@ -81,6 +82,8 @@ def test_provider_v2_exposes_safe_capabilities() -> None:
     assert "analytic_sim3_composition_jacobians" in manifest["capabilities"]
     assert "runtime_revision_attestation" in manifest["capabilities"]
     assert "provider_attested_observation_artifacts" in manifest["capabilities"]
+    assert "joint_observation_factor_gauge_covariance" in manifest["capabilities"]
+    assert manifest["artifact_schema_versions"]["JointObservationFactorBundle"] == 4
     assert manifest["metadata"]["python_import_boundary"] == "prob4d.provider_v2"
     assert "canonical basis" in manifest["metadata"]["covariance_root_semantics"]
     assert "closed-form derivatives" in manifest["metadata"][
