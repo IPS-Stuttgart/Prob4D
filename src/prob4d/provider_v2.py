@@ -27,6 +27,13 @@ from .composition_jacobian import (
     composition_jacobian_mode,
 )
 from .covariance_root import CovarianceRootMode, covariance_root_mode
+from .observation_factors import (
+    OBSERVATION_FACTOR_SCHEMA,
+    OBSERVATION_FACTOR_SCHEMA_VERSION,
+    ObservationFactorBundle,
+    load_observation_factor_bundle,
+    write_observation_factor_bundle,
+)
 from .provider_attestation import (
     PROVIDER_ATTESTATION_SCHEMA,
     PROVIDER_ATTESTATION_VERSION,
@@ -42,8 +49,6 @@ from .provider_v1 import (
     METRIC_GAUGE_ANCHOR_VERSION,
     OBSERVATION_BELIEF_SCHEMA,
     OBSERVATION_BELIEF_VERSION,
-    OBSERVATION_FACTOR_SCHEMA,
-    OBSERVATION_FACTOR_SCHEMA_VERSION,
     POINT_UNCERTAINTY_CALIBRATION_SCHEMA,
     POINT_UNCERTAINTY_CALIBRATION_VERSION,
     PROB4D_CAUSAL_STREAM_CONTRACT_VERSION,
@@ -51,7 +56,6 @@ from .provider_v1 import (
     GaugeCovarianceCalibrationV1,
     MetricGaugeAnchor,
     ObservationBeliefExportV1,
-    ObservationFactorBundle,
     PointUncertaintyCalibrationV1,
     SamplingMode,
     SelectedOverlapWindow,
@@ -59,14 +63,12 @@ from .provider_v1 import (
     load_gauge_covariance_calibration,
     load_metric_gauge_anchor,
     load_observation_belief_export,
-    load_observation_factor_bundle,
     load_point_uncertainty_calibration,
     save_gauge_covariance_calibration,
     save_metric_gauge_anchor,
     save_observation_belief_export,
     save_point_uncertainty_calibration,
     select_causal_source,
-    write_observation_factor_bundle,
 )
 from .runtime_revision import (
     RuntimeRevisionAttestation,
@@ -103,6 +105,7 @@ def prob4d_provider_manifest(
         "analytic_sim3_composition_jacobians",
         "canonical_repeated_eigenspace_covariance_root",
         "explicit_exploratory_and_claim_bearing_exports",
+        "joint_cross_window_sim3_gauge_covariance_in_factor_bundle",
         "provider_attested_observation_artifacts",
         "runtime_revision_attestation",
         "strict_prediction_calibration_compatibility",
@@ -136,6 +139,12 @@ def prob4d_provider_manifest(
                 "export fixes sequential gauge propagation, uses canonical repeated-"
                 "eigenspace covariance roots, and forbids pointwise covariance fallback"
             ),
+            "observation_factor_bundle_covariance_semantics": (
+                "schema v4 stores an ordered joint 7K by 7K gauge covariance whose "
+                "diagonal blocks match the per-gauge marginals; explicit "
+                "joint-cross-window and marginal-blocks-only semantics are distinct, "
+                "while schema-v2/v3 inputs upgrade conservatively as marginal-only"
+            ),
             "provider_attestation_semantics": (
                 "every provider-v2 export embeds the complete content-addressed "
                 "provider manifest, export mode, covariance-root and composition-"
@@ -147,10 +156,18 @@ def prob4d_provider_manifest(
     limitations = dict(cast(dict[str, object], inherited["limitations"]))
     limitations["uncalibrated_export_is_default"] = False
     limitations["deployment_environment_revision_is_independent_vcs_evidence"] = False
+    limitations[
+        "schema_v2_v3_factor_bundles_preserve_cross_window_gauge_covariance"
+    ] = False
+    artifact_schema_versions = dict(
+        cast(dict[str, int], inherited["artifact_schema_versions"])
+    )
+    artifact_schema_versions["ObservationFactorBundle"] = OBSERVATION_FACTOR_SCHEMA_VERSION
     descriptor: dict[str, object] = {
         **inherited,
         "provider_api_version": PROVIDER_API_VERSION,
         "capabilities": capabilities,
+        "artifact_schema_versions": artifact_schema_versions,
         "limitations": limitations,
         "metadata": metadata,
     }
