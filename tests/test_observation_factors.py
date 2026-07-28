@@ -6,7 +6,10 @@ import pytest
 
 from prob4d.gauge import GaugeEstimate
 from prob4d.observation_factors import (
+    JOINT_GAUGE_COVARIANCE_SEMANTICS,
+    JOINT_OBSERVATION_FACTOR_SCHEMA_VERSION,
     OBSERVATION_FACTOR_SCHEMA_VERSION,
+    JointObservationFactorBundle,
     ObservationFactor,
     ObservationFactorBundle,
     load_observation_factor_bundle,
@@ -84,6 +87,30 @@ def _bundle() -> ObservationFactorBundle:
     )
 
 
+def _joint_bundle() -> JointObservationFactorBundle:
+    legacy = _bundle()
+    joint_covariance = np.zeros((14, 14), dtype=np.float64)
+    for index, gauge in enumerate(legacy.gauges):
+        joint_covariance[
+            7 * index : 7 * (index + 1),
+            7 * index : 7 * (index + 1),
+        ] = gauge.covariance
+    joint_covariance[0, 7] = 0.001
+    joint_covariance[7, 0] = 0.001
+    return JointObservationFactorBundle(
+        sequence_id=legacy.sequence_id,
+        factors=legacy.factors,
+        gauges=legacy.gauges,
+        source_revision=legacy.source_revision,
+        causal_frame_stop=legacy.causal_frame_stop,
+        case_id=legacy.case_id,
+        stream_id=legacy.stream_id,
+        source_repository=legacy.source_repository,
+        metadata={**legacy.metadata, "joint_gauge_prior": True},
+        joint_gauge_covariance=joint_covariance,
+    )
+
+
 def test_bundle_roundtrip_preserves_unfused_provenance(tmp_path: Path) -> None:
     bundle = _bundle()
     manifest, payload = write_observation_factor_bundle(
@@ -118,6 +145,91 @@ def test_bundle_roundtrip_preserves_unfused_provenance(tmp_path: Path) -> None:
             "composite_weight": 0.25,
         },
     }
+
+
+def test_joint_bundle_roundtrip_preserves_cross_window_gauge_covariance(
+    tmp_path: Path,
+) -> None:
+    bundle = _joint_bundle()
+    manifest, _ = write_observation_factor_bundle(
+        bundle, tmp_path / "joint-factors.json"
+    )
+
+    loaded = load_observation_factor_bundle(manifest)
+    record = json.loads(manifest.read_text(encoding="utf-8"))
+
+    assert record["schema_version"] == JOINT_OBSERVATION_FACTOR_SCHEMA_VERSION
+    assert record["joint_gauge_covariance"]["semantics"] == (
+        JOINT_GAUGE_COVARIANCE_SEMANTICS
+    )
+    assert record["joint_gauge_covariance"][
+        "cross_window_covariance_preserved"
+    ] is True
+    assert isinstance(loaded, JointObservationFactorBundle)
+    assert loaded.cross_window_gauge_covariance_preserved is True
+    np.testing.assert_array_equal(
+        loaded.joint_gauge_covariance,
+        bundle.joint_gauge_covariance,
+    )
+    np.testing.assert_array_equal(
+        loaded.stack().gauge_prior_covariance,
+        bundle.joint_gauge_covariance,
+    )
+
+
+def test_joint_bundle_induces_cross_factor_observation_covariance() -> None:
+    stacked = _joint_bundle().stack()
+    row_jacobian = stacked.gauge_jacobian.reshape(-1, 14)
+    joint_observation_covariance = (
+        row_jacobian @ stacked.gauge_prior_covariance @ row_jacobian.T
+    )
+
+    # First point of factor 0 and first point of factor 1 both have unit
+    # sensitivity to their window log-scale coordinate. The explicit cross-gauge
+    # block must therefore survive into their observation covariance.
+    assert joint_observation_covariance[0, 6] == pytest.approx(0.001)
+    assert joint_observation_covariance[6, 0] == pytest.approx(0.001)
+
+
+def test_joint_bundle_requires_explicit_joint_covariance() -> None:
+    legacy = _bundle()
+    with pytest.raises(ValueError, match="require joint_gauge_covariance"):
+        JointObservationFactorBundle(
+            sequence_id=legacy.sequence_id,
+            factors=legacy.factors,
+            gauges=legacy.gauges,
+            source_revision=legacy.source_revision,
+            causal_frame_stop=legacy.causal_frame_stop,
+        )
+
+
+def test_joint_bundle_rejects_marginal_mismatch() -> None:
+    bundle = _joint_bundle()
+    changed = np.asarray(bundle.joint_gauge_covariance).copy()
+    changed[7, 7] += 1e-3
+    with pytest.raises(ValueError, match="marginal does not match"):
+        JointObservationFactorBundle(
+            sequence_id=bundle.sequence_id,
+            factors=bundle.factors,
+            gauges=bundle.gauges,
+            source_revision=bundle.source_revision,
+            causal_frame_stop=bundle.causal_frame_stop,
+            joint_gauge_covariance=changed,
+        )
+
+
+def test_joint_bundle_loader_rejects_changed_covariance_semantics(
+    tmp_path: Path,
+) -> None:
+    manifest, _ = write_observation_factor_bundle(
+        _joint_bundle(), tmp_path / "joint-factors.json"
+    )
+    record = json.loads(manifest.read_text(encoding="utf-8"))
+    record["joint_gauge_covariance"]["semantics"] = "independent-gauges"
+    manifest.write_text(json.dumps(record), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="unsupported joint gauge covariance"):
+        load_observation_factor_bundle(manifest)
 
 
 def test_linearized_covariance_includes_sim3_gauge_uncertainty() -> None:
@@ -157,6 +269,7 @@ def test_stacked_factors_keep_association_reliability_and_group_weights_separate
 
     assert stacked.world_mean_m.shape == (4, 3)
     assert stacked.gauge_jacobian.shape == (4, 3, 14)
+    np.testing.assert_array_equal(stacked.gauge_prior_covariance[:7, 7:], 0.0)
     np.testing.assert_allclose(stacked.association_probability, [0.9, 0.6, 0.9, 0.6])
     np.testing.assert_allclose(stacked.prior_reliability, [0.7, 0.4, 0.7, 0.4])
     np.testing.assert_allclose(stacked.prior_nominal_probability, [0.8, 0.8, 0.6, 0.6])
