@@ -232,6 +232,7 @@ jobs:
           "$bin/prob4d" motioncrafter --help
           "$bin/prob4d-provider-manifest" --help
           "$bin/prob4d-ablate" --help
+          "$bin/prob4d-ablate-provider-v2-gauge" --help
           "$bin/prob4d-benchmark" --help
           "$bin/prob4d-export-observation-belief" --help
           "$bin/prob4d-export-calibrated-observation-belief" --help
