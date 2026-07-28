@@ -12,9 +12,12 @@ import numpy as np
 
 from ._observation_factor_bundle import (
     GAUGE_PARAMETERIZATION,
+    JOINT_GAUGE_COVARIANCE_SEMANTICS,
+    JOINT_OBSERVATION_FACTOR_SCHEMA_VERSION,
     LEGACY_OBSERVATION_FACTOR_SCHEMA_VERSION,
     OBSERVATION_FACTOR_SCHEMA,
     OBSERVATION_FACTOR_SCHEMA_VERSION,
+    JointObservationFactorBundle,
     ObservationFactorBundle,
 )
 from ._observation_factor_types import ObservationFactor
@@ -36,7 +39,7 @@ def write_observation_factor_bundle(
     *,
     payload_path: str | Path | None = None,
 ) -> tuple[Path, Path]:
-    """Write a schema-v3 manifest with an exclusive causal frame stop."""
+    """Write a schema-v3 or joint-covariance schema-v4 factor bundle."""
 
     manifest = Path(manifest_path)
     payload = (
@@ -59,6 +62,17 @@ def write_observation_factor_bundle(
                 "covariance_key": f"{prefix}__covariance",
             }
         )
+    joint_gauge_covariance: dict[str, Any] | None = None
+    if isinstance(bundle, JointObservationFactorBundle):
+        joint_key = "joint_gauge_covariance"
+        arrays[joint_key] = np.asarray(bundle.joint_gauge_covariance)
+        joint_gauge_covariance = {
+            "array_key": joint_key,
+            "gauge_ids": [gauge.window_id for gauge in bundle.gauges],
+            "semantics": JOINT_GAUGE_COVARIANCE_SEMANTICS,
+            "cross_window_covariance_preserved": True,
+        }
+
     factors: list[dict[str, Any]] = []
     for index, factor in enumerate(bundle.factors):
         prefix = f"factor_{index:04d}"
@@ -116,6 +130,8 @@ def write_observation_factor_bundle(
         "gauges": gauges,
         "factors": factors,
     }
+    if joint_gauge_covariance is not None:
+        record["joint_gauge_covariance"] = joint_gauge_covariance
     manifest.write_text(
         json.dumps(record, indent=2, sort_keys=True, allow_nan=False) + "\n",
         encoding="utf-8",
@@ -124,10 +140,13 @@ def write_observation_factor_bundle(
 
 
 def _causal_frame_stop(record: dict[str, Any], *, schema_version: int) -> int:
-    if schema_version == OBSERVATION_FACTOR_SCHEMA_VERSION:
+    if schema_version in {
+        OBSERVATION_FACTOR_SCHEMA_VERSION,
+        JOINT_OBSERVATION_FACTOR_SCHEMA_VERSION,
+    }:
         convention = record.get("causal_frame_stop_convention")
         if convention is not None and convention != "exclusive":
-            raise ValueError("schema-v3 causal frame stop must be exclusive")
+            raise ValueError("schema-v3/v4 causal frame stop must be exclusive")
         return int(record["causal_frame_stop"])
     if schema_version == LEGACY_OBSERVATION_FACTOR_SCHEMA_VERSION:
         return int(record["causal_frame_limit"]) + 1
@@ -136,8 +155,8 @@ def _causal_frame_stop(record: dict[str, Any], *, schema_version: int) -> int:
 
 def load_observation_factor_bundle(
     manifest_path: str | Path,
-) -> ObservationFactorBundle:
-    """Load schema v3 or upgrade a schema-v2 bundle without ambiguity."""
+) -> ObservationFactorBundle | JointObservationFactorBundle:
+    """Load schema v3/v4 or upgrade a schema-v2 bundle without ambiguity."""
 
     manifest = Path(manifest_path)
     record = json.loads(manifest.read_text(encoding="utf-8"))
@@ -147,6 +166,7 @@ def load_observation_factor_bundle(
     if schema_version not in {
         LEGACY_OBSERVATION_FACTOR_SCHEMA_VERSION,
         OBSERVATION_FACTOR_SCHEMA_VERSION,
+        JOINT_OBSERVATION_FACTOR_SCHEMA_VERSION,
     }:
         raise ValueError("unsupported observation-factor schema version")
     if record.get("gauge_parameterization") != GAUGE_PARAMETERIZATION:
@@ -171,6 +191,28 @@ def load_observation_factor_bundle(
                     covariance=arrays[gauge_record["covariance_key"]],
                 )
             )
+        if schema_version == JOINT_OBSERVATION_FACTOR_SCHEMA_VERSION:
+            joint_record = record.get("joint_gauge_covariance")
+            if not isinstance(joint_record, dict):
+                raise ValueError("schema-v4 bundle is missing joint gauge covariance")
+            if (
+                joint_record.get("semantics")
+                != JOINT_GAUGE_COVARIANCE_SEMANTICS
+            ):
+                raise ValueError("unsupported joint gauge covariance semantics")
+            if joint_record.get("cross_window_covariance_preserved") is not True:
+                raise ValueError(
+                    "schema-v4 bundle must preserve cross-window gauge covariance"
+                )
+            gauge_ids = [gauge.window_id for gauge in gauges]
+            if joint_record.get("gauge_ids") != gauge_ids:
+                raise ValueError("joint gauge covariance gauge order changed")
+            joint_key = joint_record.get("array_key")
+            if not isinstance(joint_key, str) or joint_key not in arrays:
+                raise ValueError("joint gauge covariance payload key is missing")
+            joint_covariance = arrays[joint_key]
+        else:
+            joint_covariance = None
         for factor_record in record["factors"]:
             keys = factor_record["arrays"]
             ray_key = factor_record.get("ray_directions_local_key")
@@ -220,17 +262,22 @@ def load_observation_factor_bundle(
             "legacy_causal_frame_limit_upgraded_to_exclusive_stop": True,
             "legacy_missing_reliability_defaults": "ones",
         }
-    return ObservationFactorBundle(
-        sequence_id=str(record["sequence_id"]),
-        factors=tuple(factors),
-        gauges=tuple(gauges),
-        source_revision=str(record["source_revision"]),
-        causal_frame_stop=bundle_causal_frame_stop,
-        case_id=str(record.get("case_id", record["sequence_id"])),
-        stream_id=str(record.get("stream_id", record["sequence_id"])),
-        source_repository=str(
+    common = {
+        "sequence_id": str(record["sequence_id"]),
+        "factors": tuple(factors),
+        "gauges": tuple(gauges),
+        "source_revision": str(record["source_revision"]),
+        "causal_frame_stop": bundle_causal_frame_stop,
+        "case_id": str(record.get("case_id", record["sequence_id"])),
+        "stream_id": str(record.get("stream_id", record["sequence_id"])),
+        "source_repository": str(
             record.get("source_repository", "FlorianPfaff/Prob4D")
         ),
-        metadata=metadata,
-        schema_version=OBSERVATION_FACTOR_SCHEMA_VERSION,
-    )
+        "metadata": metadata,
+    }
+    if schema_version == JOINT_OBSERVATION_FACTOR_SCHEMA_VERSION:
+        return JointObservationFactorBundle(
+            **common,
+            joint_gauge_covariance=joint_covariance,
+        )
+    return ObservationFactorBundle(**common)
