@@ -12,6 +12,7 @@ support auditable instead of optimistic.
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 
 import numpy as np
@@ -177,6 +178,22 @@ def _clustered_overlap_rows(
     return records, cluster_offset, overlap_points
 
 
+def _stable_alignment_seed(
+    seed: int,
+    alignment: WindowAlignment,
+) -> int:
+    digest = hashlib.sha256()
+    digest.update(str(seed).encode("ascii"))
+    digest.update(b"\0")
+    digest.update(alignment.reference_id.encode("utf-8"))
+    digest.update(b"\0")
+    digest.update(alignment.moving_id.encode("utf-8"))
+    digest.update(b"\0")
+    frames = np.asarray(alignment.common_frames, dtype="<i8")
+    digest.update(frames.tobytes())
+    return int.from_bytes(digest.digest()[:8], "big")
+
+
 def _fold_assignment(
     cluster_count: int,
     fold_count: int,
@@ -334,7 +351,7 @@ def accumulate_cross_fitted_disagreement(
     overlap_points = 0
     evaluated_points = 0
 
-    for alignment_index, alignment in enumerate(alignments):
+    for alignment in alignments:
         reference = windows[alignment.reference_id]
         moving = windows[alignment.moving_id]
         records, cluster_count, alignment_points = _clustered_overlap_rows(
@@ -349,10 +366,11 @@ def accumulate_cross_fitted_disagreement(
             skipped_alignments += 1
             continue
         candidate_folds += effective_folds
+        alignment_seed = _stable_alignment_seed(normalized_seed, alignment)
         cluster_folds = _fold_assignment(
             cluster_count,
             effective_folds,
-            seed=normalized_seed + 1_000_003 * alignment_index,
+            seed=alignment_seed,
         )
         reference_rays = reference.rays()
         moving_rays = moving.rays()
@@ -368,9 +386,7 @@ def accumulate_cross_fitted_disagreement(
             )
             if source.shape[0] > maximum:
                 generator = np.random.default_rng(
-                    normalized_seed
-                    + 1_000_003 * alignment_index
-                    + 97_409 * held_out_fold
+                    alignment_seed + 97_409 * held_out_fold
                 )
                 selected = np.sort(
                     generator.choice(
