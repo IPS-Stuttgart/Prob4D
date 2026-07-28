@@ -40,6 +40,7 @@ from .uncertainty import CalibrationReport, DepthDisagreementModel
 
 PROVIDER_V2_GAUGE_POSTERIOR_MODE = "sequential_joint_spanning_tree_v1"
 PROVIDER_V2_COMPOSITION_JACOBIAN_MODE = "analytic"
+ALIGNMENT_COVARIANCE_POLICY = "historical_pointwise_fallback"
 
 
 def _default_anchor_covariance() -> np.ndarray:
@@ -299,6 +300,9 @@ def run_provider_v2_gauge_manifest_ablation(
                 sequential_posterior.cross_window_covariance_preserved
             ),
             "dense_fusion_covariance_adapter": "per_window_marginals",
+            "alignment_covariance_policy": ALIGNMENT_COVARIANCE_POLICY,
+            "gauge_covariance_calibration_id": None,
+            "claim_bearing_provider_export": False,
             "legacy_ablation_runner_unchanged": True,
         },
     }
