@@ -9,6 +9,9 @@ All notable changes to Prob4D are documented here.
 - `ObservationFactorBundle` schema v4 with an ordered joint `7K x 7K` gauge
   covariance, explicit joint-versus-marginal covariance semantics, fail-closed
   marginal-block validation, and conservative schema-v2/v3 migration.
+- A public cluster-cross-fitted overlap-disagreement diagnostic that holds out
+  frame-by-spatial-tile clusters, refits the relative gauge without them, fails
+  closed on unfittable folds, and reports the strictly out-of-fold evaluated fraction.
 - `prob4d.provider_v2` as a safe-by-default Python surface with distinct
   exploratory and claim-bearing export functions.
 - Strict prediction/calibration compatibility checks covering MotionCrafter
