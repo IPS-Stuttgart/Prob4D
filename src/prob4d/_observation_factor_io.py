@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,7 @@ from ._observation_factor_bundle import (
     LEGACY_OBSERVATION_FACTOR_SCHEMA_VERSION,
     OBSERVATION_FACTOR_SCHEMA,
     OBSERVATION_FACTOR_SCHEMA_VERSION,
+    PREVIOUS_OBSERVATION_FACTOR_SCHEMA_VERSION,
     ObservationFactorBundle,
 )
 from ._observation_factor_types import ObservationFactor
@@ -30,13 +32,26 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def write_observation_factor_bundle(
+def _write_observation_factor_bundle(
     bundle: ObservationFactorBundle,
     manifest_path: str | Path,
     *,
     payload_path: str | Path | None = None,
+    schema_version: int,
 ) -> tuple[Path, Path]:
-    """Write a schema-v3 manifest with an exclusive causal frame stop."""
+    if schema_version not in {
+        PREVIOUS_OBSERVATION_FACTOR_SCHEMA_VERSION,
+        OBSERVATION_FACTOR_SCHEMA_VERSION,
+    }:
+        raise ValueError("writer supports only observation-factor schema v3 or v4")
+    if (
+        schema_version == PREVIOUS_OBSERVATION_FACTOR_SCHEMA_VERSION
+        and bundle.gauge_covariance_semantics != "marginal-blocks-only"
+    ):
+        raise ValueError(
+            "schema-v3 compatibility output cannot represent joint cross-window "
+            "gauge covariance"
+        )
 
     manifest = Path(manifest_path)
     payload = (
@@ -59,6 +74,9 @@ def write_observation_factor_bundle(
                 "covariance_key": f"{prefix}__covariance",
             }
         )
+    joint_covariance_key = "joint_gauge_covariance"
+    if schema_version == OBSERVATION_FACTOR_SCHEMA_VERSION:
+        arrays[joint_covariance_key] = bundle.joint_gauge_covariance
     factors: list[dict[str, Any]] = []
     for index, factor in enumerate(bundle.factors):
         prefix = f"factor_{index:04d}"
@@ -98,7 +116,7 @@ def write_observation_factor_bundle(
     np.savez_compressed(payload, **arrays)
     record = {
         "schema": OBSERVATION_FACTOR_SCHEMA,
-        "schema_version": bundle.schema_version,
+        "schema_version": schema_version,
         "gauge_parameterization": GAUGE_PARAMETERIZATION,
         "sequence_id": bundle.sequence_id,
         "case_id": bundle.case_id,
@@ -116,6 +134,16 @@ def write_observation_factor_bundle(
         "gauges": gauges,
         "factors": factors,
     }
+    if schema_version == OBSERVATION_FACTOR_SCHEMA_VERSION:
+        record["gauge_covariance"] = {
+            "semantics": bundle.gauge_covariance_semantics,
+            "joint_covariance_key": joint_covariance_key,
+            "ordered_gauge_ids": [gauge.window_id for gauge in bundle.gauges],
+            "cross_window_covariance_preserved": (
+                bundle.cross_window_gauge_covariance_preserved
+            ),
+            "diagonal_blocks_match_gauge_marginals": True,
+        }
     manifest.write_text(
         json.dumps(record, indent=2, sort_keys=True, allow_nan=False) + "\n",
         encoding="utf-8",
@@ -123,11 +151,46 @@ def write_observation_factor_bundle(
     return manifest, payload
 
 
+def write_observation_factor_bundle(
+    bundle: ObservationFactorBundle,
+    manifest_path: str | Path,
+    *,
+    payload_path: str | Path | None = None,
+) -> tuple[Path, Path]:
+    """Write a schema-v4 manifest with an ordered joint gauge covariance."""
+
+    return _write_observation_factor_bundle(
+        bundle,
+        manifest_path,
+        payload_path=payload_path,
+        schema_version=OBSERVATION_FACTOR_SCHEMA_VERSION,
+    )
+
+
+def write_observation_factor_bundle_v3(
+    bundle: ObservationFactorBundle,
+    manifest_path: str | Path,
+    *,
+    payload_path: str | Path | None = None,
+) -> tuple[Path, Path]:
+    """Write the frozen schema-v3 marginal-block compatibility representation."""
+
+    return _write_observation_factor_bundle(
+        bundle,
+        manifest_path,
+        payload_path=payload_path,
+        schema_version=PREVIOUS_OBSERVATION_FACTOR_SCHEMA_VERSION,
+    )
+
+
 def _causal_frame_stop(record: dict[str, Any], *, schema_version: int) -> int:
-    if schema_version == OBSERVATION_FACTOR_SCHEMA_VERSION:
+    if schema_version in {
+        PREVIOUS_OBSERVATION_FACTOR_SCHEMA_VERSION,
+        OBSERVATION_FACTOR_SCHEMA_VERSION,
+    }:
         convention = record.get("causal_frame_stop_convention")
         if convention is not None and convention != "exclusive":
-            raise ValueError("schema-v3 causal frame stop must be exclusive")
+            raise ValueError("nonlegacy causal frame stop must be exclusive")
         return int(record["causal_frame_stop"])
     if schema_version == LEGACY_OBSERVATION_FACTOR_SCHEMA_VERSION:
         return int(record["causal_frame_limit"]) + 1
@@ -137,7 +200,7 @@ def _causal_frame_stop(record: dict[str, Any], *, schema_version: int) -> int:
 def load_observation_factor_bundle(
     manifest_path: str | Path,
 ) -> ObservationFactorBundle:
-    """Load schema v3 or upgrade a schema-v2 bundle without ambiguity."""
+    """Load schema v4 or upgrade schema-v2/v3 bundles without ambiguity."""
 
     manifest = Path(manifest_path)
     record = json.loads(manifest.read_text(encoding="utf-8"))
@@ -146,6 +209,7 @@ def load_observation_factor_bundle(
     schema_version = int(record.get("schema_version", -1))
     if schema_version not in {
         LEGACY_OBSERVATION_FACTOR_SCHEMA_VERSION,
+        PREVIOUS_OBSERVATION_FACTOR_SCHEMA_VERSION,
         OBSERVATION_FACTOR_SCHEMA_VERSION,
     }:
         raise ValueError("unsupported observation-factor schema version")
@@ -160,6 +224,8 @@ def load_observation_factor_bundle(
         raise ValueError("observation-factor payload checksum mismatch")
     gauges: list[GaugeEstimate] = []
     factors: list[ObservationFactor] = []
+    joint_gauge_covariance: np.ndarray | None = None
+    gauge_covariance_semantics = "marginal-blocks-only"
     with np.load(payload, allow_pickle=False) as arrays:
         for gauge_record in record["gauges"]:
             gauges.append(
@@ -171,6 +237,35 @@ def load_observation_factor_bundle(
                     covariance=arrays[gauge_record["covariance_key"]],
                 )
             )
+        if schema_version == OBSERVATION_FACTOR_SCHEMA_VERSION:
+            covariance_record = record.get("gauge_covariance")
+            if not isinstance(covariance_record, dict):
+                raise ValueError("schema-v4 manifest is missing gauge_covariance")
+            gauge_covariance_semantics = str(covariance_record.get("semantics", ""))
+            preserved = covariance_record.get("cross_window_covariance_preserved")
+            if not isinstance(preserved, bool):
+                raise ValueError(
+                    "schema-v4 cross_window_covariance_preserved must be Boolean"
+                )
+            if preserved != (gauge_covariance_semantics == "joint-cross-window"):
+                raise ValueError(
+                    "schema-v4 gauge covariance semantics contradict the preservation flag"
+                )
+            if covariance_record.get("diagonal_blocks_match_gauge_marginals") is not True:
+                raise ValueError(
+                    "schema-v4 gauge covariance must declare matching marginal blocks"
+                )
+            joint_key = covariance_record.get("joint_covariance_key")
+            if not isinstance(joint_key, str) or not joint_key:
+                raise ValueError(
+                    "schema-v4 gauge covariance is missing joint_covariance_key"
+                )
+            ordered_gauge_ids = covariance_record.get("ordered_gauge_ids")
+            if ordered_gauge_ids != [gauge.window_id for gauge in gauges]:
+                raise ValueError(
+                    "schema-v4 joint gauge covariance order differs from gauge records"
+                )
+            joint_gauge_covariance = np.asarray(arrays[joint_key])
         for factor_record in record["factors"]:
             keys = factor_record["arrays"]
             ray_key = factor_record.get("ray_directions_local_key")
@@ -213,13 +308,20 @@ def load_observation_factor_bundle(
                 )
             )
     metadata = dict(record.get("metadata", {}))
-    if schema_version == LEGACY_OBSERVATION_FACTOR_SCHEMA_VERSION:
+    if schema_version != OBSERVATION_FACTOR_SCHEMA_VERSION:
         metadata = {
             **metadata,
             "loaded_from_schema_version": schema_version,
-            "legacy_causal_frame_limit_upgraded_to_exclusive_stop": True,
-            "legacy_missing_reliability_defaults": "ones",
+            "source_gauge_covariance_semantics": "marginal-blocks-only",
+            "source_cross_window_gauge_covariance_preserved": False,
         }
+        if schema_version == LEGACY_OBSERVATION_FACTOR_SCHEMA_VERSION:
+            metadata.update(
+                {
+                    "legacy_causal_frame_limit_upgraded_to_exclusive_stop": True,
+                    "legacy_missing_reliability_defaults": "ones",
+                }
+            )
     return ObservationFactorBundle(
         sequence_id=str(record["sequence_id"]),
         factors=tuple(factors),
@@ -233,4 +335,25 @@ def load_observation_factor_bundle(
         ),
         metadata=metadata,
         schema_version=OBSERVATION_FACTOR_SCHEMA_VERSION,
+        joint_gauge_covariance=joint_gauge_covariance,
+        gauge_covariance_semantics=gauge_covariance_semantics,
+    )
+
+
+def load_observation_factor_bundle_v3(
+    manifest_path: str | Path,
+) -> ObservationFactorBundle:
+    """Load through the frozen provider-v1 marginal-block schema boundary."""
+
+    bundle = load_observation_factor_bundle(manifest_path)
+    if bundle.gauge_covariance_semantics != "marginal-blocks-only":
+        raise ValueError(
+            "provider-v1 cannot load joint cross-window gauge covariance; "
+            "use prob4d.provider_v2"
+        )
+    return replace(
+        bundle,
+        schema_version=PREVIOUS_OBSERVATION_FACTOR_SCHEMA_VERSION,
+        joint_gauge_covariance=None,
+        gauge_covariance_semantics="marginal-blocks-only",
     )
