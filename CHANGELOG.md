@@ -28,6 +28,9 @@ All notable changes to Prob4D are documented here.
   recompute and validate it without importing Prob4D.
 - Version-selectable provider manifest emission through
   `prob4d provider manifest --api-version {1,2}`.
+- A provider-v2 gauge-backend ablation runner that preserves the seven-row
+  reconstruction contract while using the production causal spanning tree, analytic
+  composition Jacobians, and joint-covariance marginal adapter.
 - Provider-v2 unit, type, import, wheel, and source-distribution coverage.
 
 ### Changed
