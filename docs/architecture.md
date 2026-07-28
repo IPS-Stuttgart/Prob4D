@@ -23,15 +23,18 @@ Prob4D experiment helpers or underscore-prefixed modules.
 
 `prob4d.provider_v1` is frozen for existing experiments and exact reproduction. It
 exposes the causal source selector, fixed metric-anchor contract, portable
-observation belief, strict artifact loader, factor-bundle contract, and the
-version-1 provider manifest.
+observation belief, strict artifact loader, schema-v3 factor-bundle compatibility
+contract, and the version-1 provider manifest.
 
 New claim-bearing development should import `prob4d.provider_v2`. Version 2 keeps
-the same artifact and causal-stream schemas, but separates exploratory and
-calibrated exports. Its calibrated entry point validates the prediction manifest
-against both covariance calibrations before opening decoded payloads, requires an
-exact Prob4D source revision, fixes sequential gauge propagation, and forbids the
-pointwise covariance fallback. See [Provider API version 2](provider-v2.md).
+the same observation-belief and causal-stream schemas, but separates exploratory
+and calibrated exports. Its calibrated entry point validates the prediction
+manifest against both covariance calibrations before opening decoded payloads,
+requires an exact Prob4D source revision, fixes sequential gauge propagation, and
+forbids the pointwise covariance fallback. Provider v2 also advertises
+`JointObservationFactorBundle` schema v4 for explicit-gauge consumers that need
+the full ordered cross-window gauge covariance. See
+[Provider API version 2](provider-v2.md).
 
 A breaking change requires another versioned provider module rather than silently
 changing version 1 or 2. Frozen experiments must still record exact repository
@@ -66,14 +69,22 @@ preserves the resulting cross-window covariance. Rank reduction is trace-audited
 and fails closed below the declared retained-covariance threshold.
 
 `local_covariance_m2` is conditional point covariance and must not include the
-gauge contribution again. `ObservationFactorBundle` remains the richer interface
-when a downstream estimator keeps explicit gauge nuisance variables.
+gauge contribution again. A downstream estimator that keeps the shared low-rank
+factor as an explicit nuisance must not also add its marginal covariance.
 
-Fixed-lag smoothing carries a Schur-complement information prior when gauges
-leave the active window, so the moving boundary does not become exact. The
-portable all-window covariance still exports only historical marginal blocks and
-therefore remains an opt-in reconstruction control. The provider makes no
-prospective calibration or physical-twin-improvement claim.
+For unfused explicit-gauge inference, provider-v1
+`ObservationFactorBundle` schema v3 remains a frozen compatibility artifact. Its
+stacked gauge prior is block diagonal because the artifact contains only
+per-window marginals. Provider-v2 `JointObservationFactorBundle` schema v4 carries
+one ordered full gauge covariance; each diagonal block is validated against the
+corresponding `GaugeEstimate`, and stacking preserves all cross-window blocks.
+Consumers must use conditional point covariance with that explicit joint prior.
+
+Fixed-lag smoothing carries a Schur-complement information prior when gauges leave
+the active window, so the moving boundary does not become exact. The portable
+all-window covariance still exports only historical marginal blocks and therefore
+remains an opt-in reconstruction control. The provider makes no prospective
+calibration or physical-twin-improvement claim.
 
 ## Immutable validated inputs
 
@@ -82,10 +93,14 @@ validation. Caller-side mutations therefore cannot alter a window after it has
 entered a content-addressed workflow. Methods that intentionally provide mutable
 values, such as `rays()`, return copies.
 
+Observation-factor schema v4 similarly copies and freezes the complete joint gauge
+covariance after checking dimension, finiteness, symmetry, positive
+semidefiniteness, gauge ordering, and marginal-block consistency.
+
 ## Artifact ownership
 
-Prob4D owns MotionCrafter prediction manifests, decoded-window payloads, gauge
-and uncertainty calibration artifacts, portable observation beliefs,
+Prob4D owns MotionCrafter prediction manifests, decoded-window payloads, gauge and
+uncertainty calibration artifacts, portable observation beliefs,
 observation-factor bundles, provider manifests, benchmarks, and run manifests.
 Bayesian-PhysTwin owns physical priors, guarded updates, fallback behavior, and
 accepted twin beliefs. Causal4D owns realized-intervention inference downstream
