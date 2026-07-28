@@ -130,6 +130,127 @@ class CalibrationReport:
 
 
 @dataclass(frozen=True)
+class GroupBalancedCalibrationReport:
+    """Equal-group calibration audit with per-group scale diagnostics."""
+
+    count: int
+    trim_quantile: float
+    parallel_scale_update: float
+    lateral_scale_update: float
+    parallel_normalized_mse: float
+    lateral_normalized_mse: float
+    group_ids: tuple[str, ...]
+    group_counts: tuple[int, ...]
+    group_parallel_scale_updates: tuple[float, ...]
+    group_lateral_scale_updates: tuple[float, ...]
+    group_parallel_normalized_mse: tuple[float, ...]
+    group_lateral_normalized_mse: tuple[float, ...]
+
+    def __post_init__(self) -> None:
+        count = int(self.count)
+        trim_quantile = float(self.trim_quantile)
+        group_ids = tuple(map(str, self.group_ids))
+        group_counts = tuple(map(int, self.group_counts))
+        group_values = tuple(
+            tuple(map(float, values))
+            for values in (
+                self.group_parallel_scale_updates,
+                self.group_lateral_scale_updates,
+                self.group_parallel_normalized_mse,
+                self.group_lateral_normalized_mse,
+            )
+        )
+        lengths = {
+            len(group_ids),
+            len(group_counts),
+            *(len(values) for values in group_values),
+        }
+        if lengths != {len(group_ids)} or not group_ids:
+            raise ValueError("group calibration fields must have one non-empty shared length")
+        if len(set(group_ids)) != len(group_ids) or any(not value for value in group_ids):
+            raise ValueError("group calibration IDs must be non-empty and unique")
+        if group_ids != tuple(sorted(group_ids)):
+            raise ValueError("group calibration IDs must use canonical sorted order")
+        if any(value < 1 for value in group_counts) or sum(group_counts) != count:
+            raise ValueError("group calibration counts must be positive and sum to count")
+        if not 0.0 < trim_quantile <= 1.0:
+            raise ValueError("trim_quantile must lie in (0, 1]")
+        aggregate = np.asarray(
+            [
+                self.parallel_scale_update,
+                self.lateral_scale_update,
+                self.parallel_normalized_mse,
+                self.lateral_normalized_mse,
+            ],
+            dtype=np.float64,
+        )
+        if not np.all(np.isfinite(aggregate)) or np.any(aggregate < 0.0):
+            raise ValueError("group calibration aggregates must be finite and non-negative")
+        if aggregate[0] <= 0.0 or aggregate[1] <= 0.0:
+            raise ValueError("group calibration scale updates must be strictly positive")
+        for index, values in enumerate(group_values):
+            array = np.asarray(values, dtype=np.float64)
+            if not np.all(np.isfinite(array)) or np.any(array < 0.0):
+                raise ValueError("per-group calibration values must be finite and non-negative")
+            if index < 2 and np.any(array <= 0.0):
+                raise ValueError("per-group calibration scale updates must be positive")
+        object.__setattr__(self, "count", count)
+        object.__setattr__(self, "trim_quantile", trim_quantile)
+        object.__setattr__(self, "parallel_scale_update", float(aggregate[0]))
+        object.__setattr__(self, "lateral_scale_update", float(aggregate[1]))
+        object.__setattr__(self, "parallel_normalized_mse", float(aggregate[2]))
+        object.__setattr__(self, "lateral_normalized_mse", float(aggregate[3]))
+        object.__setattr__(self, "group_ids", group_ids)
+        object.__setattr__(self, "group_counts", group_counts)
+        object.__setattr__(self, "group_parallel_scale_updates", group_values[0])
+        object.__setattr__(self, "group_lateral_scale_updates", group_values[1])
+        object.__setattr__(self, "group_parallel_normalized_mse", group_values[2])
+        object.__setattr__(self, "group_lateral_normalized_mse", group_values[3])
+
+    @property
+    def group_count(self) -> int:
+        return len(self.group_ids)
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "aggregation": "equal-group-mean-of-within-group-trimmed-ratios-v1",
+            "count": self.count,
+            "group_count": self.group_count,
+            "trim_quantile": self.trim_quantile,
+            "parallel_scale_update": self.parallel_scale_update,
+            "lateral_scale_update": self.lateral_scale_update,
+            "parallel_normalized_mse": self.parallel_normalized_mse,
+            "lateral_normalized_mse": self.lateral_normalized_mse,
+            "groups": [
+                {
+                    "group_id": group_id,
+                    "count": count,
+                    "parallel_scale_update": parallel_update,
+                    "lateral_scale_update": lateral_update,
+                    "parallel_normalized_mse": parallel_mse,
+                    "lateral_normalized_mse": lateral_mse,
+                }
+                for (
+                    group_id,
+                    count,
+                    parallel_update,
+                    lateral_update,
+                    parallel_mse,
+                    lateral_mse,
+                ) in zip(
+                    self.group_ids,
+                    self.group_counts,
+                    self.group_parallel_scale_updates,
+                    self.group_lateral_scale_updates,
+                    self.group_parallel_normalized_mse,
+                    self.group_lateral_normalized_mse,
+                    strict=True,
+                )
+            ],
+        }
+
+
+@dataclass(frozen=True)
 class DepthDisagreementModel:
     """Depth-aware variance model augmented with online overlap disagreement."""
 
@@ -241,6 +362,105 @@ class DepthDisagreementModel:
             parallel_normalized_mse=float(np.mean(parallel_ratio)),
             lateral_normalized_mse=float(np.mean(lateral_ratio)),
         )
+
+    def calibrate_group_balanced(
+        self,
+        errors: FloatArray,
+        covariance: StructuredCovariance,
+        group_ids: np.ndarray,
+        *,
+        mask: NDArray[np.bool_] | None = None,
+        trim_quantile: float = 0.99,
+    ) -> tuple[DepthDisagreementModel, GroupBalancedCalibrationReport]:
+        """Scale variances while assigning equal mass to each declared group.
+
+        Ratios are trimmed independently inside every group. The final parallel
+        and lateral updates are arithmetic means of those per-group values, so a
+        long or densely sampled sequence cannot dominate merely by contributing
+        more rows. Group IDs are canonicalized to sorted strings, and rows with
+        invalid errors or a false mask value contribute to no group.
+        """
+
+        errors = np.asarray(errors, dtype=np.float64)
+        if errors.shape != covariance.ray_directions.shape:
+            raise ValueError("errors and covariance rays must have matching shapes")
+        if not np.isfinite(trim_quantile) or not 0.0 < trim_quantile <= 1.0:
+            raise ValueError("trim_quantile must lie in (0, 1]")
+        groups = np.asarray(group_ids)
+        if groups.shape != errors.shape[:-1]:
+            raise ValueError("group_ids must match the calibration sample grid")
+        active = np.all(np.isfinite(errors), axis=-1)
+        if mask is not None:
+            supplied_mask = np.asarray(mask, dtype=bool)
+            if supplied_mask.shape != active.shape:
+                raise ValueError("calibration mask shape does not match errors")
+            active &= supplied_mask
+        if not np.any(active):
+            raise ValueError("calibration set has no valid residuals")
+
+        active_groups = tuple(
+            "" if value is None else str(value).strip()
+            for value in groups[active].reshape(-1)
+        )
+        if any(not value for value in active_groups):
+            raise ValueError("active group IDs must be non-empty")
+        group_array = np.asarray(active_groups, dtype=str)
+        canonical_group_ids = tuple(sorted(set(active_groups)))
+
+        ray = covariance.ray_directions
+        parallel_error = np.sum(errors * ray, axis=-1)
+        total_squared = np.sum(errors**2, axis=-1)
+        lateral_squared = np.maximum(total_squared - parallel_error**2, 0.0)
+        parallel_ratio = (
+            parallel_error[active] ** 2 / covariance.parallel_variance[active]
+        ).reshape(-1)
+        lateral_ratio = (
+            lateral_squared[active] / (2.0 * covariance.lateral_variance[active])
+        ).reshape(-1)
+
+        def ordered_mean(values: np.ndarray) -> float:
+            return float(np.mean(np.sort(np.asarray(values, dtype=np.float64))))
+
+        def trimmed_mean(values: np.ndarray) -> float:
+            ordered = np.sort(np.asarray(values, dtype=np.float64))
+            upper = float(np.quantile(ordered, trim_quantile))
+            return max(float(np.mean(np.minimum(ordered, upper))), 1e-6)
+
+        counts: list[int] = []
+        parallel_updates: list[float] = []
+        lateral_updates: list[float] = []
+        parallel_mse: list[float] = []
+        lateral_mse: list[float] = []
+        for group_id in canonical_group_ids:
+            selected = group_array == group_id
+            counts.append(int(np.count_nonzero(selected)))
+            parallel_updates.append(trimmed_mean(parallel_ratio[selected]))
+            lateral_updates.append(trimmed_mean(lateral_ratio[selected]))
+            parallel_mse.append(ordered_mean(parallel_ratio[selected]))
+            lateral_mse.append(ordered_mean(lateral_ratio[selected]))
+
+        parallel_update = ordered_mean(np.asarray(parallel_updates))
+        lateral_update = ordered_mean(np.asarray(lateral_updates))
+        calibrated = replace(
+            self,
+            parallel_scale=self.parallel_scale * parallel_update,
+            lateral_scale=self.lateral_scale * lateral_update,
+        )
+        report = GroupBalancedCalibrationReport(
+            count=int(np.count_nonzero(active)),
+            trim_quantile=trim_quantile,
+            parallel_scale_update=parallel_update,
+            lateral_scale_update=lateral_update,
+            parallel_normalized_mse=ordered_mean(np.asarray(parallel_mse)),
+            lateral_normalized_mse=ordered_mean(np.asarray(lateral_mse)),
+            group_ids=canonical_group_ids,
+            group_counts=tuple(counts),
+            group_parallel_scale_updates=tuple(parallel_updates),
+            group_lateral_scale_updates=tuple(lateral_updates),
+            group_parallel_normalized_mse=tuple(parallel_mse),
+            group_lateral_normalized_mse=tuple(lateral_mse),
+        )
+        return calibrated, report
 
 
 def accumulate_disagreement(
