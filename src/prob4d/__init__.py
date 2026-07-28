@@ -14,6 +14,10 @@ from .calibration import (
     save_gauge_covariance_calibration,
     save_point_uncertainty_calibration,
 )
+from .cross_fitted_disagreement import (
+    CrossFittedDisagreementReport,
+    accumulate_cross_fitted_disagreement,
+)
 from .data import PredictionWindow
 from .evaluation_modes import (
     EvaluationModeResult,
@@ -59,6 +63,7 @@ __all__ = [
     "OBSERVATION_BELIEF_VERSION",
     "POINT_UNCERTAINTY_CALIBRATION_SCHEMA",
     "POINT_UNCERTAINTY_CALIBRATION_VERSION",
+    "CrossFittedDisagreementReport",
     "EvaluationModeResult",
     "EvaluationModes",
     "GaugeCovarianceCalibrationV1",
@@ -72,6 +77,7 @@ __all__ = [
     "PredictionWindow",
     "Sim3",
     "StackedObservationFactors",
+    "accumulate_cross_fitted_disagreement",
     "build_prob4d_observation_belief",
     "deterministic_covariance_root",
     "estimate_joint_gauge_tree",
