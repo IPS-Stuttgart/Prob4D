@@ -46,6 +46,7 @@ from .observation_factors import (
 )
 from .observation_validation import load_observation_belief_export
 from .sim3 import Sim3
+from .uncertainty import GroupBalancedCalibrationReport
 
 try:
     __version__ = version("prob4d")
@@ -62,6 +63,7 @@ __all__ = [
     "EvaluationModeResult",
     "EvaluationModes",
     "GaugeCovarianceCalibrationV1",
+    "GroupBalancedCalibrationReport",
     "JointGaugePosterior",
     "LinearizedObservationFactor",
     "MetricGaugeAnchor",
