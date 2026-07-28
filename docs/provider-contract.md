@@ -77,8 +77,13 @@ archives, and content-address mismatches. Strict causal export writes through a
 temporary archive, reloads and validates its content address, then atomically
 replaces the requested output. `PredictionWindow` inputs are copied and frozen
 after validation so caller-side mutation cannot alter a sealed source object.
-The richer `ObservationFactorBundle` schema v3 remains available when the
-consumer estimates gauge nuisance variables explicitly.
+
+Provider v2 exposes `ObservationFactorBundle` schema v4 for consumers that keep
+explicit gauge nuisance variables. It stores one ordered joint `7K x 7K` gauge
+covariance and distinguishes `joint-cross-window` from
+`marginal-blocks-only` semantics. Schema-v2/v3 bundles upgrade conservatively as
+marginal-only because their missing off-diagonal blocks cannot be reconstructed.
+The frozen provider-v1 surface continues to advertise and write schema v3.
 
 The grouped `prob4d` command is the preferred discoverable interface. Existing
 `prob4d-*` commands remain available so historical run manifests and frozen
