@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, ClassVar
 
 import numpy as np
 
@@ -21,9 +21,13 @@ from .sim3 import Sim3, skew, so3_right_jacobian
 
 OBSERVATION_FACTOR_SCHEMA = "prob4d.observation-factor-bundle"
 OBSERVATION_FACTOR_SCHEMA_VERSION = 3
+JOINT_OBSERVATION_FACTOR_SCHEMA_VERSION = 4
 LEGACY_OBSERVATION_FACTOR_SCHEMA_VERSION = 2
 OBSERVATION_FACTOR_SOURCE_REPOSITORY = "FlorianPfaff/Prob4D"
 GAUGE_PARAMETERIZATION = "log-scale-rotvec-translation-v1"
+JOINT_GAUGE_COVARIANCE_SEMANTICS = (
+    "ordered-full-cross-window-covariance-v1"
+)
 
 
 def _json_metadata(value: Mapping[str, Any]) -> dict[str, Any]:
@@ -37,7 +41,15 @@ def _json_metadata(value: Mapping[str, Any]) -> dict[str, Any]:
 
 @dataclass(frozen=True)
 class ObservationFactorBundle:
-    """Versioned collection of unfused factors and uncertain Sim(3) gauges."""
+    """Frozen schema-v3 bundle with marginal per-gauge covariance blocks.
+
+    Schema v3 predates an explicit joint gauge prior. Its stacked representation
+    therefore retains the historical block-diagonal covariance assembled from
+    the individual ``GaugeEstimate`` marginals. New explicit-gauge inference
+    should use :class:`JointObservationFactorBundle`.
+    """
+
+    EXPECTED_SCHEMA_VERSION: ClassVar[int] = OBSERVATION_FACTOR_SCHEMA_VERSION
 
     sequence_id: str
     factors: tuple[ObservationFactor, ...]
@@ -64,7 +76,7 @@ class ObservationFactorBundle:
         source_repository = str(self.source_repository)
         if not case_id or not stream_id or not source_repository:
             raise ValueError("case, stream, and source repository must not be empty")
-        if self.schema_version != OBSERVATION_FACTOR_SCHEMA_VERSION:
+        if self.schema_version != self.EXPECTED_SCHEMA_VERSION:
             raise ValueError("unsupported observation-factor schema version")
         causal_frame_stop = int(self.causal_frame_stop)
         if causal_frame_stop < 1:
@@ -186,8 +198,81 @@ class ObservationFactorBundle:
             ray_directions_world=rays,
         )
 
+    @property
+    def cross_window_gauge_covariance_preserved(self) -> bool:
+        """Whether the serialized gauge prior contains cross-window blocks."""
+
+        return False
+
     def stack(self, *, include_invalid: bool = False) -> StackedObservationFactors:
         return stack_observation_factors(self, include_invalid=include_invalid)
+
+
+@dataclass(frozen=True)
+class JointObservationFactorBundle(ObservationFactorBundle):
+    """Schema-v4 unfused factors with one ordered joint ``Sim(3)`` prior.
+
+    ``joint_gauge_covariance`` follows the exact order of ``gauges`` and contains
+    every marginal and cross-window block. The marginal block for each gauge must
+    match the covariance stored in its corresponding ``GaugeEstimate``. This
+    redundancy keeps row-level linearization convenient while making the full
+    nuisance prior auditable and impossible to silently replace by independent
+    gauge marginals.
+    """
+
+    schema_version: int = JOINT_OBSERVATION_FACTOR_SCHEMA_VERSION
+    joint_gauge_covariance: FloatArray | None = None
+
+    EXPECTED_SCHEMA_VERSION: ClassVar[int] = (
+        JOINT_OBSERVATION_FACTOR_SCHEMA_VERSION
+    )
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.joint_gauge_covariance is None:
+            raise ValueError(
+                "schema-v4 observation factors require joint_gauge_covariance"
+            )
+        dimension = 7 * len(self.gauges)
+        covariance = np.asarray(
+            self.joint_gauge_covariance, dtype=np.float64
+        ).copy()
+        if covariance.shape != (dimension, dimension):
+            raise ValueError(
+                "joint_gauge_covariance must have shape "
+                f"({dimension}, {dimension})"
+            )
+        if not np.all(np.isfinite(covariance)):
+            raise ValueError("joint_gauge_covariance must be finite")
+        symmetric = 0.5 * (covariance + covariance.T)
+        if not np.allclose(covariance, symmetric, atol=1e-12, rtol=1e-10):
+            raise ValueError("joint_gauge_covariance must be symmetric")
+        _require_psd(
+            symmetric,
+            "joint_gauge_covariance",
+            tolerance=1e-10,
+        )
+        for index, gauge in enumerate(self.gauges):
+            block = symmetric[
+                7 * index : 7 * (index + 1),
+                7 * index : 7 * (index + 1),
+            ]
+            if not np.allclose(
+                block,
+                np.asarray(gauge.covariance, dtype=np.float64),
+                atol=1e-12,
+                rtol=1e-10,
+            ):
+                raise ValueError(
+                    "joint gauge covariance marginal does not match "
+                    f"GaugeEstimate {gauge.window_id!r}"
+                )
+        symmetric.setflags(write=False)
+        object.__setattr__(self, "joint_gauge_covariance", symmetric)
+
+    @property
+    def cross_window_gauge_covariance_preserved(self) -> bool:
+        return True
 
 
 def sim3_point_jacobian(transform: Sim3, points_local_m: FloatArray) -> FloatArray:
@@ -278,8 +363,15 @@ def stack_observation_factors(
             correlation_groups.append(factor.correlation_group_id)
     if not means:
         raise ValueError("observation-factor stack has no selected rows")
-    gauge_prior = _block_diagonal(
-        [np.asarray(gauge.covariance, dtype=np.float64) for gauge in bundle.gauges]
+    gauge_prior = (
+        np.asarray(bundle.joint_gauge_covariance, dtype=np.float64)
+        if isinstance(bundle, JointObservationFactorBundle)
+        else _block_diagonal(
+            [
+                np.asarray(gauge.covariance, dtype=np.float64)
+                for gauge in bundle.gauges
+            ]
+        )
     )
     return StackedObservationFactors(
         world_mean_m=np.stack(means),
