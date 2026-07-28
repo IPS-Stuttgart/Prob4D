@@ -6,6 +6,12 @@ All notable changes to Prob4D are documented here.
 
 ### Added
 
+- `load_claim_bearing_observation_belief` and
+  `validate_claim_bearing_observation_belief` as explicit
+  `prob4d.provider_v2_loading` admission boundaries for calibrated, causal,
+  independently attested observations.
+- `ValidatedClaimBearingObservation` with the validated provider manifest,
+  calibration, runtime-revision, and observation artifact identities.
 - `ObservationFactorBundle` schema v4 with an ordered joint `7K x 7K` gauge
   covariance, explicit joint-versus-marginal covariance semantics, fail-closed
   marginal-block validation, and conservative schema-v2/v3 migration.
@@ -38,6 +44,10 @@ All notable changes to Prob4D are documented here.
 
 ### Changed
 
+- `ObservationBeliefExportV1.metadata` is now recursively immutable after finite-JSON
+  normalization. Ordinary `dict`/`list` checks and mutable `copy`/`deepcopy` workflows
+  remain supported, while caller-owned or nested mutation cannot change an existing
+  content address.
 - Stacked unfused factors now retain cross-window gauge covariance rather than
   reconstructing a block-diagonal prior from per-gauge marginals. The frozen
   provider-v1 writer remains schema v3 and rejects joint covariance it cannot encode.
