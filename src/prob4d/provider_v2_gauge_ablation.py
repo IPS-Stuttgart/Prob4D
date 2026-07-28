@@ -1,4 +1,4 @@
-"""Ablation runner using the exact provider-v2 sequential gauge backend.
+"""Ablation runner using provider-v2 sequential gauge-tree semantics.
 
 The historical :mod:`prob4d.experiments` runner is retained for reproduction. This
 module reuses its seven-row evaluation contract while replacing the multi-parent
@@ -295,9 +295,10 @@ def run_provider_v2_gauge_manifest_ablation(
             "posterior_mode": sequential_posterior.mode,
             "anchored_posterior_mode": anchored_posterior.mode,
             "composition_jacobian_mode": PROVIDER_V2_COMPOSITION_JACOBIAN_MODE,
-            "cross_window_covariance_preserved": (
+            "joint_cross_window_covariance_available": (
                 sequential_posterior.cross_window_covariance_preserved
             ),
+            "dense_fusion_covariance_adapter": "per_window_marginals",
             "legacy_ablation_runner_unchanged": True,
         },
     }
