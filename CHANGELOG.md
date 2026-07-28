@@ -6,6 +6,9 @@ All notable changes to Prob4D are documented here.
 
 ### Added
 
+- `ObservationFactorBundle` schema v4 with an ordered joint `7K x 7K` gauge
+  covariance, explicit joint-versus-marginal covariance semantics, fail-closed
+  marginal-block validation, and conservative schema-v2/v3 migration.
 - `prob4d.provider_v2` as a safe-by-default Python surface with distinct
   exploratory and claim-bearing export functions.
 - Strict prediction/calibration compatibility checks covering MotionCrafter
@@ -32,6 +35,9 @@ All notable changes to Prob4D are documented here.
 
 ### Changed
 
+- Stacked unfused factors now retain cross-window gauge covariance rather than
+  reconstructing a block-diagonal prior from per-gauge marginals. The frozen
+  provider-v1 writer remains schema v3 and rejects joint covariance it cannot encode.
 - Fixed-lag gauge smoothing now Schur-marginalizes expired gauges into an
   uncertainty-bearing boundary prior. Portable historical covariance remains an
   explicit block-diagonal reconstruction approximation.

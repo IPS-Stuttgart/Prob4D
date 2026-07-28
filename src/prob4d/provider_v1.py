@@ -23,6 +23,10 @@ from ._metric_gauge_anchor import (
     load_metric_gauge_anchor,
     save_metric_gauge_anchor,
 )
+from ._observation_factor_io import (
+    load_observation_factor_bundle_v3,
+    write_observation_factor_bundle_v3,
+)
 from .alignment import CovarianceFallbackPolicy, alignment_covariance_context
 from .calibration import (
     GAUGE_COVARIANCE_CALIBRATION_SCHEMA,
@@ -49,10 +53,8 @@ from .observation_contract import (
 from .observation_export import SamplingMode, build_prob4d_observation_belief
 from .observation_factors import (
     OBSERVATION_FACTOR_SCHEMA,
-    OBSERVATION_FACTOR_SCHEMA_VERSION,
+    PREVIOUS_OBSERVATION_FACTOR_SCHEMA_VERSION,
     ObservationFactorBundle,
-    load_observation_factor_bundle,
-    write_observation_factor_bundle,
 )
 from .observation_validation import load_observation_belief_export
 from .provider_manifest import (
@@ -62,6 +64,9 @@ from .provider_manifest import (
 from .uncertainty import DepthDisagreementModel
 
 PROVIDER_API_VERSION = PROB4D_PROVIDER_API_VERSION
+OBSERVATION_FACTOR_SCHEMA_VERSION = PREVIOUS_OBSERVATION_FACTOR_SCHEMA_VERSION
+load_observation_factor_bundle = load_observation_factor_bundle_v3
+write_observation_factor_bundle = write_observation_factor_bundle_v3
 
 
 def select_causal_source(

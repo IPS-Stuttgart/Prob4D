@@ -315,6 +315,16 @@ class StackedObservationFactors:
             raise ValueError("stacked gauge Jacobian has changed shape")
         if gauge_prior.shape != (gauge_dimension, gauge_dimension):
             raise ValueError("gauge prior covariance has changed shape")
+        if not np.all(np.isfinite(gauge_prior)):
+            raise ValueError("gauge prior covariance must be finite")
+        if not np.allclose(
+            gauge_prior,
+            gauge_prior.T,
+            atol=1e-12,
+            rtol=1e-10,
+        ):
+            raise ValueError("gauge prior covariance must be symmetric")
+        _require_psd(gauge_prior, "gauge prior covariance")
         for name, value in (
             ("association_probability", association),
             ("prior_reliability", reliability),

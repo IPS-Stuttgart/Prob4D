@@ -6,12 +6,15 @@ view factors must remain separate so that uncertain `Sim(3)` gauges, shared
 backbone dependence, reliability, and causal timing are not erased before
 inference.
 
-`prob4d.observation_factors` implements this interface as schema version 3. The
+`prob4d.observation_factors` implements this interface as schema version 4. The
 bundle contains:
 
 - local 3-D points, full local covariance, material/association IDs, and optional
   viewing rays for every factor;
 - one `GaugeEstimate` for every local window gauge;
+- one ordered joint gauge covariance over all `7K` gauge coordinates;
+- explicit `joint-cross-window` or `marginal-blocks-only` gauge-covariance
+  semantics;
 - separate association probability and residual-independent prior reliability;
 - correlation-group nominal probabilities and composite-likelihood weights;
 - case, stream, sequence, repository, revision, view, window, frame, and
@@ -50,7 +53,7 @@ and composite weight. Stacking repeats those group values row-for-row without
 multiplying them into association probability. A zero-reliability row is not
 selected merely because its association probability is high.
 
-## Conditional and marginal covariance
+## Conditional, marginal, and joint gauge covariance
 
 For a local point `p` and gauge vector `g`, Prob4D exports the linearization
 
@@ -59,17 +62,29 @@ y = Sim3(g) p
 J_g = dy / dg.
 ```
 
-The stack deliberately exposes two covariance products:
+The stack deliberately exposes two point-covariance products:
 
 - `conditional_world_covariance_m2` transforms only the local point covariance;
 - `marginal_world_covariance_m2` additionally contains
-  `J_g Sigma_g J_g^T`.
+  `J_g Sigma_gg J_g^T`, using the corresponding diagonal gauge block.
+
+`gauge_prior_covariance` is the ordered `7K x 7K` covariance for
+`stacked.gauge_ids`. Under `joint-cross-window` semantics it retains off-diagonal
+blocks induced by a shared metric anchor or sequential gauge tree. The diagonal
+block for each gauge must exactly match the covariance stored in its
+`GaugeEstimate`; inconsistent or indefinite inputs fail closed.
 
 A downstream estimator that keeps gauge errors as explicit nuisance variables
-must use the **conditional** covariance together with `gauge_jacobian` and
-`gauge_prior_covariance`. Using the marginal covariance as well would count
-uncertain gauge variation twice. The marginal covariance remains useful for a
-consumer that does not estimate gauges explicitly.
+must use the **conditional** covariance together with `gauge_jacobian` and the
+full `gauge_prior_covariance`. Using the marginal covariance as well would count
+uncertain gauge variation twice. A consumer that does not estimate gauges may
+use the marginal point covariance, but row-wise marginals alone cannot reproduce
+cross-row covariance caused by a shared gauge prior.
+
+`marginal-blocks-only` is an explicit compatibility representation. It constructs
+a block-diagonal gauge prior from the per-gauge marginals and rejects nonzero
+off-diagonal blocks. It must not be described as preserving cross-window gauge
+uncertainty.
 
 ## Example
 
@@ -102,15 +117,17 @@ bundle = ObservationFactorBundle(
     sequence_id="double_stretch_sloth-camera0-prefix",
     case_id="double_stretch_sloth",
     stream_id="prob4d:motioncrafter-points:camera0",
-    factors=(factor,),
-    gauges=(gauge_window3_camera0,),
+    factors=(factor_window2, factor_window3),
+    gauges=(gauge_window2_camera0, gauge_window3_camera0),
+    joint_gauge_covariance=joint_gauge_covariance,
+    gauge_covariance_semantics="joint-cross-window",
     source_repository="FlorianPfaff/Prob4D",
     source_revision=prob4d_commit,
     causal_frame_stop=134,
     metadata={
         "upstream_repository": "TencentARC/MotionCrafter",
         "upstream_revision": motioncrafter_commit,
-        "metric_anchor_used": False,
+        "metric_anchor_used": True,
     },
 )
 
@@ -122,9 +139,11 @@ stacked = bundle.stack()
 ```
 
 `stacked.gauge_jacobian` has one seven-dimensional block per gauge. Rows from
-another gauge are exactly zero in that block. The stacked association,
-reliability, nominal-probability, and composite-weight arrays remain separate
-inputs for the consuming Bayesian estimator.
+another gauge are exactly zero in that block, while
+`stacked.gauge_prior_covariance` can contain nonzero covariance between those
+blocks. The stacked association, reliability, nominal-probability, and
+composite-weight arrays remain separate inputs for the consuming Bayesian
+estimator.
 
 ## Information boundary
 
@@ -135,18 +154,26 @@ frame_index < causal_frame_stop
 ```
 
 and every factor in a bundle must use the same exclusive stop. This convention
-matches `ObservationBeliefV1` and avoids adapter-specific `+1` conversions.
-The contract does not authorize a predictor to read later RGB, point maps,
-target tracks, or outcome metrics. Reconstruction controls that use all frames
-must be written to a separately labelled bundle.
+matches `ObservationBeliefV1` and avoids adapter-specific `+1` conversions. The
+contract does not authorize a predictor to read later RGB, point maps, target
+tracks, or outcome metrics. Reconstruction controls that use all frames must be
+written to a separately labelled bundle.
 
-## Schema-v2 migration
+## Schema migration and provider versions
 
-The loader accepts legacy schema-v2 manifests, whose `causal_frame_limit` was
-inclusive. It converts them deterministically to
-`causal_frame_stop = causal_frame_limit + 1`. Because v2 had no distinct prior
-reliability or group weighting fields, those values are conservatively restored
-as one and the migration is recorded in bundle metadata. Missing case or stream
-identities are restored from the legacy `sequence_id`. New writes always use
-schema v3; the legacy inclusive aliases remain read-only compatibility
-properties.
+The current loader accepts schema v2, v3, and v4:
+
+- v2 used an inclusive `causal_frame_limit` and had no distinct reliability or
+  group weighting fields;
+- v3 added the exclusive causal stop and reliability fields but serialized only
+  per-gauge marginal covariance blocks;
+- v4 adds the ordered joint gauge covariance and explicit covariance semantics.
+
+Schema-v2/v3 inputs are upgraded conservatively as `marginal-blocks-only`; the
+loader records that their source schema did not preserve cross-window gauge
+covariance. It never infers missing off-diagonal blocks.
+
+New writes through `prob4d.observation_factors` and `prob4d.provider_v2` use
+schema v4. The frozen `prob4d.provider_v1` writer remains schema v3 and rejects a
+bundle that declares `joint-cross-window` semantics rather than silently dropping
+its off-diagonal covariance.
