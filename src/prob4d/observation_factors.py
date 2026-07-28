@@ -8,10 +8,13 @@ timing.
 
 from ._observation_factor_bundle import (
     GAUGE_PARAMETERIZATION,
+    JOINT_GAUGE_COVARIANCE_SEMANTICS,
+    JOINT_OBSERVATION_FACTOR_SCHEMA_VERSION,
     LEGACY_OBSERVATION_FACTOR_SCHEMA_VERSION,
     OBSERVATION_FACTOR_SCHEMA,
     OBSERVATION_FACTOR_SCHEMA_VERSION,
     OBSERVATION_FACTOR_SOURCE_REPOSITORY,
+    JointObservationFactorBundle,
     ObservationFactorBundle,
     sim3_point_jacobian,
     stack_observation_factors,
@@ -28,10 +31,13 @@ from ._observation_factor_types import (
 
 __all__ = [
     "GAUGE_PARAMETERIZATION",
+    "JOINT_GAUGE_COVARIANCE_SEMANTICS",
+    "JOINT_OBSERVATION_FACTOR_SCHEMA_VERSION",
     "LEGACY_OBSERVATION_FACTOR_SCHEMA_VERSION",
     "OBSERVATION_FACTOR_SCHEMA",
     "OBSERVATION_FACTOR_SCHEMA_VERSION",
     "OBSERVATION_FACTOR_SOURCE_REPOSITORY",
+    "JointObservationFactorBundle",
     "LinearizedObservationFactor",
     "ObservationFactor",
     "ObservationFactorBundle",
