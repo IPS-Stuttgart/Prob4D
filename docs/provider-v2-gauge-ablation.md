@@ -7,7 +7,8 @@ causal spanning tree and propagates its full joint cross-window `Sim(3)` covaria
 with analytic composition Jacobians.
 
 Use the provider-aligned runner when an experiment is intended to diagnose the
-same gauge backend that feeds a provider-v2 observation export:
+same gauge-tree and composition backend that feeds a provider-v2 observation
+export:
 
 ```bash
 prob4d-ablate-provider-v2-gauge \
@@ -31,14 +32,18 @@ upstream MotionCrafter baselines are unchanged. Prob4D rows use:
 
 The output metadata records the backend mode, provider API version, Jacobian mode,
 the availability of the joint cross-window covariance, and the explicit
-`per_window_marginals` adapter used by dense fusion. Tests compare the adapter
-against a direct call to the same tree estimator used by provider v2.
+`per_window_marginals` adapter used by dense fusion. It also records that alignment
+covariance retains the historical pointwise-fallback policy and has no claim-bearing
+gauge-calibration artifact. Tests compare the tree adapter against a direct call to
+the same estimator used by provider v2.
 
 ## Claim boundary
 
-This is a **gauge-backend parity benchmark**, not by itself a claim-bearing
-provider-v2 observation export. It reuses the historical point-uncertainty
-calibration and simulated metric-anchor protocol. A claim-bearing downstream run
-still requires independently fitted content-addressed gauge and point covariance
-calibrations, strict prediction/calibration compatibility, causal source sealing,
-runtime revision attestation, and the calibrated provider-v2 export entry point.
+This is a **gauge-tree and Jacobian parity benchmark**, not by itself a
+claim-bearing provider-v2 observation export. It reuses the historical
+point-uncertainty calibration, permits the historical pointwise alignment-covariance
+fallback, and uses simulated metric anchors. A claim-bearing downstream run still
+requires independently fitted content-addressed gauge and point covariance
+calibrations, strict prediction/calibration compatibility, fail-closed spatial
+cluster covariance, causal source sealing, runtime revision attestation, and the
+calibrated provider-v2 export entry point.
