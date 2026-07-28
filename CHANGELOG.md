@@ -9,6 +9,9 @@ All notable changes to Prob4D are documented here.
 - `ObservationFactorBundle` schema v4 with an ordered joint `7K x 7K` gauge
   covariance, explicit joint-versus-marginal covariance semantics, fail-closed
   marginal-block validation, and conservative schema-v2/v3 migration.
+- Equal-group point-uncertainty calibration with canonical group ordering,
+  within-group trimming, per-group diagnostics, and row-order-invariant aggregate
+  scales so dense sequences cannot dominate solely through sample count.
 - `prob4d.provider_v2` as a safe-by-default Python surface with distinct
   exploratory and claim-bearing export functions.
 - Strict prediction/calibration compatibility checks covering MotionCrafter
