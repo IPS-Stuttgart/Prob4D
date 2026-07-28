@@ -30,7 +30,8 @@ upstream MotionCrafter baselines are unchanged. Prob4D rows use:
   provider-aligned marginals.
 
 The output metadata records the backend mode, provider API version, Jacobian mode,
-and whether cross-window covariance was preserved. Tests compare the adapter
+the availability of the joint cross-window covariance, and the explicit
+`per_window_marginals` adapter used by dense fusion. Tests compare the adapter
 against a direct call to the same tree estimator used by provider v2.
 
 ## Claim boundary
