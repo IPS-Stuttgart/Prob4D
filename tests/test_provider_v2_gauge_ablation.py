@@ -105,6 +105,7 @@ def test_provider_v2_gauge_ablation_preserves_seven_row_contract(tmp_path) -> No
         "posterior_mode": PROVIDER_V2_GAUGE_POSTERIOR_MODE,
         "anchored_posterior_mode": PROVIDER_V2_GAUGE_POSTERIOR_MODE,
         "composition_jacobian_mode": PROVIDER_V2_COMPOSITION_JACOBIAN_MODE,
-        "cross_window_covariance_preserved": True,
+        "joint_cross_window_covariance_available": True,
+        "dense_fusion_covariance_adapter": "per_window_marginals",
         "legacy_ablation_runner_unchanged": True,
     }
