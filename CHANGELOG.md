@@ -12,6 +12,9 @@ All notable changes to Prob4D are documented here.
 - A public cluster-cross-fitted overlap-disagreement diagnostic that holds out
   frame-by-spatial-tile clusters, refits the relative gauge without them, fails
   closed on unfittable folds, and reports the strictly out-of-fold evaluated fraction.
+- Equal-group point-uncertainty calibration with canonical group ordering,
+  within-group trimming, per-group diagnostics, and row-order-invariant aggregate
+  scales so dense sequences cannot dominate solely through sample count.
 - `prob4d.provider_v2` as a safe-by-default Python surface with distinct
   exploratory and claim-bearing export functions.
 - Strict prediction/calibration compatibility checks covering MotionCrafter
