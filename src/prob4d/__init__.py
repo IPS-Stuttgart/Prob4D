@@ -36,6 +36,7 @@ from .observation_export import (
     save_metric_gauge_anchor,
 )
 from .observation_factors import (
+    JointObservationFactorBundle,
     LinearizedObservationFactor,
     ObservationFactor,
     ObservationFactorBundle,
@@ -63,6 +64,7 @@ __all__ = [
     "EvaluationModes",
     "GaugeCovarianceCalibrationV1",
     "JointGaugePosterior",
+    "JointObservationFactorBundle",
     "LinearizedObservationFactor",
     "MetricGaugeAnchor",
     "ObservationBeliefExportV1",
