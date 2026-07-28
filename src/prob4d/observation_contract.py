@@ -11,6 +11,7 @@ from typing import Any
 
 import numpy as np
 
+from ._immutable_json import frozen_finite_json_mapping, plain_json
 from .observation_contract_bundle import (
     observation_contract_array_sha256,
     observation_contract_artifact_id,
@@ -65,11 +66,8 @@ def _validate_sha256(value: str, *, name: str) -> None:
         raise ValueError(f"{name} must be a lowercase SHA-256 digest")
 
 
-def _validated_metadata(values: Mapping[str, Any]) -> dict[str, Any]:
-    try:
-        return json.loads(json.dumps(dict(values), sort_keys=True, allow_nan=False))
-    except (TypeError, ValueError) as error:
-        raise ValueError("metadata must be finite JSON data") from error
+def _validated_metadata(values: Mapping[str, Any]) -> Mapping[str, Any]:
+    return frozen_finite_json_mapping(values, name="metadata")
 
 
 def _readonly(
@@ -317,7 +315,7 @@ class ObservationBeliefExportV1:
             "source_repository": self.source_repository,
             "source_revision": self.source_revision,
             "source_artifact_sha256": self.source_artifact_sha256,
-            "metadata": self.metadata,
+            "metadata": plain_json(self.metadata),
         }
 
     def arrays(self) -> dict[str, np.ndarray]:
