@@ -27,6 +27,9 @@ All notable changes to Prob4D are documented here.
 - A directed gauge-cycle audit that compares direct overlap alignments with
   two-edge paths in representative observation displacement, preserves deterministic
   thresholds, and explicitly avoids chi-square claims under unknown edge dependence.
+- A content-addressed, equal-group logistic source-reliability calibration with a
+  source-only feature contract, canonical row ordering, exact label/group semantics,
+  probability clipping, immutable metadata, and tamper-checked JSON round trips.
 - `prob4d.provider_v2` as a safe-by-default Python surface with distinct
   exploratory and claim-bearing export functions.
 - Strict prediction/calibration compatibility checks covering MotionCrafter
