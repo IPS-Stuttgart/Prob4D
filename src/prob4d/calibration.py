@@ -16,6 +16,10 @@ from ._point_calibration import (
     load_point_uncertainty_calibration,
     save_point_uncertainty_calibration,
 )
+from .group_balanced_point_calibration import (
+    fit_group_balanced_point_uncertainty_calibration,
+    group_balanced_point_calibration_metadata,
+)
 
 __all__ = [
     "GAUGE_COVARIANCE_CALIBRATION_SCHEMA",
@@ -24,6 +28,8 @@ __all__ = [
     "POINT_UNCERTAINTY_CALIBRATION_VERSION",
     "GaugeCovarianceCalibrationV1",
     "PointUncertaintyCalibrationV1",
+    "fit_group_balanced_point_uncertainty_calibration",
+    "group_balanced_point_calibration_metadata",
     "load_gauge_covariance_calibration",
     "load_point_uncertainty_calibration",
     "save_gauge_covariance_calibration",
