@@ -117,7 +117,7 @@ def group_balanced_point_calibration_metadata(
     ):
         raise ValueError("group-balanced metadata changed aggregation semantics")
     groups = report.get("groups")
-    if not isinstance(groups, list) or not groups:
+    if not isinstance(groups, (list, tuple)) or not groups:
         raise ValueError("group-balanced metadata has no group diagnostics")
     supplied_group_count = report.get("group_count")
     if isinstance(supplied_group_count, bool) or not isinstance(
