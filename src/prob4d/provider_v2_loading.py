@@ -41,6 +41,12 @@ def _require_revision(value: object, *, name: str) -> str:
     return revision
 
 
+def _require_nonnegative_integer(value: object, *, name: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f"{name} must be a non-negative integer")
+    return value
+
+
 @dataclass(frozen=True)
 class ValidatedClaimBearingObservation:
     """A strict provider-v2 observation plus its validated producer identities."""
@@ -171,6 +177,30 @@ def validate_claim_bearing_observation_belief(
     )
     if calibration.get("status") != "calibrated":
         raise ValueError("claim-bearing observation requires both covariance calibrations")
+    if calibration.get("uncalibrated_exploratory_covariance_allowed") is not False:
+        raise ValueError(
+            "claim-bearing observation cannot allow uncalibrated covariance"
+        )
+    if calibration.get("pointwise_covariance_fallback_allowed") is not False:
+        raise ValueError(
+            "claim-bearing observation cannot allow pointwise covariance fallback"
+        )
+    alignment_count = _require_nonnegative_integer(
+        calibration.get("alignment_count"),
+        name="claim-bearing alignment_count",
+    )
+    calibrated_alignment_count = _require_nonnegative_integer(
+        calibration.get("gauge_calibrated_alignment_count"),
+        name="claim-bearing gauge_calibrated_alignment_count",
+    )
+    if calibrated_alignment_count != alignment_count:
+        raise ValueError("claim-bearing observation has uncalibrated gauge alignments")
+    fallback_counts = _required_mapping(
+        calibration.get("covariance_fallback_counts"),
+        name="claim-bearing covariance fallback counts",
+    )
+    if fallback_counts:
+        raise ValueError("claim-bearing observation reports covariance fallback use")
 
     raw_attestation = _required_mapping(
         metadata.get("prob4d_provider_attestation"),
