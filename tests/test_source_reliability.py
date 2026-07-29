@@ -186,7 +186,7 @@ def test_feature_contract_masks_invalid_rows_during_prediction() -> None:
     )
     features = build_source_reliability_features(window, covariance)
     active_values = features.flattened()
-    labels = (active_values[:, 3] < np.median(active_values[:, 3])).astype(float)
+    labels = (active_values[:, 2] > 0.5).astype(float)
     groups = np.asarray(
         [f"frame-{index // 4}" for index in range(len(active_values))]
     )
@@ -195,7 +195,7 @@ def test_feature_contract_masks_invalid_rows_during_prediction() -> None:
         labels,
         groups,
         feature_names=features.feature_names,
-        label_definition="source variance below frozen median threshold",
+        label_definition="source temporal edge proximity above frozen threshold",
         group_definition="frame",
     )
 
