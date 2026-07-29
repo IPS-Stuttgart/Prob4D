@@ -2,6 +2,12 @@
 
 from importlib.metadata import PackageNotFoundError, version
 
+from .alignment_cycles import (
+    AlignmentCycleAudit,
+    AlignmentCycleResidual,
+    alignment_edge_id,
+    audit_alignment_cycles,
+)
 from .calibration import (
     GAUGE_COVARIANCE_CALIBRATION_SCHEMA,
     GAUGE_COVARIANCE_CALIBRATION_VERSION,
@@ -70,6 +76,8 @@ __all__ = [
     "OBSERVATION_BELIEF_VERSION",
     "POINT_UNCERTAINTY_CALIBRATION_SCHEMA",
     "POINT_UNCERTAINTY_CALIBRATION_VERSION",
+    "AlignmentCycleAudit",
+    "AlignmentCycleResidual",
     "CausalTrackletReport",
     "CausalTrackletSet",
     "CrossFittedDisagreementReport",
@@ -88,6 +96,8 @@ __all__ = [
     "Sim3",
     "StackedObservationFactors",
     "accumulate_cross_fitted_disagreement",
+    "alignment_edge_id",
+    "audit_alignment_cycles",
     "build_causal_scene_flow_tracklets",
     "build_prob4d_observation_belief",
     "deterministic_covariance_root",

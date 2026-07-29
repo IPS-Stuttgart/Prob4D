@@ -24,6 +24,9 @@ All notable changes to Prob4D are documented here.
 - Prefix-only scene-flow tracklets with persistent within-window point IDs,
   deterministic collision handling, cumulative association probabilities,
   termination diagnostics, and conversion to unfused observation factors.
+- A directed gauge-cycle audit that compares direct overlap alignments with
+  two-edge paths in representative observation displacement, preserves deterministic
+  thresholds, and explicitly avoids chi-square claims under unknown edge dependence.
 - `prob4d.provider_v2` as a safe-by-default Python surface with distinct
   exploratory and claim-bearing export functions.
 - Strict prediction/calibration compatibility checks covering MotionCrafter
