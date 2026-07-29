@@ -46,7 +46,10 @@ def _attestation() -> dict[str, object]:
     )
 
 
-def _artifact(*, caller_metadata: dict[str, object] | None = None) -> ObservationBeliefExportV1:
+def _artifact(
+    *,
+    caller_metadata: dict[str, object] | None = None,
+) -> ObservationBeliefExportV1:
     metadata: dict[str, object] = {
         "coordinate_frame": "phystwin-world",
         "gauge_mode": "sequential",
@@ -78,6 +81,11 @@ def _artifact(*, caller_metadata: dict[str, object] | None = None) -> Observatio
             "status": "calibrated",
             "gauge_artifact_id": GAUGE_CALIBRATION_ID,
             "point_artifact_id": POINT_CALIBRATION_ID,
+            "alignment_count": 1,
+            "gauge_calibrated_alignment_count": 1,
+            "covariance_fallback_counts": {},
+            "uncalibrated_exploratory_covariance_allowed": False,
+            "pointwise_covariance_fallback_allowed": False,
         },
         "prob4d_provider_attestation": _attestation(),
         "nested": {"values": [1, {"label": "stable"}]},
@@ -161,6 +169,65 @@ def test_strict_validation_rejects_calibration_identity_drift() -> None:
     changed = replace(artifact, metadata=metadata)
 
     with pytest.raises(ValueError, match="differs from provider attestation"):
+        validate_claim_bearing_observation_belief(changed)
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        (
+            "gauge_calibrated_alignment_count",
+            0,
+            "uncalibrated gauge alignments",
+        ),
+        (
+            "covariance_fallback_counts",
+            {"pointwise": 1},
+            "reports covariance fallback use",
+        ),
+        (
+            "uncalibrated_exploratory_covariance_allowed",
+            True,
+            "cannot allow uncalibrated covariance",
+        ),
+        (
+            "pointwise_covariance_fallback_allowed",
+            True,
+            "cannot allow pointwise covariance fallback",
+        ),
+    ],
+)
+def test_strict_validation_rejects_incomplete_or_fallback_calibration(
+    field: str,
+    value: object,
+    message: str,
+) -> None:
+    artifact = _artifact()
+    metadata = deepcopy(artifact.metadata)
+    metadata["covariance_calibration"][field] = value
+    changed = replace(artifact, metadata=metadata)
+
+    with pytest.raises(ValueError, match=message):
+        validate_claim_bearing_observation_belief(changed)
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "alignment_count",
+        "gauge_calibrated_alignment_count",
+        "covariance_fallback_counts",
+        "uncalibrated_exploratory_covariance_allowed",
+        "pointwise_covariance_fallback_allowed",
+    ],
+)
+def test_strict_validation_requires_complete_calibration_metadata(field: str) -> None:
+    artifact = _artifact()
+    metadata = deepcopy(artifact.metadata)
+    metadata["covariance_calibration"].pop(field)
+    changed = replace(artifact, metadata=metadata)
+
+    with pytest.raises(ValueError):
         validate_claim_bearing_observation_belief(changed)
 
 
