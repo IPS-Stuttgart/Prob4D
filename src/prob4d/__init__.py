@@ -14,6 +14,12 @@ from .calibration import (
     save_gauge_covariance_calibration,
     save_point_uncertainty_calibration,
 )
+from .causal_tracklets import (
+    CausalTrackletReport,
+    CausalTrackletSet,
+    build_causal_scene_flow_tracklets,
+    tracklets_to_observation_factors,
+)
 from .cross_fitted_disagreement import (
     CrossFittedDisagreementReport,
     accumulate_cross_fitted_disagreement,
@@ -64,6 +70,8 @@ __all__ = [
     "OBSERVATION_BELIEF_VERSION",
     "POINT_UNCERTAINTY_CALIBRATION_SCHEMA",
     "POINT_UNCERTAINTY_CALIBRATION_VERSION",
+    "CausalTrackletReport",
+    "CausalTrackletSet",
     "CrossFittedDisagreementReport",
     "EvaluationModeResult",
     "EvaluationModes",
@@ -80,6 +88,7 @@ __all__ = [
     "Sim3",
     "StackedObservationFactors",
     "accumulate_cross_fitted_disagreement",
+    "build_causal_scene_flow_tracklets",
     "build_prob4d_observation_belief",
     "deterministic_covariance_root",
     "estimate_joint_gauge_tree",
@@ -94,5 +103,6 @@ __all__ = [
     "save_observation_belief_export",
     "save_point_uncertainty_calibration",
     "stack_observation_factors",
+    "tracklets_to_observation_factors",
     "write_observation_factor_bundle",
 ]

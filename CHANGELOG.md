@@ -21,6 +21,9 @@ All notable changes to Prob4D are documented here.
 - Equal-group point-uncertainty calibration with canonical group ordering,
   within-group trimming, per-group diagnostics, and row-order-invariant aggregate
   scales so dense sequences cannot dominate solely through sample count.
+- Prefix-only scene-flow tracklets with persistent within-window point IDs,
+  deterministic collision handling, cumulative association probabilities,
+  termination diagnostics, and conversion to unfused observation factors.
 - `prob4d.provider_v2` as a safe-by-default Python surface with distinct
   exploratory and claim-bearing export functions.
 - Strict prediction/calibration compatibility checks covering MotionCrafter
