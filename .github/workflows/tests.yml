@@ -56,12 +56,14 @@ jobs:
           src/prob4d/calibration_compatibility.py
           src/prob4d/composition_jacobian.py
           src/prob4d/covariance_root.py
+          src/prob4d/observation_factor_stream.py
           src/prob4d/provider_attestation.py
           src/prob4d/provider_manifest.py
           src/prob4d/provider_manifest_cli.py
           src/prob4d/provider_v1.py
           src/prob4d/provider_v2.py
           src/prob4d/provider_v2_cli.py
+          src/prob4d/provider_v2_loading.py
           src/prob4d/runtime_revision.py
           2>&1 | tee mypy-output.txt
       - name: Upload mypy diagnostics
@@ -129,11 +131,13 @@ jobs:
           import prob4d.cli
           import prob4d.composition_jacobian
           import prob4d.covariance_root
+          import prob4d.observation_factor_stream
           import prob4d.provider_attestation
           import prob4d.provider_manifest
           import prob4d.provider_v1
           import prob4d.provider_v2
           import prob4d.provider_v2_cli
+          import prob4d.provider_v2_loading
           import prob4d.runtime_revision
 
           forbidden = {"torch", "diffusers", "decord"}
@@ -209,14 +213,20 @@ jobs:
           "$python_bin" -m pip install "$artifact"
           "$python_bin" -m pip check
           "$python_bin" - <<'PY'
+          from importlib import resources
+
           import prob4d
           import prob4d.provider_v1 as provider_v1
           import prob4d.provider_v2 as provider_v2
           from prob4d.composition_jacobian import current_composition_jacobian_mode
 
           print(prob4d.__version__)
+          assert prob4d.__version__ == "0.3.0"
           assert provider_v1.PROVIDER_API_VERSION == 1
           assert provider_v2.PROVIDER_API_VERSION == 2
+          assert provider_v2.OBSERVATION_FACTOR_STREAM_VERSION == 1
+          assert callable(provider_v2.load_claim_bearing_observation_belief)
+          assert resources.files("prob4d").joinpath("py.typed").is_file()
           assert current_composition_jacobian_mode() == "legacy_finite_difference"
           PY
       - name: Exercise grouped and legacy command help
@@ -227,6 +237,7 @@ jobs:
           "$bin/prob4d" provider manifest --help
           "$bin/prob4d" provider manifest --api-version 2 --help
           "$bin/prob4d" observation export --help
+          "$bin/prob4d" observation export-v1 --help
           "$bin/prob4d" observation export-calibrated --help
           "$bin/prob4d" observation export-exploratory --help
           "$bin/prob4d" motioncrafter --help
