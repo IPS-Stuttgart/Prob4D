@@ -167,6 +167,17 @@ def test_motioncrafter_run_records_source_bound_seed_schedule(tmp_path: Path) ->
             call_id=record["call_id"],
         )
 
+    tampered = json.loads(json.dumps(manifest))
+    tampered["stochastic_seed_schedule"]["calls"][2]["effective_seed"] += 1
+    with pytest.raises(ValueError, match="invalid effective seed"):
+        validate_motioncrafter_seed_schedule(tampered)
+
+    reordered = json.loads(json.dumps(manifest))
+    reordered_calls = reordered["stochastic_seed_schedule"]["calls"]
+    reordered_calls[0], reordered_calls[1] = reordered_calls[1], reordered_calls[0]
+    with pytest.raises(ValueError, match="inconsistent call_id"):
+        validate_motioncrafter_seed_schedule(reordered)
+
 
 def test_derived_seed_policy_fails_closed_without_a_schedule() -> None:
     manifest = {
