@@ -59,7 +59,12 @@ New prediction manifests contain:
       {
         "call_id": "baseline-disjoint",
         "product": "disjoint_baseline",
-        "effective_seed": 123456789
+        "effective_seed": 1402652322
+      },
+      {
+        "call_id": "baseline-latent-linear",
+        "product": "latent_linear_baseline",
+        "effective_seed": 4164824660
       },
       {
         "call_id": "overlap-window:window_0000:0:25",
@@ -67,14 +72,16 @@ New prediction manifests contain:
         "window_id": "window_0000",
         "source_frame_start": 0,
         "source_frame_stop_exclusive": 25,
-        "effective_seed": 987654321
+        "effective_seed": 659168348
       }
     ]
   }
 }
 ```
 
-The validator recomputes every effective seed and rejects:
+The example seeds above are the actual values produced by the version-1 schedule
+for root seed 42 and the displayed call identities. The validator recomputes
+every effective seed and rejects:
 
 - unsupported policies or schedule schemas;
 - a root seed or policy that differs from `config`;
