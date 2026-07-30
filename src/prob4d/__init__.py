@@ -53,6 +53,15 @@ from .observation_export import (
     load_metric_gauge_anchor,
     save_metric_gauge_anchor,
 )
+from .observation_factor_stream import (
+    OBSERVATION_FACTOR_STREAM_SCHEMA,
+    OBSERVATION_FACTOR_STREAM_VERSION,
+    ObservationFactorStreamUpdateV1,
+    ObservationFactorStreamV1,
+    append_observation_factor_bundle,
+    load_observation_factor_stream,
+    write_observation_factor_stream,
+)
 from .observation_factors import (
     LinearizedObservationFactor,
     ObservationFactor,
@@ -80,13 +89,15 @@ from .uncertainty import GroupBalancedCalibrationReport
 try:
     __version__ = version("prob4d")
 except PackageNotFoundError:  # Source tree without installed distribution metadata.
-    __version__ = "0.2.0"
+    __version__ = "0.3.0"
 
 __all__ = [
     "GAUGE_COVARIANCE_CALIBRATION_SCHEMA",
     "GAUGE_COVARIANCE_CALIBRATION_VERSION",
     "OBSERVATION_BELIEF_SCHEMA",
     "OBSERVATION_BELIEF_VERSION",
+    "OBSERVATION_FACTOR_STREAM_SCHEMA",
+    "OBSERVATION_FACTOR_STREAM_VERSION",
     "POINT_UNCERTAINTY_CALIBRATION_SCHEMA",
     "POINT_UNCERTAINTY_CALIBRATION_VERSION",
     "SOURCE_RELIABILITY_SCHEMA",
@@ -106,6 +117,8 @@ __all__ = [
     "ObservationBeliefExportV1",
     "ObservationFactor",
     "ObservationFactorBundle",
+    "ObservationFactorStreamUpdateV1",
+    "ObservationFactorStreamV1",
     "PointUncertaintyCalibrationV1",
     "PredictionWindow",
     "Sim3",
@@ -115,6 +128,7 @@ __all__ = [
     "StackedObservationFactors",
     "accumulate_cross_fitted_disagreement",
     "alignment_edge_id",
+    "append_observation_factor_bundle",
     "audit_alignment_cycles",
     "build_causal_scene_flow_tracklets",
     "build_prob4d_observation_belief",
@@ -129,6 +143,7 @@ __all__ = [
     "load_metric_gauge_anchor",
     "load_observation_belief_export",
     "load_observation_factor_bundle",
+    "load_observation_factor_stream",
     "load_point_uncertainty_calibration",
     "load_source_reliability_model",
     "save_gauge_covariance_calibration",
@@ -139,4 +154,5 @@ __all__ = [
     "stack_observation_factors",
     "tracklets_to_observation_factors",
     "write_observation_factor_bundle",
+    "write_observation_factor_stream",
 ]
