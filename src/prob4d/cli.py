@@ -25,6 +25,11 @@ _ROUTES: Final[dict[Route, tuple[str, str, str]]] = {
         "generate MotionCrafter prediction products",
     ),
     ("observation", "export"): (
+        "prob4d.cli",
+        "_ambiguous_observation_export",
+        "choose an explicit calibrated, exploratory, or provider-v1 export mode",
+    ),
+    ("observation", "export-v1"): (
         "prob4d.causal_stream_cli",
         "main",
         "export through the frozen provider-v1 compatibility CLI",
@@ -70,6 +75,30 @@ _ROUTES: Final[dict[Route, tuple[str, str, str]]] = {
         "export the matched VGGT baseline",
     ),
 }
+
+
+def _ambiguous_observation_export(argv: Sequence[str] | None = None) -> int:
+    """Require callers to select an observation-export contract explicitly."""
+
+    arguments = list(() if argv is None else argv)
+    help_requested = any(value in {"-h", "--help"} for value in arguments)
+    lines = [
+        "usage: prob4d observation <export-calibrated|export-exploratory|export-v1> "
+        "[arguments]",
+        "",
+        "'prob4d observation export' is intentionally ambiguous and does not run "
+        "an exporter.",
+        "",
+        "Choose one explicit contract:",
+        "  export-calibrated   claim-bearing provider-v2 export",
+        "  export-exploratory  labelled provider-v2 control",
+        "  export-v1           frozen provider-v1 compatibility export",
+        "",
+        "The legacy 'prob4d-export-observation-belief' executable remains unchanged.",
+    ]
+    output = sys.stdout if help_requested else sys.stderr
+    print("\n".join(lines), file=output)
+    return 0 if help_requested else 2
 
 
 def _children(prefix: Route) -> list[str]:
