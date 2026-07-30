@@ -11,6 +11,7 @@ import numpy as np
 from .data import PredictionWindow
 from .fusion import FusedSequence
 from .metrics import TruthSequence
+from .motioncrafter import validate_motioncrafter_seed_schedule
 
 
 def pack_symmetric_covariance(covariance: np.ndarray) -> np.ndarray:
@@ -83,6 +84,11 @@ def load_prediction_bundle(path: str | Path) -> PredictionBundle:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if payload.get("format_version") != 1:
         raise ValueError("unsupported prediction-manifest format_version")
+    config = payload.get("config")
+    if "stochastic_seed_schedule" in payload or (
+        isinstance(config, dict) and "seed_policy" in config
+    ):
+        validate_motioncrafter_seed_schedule(payload)
     root = path.parent
     windows = [
         PredictionWindow.from_npz(
