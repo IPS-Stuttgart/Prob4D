@@ -18,7 +18,13 @@ from .alignment import WindowAlignment, align_windows
 from .fusion import FusedSequence, fuse_windows
 from .gauge import FixedLagGaugeSmoother, RelativeGaugeConstraint, SequentialGaugeEstimator
 from .io import PredictionBundle, load_prediction_bundle, pack_symmetric_covariance
-from .motioncrafter import MotionCrafterAdapter, MotionCrafterRunConfig
+from .motioncrafter import (
+    MOTIONCRAFTER_SEED_POLICIES,
+    MOTIONCRAFTER_SEED_POLICY_LEGACY_COMMON,
+    MotionCrafterAdapter,
+    MotionCrafterRunConfig,
+    MotionCrafterSeedPolicy,
+)
 from .uncertainty import DepthDisagreementModel, accumulate_disagreement
 
 FUSION_METHOD_NAMES = (
@@ -43,6 +49,7 @@ class BenchmarkExportConfig:
     window_size: int = 25
     overlap: int = 8
     seed: int = 42
+    seed_policy: MotionCrafterSeedPolicy = MOTIONCRAFTER_SEED_POLICY_LEGACY_COMMON
     max_sequences: int | None = None
     skip_existing: bool = False
     include_covariance: bool = False
@@ -226,6 +233,7 @@ def run_benchmark_export(config: BenchmarkExportConfig) -> Path:
             window_size=config.window_size,
             overlap=config.overlap,
             seed=config.seed,
+            seed_policy=config.seed_policy,
         )
     )
     fusion_methods = tuple(dict.fromkeys(config.fusion_methods))
@@ -322,6 +330,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--window-size", type=int, default=25)
     parser.add_argument("--overlap", type=int, default=8)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--seed-policy",
+        choices=MOTIONCRAFTER_SEED_POLICIES,
+        default=MOTIONCRAFTER_SEED_POLICY_LEGACY_COMMON,
+        help=(
+            "legacy-common preserves historical common random numbers; "
+            "derived-per-call records deterministic source-bound seeds"
+        ),
+    )
     parser.add_argument("--max-sequences", type=int)
     parser.add_argument("--skip-existing", action="store_true")
     parser.add_argument("--include-covariance", action="store_true")
@@ -346,6 +363,7 @@ def main(argv: list[str] | None = None) -> int:
             window_size=arguments.window_size,
             overlap=arguments.overlap,
             seed=arguments.seed,
+            seed_policy=arguments.seed_policy,
             max_sequences=arguments.max_sequences,
             skip_existing=arguments.skip_existing,
             include_covariance=arguments.include_covariance,
