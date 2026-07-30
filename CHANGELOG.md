@@ -4,6 +4,23 @@ All notable changes to Prob4D are documented here.
 
 ## Unreleased
 
+### Added
+
+- Explicit MotionCrafter `legacy-common` and `derived-per-call` stochastic seed
+  policies, with a versioned source-bound call schedule recorded in every new
+  prediction manifest.
+- Fail-closed seed-schedule validation that recomputes effective seeds and
+  rejects missing, reordered, inconsistent, duplicated, or colliding derived
+  calls.
+
+### Changed
+
+- Claim-bearing prediction/calibration compatibility now retains the historical
+  version-1 model identifier for legacy common-seed runs and uses a version-2
+  identifier for `derived-per-call` runs, preventing silent calibration reuse
+  across stochastic semantics.
+- `prob4d-benchmark` forwards and records the selected MotionCrafter seed policy.
+
 ## 0.3.0 — 2026-07-30
 
 ### Added
