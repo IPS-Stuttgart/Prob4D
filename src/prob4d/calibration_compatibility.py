@@ -13,13 +13,19 @@ from .alignment import (
     DEFAULT_COVARIANCE_CLUSTER_SIZE,
     DENSE_ALIGNMENT_COVARIANCE_METHOD,
 )
+from .motioncrafter import (
+    MOTIONCRAFTER_SEED_POLICY_DERIVED_PER_CALL,
+    MOTIONCRAFTER_SEED_POLICY_LEGACY_COMMON,
+    validate_motioncrafter_seed_schedule,
+)
 from .observation_contract import file_sha256
 
 PROB4D_SOURCE_REPOSITORY = "FlorianPfaff/Prob4D"
-MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA = "prob4d.motioncrafter-model.v1"
+MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA_V1 = "prob4d.motioncrafter-model.v1"
+MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA = "prob4d.motioncrafter-model.v2"
 POINT_UNCERTAINTY_COVARIANCE_METHOD = "depth_disagreement_anisotropic_v1"
 
-_MODEL_CONFIG_KEYS = (
+_MODEL_CONFIG_KEYS_V1 = (
     "model_type",
     "unet_path",
     "vae_path",
@@ -30,6 +36,7 @@ _MODEL_CONFIG_KEYS = (
     "seed",
     "frame_stride",
 )
+_MODEL_CONFIG_KEYS_V2 = (*_MODEL_CONFIG_KEYS_V1, "seed_policy")
 
 
 class CalibrationCompatibilityError(ValueError):
@@ -79,23 +86,40 @@ def _required_mapping(value: object, *, name: str) -> Mapping[str, Any]:
 
 
 def motioncrafter_model_identifier(manifest: Mapping[str, Any]) -> str:
-    """Return a canonical identifier for prediction-affecting model settings."""
+    """Return a canonical identifier for prediction-affecting model settings.
+
+    Historical manifests without ``seed_policy`` and new manifests that explicitly
+    request ``legacy-common`` retain the version-1 identifier because their inference
+    behavior is identical. ``derived-per-call`` uses a version-2 descriptor that binds
+    the seed policy into covariance-calibration compatibility.
+    """
 
     if manifest.get("format_version") != 1:
         raise ValueError("unsupported prediction-manifest format_version")
     config = _required_mapping(manifest.get("config"), name="prediction manifest config")
-    missing = [key for key in _MODEL_CONFIG_KEYS if key not in config]
+    seed_policy = str(
+        config.get("seed_policy", MOTIONCRAFTER_SEED_POLICY_LEGACY_COMMON)
+    )
+    if seed_policy == MOTIONCRAFTER_SEED_POLICY_LEGACY_COMMON:
+        schema = MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA_V1
+        config_keys = _MODEL_CONFIG_KEYS_V1
+    elif seed_policy == MOTIONCRAFTER_SEED_POLICY_DERIVED_PER_CALL:
+        schema = MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA
+        config_keys = _MODEL_CONFIG_KEYS_V2
+    else:
+        raise ValueError(f"unsupported MotionCrafter seed policy {seed_policy!r}")
+    missing = [key for key in config_keys if key not in config]
     if missing:
         raise ValueError(
             "prediction manifest is missing model-identifier settings: "
             + ", ".join(missing)
         )
     descriptor = {
-        "schema": MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA,
-        "config": {key: config[key] for key in _MODEL_CONFIG_KEYS},
+        "schema": schema,
+        "config": {key: config[key] for key in config_keys},
     }
     digest = hashlib.sha256(_canonical_json(descriptor)).hexdigest()
-    return f"{MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA}:{digest}"
+    return f"{schema}:{digest}"
 
 
 @dataclass(frozen=True)
@@ -185,6 +209,7 @@ def load_prediction_calibration_target(
     if manifest.get("format_version") != 1:
         raise ValueError("unsupported prediction-manifest format_version")
     config = _required_mapping(manifest.get("config"), name="prediction manifest config")
+    validate_motioncrafter_seed_schedule(manifest)
     try:
         resolution = (int(config["height"]), int(config["width"]))
         window_size = int(config["window_size"])
@@ -288,6 +313,7 @@ def assert_calibration_pair_compatible(
 
 __all__ = [
     "MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA",
+    "MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA_V1",
     "POINT_UNCERTAINTY_COVARIANCE_METHOD",
     "PROB4D_SOURCE_REPOSITORY",
     "CalibrationCompatibilityError",
