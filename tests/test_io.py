@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from prob4d.fusion import FusedSequence, fuse_windows
 from prob4d.io import (
@@ -85,10 +86,25 @@ def test_prediction_bundle_and_truth_round_trip(tmp_path: Path) -> None:
     np.testing.assert_allclose(truth.point_map, problem.truth.point_map, rtol=1e-6)
 
 
+def test_prediction_bundle_rejects_explicit_derived_policy_without_schedule(
+    tmp_path: Path,
+) -> None:
+    problem = make_synthetic_problem(seed=22, num_frames=40, height=4, width=6, overlap=15)
+    manifest_path, _ = write_problem_bundle(tmp_path / "bundle", problem)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["config"] = {
+        "seed": 42,
+        "seed_policy": "derived-per-call",
+    }
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="lacks a seed schedule"):
+        load_prediction_bundle(manifest_path)
+
+
 def test_symmetric_covariance_pack_round_trip() -> None:
     covariance = np.arange(18, dtype=np.float64).reshape(2, 3, 3)
     covariance = covariance + np.swapaxes(covariance, -1, -2)
 
     restored = unpack_symmetric_covariance(pack_symmetric_covariance(covariance))
-
     np.testing.assert_array_equal(restored, covariance)
