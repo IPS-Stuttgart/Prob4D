@@ -14,6 +14,7 @@ from prob4d.calibration import (
 from prob4d.calibration_compatibility import (
     MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA,
     MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA_V1,
+    MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA_V2,
     POINT_UNCERTAINTY_COVARIANCE_METHOD,
     CalibrationCompatibilityError,
     assert_calibration_pair_compatible,
@@ -132,10 +133,13 @@ def test_model_identifier_preserves_legacy_seed_semantics_and_binds_new_policy()
     derived["config"]["seed_policy"] = MOTIONCRAFTER_SEED_POLICY_DERIVED_PER_CALL
 
     legacy_identifier = motioncrafter_model_identifier(implicit_legacy)
+    assert MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA == (
+        MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA_V1
+    )
     assert legacy_identifier == motioncrafter_model_identifier(explicit_legacy)
-    assert legacy_identifier.startswith(f"{MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA_V1}:")
+    assert legacy_identifier.startswith(f"{MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA}:")
     assert motioncrafter_model_identifier(derived).startswith(
-        f"{MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA}:"
+        f"{MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA_V2}:"
     )
     assert motioncrafter_model_identifier(derived) != legacy_identifier
 
