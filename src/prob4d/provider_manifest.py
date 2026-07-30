@@ -9,7 +9,7 @@ from importlib.metadata import PackageNotFoundError, distribution, version
 from typing import Any
 
 PROB4D_PROVIDER_API_VERSION = 1
-PROB4D_PROVIDER_PACKAGE_VERSION = "0.2.0"
+PROB4D_PROVIDER_PACKAGE_VERSION = "0.3.0"
 PROB4D_CAUSAL_STREAM_CONTRACT_VERSION = 2
 PROB4D_PROVIDER_CAPABILITIES = (
     "append_invariant_causal_source_digest",
