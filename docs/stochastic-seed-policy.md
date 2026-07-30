@@ -7,8 +7,9 @@ adapter code creates several logically distinct prediction products:
 - the latent overlap baseline; and
 - every independently decoded overlap window used by Prob4D.
 
-Before Prob4D 0.3.1, every call received the same configured seed. This is kept
-as an explicit compatibility mode rather than silently changing frozen runs.
+Before this policy was introduced, every call received the same configured seed.
+That behavior is kept as an explicit compatibility mode rather than silently
+changing frozen runs.
 
 ## Policies
 
