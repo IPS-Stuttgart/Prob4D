@@ -27,6 +27,15 @@ from .composition_jacobian import (
     composition_jacobian_mode,
 )
 from .covariance_root import CovarianceRootMode, covariance_root_mode
+from .observation_factor_stream import (
+    OBSERVATION_FACTOR_STREAM_SCHEMA,
+    OBSERVATION_FACTOR_STREAM_VERSION,
+    ObservationFactorStreamUpdateV1,
+    ObservationFactorStreamV1,
+    append_observation_factor_bundle,
+    load_observation_factor_stream,
+    write_observation_factor_stream,
+)
 from .observation_factors import (
     OBSERVATION_FACTOR_SCHEMA,
     OBSERVATION_FACTOR_SCHEMA_VERSION,
@@ -70,6 +79,11 @@ from .provider_v1 import (
     save_point_uncertainty_calibration,
     select_causal_source,
 )
+from .provider_v2_loading import (
+    ValidatedClaimBearingObservation,
+    load_claim_bearing_observation_belief,
+    validate_claim_bearing_observation_belief,
+)
 from .runtime_revision import (
     RuntimeRevisionAttestation,
     assert_runtime_revision,
@@ -103,11 +117,13 @@ def prob4d_provider_manifest(
     capabilities = list(cast(list[str], inherited["capabilities"]))
     for capability in (
         "analytic_sim3_composition_jacobians",
+        "append_only_observation_factor_streams",
         "canonical_repeated_eigenspace_covariance_root",
         "explicit_exploratory_and_claim_bearing_exports",
         "joint_cross_window_sim3_gauge_covariance_in_factor_bundle",
         "provider_attested_observation_artifacts",
         "runtime_revision_attestation",
+        "strict_claim_bearing_observation_loading",
         "strict_prediction_calibration_compatibility",
     ):
         if capability not in capabilities:
@@ -145,11 +161,21 @@ def prob4d_provider_manifest(
                 "joint-cross-window and marginal-blocks-only semantics are distinct, "
                 "while schema-v2/v3 inputs upgrade conservatively as marginal-only"
             ),
+            "observation_factor_stream_semantics": (
+                "schema-v1 stream manifests bind causally disjoint schema-v4 delta "
+                "bundles through portable update IDs, a previous-update hash chain, "
+                "stable observation-identity digests, and verified file checksums"
+            ),
             "provider_attestation_semantics": (
                 "every provider-v2 export embeds the complete content-addressed "
                 "provider manifest, export mode, covariance-root and composition-"
                 "Jacobian modes, and runtime-revision evidence; downstream consumers "
                 "can validate the attestation without importing Prob4D"
+            ),
+            "claim_bearing_loading_semantics": (
+                "prob4d.provider_v2 re-exports a strict loader that requires causal "
+                "stream-v2 joint covariance, complete calibration metadata, and an "
+                "independently verified provider-v2 attestation before admission"
             ),
         }
     )
@@ -163,6 +189,9 @@ def prob4d_provider_manifest(
         cast(dict[str, int], inherited["artifact_schema_versions"])
     )
     artifact_schema_versions["ObservationFactorBundle"] = OBSERVATION_FACTOR_SCHEMA_VERSION
+    artifact_schema_versions["ObservationFactorStreamV1"] = (
+        OBSERVATION_FACTOR_STREAM_VERSION
+    )
     descriptor: dict[str, object] = {
         **inherited,
         "provider_api_version": PROVIDER_API_VERSION,
@@ -350,6 +379,8 @@ __all__ = [
     "OBSERVATION_BELIEF_VERSION",
     "OBSERVATION_FACTOR_SCHEMA",
     "OBSERVATION_FACTOR_SCHEMA_VERSION",
+    "OBSERVATION_FACTOR_STREAM_SCHEMA",
+    "OBSERVATION_FACTOR_STREAM_VERSION",
     "POINT_UNCERTAINTY_CALIBRATION_SCHEMA",
     "POINT_UNCERTAINTY_CALIBRATION_VERSION",
     "PROB4D_CAUSAL_STREAM_CONTRACT_VERSION",
@@ -365,12 +396,16 @@ __all__ = [
     "MetricGaugeAnchor",
     "ObservationBeliefExportV1",
     "ObservationFactorBundle",
+    "ObservationFactorStreamUpdateV1",
+    "ObservationFactorStreamV1",
     "PointUncertaintyCalibrationV1",
     "PredictionCalibrationTargetV1",
     "RuntimeRevisionAttestation",
     "SamplingMode",
+    "ValidatedClaimBearingObservation",
     "SelectedOverlapWindow",
     "assert_calibration_pair_compatible",
+    "append_observation_factor_bundle",
     "assert_runtime_revision",
     "bind_causal_stream_contract_v2",
     "build_provider_attestation",
@@ -378,10 +413,12 @@ __all__ = [
     "export_calibrated_observation_belief",
     "export_exploratory_observation_belief",
     "inspect_runtime_revision",
+    "load_claim_bearing_observation_belief",
     "load_gauge_covariance_calibration",
     "load_metric_gauge_anchor",
     "load_observation_belief_export",
     "load_observation_factor_bundle",
+    "load_observation_factor_stream",
     "load_point_uncertainty_calibration",
     "load_prediction_calibration_target",
     "motioncrafter_model_identifier",
@@ -391,7 +428,9 @@ __all__ = [
     "save_observation_belief_export",
     "save_point_uncertainty_calibration",
     "select_causal_source",
+    "validate_claim_bearing_observation_belief",
     "validate_provider_attestation",
     "validate_provider_manifest",
     "write_observation_factor_bundle",
+    "write_observation_factor_stream",
 ]

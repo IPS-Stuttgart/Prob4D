@@ -97,6 +97,17 @@ prob4d-validate-observation \
   outputs/sequence_name/observation_belief.npz
 ```
 
+Claim-bearing consumers should use the strict loader from the same provider-v2
+namespace:
+
+```python
+from prob4d.provider_v2 import load_claim_bearing_observation_belief
+
+validated = load_claim_bearing_observation_belief(
+    "outputs/sequence_name/observation_belief.npz"
+)
+```
+
 Provider v2 verifies the executing Prob4D revision and prediction/calibration
 compatibility before decoded prediction payloads are opened. The final artifact
 binds the provider-v2 manifest identity, export mode, covariance-root mode,
@@ -106,9 +117,10 @@ checkout. `PROB4D_RUNTIME_REVISION` can annotate an exploratory packaged
 deployment, but an environment assertion is not accepted as independent evidence.
 
 Use `prob4d observation export-exploratory` for labelled uncalibrated,
-pointwise-fallback, legacy-root, or fixed-lag reconstruction controls. The older
-`prob4d observation export` and `prob4d-export-observation-belief` commands remain
-frozen provider-v1 compatibility surfaces.
+pointwise-fallback, legacy-root, or fixed-lag reconstruction controls. Use
+`prob4d observation export-v1` for the frozen grouped provider-v1 route. The bare
+`prob4d observation export` command prints migration guidance and runs no exporter;
+the historical `prob4d-export-observation-belief` executable remains unchanged.
 
 The exporter opens only independently decoded windows wholly before the
 exclusive cutoff. It recomputes alignment, gauge estimation, overlap
@@ -127,6 +139,13 @@ with zero uncertainty. Its portable all-window covariance still contains only
 historical marginal blocks, so it remains an opt-in reconstruction ablation. See
 [the causal observation export contract](docs/observation-belief-export.md) and
 [provider API version 2](docs/provider-v2.md).
+
+For recursive experiments with several causal observation times, provider v2 also
+exposes an append-only `ObservationFactorStreamV1`. Each update references one
+schema-v4 unfused factor bundle, admits a new non-overlapping frame interval, and
+binds bundle/payload hashes, observation identities, and the previous update ID.
+See [append-only observation-factor streams](docs/observation-factor-stream.md)
+and the [compatibility matrix](docs/compatibility.md).
 
 Prepare a separate calibration sequence and world-coordinate truth files, then
 run the real ablation:

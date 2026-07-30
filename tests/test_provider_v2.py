@@ -79,14 +79,36 @@ def test_provider_v2_exposes_safe_capabilities() -> None:
         "canonical_repeated_eigenspace_covariance_root" in manifest["capabilities"]
     )
     assert "analytic_sim3_composition_jacobians" in manifest["capabilities"]
+    assert "append_only_observation_factor_streams" in manifest["capabilities"]
     assert "runtime_revision_attestation" in manifest["capabilities"]
+    assert "strict_claim_bearing_observation_loading" in manifest["capabilities"]
     assert "provider_attested_observation_artifacts" in manifest["capabilities"]
     assert manifest["metadata"]["python_import_boundary"] == "prob4d.provider_v2"
+    assert manifest["artifact_schema_versions"]["ObservationFactorStreamV1"] == 1
     assert "canonical basis" in manifest["metadata"]["covariance_root_semantics"]
     assert "closed-form derivatives" in manifest["metadata"][
         "composition_jacobian_semantics"
     ]
     assert manifest["limitations"]["uncalibrated_export_is_default"] is False
+
+
+def test_provider_v2_reexports_strict_claim_bearing_loader() -> None:
+    from prob4d.provider_v2_loading import (
+        ValidatedClaimBearingObservation,
+        load_claim_bearing_observation_belief,
+        validate_claim_bearing_observation_belief,
+    )
+
+    assert provider.ValidatedClaimBearingObservation is ValidatedClaimBearingObservation
+    assert provider.OBSERVATION_FACTOR_STREAM_VERSION == 1
+    assert (
+        provider.load_claim_bearing_observation_belief
+        is load_claim_bearing_observation_belief
+    )
+    assert (
+        provider.validate_claim_bearing_observation_belief
+        is validate_claim_bearing_observation_belief
+    )
 
 
 def test_exploratory_export_is_explicit_context_local_and_attested(
