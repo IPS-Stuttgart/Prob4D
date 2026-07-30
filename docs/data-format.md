@@ -10,7 +10,29 @@
   "motioncrafter_commit": "<git sha>",
   "config": {
     "window_size": 25,
-    "overlap": 8
+    "overlap": 8,
+    "seed": 42,
+    "seed_policy": "derived-per-call"
+  },
+  "stochastic_seed_schedule": {
+    "schema": "prob4d.motioncrafter-seed-schedule.v1",
+    "policy": "derived-per-call",
+    "root_seed": 42,
+    "calls": [
+      {
+        "call_id": "baseline-disjoint",
+        "product": "disjoint_baseline",
+        "effective_seed": 123456789
+      },
+      {
+        "call_id": "overlap-window:window_0000:0:25",
+        "product": "independently_decoded_overlap_window",
+        "window_id": "window_0000",
+        "source_frame_start": 0,
+        "source_frame_stop_exclusive": 25,
+        "effective_seed": 987654321
+      }
+    ]
   },
   "temporal_lineage": {
     "schema_version": 1,
@@ -47,6 +69,15 @@ must require `source_frame_max < cutoff_frame`. Unknown lineage schemas or
 manifests without enough legacy configuration fail closed. Version-1 manifests
 created before this field was added can be audited without rerunning the GPU
 model when their `config.window_size` and `config.overlap` fields are present.
+
+The stochastic-seed section records the effective seed of every baseline and
+independently decoded window. `legacy-common` preserves the historical behavior
+of reusing the root seed for every call. `derived-per-call` hashes the root seed
+and source-bound call identity into a deterministic 32-bit seed. Claim-bearing
+compatibility validation recomputes this schedule and rejects missing or altered
+records. Manifests created before the field existed are interpreted as implicit
+`legacy-common`; a new `derived-per-call` manifest without a complete schedule
+fails closed. See [the stochastic seed policy](stochastic-seed-policy.md).
 
 Every prediction archive contains:
 
