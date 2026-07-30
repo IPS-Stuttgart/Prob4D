@@ -21,8 +21,9 @@ from .motioncrafter import (
 from .observation_contract import file_sha256
 
 PROB4D_SOURCE_REPOSITORY = "FlorianPfaff/Prob4D"
-MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA_V1 = "prob4d.motioncrafter-model.v1"
-MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA = "prob4d.motioncrafter-model.v2"
+MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA = "prob4d.motioncrafter-model.v1"
+MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA_V1 = MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA
+MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA_V2 = "prob4d.motioncrafter-model.v2"
 POINT_UNCERTAINTY_COVARIANCE_METHOD = "depth_disagreement_anisotropic_v1"
 
 _MODEL_CONFIG_KEYS_V1 = (
@@ -104,7 +105,7 @@ def motioncrafter_model_identifier(manifest: Mapping[str, Any]) -> str:
         schema = MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA_V1
         config_keys = _MODEL_CONFIG_KEYS_V1
     elif seed_policy == MOTIONCRAFTER_SEED_POLICY_DERIVED_PER_CALL:
-        schema = MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA
+        schema = MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA_V2
         config_keys = _MODEL_CONFIG_KEYS_V2
     else:
         raise ValueError(f"unsupported MotionCrafter seed policy {seed_policy!r}")
@@ -314,6 +315,7 @@ def assert_calibration_pair_compatible(
 __all__ = [
     "MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA",
     "MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA_V1",
+    "MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA_V2",
     "POINT_UNCERTAINTY_COVARIANCE_METHOD",
     "PROB4D_SOURCE_REPOSITORY",
     "CalibrationCompatibilityError",
