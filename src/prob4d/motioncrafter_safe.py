@@ -9,11 +9,14 @@ from pathlib import Path
 from .motioncrafter import (
     MOTIONCRAFTER_SEED_POLICIES,
     MOTIONCRAFTER_SEED_POLICY_LEGACY_COMMON,
-    MotionCrafterRunConfig,
 )
 from .motioncrafter_integrity import (
     MOTIONCRAFTER_MANIFEST_FILENAME,
     verify_motioncrafter_prediction_manifest,
+)
+from .motioncrafter_models import (
+    DEFAULT_BASE_PIPELINE,
+    PinnedMotionCrafterModelSet,
 )
 from .motioncrafter_runner import SafeMotionCrafterRunner
 
@@ -25,7 +28,23 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--model-type", choices=["determ", "diff"], default="determ")
     parser.add_argument("--unet-path", default="TencentARC/MotionCrafter")
+    parser.add_argument(
+        "--unet-revision",
+        help="exact remote revision; omit only when --unet-path is a local snapshot",
+    )
     parser.add_argument("--vae-path", default="TencentARC/MotionCrafter")
+    parser.add_argument(
+        "--vae-revision",
+        help="exact remote revision; omit only when --vae-path is a local snapshot",
+    )
+    parser.add_argument("--base-pipeline-path", default=DEFAULT_BASE_PIPELINE)
+    parser.add_argument(
+        "--base-pipeline-revision",
+        help=(
+            "exact remote revision; omit only when --base-pipeline-path is "
+            "a local snapshot"
+        ),
+    )
     parser.add_argument("--cache-dir", default="workspace/pretrained_models")
     parser.add_argument("--height", type=int, default=320)
     parser.add_argument("--width", type=int, default=640)
@@ -75,13 +94,26 @@ def main(argv: list[str] | None = None) -> int:
     if arguments.upstream_root is None:
         parser.error("--upstream-root is required unless --verify-only is used")
 
-    config = MotionCrafterRunConfig(
+    try:
+        model_set = PinnedMotionCrafterModelSet.inspect(
+            model_type=arguments.model_type,
+            unet_reference=arguments.unet_path,
+            unet_revision=arguments.unet_revision,
+            vae_reference=arguments.vae_path,
+            vae_revision=arguments.vae_revision,
+            base_pipeline_reference=arguments.base_pipeline_path,
+            base_pipeline_revision=arguments.base_pipeline_revision,
+        )
+    except ValueError as error:
+        parser.error(
+            f"{error}. Claim-bearing inference requires local content-addressed "
+            "snapshots or exact remote revisions."
+        )
+
+    config = model_set.build_config(
         upstream_root=arguments.upstream_root,
         video_path=arguments.video_path,
         output_directory=arguments.output_dir,
-        model_type=arguments.model_type,
-        unet_path=arguments.unet_path,
-        vae_path=arguments.vae_path,
         cache_directory=arguments.cache_dir,
         height=arguments.height,
         width=arguments.width,
@@ -99,6 +131,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     manifest = SafeMotionCrafterRunner(
         config,
+        adapter_factory=model_set.adapter_factory(),
         allow_dirty_upstream=arguments.allow_dirty_upstream,
     ).run(resume=arguments.resume)
     print(manifest)
