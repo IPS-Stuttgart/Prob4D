@@ -4,13 +4,17 @@ import hashlib
 import json
 from pathlib import Path
 
-from prob4d.provider_manifest import prob4d_provider_manifest
+from prob4d.provider_manifest import (
+    PROB4D_PROVIDER_PACKAGE_VERSION,
+    prob4d_provider_manifest,
+)
 from prob4d.provider_manifest_cli import main
 
 
 def test_provider_manifest_declares_covariance_boundary() -> None:
     manifest = prob4d_provider_manifest(provider_revision="a" * 40)
 
+    assert PROB4D_PROVIDER_PACKAGE_VERSION == "0.3.0"
     assert manifest["provider_revision"] == "a" * 40
     assert manifest["artifact_schema_versions"] == {
         "GaugeCovarianceCalibrationV1": 1,

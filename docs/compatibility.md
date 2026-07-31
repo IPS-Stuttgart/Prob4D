@@ -14,11 +14,19 @@ frozen evidence even when package-version ranges are compatible.
 | Prob4D causal stream contract | 2 | Strict causal lineage and joint-gauge semantics |
 | `ObservationFactorBundle` | 4 | Unfused factors with ordered joint gauge covariance |
 | `ObservationFactorStreamV1` | 1 | Append-only sequence of causal schema-v4 delta bundles |
+| MotionCrafter model identifier | 1 / 2 | Legacy common seed / derived per-call seed semantics |
 
 Provider-v1 behavior and the standalone
 `prob4d-export-observation-belief` executable remain available for frozen run
 manifests. New work should choose an explicit provider-v2 export mode and use the
 strict loader re-exported by `prob4d.provider_v2`.
+
+The historical `prob4d.motioncrafter-model.v1` identifier covers the original
+common-seed behavior, whether the manifest omits `seed_policy` or explicitly
+uses `legacy-common`. A run using `derived-per-call` receives a
+`prob4d.motioncrafter-model.v2` identifier, and its source-bound seed schedule is
+validated before claim-bearing calibration compatibility is accepted. See
+[the stochastic seed policy](stochastic-seed-policy.md).
 
 ## Grouped CLI migration
 
@@ -55,6 +63,8 @@ manifests, artifacts, and protocol identifiers.
   schema.
 - A changed covariance or reliability fitting method requires regenerated,
   content-addressed calibration artifacts.
+- A changed stochastic seed derivation requires a new MotionCrafter model
+  identifier schema and regenerated calibration artifacts.
 
 Passing compatibility tests is infrastructure evidence. It does not establish
 accuracy, calibration, transfer, intervention benefit, or safety.

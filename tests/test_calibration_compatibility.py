@@ -12,12 +12,19 @@ from prob4d.calibration import (
     PointUncertaintyCalibrationV1,
 )
 from prob4d.calibration_compatibility import (
+    MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA,
+    MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA_V1,
+    MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA_V2,
     POINT_UNCERTAINTY_COVARIANCE_METHOD,
     CalibrationCompatibilityError,
     assert_calibration_pair_compatible,
     calibration_compatibility_mismatches,
     load_prediction_calibration_target,
     motioncrafter_model_identifier,
+)
+from prob4d.motioncrafter import (
+    MOTIONCRAFTER_SEED_POLICY_DERIVED_PER_CALL,
+    MOTIONCRAFTER_SEED_POLICY_LEGACY_COMMON,
 )
 from prob4d.uncertainty import CalibrationReport, DepthDisagreementModel
 
@@ -114,6 +121,32 @@ def test_model_identifier_is_canonical_and_sensitive_to_model_settings() -> None
     assert motioncrafter_model_identifier(first) != motioncrafter_model_identifier(
         changed
     )
+
+
+def test_model_identifier_preserves_legacy_seed_semantics_and_binds_new_policy() -> None:
+    implicit_legacy = _manifest()
+    explicit_legacy = json.loads(json.dumps(implicit_legacy))
+    explicit_legacy["config"]["seed_policy"] = (
+        MOTIONCRAFTER_SEED_POLICY_LEGACY_COMMON
+    )
+    derived = json.loads(json.dumps(implicit_legacy))
+    derived["config"]["seed_policy"] = MOTIONCRAFTER_SEED_POLICY_DERIVED_PER_CALL
+
+    legacy_identifier = motioncrafter_model_identifier(implicit_legacy)
+    assert MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA == (
+        MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA_V1
+    )
+    assert legacy_identifier == motioncrafter_model_identifier(explicit_legacy)
+    assert legacy_identifier.startswith(f"{MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA}:")
+    assert motioncrafter_model_identifier(derived).startswith(
+        f"{MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA_V2}:"
+    )
+    assert motioncrafter_model_identifier(derived) != legacy_identifier
+
+    invalid = json.loads(json.dumps(implicit_legacy))
+    invalid["config"]["seed_policy"] = "unknown"
+    with pytest.raises(ValueError, match="seed policy"):
+        motioncrafter_model_identifier(invalid)
 
 
 def test_calibration_pair_matches_prediction_manifest(tmp_path: Path) -> None:
