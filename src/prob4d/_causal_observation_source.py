@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 import numpy as np
@@ -16,6 +16,7 @@ from .lineage import (
     MOTIONCRAFTER_LINEAGE_SCHEMA_VERSION,
     MOTIONCRAFTER_WINDOWING_MODEL,
 )
+from .motioncrafter import validate_motioncrafter_seed_schedule
 from .observation_contract import (
     array_sha256,
     canonical_json_sha256,
@@ -28,6 +29,10 @@ _PRODUCER_CONFIG_KEYS = (
     "model_type",
     "unet_path",
     "vae_path",
+    "base_model_path",
+    "unet_revision",
+    "vae_revision",
+    "base_model_revision",
     "height",
     "width",
     "window_size",
@@ -36,10 +41,26 @@ _PRODUCER_CONFIG_KEYS = (
     "guidance_scale",
     "decode_chunk_size",
     "seed",
+    "seed_policy",
     "low_memory_usage",
     "frame_start",
     "frame_stride",
 )
+
+_MOTIONCRAFTER_ARTIFACT_INTEGRITY_SCHEMA = (
+    "prob4d.motioncrafter-artifact-integrity.v1"
+)
+_PORTABLE_CONFIG_IGNORED_FIELDS = (
+    "upstream_root",
+    "video_path",
+    "output_directory",
+    "cache_directory",
+)
+
+
+@dataclass(frozen=True)
+class _PredictionIntegrityMetadata:
+    member_descriptors: Mapping[str, Mapping[str, object]]
 
 
 def _require_sha256(value: str, *, name: str) -> None:
@@ -164,8 +185,146 @@ def _validate_overlap_lineage(manifest: Mapping[str, Any]) -> None:
         raise ValueError("independently decoded overlap windows must have internal overlap zero")
     if not str(manifest.get("motioncrafter_commit", "")):
         raise ValueError("prediction manifest has no MotionCrafter revision")
-    if not isinstance(manifest.get("config"), Mapping):
+    config = manifest.get("config")
+    if not isinstance(config, Mapping):
         raise ValueError("prediction manifest has no producer configuration")
+    if "stochastic_seed_schedule" in manifest or "seed_policy" in config:
+        validate_motioncrafter_seed_schedule(manifest)
+
+
+def _safe_relative_member_path(value: object, *, name: str) -> str:
+    if not isinstance(value, str) or not value or "\\" in value:
+        raise ValueError(f"{name} must be a safe POSIX relative path")
+    path = PurePosixPath(value)
+    if path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
+        raise ValueError(f"{name} must be a safe POSIX relative path")
+    return path.as_posix()
+
+
+def _expected_integrity_members(manifest: Mapping[str, Any]) -> dict[str, str]:
+    entries = manifest.get("overlap_windows")
+    if not isinstance(entries, list) or not entries:
+        raise ValueError("prediction manifest has no overlap windows")
+    expected: dict[str, str] = {}
+    for index, entry in enumerate(entries):
+        if not isinstance(entry, Mapping):
+            raise ValueError(f"overlap-window manifest entry {index} must be a mapping")
+        window_id = str(entry.get("window_id", ""))
+        relative = _safe_relative_member_path(
+            entry.get("path"),
+            name=f"overlap window {window_id!r} path",
+        )
+        if relative in expected:
+            raise ValueError("prediction manifest member paths must be unique")
+        expected[relative] = "independently_decoded_overlap_window"
+    for field, kind in (
+        ("disjoint_baseline", "disjoint_baseline"),
+        ("latent_linear_baseline", "latent_linear_baseline"),
+    ):
+        relative = _safe_relative_member_path(
+            manifest.get(field),
+            name=f"{field} path",
+        )
+        if relative in expected:
+            raise ValueError("prediction manifest member paths must be unique")
+        expected[relative] = kind
+    return expected
+
+
+def _validate_prediction_integrity_metadata(
+    manifest: Mapping[str, Any],
+) -> _PredictionIntegrityMetadata | None:
+    """Validate run identity and member descriptors without opening any payload."""
+
+    integrity = manifest.get("artifact_integrity")
+    if integrity is None:
+        return None
+    if not isinstance(integrity, Mapping):
+        raise ValueError("artifact_integrity must be a mapping")
+    if integrity.get("schema") != _MOTIONCRAFTER_ARTIFACT_INTEGRITY_SCHEMA:
+        raise ValueError("unsupported MotionCrafter artifact-integrity schema")
+    run_spec = integrity.get("run_spec")
+    if not isinstance(run_spec, Mapping):
+        raise ValueError("artifact_integrity run_spec must be a mapping")
+    run_spec_sha256 = str(integrity.get("run_spec_sha256", ""))
+    _require_sha256(run_spec_sha256, name="artifact_integrity run_spec_sha256")
+    if canonical_json_sha256(run_spec) != run_spec_sha256:
+        raise ValueError("MotionCrafter run-spec digest mismatch")
+
+    upstream = run_spec.get("motioncrafter_upstream")
+    inference_config = run_spec.get("inference_config")
+    manifest_config = manifest.get("config")
+    if not isinstance(upstream, Mapping) or not isinstance(inference_config, Mapping):
+        raise ValueError("MotionCrafter run spec is internally inconsistent")
+    if not isinstance(manifest_config, Mapping):
+        raise ValueError("integrity-bound prediction manifest config must be a mapping")
+    if manifest.get("motioncrafter_commit") != upstream.get("commit"):
+        raise ValueError("prediction manifest MotionCrafter commit differs from its run spec")
+    portable_config = dict(manifest_config)
+    for field in _PORTABLE_CONFIG_IGNORED_FIELDS:
+        portable_config.pop(field, None)
+    if portable_config != dict(inference_config):
+        raise ValueError("prediction manifest config differs from its bound run spec")
+
+    expected = _expected_integrity_members(manifest)
+    members = integrity.get("members")
+    if not isinstance(members, list):
+        raise ValueError("artifact_integrity members must be a list")
+    descriptors: dict[str, Mapping[str, object]] = {}
+    for index, descriptor in enumerate(members):
+        if not isinstance(descriptor, Mapping):
+            raise ValueError(f"artifact_integrity member {index} must be a mapping")
+        relative = _safe_relative_member_path(
+            descriptor.get("path"),
+            name=f"artifact_integrity member {index} path",
+        )
+        if relative in descriptors:
+            raise ValueError(f"duplicate artifact descriptor for {relative!r}")
+        digest = str(descriptor.get("sha256", ""))
+        _require_sha256(digest, name=f"artifact_integrity member {relative!r} sha256")
+        byte_count = descriptor.get("bytes")
+        if (
+            isinstance(byte_count, bool)
+            or not isinstance(byte_count, int)
+            or byte_count < 0
+        ):
+            raise ValueError(
+                f"artifact_integrity member {relative!r} bytes must be non-negative"
+            )
+        kind = str(descriptor.get("kind", ""))
+        if kind != expected.get(relative):
+            raise ValueError(f"artifact kind mismatch for {relative!r}")
+        descriptors[relative] = {
+            "path": relative,
+            "sha256": digest,
+            "bytes": byte_count,
+            "kind": kind,
+        }
+    if set(descriptors) != set(expected):
+        raise ValueError("artifact descriptors do not match prediction manifest members")
+    return _PredictionIntegrityMetadata(member_descriptors=descriptors)
+
+
+def _validate_selected_integrity_member(
+    path: Path,
+    relative_path: str,
+    integrity: _PredictionIntegrityMetadata,
+) -> str:
+    descriptor = integrity.member_descriptors[relative_path]
+    try:
+        byte_count = path.stat().st_size
+    except OSError as error:
+        raise ValueError(f"selected prediction member {relative_path!r} is missing") from error
+    if byte_count != descriptor["bytes"]:
+        raise ValueError(
+            f"selected prediction member {relative_path!r} byte count mismatch"
+        )
+    digest = file_sha256(path)
+    if digest != descriptor["sha256"]:
+        raise ValueError(
+            f"selected prediction member {relative_path!r} SHA-256 mismatch"
+        )
+    return digest
 
 
 def _safe_payload_path(root: Path, relative_path: str) -> Path:
@@ -217,6 +376,7 @@ def select_causal_overlap_windows(
     manifest_file = Path(manifest_path).resolve()
     manifest = json.loads(manifest_file.read_text(encoding="utf-8"))
     _validate_overlap_lineage(manifest)
+    integrity = _validate_prediction_integrity_metadata(manifest)
     entries = manifest.get("overlap_windows")
     if not isinstance(entries, list) or not entries:
         raise ValueError("prediction manifest has no overlap windows")
@@ -244,27 +404,41 @@ def select_causal_overlap_windows(
         if start < previous_start:
             raise ValueError("overlap-window manifest entries are not ordered by source frame")
         previous_start = start
-        if stop > causal_frame_stop:
+        expected_frames = np.arange(start, stop, frame_stride, dtype=np.int64)
+        if expected_frames.size == 0:
+            raise ValueError(f"overlap window {window_id!r} contains no source frames")
+        if expected_frames.size > window_size:
+            raise ValueError(
+                f"overlap window {window_id!r} exceeds the declared independent window size"
+            )
+        # The manifest stop is the exclusive bound of the sampling grid. With a
+        # non-unit stride it may exceed one-past-the-last consumed frame. Causal
+        # admission therefore uses the actual maximum source frame, not ``stop``.
+        if int(expected_frames[-1]) >= causal_frame_stop:
             skipped += 1
             skipping_started = True
             continue
         if skipping_started:
             raise ValueError("causally complete overlap windows are not a manifest prefix")
 
-        path = _safe_payload_path(manifest_file.parent, str(entry.get("path", "")))
+        relative_path = _safe_relative_member_path(
+            entry.get("path"),
+            name=f"overlap window {window_id!r} path",
+        )
+        path = _safe_payload_path(manifest_file.parent, relative_path)
+        payload_sha256 = (
+            _validate_selected_integrity_member(path, relative_path, integrity)
+            if integrity is not None
+            else file_sha256(path)
+        )
         prediction = PredictionWindow.from_npz(
             path,
             start_frame=start,
             window_id=window_id,
         )
-        expected_frames = np.arange(start, stop, frame_stride, dtype=np.int64)
         if not np.array_equal(prediction.frame_indices, expected_frames):
             raise ValueError(
                 f"overlap window {window_id!r} frame IDs disagree with its manifest bounds"
-            )
-        if len(prediction.frame_indices) > window_size:
-            raise ValueError(
-                f"overlap window {window_id!r} exceeds the declared independent window size"
             )
         if int(prediction.frame_indices[-1]) >= causal_frame_stop:
             raise ValueError(
@@ -276,7 +450,7 @@ def select_causal_overlap_windows(
                 window_id=window_id,
                 source_frame_start=start,
                 source_frame_stop=stop,
-                payload_sha256=file_sha256(path),
+                payload_sha256=payload_sha256,
                 prediction=prediction,
             )
         )
