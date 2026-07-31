@@ -9,8 +9,11 @@ The evaluator is deliberately paired and fail-closed:
 - every case must contain the same method set;
 - every prediction archive must carry its fusion, covariance, and dependence
   semantics;
-- one method cannot mix Prob4D revisions, MotionCrafter revisions or seed
-  policies, gauge estimators, or calibration statuses across cases;
+- one method cannot mix Prob4D revisions, MotionCrafter revisions, model-set
+  identities, seed policies, gauge estimators, or calibration statuses across
+  cases;
+- every nonlegacy archive binds the exact prediction-manifest SHA-256 and declares
+  that covariance fields are present;
 - historical archives without embedded semantics are rejected unless the run is
   explicitly labelled with `--allow-legacy-artifacts`;
 - cases are first averaged within a registered `group_id`, then groups receive
@@ -35,12 +38,51 @@ covariance field has one of three explicit meanings:
 These meanings are not interchangeable. The evaluator verifies that the
 manifest method label agrees with the archive and that one method retains one
 semantic signature across all held-out cases. Nonlegacy artifacts must also
-declare exact Prob4D and MotionCrafter revisions, MotionCrafter seed policy,
-gauge estimator, and uncertainty-calibration status.
+declare exact Prob4D and MotionCrafter revisions, the immutable
+`prob4d.motioncrafter-model-set.v1` digest, MotionCrafter seed policy, gauge
+estimator, uncertainty-calibration status, and the prediction-manifest digest.
 
-Run `prob4d-benchmark` with `--include-covariance` to produce evaluable fused
-archives. The benchmark manifest also records inference, loading, Prob4D fusion,
-and artifact-export time separately.
+## Producing evaluable benchmark artifacts
+
+`prob4d-benchmark` now uses the same immutable model-source contract as the
+standalone MotionCrafter producer while preserving one model-loading session for
+the complete batch. Supply either local content-addressed snapshots or exact
+remote revisions for the UNet, geometry/motion VAE, and base pipeline:
+
+```bash
+prob4d-benchmark \
+  --dataset-dir /data/benchmark \
+  --output-dir outputs/benchmark \
+  --upstream-root ../MotionCrafter \
+  --cache-dir /cache/huggingface \
+  --unet-path TencentARC/MotionCrafter \
+  --unet-revision <exact-commit> \
+  --vae-path TencentARC/MotionCrafter \
+  --vae-revision <exact-commit> \
+  --base-pipeline-path stabilityai/stable-video-diffusion-img2vid-xt \
+  --base-pipeline-revision <exact-commit> \
+  --seed-policy derived-per-call \
+  --include-covariance
+```
+
+`--include-covariance` is required for provider evaluation. The benchmark
+manifest records the complete compact model-source manifest, model-set digest,
+Prob4D and MotionCrafter revisions, inference/loading/fusion/export timings, and
+method semantics.
+
+`--skip-existing` is not a file-existence shortcut. Before skipping one case it
+validates:
+
+- the prediction manifest's MotionCrafter revision, seed policy, and model-set
+  identity;
+- byte identity of both copied MotionCrafter baselines;
+- method labels, fusion semantics, gauge estimator, and calibration status;
+- Prob4D revision, MotionCrafter revision, model-set digest, prediction-manifest
+  digest, and covariance-presence declaration;
+- complete covariance loading when the current run requires it.
+
+Partial or incompatible output trees fail closed. A fully validated skipped batch
+does not load GPU models.
 
 ## Evaluation manifest
 

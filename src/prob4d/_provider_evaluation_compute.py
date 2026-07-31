@@ -52,6 +52,17 @@ def _validated_revision(value: object, *, name: str) -> str:
     return revision
 
 
+def _validated_sha256(value: object, *, name: str) -> str:
+    if not isinstance(value, str):
+        raise ValueError(f"{name} must be a SHA-256 digest")
+    digest = value.strip()
+    if len(digest) != 64 or any(
+        character not in "0123456789abcdef" for character in digest
+    ):
+        raise ValueError(f"{name} must be a lowercase SHA-256 digest")
+    return digest
+
+
 def _validate_method_metadata(
     metadata: FusedPredictionMetadata,
     *,
@@ -66,11 +77,23 @@ def _validate_method_metadata(
         details.get("motioncrafter_revision"),
         name=f"{path} metadata.motioncrafter_revision",
     )
+    _validated_sha256(
+        details.get("motioncrafter_model_set_sha256"),
+        name=f"{path} metadata.motioncrafter_model_set_sha256",
+    )
+    _validated_sha256(
+        details.get("prediction_manifest_sha256"),
+        name=f"{path} metadata.prediction_manifest_sha256",
+    )
     seed_policy = details.get("motioncrafter_seed_policy")
     if seed_policy not in {"legacy-common", "derived-per-call"}:
         raise ValueError(
             f"{path} metadata.motioncrafter_seed_policy must declare the exact "
             "MotionCrafter stochastic semantics"
+        )
+    if details.get("includes_covariance") is not True:
+        raise ValueError(
+            f"{path} metadata.includes_covariance must be true for provider evaluation"
         )
     for field in ("gauge_estimator", "uncertainty_calibration"):
         value = details.get(field)
@@ -116,6 +139,7 @@ def _method_signature(metadata: FusedPredictionMetadata) -> tuple[object, ...]:
         details.get("prob4d_revision"),
         details.get("motioncrafter_revision"),
         details.get("motioncrafter_seed_policy"),
+        details.get("motioncrafter_model_set_sha256"),
         details.get("gauge_estimator"),
         details.get("uncertainty_calibration"),
         details.get("gauge_covariance_calibration_artifact_id"),
@@ -156,7 +180,7 @@ def evaluate_provider_cases(
             previous = signatures.setdefault(method_id, signature)
             if signature != previous:
                 raise ValueError(
-                    f"method {method_id!r} mixes covariance, estimator, or "
+                    f"method {method_id!r} mixes covariance, model, estimator, or "
                     "revision semantics"
                 )
             method_metadata.setdefault(method_id, metadata.to_dict())

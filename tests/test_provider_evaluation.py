@@ -37,6 +37,19 @@ def _prediction(truth: TruthSequence, error: float) -> FusedSequence:
     )
 
 
+def _artifact_metadata(*, model_set_sha256: str = "c" * 64) -> dict[str, object]:
+    return {
+        "prob4d_revision": "a" * 40,
+        "motioncrafter_revision": "b" * 40,
+        "motioncrafter_seed_policy": "derived-per-call",
+        "motioncrafter_model_set_sha256": model_set_sha256,
+        "prediction_manifest_sha256": "d" * 64,
+        "includes_covariance": True,
+        "gauge_estimator": "sequential",
+        "uncertainty_calibration": "held_out",
+    }
+
+
 def _write_case(
     root: Path,
     case_id: str,
@@ -55,26 +68,14 @@ def _write_case(
         _prediction(truth, uniform_error),
         method_id="uniform",
         fusion_method="uniform",
-        metadata={
-            "prob4d_revision": "a" * 40,
-            "motioncrafter_revision": "b" * 40,
-            "motioncrafter_seed_policy": "derived-per-call",
-            "gauge_estimator": "sequential",
-            "uncertainty_calibration": "held_out",
-        },
+        metadata=_artifact_metadata(),
     )
     save_fused_prediction(
         ci_path,
         _prediction(truth, ci_error),
         method_id="ci",
         fusion_method="covariance_intersection",
-        metadata={
-            "prob4d_revision": "a" * 40,
-            "motioncrafter_revision": "b" * 40,
-            "motioncrafter_seed_policy": "derived-per-call",
-            "gauge_estimator": "sequential",
-            "uncertainty_calibration": "held_out",
-        },
+        metadata=_artifact_metadata(),
     )
     return {
         "case_id": case_id,
@@ -172,6 +173,45 @@ def test_provider_evaluation_rejects_method_relabelling(tmp_path: Path) -> None:
     path.write_text(json.dumps(manifest), encoding="utf-8")
 
     with pytest.raises(ValueError, match="method label"):
+        run_provider_evaluation(path, tmp_path / "output")
+
+
+def test_provider_evaluation_rejects_model_set_drift(tmp_path: Path) -> None:
+    first = _write_case(
+        tmp_path,
+        "c1",
+        "g1",
+        uniform_error=1.0,
+        ci_error=0.5,
+    )
+    second = _write_case(
+        tmp_path,
+        "c2",
+        "g2",
+        uniform_error=2.0,
+        ci_error=1.0,
+    )
+    changed_path = tmp_path / "c2-uniform.npz"
+    truth = _truth()
+    save_fused_prediction(
+        changed_path,
+        _prediction(truth, 2.0),
+        method_id="uniform",
+        fusion_method="uniform",
+        metadata=_artifact_metadata(model_set_sha256="e" * 64),
+    )
+    manifest = {
+        "schema_name": "prob4d.provider-evaluation",
+        "schema_version": 1,
+        "primary_mode": "metric",
+        "reference_method": "uniform",
+        "cases": [first, second],
+        "metadata": {},
+    }
+    path = tmp_path / "evaluation.json"
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="mixes covariance, model"):
         run_provider_evaluation(path, tmp_path / "output")
 
 
