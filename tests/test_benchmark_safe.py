@@ -96,6 +96,8 @@ def test_existing_benchmark_outputs_are_validated_before_skip(tmp_path: Path) ->
 
     assert manifest_path == artifact_directory / "predictions.json"
     assert frame_count == 40
+    assert storage_summary["storage_dtypes"] == ["float32"]
+    assert storage_summary["retained_fraction_of_float64"] == 0.5
 
     baseline = destinations["motioncrafter_disjoint"]
     baseline.write_bytes(baseline.read_bytes() + b"tampered")
