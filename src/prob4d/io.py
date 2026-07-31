@@ -11,7 +11,10 @@ import numpy as np
 from .data import PredictionWindow
 from .fusion import FusedSequence
 from .metrics import TruthSequence
-from .motioncrafter import validate_motioncrafter_seed_schedule
+from .motioncrafter_integrity import (
+    resolve_motioncrafter_member,
+    verify_motioncrafter_prediction_manifest,
+)
 
 
 def pack_symmetric_covariance(covariance: np.ndarray) -> np.ndarray:
@@ -81,36 +84,32 @@ class PredictionBundle:
 
 def load_prediction_bundle(path: str | Path) -> PredictionBundle:
     path = Path(path).resolve()
+    verify_motioncrafter_prediction_manifest(path, verify_hashes=True)
     payload = json.loads(path.read_text(encoding="utf-8"))
-    if payload.get("format_version") != 1:
-        raise ValueError("unsupported prediction-manifest format_version")
-    config = payload.get("config")
-    if "stochastic_seed_schedule" in payload or (
-        isinstance(config, dict) and "seed_policy" in config
-    ):
-        validate_motioncrafter_seed_schedule(payload)
     root = path.parent
+
+    def member(relative_path: object, *, name: str) -> Path:
+        return resolve_motioncrafter_member(root, relative_path, name=name)
+
     windows = [
         PredictionWindow.from_npz(
-            root / item["path"],
+            member(item["path"], name=f"overlap window {item['window_id']!r} path"),
             start_frame=item.get("start_frame"),
             window_id=item["window_id"],
         )
         for item in payload["overlap_windows"]
     ]
-    if not windows:
-        raise ValueError("prediction manifest has no overlap windows")
     windows.sort(key=lambda window: window.start_frame)
     return PredictionBundle(
         manifest_path=path,
         overlap_windows=windows,
         disjoint_baseline=PredictionWindow.from_npz(
-            root / payload["disjoint_baseline"],
+            member(payload["disjoint_baseline"], name="disjoint baseline path"),
             start_frame=0,
             window_id="baseline_disjoint",
         ),
         latent_linear_baseline=PredictionWindow.from_npz(
-            root / payload["latent_linear_baseline"],
+            member(payload["latent_linear_baseline"], name="latent-linear baseline path"),
             start_frame=0,
             window_id="baseline_latent_linear",
         ),
