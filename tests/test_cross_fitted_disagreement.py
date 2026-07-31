@@ -228,3 +228,22 @@ def test_cross_fitted_disagreement_fails_closed_without_two_clusters() -> None:
         assert not np.any(item.count)
         assert not np.any(item.parallel_sum)
         assert not np.any(item.lateral_sum)
+
+
+def test_cross_fitted_path_does_not_materialize_full_window_rays(monkeypatch) -> None:
+    windows, alignments = _tile_bias_fixture()
+
+    def forbidden_full_rays(*args, **kwargs):
+        raise AssertionError("full-window rays were materialized")
+
+    monkeypatch.setattr(PredictionWindow, "rays", forbidden_full_rays)
+    cross_fitted, report = accumulate_cross_fitted_disagreement(
+        windows,
+        alignments,
+        folds=4,
+        cluster_size=2,
+        seed=7,
+    )
+
+    assert report.evaluated_points == 16
+    assert np.any(cross_fitted["reference"].count)

@@ -253,3 +253,46 @@ def test_provider_evaluation_rejects_legacy_unspecified_artifacts(
 
     with pytest.raises(ValueError, match="legacy unspecified"):
         run_provider_evaluation(manifest_path, tmp_path / "output")
+
+
+def test_provider_evaluation_rejects_dense_storage_mode_drift(
+    tmp_path: Path,
+) -> None:
+    first = _write_case(
+        tmp_path,
+        "c1",
+        "g1",
+        uniform_error=1.0,
+        ci_error=0.5,
+    )
+    second = _write_case(
+        tmp_path,
+        "c2",
+        "g2",
+        uniform_error=2.0,
+        ci_error=1.0,
+    )
+    truth = _truth()
+    changed_metadata = _artifact_metadata()
+    changed_metadata["dense_storage_dtype"] = "float32"
+    save_fused_prediction(
+        tmp_path / "c2-uniform.npz",
+        _prediction(truth, 2.0),
+        method_id="uniform",
+        fusion_method="uniform",
+        metadata=changed_metadata,
+    )
+
+    manifest = {
+        "schema_name": "prob4d.provider-evaluation",
+        "schema_version": 1,
+        "primary_mode": "metric",
+        "reference_method": "uniform",
+        "cases": [first, second],
+        "metadata": {},
+    }
+    path = tmp_path / "evaluation.json"
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="mixes covariance, model"):
+        run_provider_evaluation(path, tmp_path / "output")

@@ -157,3 +157,37 @@ def test_legacy_fused_prediction_is_explicitly_unspecified(tmp_path: Path) -> No
 
     assert metadata.legacy_unspecified
     assert metadata.fusion_method == "unspecified"
+
+
+def test_prediction_bundle_explicit_float32_storage_is_auditable(
+    tmp_path: Path,
+) -> None:
+    problem = make_synthetic_problem(
+        seed=23,
+        num_frames=40,
+        height=4,
+        width=6,
+        overlap=15,
+    )
+    manifest_path, _ = write_problem_bundle(tmp_path / "bundle", problem)
+
+    legacy = load_prediction_bundle(manifest_path)
+    compact = load_prediction_bundle(
+        manifest_path,
+        dense_storage_dtype="float32",
+    )
+    legacy_summary = legacy.dense_storage_summary()
+    compact_summary = compact.dense_storage_summary()
+
+    assert legacy_summary["storage_dtypes"] == ["float64"]
+    assert compact_summary["storage_dtypes"] == ["float32"]
+    assert compact_summary["retained_fraction_of_float64"] == 0.5
+    assert compact_summary["retained_bytes"] * 2 == legacy_summary["retained_bytes"]
+    for expected, actual in zip(
+        legacy.overlap_windows,
+        compact.overlap_windows,
+        strict=True,
+    ):
+        np.testing.assert_array_equal(actual.point_map, expected.point_map)
+        if expected.scene_flow is not None:
+            np.testing.assert_array_equal(actual.scene_flow, expected.scene_flow)

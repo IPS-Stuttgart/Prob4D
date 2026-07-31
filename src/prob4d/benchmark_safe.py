@@ -20,6 +20,7 @@ from .benchmark import (
     benchmark_method_semantics,
     fuse_prediction_bundle_methods,
 )
+from .data import DENSE_STORAGE_DTYPES, DenseStorageDType
 from .io import (
     load_fused_prediction_artifact,
     load_fused_prediction_metadata,
@@ -58,10 +59,18 @@ class BenchmarkExportConfig:
     overlap: int = 8
     seed: int = 42
     seed_policy: MotionCrafterSeedPolicy = MOTIONCRAFTER_SEED_POLICY_LEGACY_COMMON
+    dense_storage_dtype: DenseStorageDType = "float32"
     max_sequences: int | None = None
     skip_existing: bool = False
     include_covariance: bool = False
     fusion_methods: tuple[str, ...] = FUSION_METHOD_NAMES
+
+    def __post_init__(self) -> None:
+        if self.dense_storage_dtype not in DENSE_STORAGE_DTYPES:
+            raise ValueError(
+                "dense_storage_dtype must be one of "
+                + ", ".join(DENSE_STORAGE_DTYPES)
+            )
 
 
 def _sha256_file(path: Path) -> str:
@@ -93,7 +102,8 @@ def _existing_prediction_manifest(
     motioncrafter_commit: str,
     seed_policy: str,
     model_set_sha256: str,
-) -> tuple[Path, int]:
+    dense_storage_dtype: DenseStorageDType,
+) -> tuple[Path, int, dict[str, object]]:
     manifest_path = artifact_directory / "predictions.json"
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -123,9 +133,12 @@ def _existing_prediction_manifest(
             "existing benchmark prediction bundle belongs to another MotionCrafter "
             f"configuration: expected={expected}, actual={actual}"
         )
-    bundle = load_prediction_bundle(manifest_path)
+    bundle = load_prediction_bundle(
+        manifest_path,
+        dense_storage_dtype=dense_storage_dtype,
+    )
     frame_count = int(bundle.disjoint_baseline.frame_indices.size)
-    return manifest_path, frame_count
+    return manifest_path, frame_count, bundle.dense_storage_summary()
 
 
 def _validate_existing_outputs(
@@ -138,14 +151,16 @@ def _validate_existing_outputs(
     seed_policy: str,
     model_set_sha256: str,
     include_covariance: bool,
-) -> tuple[Path, int]:
+    dense_storage_dtype: DenseStorageDType,
+) -> tuple[Path, int, dict[str, object]]:
     """Validate every skipped output against the current exact producer identity."""
 
-    manifest_path, frame_count = _existing_prediction_manifest(
+    manifest_path, frame_count, dense_storage_summary = _existing_prediction_manifest(
         artifact_directory,
         motioncrafter_commit=motioncrafter_commit,
         seed_policy=seed_policy,
         model_set_sha256=model_set_sha256,
+        dense_storage_dtype=dense_storage_dtype,
     )
     prediction_manifest_sha256 = _sha256_file(manifest_path)
     baseline_pairs = (
@@ -174,6 +189,7 @@ def _validate_existing_outputs(
         "motioncrafter_model_set_sha256": model_set_sha256,
         "prediction_manifest_sha256": prediction_manifest_sha256,
         "includes_covariance": include_covariance,
+        "dense_storage_dtype": dense_storage_dtype,
     }
     for method in fusion_methods:
         path = destinations[method]
@@ -203,7 +219,7 @@ def _validate_existing_outputs(
             )
         if include_covariance:
             load_fused_prediction_artifact(path)
-    return manifest_path, frame_count
+    return manifest_path, frame_count, dense_storage_summary
 
 
 def _validate_existing_benchmark_manifest(
@@ -274,7 +290,7 @@ def run_benchmark_export(config: BenchmarkExportConfig) -> Path:
             path for path in destinations.values() if path.exists()
         ]
         if config.skip_existing and len(existing_destinations) == len(destinations):
-            _, frame_count = _validate_existing_outputs(
+            _, frame_count, dense_storage_summary = _validate_existing_outputs(
                 artifact_directory=artifact_directory,
                 destinations=destinations,
                 fusion_methods=fusion_methods,
@@ -283,6 +299,7 @@ def run_benchmark_export(config: BenchmarkExportConfig) -> Path:
                 seed_policy=config.seed_policy,
                 model_set_sha256=model_set.set_sha256,
                 include_covariance=config.include_covariance,
+                dense_storage_dtype=config.dense_storage_dtype,
             )
             samples.append(
                 {
@@ -290,6 +307,7 @@ def run_benchmark_export(config: BenchmarkExportConfig) -> Path:
                     "status": "existing_validated",
                     "frames": frame_count,
                     "index": sample_index,
+                    "prediction_dense_storage": dense_storage_summary,
                 }
             )
             continue
@@ -328,7 +346,11 @@ def run_benchmark_export(config: BenchmarkExportConfig) -> Path:
         prediction_manifest_sha256 = _sha256_file(manifest_path)
 
         loading_started = time.perf_counter()
-        bundle = load_prediction_bundle(manifest_path)
+        bundle = load_prediction_bundle(
+            manifest_path,
+            dense_storage_dtype=config.dense_storage_dtype,
+        )
+        dense_storage_summary = bundle.dense_storage_summary()
         loading_seconds = time.perf_counter() - loading_started
 
         fusion_started = time.perf_counter()
@@ -351,6 +373,7 @@ def run_benchmark_export(config: BenchmarkExportConfig) -> Path:
             "motioncrafter_model_set_sha256": model_set.set_sha256,
             "prediction_manifest_sha256": prediction_manifest_sha256,
             "includes_covariance": config.include_covariance,
+            "dense_storage_dtype": config.dense_storage_dtype,
         }
         for method, sequence in fused_methods.items():
             _write_fused_prediction(
@@ -376,6 +399,7 @@ def run_benchmark_export(config: BenchmarkExportConfig) -> Path:
                 "frames": int(next(iter(fused_methods.values())).frame_indices.size),
                 "index": sample_index,
                 "prediction_manifest_sha256": prediction_manifest_sha256,
+                "prediction_dense_storage": dense_storage_summary,
             }
         )
         del bundle, fused_methods
@@ -454,6 +478,15 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--skip-existing", action="store_true")
     parser.add_argument("--include-covariance", action="store_true")
     parser.add_argument(
+        "--dense-storage-dtype",
+        choices=DENSE_STORAGE_DTYPES,
+        default="float32",
+        help=(
+            "in-memory point/flow storage; float32 halves dense prediction storage "
+            "while gauge and covariance calculations remain float64"
+        ),
+    )
+    parser.add_argument(
         "--fusion-method",
         dest="fusion_methods",
         action="append",
@@ -488,6 +521,7 @@ def main(argv: list[str] | None = None) -> int:
         max_sequences=arguments.max_sequences,
         skip_existing=arguments.skip_existing,
         include_covariance=arguments.include_covariance,
+        dense_storage_dtype=arguments.dense_storage_dtype,
         fusion_methods=tuple(arguments.fusion_methods or FUSION_METHOD_NAMES),
     )
     try:

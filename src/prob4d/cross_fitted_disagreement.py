@@ -120,6 +120,8 @@ class _OverlapRows:
     rows: IntArray
     columns: IntArray
     cluster_ids: IntArray
+    reference_rays: NDArray[np.floating]
+    moving_rays: NDArray[np.floating]
 
 
 def _validated_integer(
@@ -173,6 +175,14 @@ def _clustered_overlap_rows(
                 rows=rows.astype(np.int64),
                 columns=columns.astype(np.int64),
                 cluster_ids=cluster_ids,
+                reference_rays=reference.rays_at(
+                    reference_index,
+                    dtype=np.float64,
+                )[rows, columns],
+                moving_rays=moving.rays_at(
+                    moving_index,
+                    dtype=np.float64,
+                )[rows, columns],
             )
         )
     return records, cluster_offset, overlap_points
@@ -264,8 +274,6 @@ def _accumulate_rows(
     record: _OverlapRows,
     selected: np.ndarray,
     transform: Sim3,
-    reference_rays: np.ndarray,
-    moving_rays: np.ndarray,
 ) -> int:
     rows = record.rows[selected]
     columns = record.columns[selected]
@@ -274,8 +282,8 @@ def _accumulate_rows(
     parallel, lateral = _residual_energy(
         reference.point_map[record.reference_index][rows, columns],
         moving.point_map[record.moving_index][rows, columns],
-        reference_rays[record.reference_index][rows, columns],
-        moving_rays[record.moving_index][rows, columns],
+        record.reference_rays[selected],
+        record.moving_rays[selected],
         transform,
     )
     for window_id, local_index in (
@@ -372,8 +380,6 @@ def accumulate_cross_fitted_disagreement(
             effective_folds,
             seed=alignment_seed,
         )
-        reference_rays = reference.rays()
-        moving_rays = moving.rays()
         alignment_fitted_folds = 0
 
         for held_out_fold in range(effective_folds):
@@ -418,8 +424,6 @@ def accumulate_cross_fitted_disagreement(
                     record,
                     held_out,
                     transform,
-                    reference_rays,
-                    moving_rays,
                 )
             fitted_folds += 1
             alignment_fitted_folds += 1

@@ -318,3 +318,11 @@ The implementation has been exercised at full `25 x 320 x 640` window size on
 an RTX 6000 Ada host. Frame-level covariance intersection is the production
 default; the more expensive per-pixel CI weight search remains available for
 small diagnostic experiments.
+
+The pinned benchmark loads serialized MotionCrafter point and flow fields in
+`float32` by default and records `dense_storage_dtype` in every fused artifact.
+Low-dimensional gauge estimation and covariance calculations still use
+`float64`. Stable provider loaders retain the historical `float64` default unless
+the caller explicitly selects another storage mode. Frame-local ray access also
+avoids full-window normalization temporaries in cross-fitted overlap diagnostics.
+See [dense-memory execution](docs/dense-memory.md).

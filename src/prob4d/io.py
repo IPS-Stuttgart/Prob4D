@@ -11,7 +11,7 @@ from typing import Any, Literal
 import numpy as np
 
 from ._immutable_json import frozen_finite_json_mapping, plain_json
-from .data import PredictionWindow
+from .data import DenseStorageDType, PredictionWindow
 from .fusion import FusedSequence
 from .metrics import TruthSequence
 from .motioncrafter_integrity import (
@@ -335,8 +335,50 @@ class PredictionBundle:
     latent_linear_baseline: PredictionWindow
     metadata: dict
 
+    def dense_storage_summary(self) -> dict[str, object]:
+        """Summarize retained dense vector storage without sampling process RSS."""
 
-def load_prediction_bundle(path: str | Path) -> PredictionBundle:
+        windows = [
+            *self.overlap_windows,
+            self.disjoint_baseline,
+            self.latent_linear_baseline,
+        ]
+        retained_bytes = sum(window.dense_vector_storage_bytes for window in windows)
+        float64_equivalent_bytes = 0
+        dense_vector_field_count = 0
+        for window in windows:
+            for array in (
+                window.point_map,
+                window.scene_flow,
+                window.ray_directions,
+            ):
+                if array is None:
+                    continue
+                dense_vector_field_count += 1
+                float64_equivalent_bytes += array.size * np.dtype(np.float64).itemsize
+        return {
+            "window_count": len(windows),
+            "dense_vector_field_count": dense_vector_field_count,
+            "storage_dtypes": sorted(
+                {window.dense_storage_dtype for window in windows}
+            ),
+            "retained_bytes": retained_bytes,
+            "float64_equivalent_bytes": float64_equivalent_bytes,
+            "retained_fraction_of_float64": (
+                0.0
+                if float64_equivalent_bytes == 0
+                else retained_bytes / float64_equivalent_bytes
+            ),
+        }
+
+
+def load_prediction_bundle(
+    path: str | Path,
+    *,
+    dense_storage_dtype: DenseStorageDType = "float64",
+) -> PredictionBundle:
+    """Load a verified bundle with an explicit dense in-memory storage mode."""
+
     path = Path(path).resolve()
     verify_motioncrafter_prediction_manifest(path, verify_hashes=True)
     payload = json.loads(path.read_text(encoding="utf-8"))
@@ -350,6 +392,7 @@ def load_prediction_bundle(path: str | Path) -> PredictionBundle:
             member(item["path"], name=f"overlap window {item['window_id']!r} path"),
             start_frame=item.get("start_frame"),
             window_id=item["window_id"],
+            dense_storage_dtype=dense_storage_dtype,
         )
         for item in payload["overlap_windows"]
     ]
@@ -361,11 +404,13 @@ def load_prediction_bundle(path: str | Path) -> PredictionBundle:
             member(payload["disjoint_baseline"], name="disjoint baseline path"),
             start_frame=0,
             window_id="baseline_disjoint",
+            dense_storage_dtype=dense_storage_dtype,
         ),
         latent_linear_baseline=PredictionWindow.from_npz(
             member(payload["latent_linear_baseline"], name="latent-linear baseline path"),
             start_frame=0,
             window_id="baseline_latent_linear",
+            dense_storage_dtype=dense_storage_dtype,
         ),
         metadata=payload,
     )

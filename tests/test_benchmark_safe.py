@@ -53,7 +53,10 @@ def _existing_outputs(tmp_path: Path) -> tuple[Path, dict[str, Path]]:
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(artifact_directory / source_name, destination)
 
-    bundle = load_prediction_bundle(manifest_path)
+    bundle = load_prediction_bundle(
+        manifest_path,
+        dense_storage_dtype="float32",
+    )
     sequence = fuse_prediction_bundle_methods(
         bundle,
         method_names={"prob4d_uniform"},
@@ -70,6 +73,7 @@ def _existing_outputs(tmp_path: Path) -> tuple[Path, dict[str, Path]]:
             "motioncrafter_model_set_sha256": "c" * 64,
             "prediction_manifest_sha256": _sha256_file(manifest_path),
             "includes_covariance": True,
+            "dense_storage_dtype": "float32",
         },
     )
     return artifact_directory, destinations
@@ -78,7 +82,7 @@ def _existing_outputs(tmp_path: Path) -> tuple[Path, dict[str, Path]]:
 def test_existing_benchmark_outputs_are_validated_before_skip(tmp_path: Path) -> None:
     artifact_directory, destinations = _existing_outputs(tmp_path)
 
-    manifest_path, frame_count = _validate_existing_outputs(
+    manifest_path, frame_count, storage_summary = _validate_existing_outputs(
         artifact_directory=artifact_directory,
         destinations=destinations,
         fusion_methods=("prob4d_uniform",),
@@ -87,6 +91,7 @@ def test_existing_benchmark_outputs_are_validated_before_skip(tmp_path: Path) ->
         seed_policy="legacy-common",
         model_set_sha256="c" * 64,
         include_covariance=True,
+        dense_storage_dtype="float32",
     )
 
     assert manifest_path == artifact_directory / "predictions.json"
@@ -104,6 +109,7 @@ def test_existing_benchmark_outputs_are_validated_before_skip(tmp_path: Path) ->
             seed_policy="legacy-common",
             model_set_sha256="c" * 64,
             include_covariance=True,
+            dense_storage_dtype="float32",
         )
 
 

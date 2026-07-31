@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Final, Literal, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -11,6 +12,11 @@ from numpy.typing import NDArray
 FloatArray = NDArray[np.floating]
 BoolArray = NDArray[np.bool_]
 IntArray = NDArray[np.integer]
+DenseStorageDType = Literal["float32", "float64"]
+DENSE_STORAGE_DTYPES: Final[tuple[DenseStorageDType, ...]] = (
+    "float32",
+    "float64",
+)
 
 
 def _readonly_owned(value: np.ndarray) -> np.ndarray:
@@ -18,6 +24,19 @@ def _readonly_owned(value: np.ndarray) -> np.ndarray:
 
     value.setflags(write=False)
     return value
+
+
+def _validated_dense_storage_dtype(value: object) -> DenseStorageDType:
+    normalized = str(value)
+    if normalized not in DENSE_STORAGE_DTYPES:
+        raise ValueError(
+            "dense_storage_dtype must be one of " + ", ".join(DENSE_STORAGE_DTYPES)
+        )
+    return cast(DenseStorageDType, normalized)
+
+
+def _numpy_dense_dtype(value: DenseStorageDType) -> np.dtype[np.floating]:
+    return np.dtype(np.float32 if value == "float32" else np.float64)
 
 
 @dataclass(frozen=True)
@@ -37,11 +56,16 @@ class PredictionWindow:
     scene_flow: FloatArray | None = None
     deform_mask: BoolArray | None = None
     ray_directions: FloatArray | None = None
+    dense_storage_dtype: DenseStorageDType = "float64"
 
     def __post_init__(self) -> None:
         window_id = str(self.window_id)
+        dense_storage_dtype = _validated_dense_storage_dtype(
+            self.dense_storage_dtype
+        )
+        dense_dtype = _numpy_dense_dtype(dense_storage_dtype)
         frame_indices = np.asarray(self.frame_indices, dtype=np.int64).copy()
-        point_map = np.asarray(self.point_map, dtype=np.float64).copy()
+        point_map = np.asarray(self.point_map, dtype=dense_dtype).copy()
         valid_mask = np.asarray(self.valid_mask, dtype=bool).copy()
 
         if not window_id:
@@ -81,6 +105,7 @@ class PredictionWindow:
             rays[valid_mask] /= ray_norm[valid_mask, None]
 
         object.__setattr__(self, "window_id", window_id)
+        object.__setattr__(self, "dense_storage_dtype", dense_storage_dtype)
         object.__setattr__(self, "frame_indices", _readonly_owned(frame_indices))
         object.__setattr__(self, "point_map", _readonly_owned(point_map))
         object.__setattr__(self, "valid_mask", _readonly_owned(valid_mask))
@@ -106,7 +131,7 @@ class PredictionWindow:
     ) -> np.ndarray | None:
         if value is None:
             return None
-        array = np.asarray(value, dtype=np.float64).copy()
+        array = np.asarray(value, dtype=reference.dtype).copy()
         if array.shape != reference.shape:
             raise ValueError(f"{name} must have shape {reference.shape}")
         return array
@@ -147,18 +172,60 @@ class PredictionWindow:
     def common_frames(self, other: PredictionWindow) -> IntArray:
         return np.intersect1d(self.frame_indices, other.frame_indices, assume_unique=True)
 
-    def rays(self) -> FloatArray:
-        """Return normalized rays, falling back to directions from the local origin."""
+    @property
+    def dense_vector_storage_bytes(self) -> int:
+        """Return bytes retained by dense three-vector prediction fields."""
 
+        arrays = (self.point_map, self.scene_flow, self.ray_directions)
+        return sum(array.nbytes for array in arrays if array is not None)
+
+    def rays_at(
+        self,
+        local_index: int,
+        *,
+        dtype: type[np.floating] | np.dtype[np.floating] | None = None,
+    ) -> FloatArray:
+        """Return normalized rays for one frame without copying the full window."""
+
+        index = int(local_index)
+        if index != local_index or not 0 <= index < self.shape[0]:
+            raise IndexError("local ray frame index is out of range")
+        target_dtype = self.point_map.dtype if dtype is None else np.dtype(dtype)
+        if target_dtype not in {np.dtype(np.float32), np.dtype(np.float64)}:
+            raise ValueError("ray dtype must be float32 or float64")
         if self.ray_directions is not None:
-            return self.ray_directions.copy()
-        norms = np.linalg.norm(self.point_map, axis=-1, keepdims=True)
+            return np.array(
+                self.ray_directions[index],
+                dtype=target_dtype,
+                copy=True,
+            )
+
+        points = np.asarray(self.point_map[index], dtype=target_dtype)
+        norms = np.linalg.norm(points, axis=-1, keepdims=True)
         return np.divide(
-            self.point_map,
+            points,
             norms,
-            out=np.zeros_like(self.point_map),
+            out=np.zeros(points.shape, dtype=target_dtype),
             where=norms > np.finfo(np.float64).eps,
         )
+
+    def rays(
+        self,
+        *,
+        dtype: type[np.floating] | np.dtype[np.floating] | None = None,
+    ) -> FloatArray:
+        """Return all normalized rays, using frame-local temporary storage."""
+
+        if self.ray_directions is not None:
+            target_dtype = self.ray_directions.dtype if dtype is None else np.dtype(dtype)
+            if target_dtype not in {np.dtype(np.float32), np.dtype(np.float64)}:
+                raise ValueError("ray dtype must be float32 or float64")
+            return np.array(self.ray_directions, dtype=target_dtype, copy=True)
+        target_dtype = self.point_map.dtype if dtype is None else np.dtype(dtype)
+        output = np.empty(self.point_map.shape, dtype=target_dtype)
+        for local_index in range(self.shape[0]):
+            output[local_index] = self.rays_at(local_index, dtype=target_dtype)
+        return output
 
     def to_npz(self, path: str | Path) -> None:
         """Write a portable, self-describing prediction window."""
@@ -166,14 +233,17 @@ class PredictionWindow:
         payload: dict[str, np.ndarray] = {
             "window_id": np.asarray(self.window_id),
             "frame_indices": self.frame_indices,
-            "point_map": self.point_map.astype(np.float32),
+            "point_map": self.point_map.astype(np.float32, copy=False),
             "valid_mask": self.valid_mask,
         }
         if self.scene_flow is not None:
-            payload["scene_flow"] = self.scene_flow.astype(np.float32)
+            payload["scene_flow"] = self.scene_flow.astype(np.float32, copy=False)
             payload["deform_mask"] = self.deform_mask
         if self.ray_directions is not None:
-            payload["ray_directions"] = self.ray_directions.astype(np.float32)
+            payload["ray_directions"] = self.ray_directions.astype(
+                np.float32,
+                copy=False,
+            )
         np.savez_compressed(Path(path), **payload)
 
     @classmethod
@@ -183,6 +253,7 @@ class PredictionWindow:
         *,
         start_frame: int | None = None,
         window_id: str | None = None,
+        dense_storage_dtype: DenseStorageDType = "float64",
     ) -> PredictionWindow:
         """Read a window, requiring explicit frame metadata when absent upstream."""
 
@@ -209,4 +280,12 @@ class PredictionWindow:
                 scene_flow=data["scene_flow"] if "scene_flow" in data else None,
                 deform_mask=data["deform_mask"] if "deform_mask" in data else None,
                 ray_directions=data["ray_directions"] if "ray_directions" in data else None,
+                dense_storage_dtype=dense_storage_dtype,
             )
+
+
+__all__ = [
+    "DENSE_STORAGE_DTYPES",
+    "DenseStorageDType",
+    "PredictionWindow",
+]
