@@ -15,9 +15,9 @@ _ROUTES: Final[dict[Route, tuple[str, str, str]]] = {
         "run synthetic or real ablations",
     ),
     ("benchmark",): (
-        "prob4d.benchmark",
+        "prob4d.benchmark_safe",
         "main",
-        "run the recursive-fusion benchmark",
+        "run the pinned recursive-fusion benchmark",
     ),
     ("evaluate", "provider"): (
         "prob4d.provider_evaluation",
