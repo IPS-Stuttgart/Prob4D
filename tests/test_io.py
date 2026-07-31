@@ -6,9 +6,12 @@ import pytest
 
 from prob4d.fusion import FusedSequence, fuse_windows
 from prob4d.io import (
+    load_fused_prediction_artifact,
+    load_fused_prediction_metadata,
     load_prediction_bundle,
     load_truth,
     pack_symmetric_covariance,
+    save_fused_prediction,
     save_truth,
     unpack_symmetric_covariance,
 )
@@ -108,3 +111,49 @@ def test_symmetric_covariance_pack_round_trip() -> None:
 
     restored = unpack_symmetric_covariance(pack_symmetric_covariance(covariance))
     np.testing.assert_array_equal(restored, covariance)
+
+
+def test_fused_prediction_metadata_round_trip(tmp_path: Path) -> None:
+    sequence = FusedSequence(
+        frame_indices=np.array([0]),
+        point_map=np.array([[[[0.0, 0.0, 1.0]]]]),
+        valid_mask=np.ones((1, 1, 1), dtype=bool),
+        point_covariance=np.eye(3)[None, None, None],
+        contributors=np.ones((1, 1, 1), dtype=np.uint16),
+    )
+    path = tmp_path / "fused.npz"
+
+    save_fused_prediction(
+        path,
+        sequence,
+        method_id="ci",
+        fusion_method="covariance_intersection",
+        metadata={"calibration": "held-out"},
+    )
+
+    metadata = load_fused_prediction_metadata(path)
+    assert metadata.method_id == "ci"
+    assert metadata.metadata == {"calibration": "held-out"}
+    with pytest.raises(TypeError, match="immutable"):
+        metadata.metadata["calibration"] = "changed"
+    artifact = load_fused_prediction_artifact(path)
+    np.testing.assert_allclose(artifact.sequence.point_map, sequence.point_map, rtol=1e-3)
+
+
+def test_legacy_fused_prediction_is_explicitly_unspecified(tmp_path: Path) -> None:
+    path = tmp_path / "legacy.npz"
+    np.savez(
+        path,
+        frame_indices=np.array([0]),
+        point_map=np.array([[[[0.0, 0.0, 1.0]]]]),
+        valid_mask=np.ones((1, 1, 1), dtype=bool),
+        point_covariance_packed=pack_symmetric_covariance(
+            np.eye(3)[None, None, None]
+        ),
+        contributors=np.ones((1, 1, 1), dtype=np.uint16),
+    )
+
+    metadata = load_fused_prediction_metadata(path)
+
+    assert metadata.legacy_unspecified
+    assert metadata.fusion_method == "unspecified"

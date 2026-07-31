@@ -19,6 +19,11 @@ _ROUTES: Final[dict[Route, tuple[str, str, str]]] = {
         "main",
         "run the recursive-fusion benchmark",
     ),
+    ("evaluate", "provider"): (
+        "prob4d.provider_evaluation",
+        "main",
+        "evaluate paired provider artifacts across held-out groups",
+    ),
     ("motioncrafter",): (
         "prob4d.motioncrafter_safe",
         "main",

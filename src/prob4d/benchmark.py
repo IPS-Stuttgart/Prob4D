@@ -8,16 +8,20 @@ import json
 import shutil
 import subprocess
 import time
-from collections.abc import Collection
+from collections.abc import Collection, Mapping
 from dataclasses import asdict, dataclass
 from pathlib import Path
-
-import numpy as np
+from typing import Any
 
 from .alignment import WindowAlignment, align_windows
 from .fusion import FusedSequence, fuse_windows
 from .gauge import FixedLagGaugeSmoother, RelativeGaugeConstraint, SequentialGaugeEstimator
-from .io import PredictionBundle, load_prediction_bundle, pack_symmetric_covariance
+from .io import (
+    PredictionBundle,
+    fusion_covariance_semantics,
+    load_prediction_bundle,
+    save_fused_prediction,
+)
 from .motioncrafter import (
     MOTIONCRAFTER_SEED_POLICIES,
     MOTIONCRAFTER_SEED_POLICY_LEGACY_COMMON,
@@ -34,6 +38,34 @@ FUSION_METHOD_NAMES = (
     "prob4d_ci",
     "prob4d_ci_smoothed_uncalibrated",
 )
+
+_BENCHMARK_METHOD_SPECS: dict[str, dict[str, str]] = {
+    "prob4d_uniform": {
+        "fusion_method": "uniform",
+        "gauge_estimator": "sequential",
+        "uncertainty_calibration": "uncalibrated_fixed_model",
+    },
+    "prob4d_uniform_smoothed": {
+        "fusion_method": "uniform",
+        "gauge_estimator": "fixed_lag",
+        "uncertainty_calibration": "uncalibrated_fixed_model",
+    },
+    "prob4d_precision": {
+        "fusion_method": "precision",
+        "gauge_estimator": "sequential",
+        "uncertainty_calibration": "uncalibrated_fixed_model",
+    },
+    "prob4d_ci": {
+        "fusion_method": "covariance_intersection",
+        "gauge_estimator": "sequential",
+        "uncertainty_calibration": "uncalibrated_fixed_model",
+    },
+    "prob4d_ci_smoothed_uncalibrated": {
+        "fusion_method": "covariance_intersection",
+        "gauge_estimator": "fixed_lag",
+        "uncertainty_calibration": "uncalibrated_fixed_model",
+    },
+}
 
 
 @dataclass(frozen=True)
@@ -54,6 +86,23 @@ class BenchmarkExportConfig:
     skip_existing: bool = False
     include_covariance: bool = False
     fusion_methods: tuple[str, ...] = FUSION_METHOD_NAMES
+
+
+def benchmark_method_semantics(method_id: str) -> dict[str, str]:
+    """Return the explicit estimator, covariance, and dependence semantics."""
+
+    try:
+        spec = dict(_BENCHMARK_METHOD_SPECS[method_id])
+    except KeyError as error:
+        raise ValueError(f"unknown fusion method {method_id!r}") from error
+    covariance_semantics, correlation_assumption = fusion_covariance_semantics(
+        spec["fusion_method"]
+    )
+    return {
+        **spec,
+        "covariance_semantics": covariance_semantics,
+        "correlation_assumption": correlation_assumption,
+    }
 
 
 def _read_video_paths(dataset_directory: Path, metadata_filename: str) -> list[Path]:
@@ -177,27 +226,27 @@ def _write_fused_prediction(
     path: Path,
     sequence: FusedSequence,
     *,
+    method_id: str = "prob4d_uniform",
     include_covariance: bool = False,
+    metadata: Mapping[str, Any] | None = None,
 ) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    payload = {
-        "point_map": sequence.point_map.astype(np.float16),
-        "valid_mask": sequence.valid_mask,
-        "frame_indices": sequence.frame_indices,
-    }
-    if include_covariance:
-        payload["point_covariance_packed"] = pack_symmetric_covariance(
-            sequence.point_covariance
-        ).astype(np.float32)
-        payload["contributors"] = sequence.contributors
-    if sequence.scene_flow is not None:
-        payload["scene_flow"] = sequence.scene_flow.astype(np.float16)
-        payload["deform_mask"] = sequence.deform_mask
-        if include_covariance:
-            payload["flow_covariance_packed"] = pack_symmetric_covariance(
-                sequence.flow_covariance
-            ).astype(np.float32)
-    np.savez(path, **payload)
+    """Persist one benchmark row with explicit covariance semantics."""
+
+    semantics = benchmark_method_semantics(method_id)
+    extra = {} if metadata is None else dict(metadata)
+    save_fused_prediction(
+        path,
+        sequence,
+        method_id=method_id,
+        fusion_method=semantics["fusion_method"],
+        include_covariance=include_covariance,
+        metadata={
+            "producer": "prob4d-benchmark",
+            "gauge_estimator": semantics["gauge_estimator"],
+            "uncertainty_calibration": semantics["uncertainty_calibration"],
+            **extra,
+        },
+    )
 
 
 def _copy_upstream_prediction(source: Path, destination: Path) -> None:
@@ -247,6 +296,8 @@ def run_benchmark_export(config: BenchmarkExportConfig) -> Path:
         "motioncrafter_latent_linear": config.output_directory / "motioncrafter_latent_linear",
     }
     methods.update({method: config.output_directory / method for method in fusion_methods})
+    prob4d_commit = _git_commit(Path(__file__).resolve().parents[2])
+    motioncrafter_commit = _git_commit(config.upstream_root)
     samples: list[dict[str, object]] = []
     for sample_index, relative_video_path in enumerate(video_paths):
         relative_prediction_path = relative_video_path.with_suffix(".npz")
@@ -260,16 +311,26 @@ def run_benchmark_export(config: BenchmarkExportConfig) -> Path:
             )
             continue
 
-        started = time.perf_counter()
+        total_started = time.perf_counter()
         artifact_directory = (
             config.output_directory / "artifacts" / relative_video_path.with_suffix("")
         )
+        inference_started = time.perf_counter()
         manifest_path = adapter.run(
             video_path=config.dataset_directory / relative_video_path,
             output_directory=artifact_directory,
         )
+        inference_seconds = time.perf_counter() - inference_started
+
+        loading_started = time.perf_counter()
         bundle = load_prediction_bundle(manifest_path)
+        loading_seconds = time.perf_counter() - loading_started
+
+        fusion_started = time.perf_counter()
         fused_methods = fuse_prediction_bundle_methods(bundle, method_names=fusion_methods)
+        fusion_seconds = time.perf_counter() - fusion_started
+
+        export_started = time.perf_counter()
         _copy_upstream_prediction(
             artifact_directory / "baseline_disjoint.npz",
             destinations["motioncrafter_disjoint"],
@@ -282,13 +343,27 @@ def run_benchmark_export(config: BenchmarkExportConfig) -> Path:
             _write_fused_prediction(
                 destinations[method],
                 sequence,
+                method_id=method,
                 include_covariance=config.include_covariance,
+                metadata={
+                    "prob4d_revision": prob4d_commit,
+                    "motioncrafter_revision": motioncrafter_commit,
+                    "motioncrafter_seed_policy": config.seed_policy,
+                },
             )
+        export_seconds = time.perf_counter() - export_started
+        total_seconds = time.perf_counter() - total_started
         samples.append(
             {
                 "video": relative_video_path.as_posix(),
                 "status": "completed",
-                "elapsed_seconds": time.perf_counter() - started,
+                "elapsed_seconds": total_seconds,
+                "stage_seconds": {
+                    "motioncrafter_inference": inference_seconds,
+                    "prediction_loading": loading_seconds,
+                    "prob4d_fusion": fusion_seconds,
+                    "artifact_export": export_seconds,
+                },
                 "frames": int(next(iter(fused_methods.values())).frame_indices.size),
                 "index": sample_index,
             }
@@ -303,13 +378,17 @@ def run_benchmark_export(config: BenchmarkExportConfig) -> Path:
             key: str(value) if isinstance(value, Path) else value
             for key, value in asdict(config).items()
         },
-        "prob4d_commit": _git_commit(Path(__file__).resolve().parents[2]),
-        "motioncrafter_commit": _git_commit(config.upstream_root),
+        "prob4d_commit": prob4d_commit,
+        "motioncrafter_commit": motioncrafter_commit,
         "methods": {method: str(path.resolve()) for method, path in methods.items()},
+        "method_semantics": {
+            method: benchmark_method_semantics(method) for method in fusion_methods
+        },
         "samples": samples,
         "warning": (
-            "The exported CI rows use the fixed depth/disagreement model without held-out "
-            "uncertainty calibration. Treat them as preliminary unless recalibrated."
+            "The exported Prob4D rows use the fixed depth/disagreement model without "
+            "held-out uncertainty calibration. Their covariance semantics are explicit, "
+            "but calibration and downstream benefit remain empirical gates."
         ),
     }
     manifest_path = config.output_directory / "benchmark_export.json"

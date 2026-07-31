@@ -133,6 +133,7 @@ jobs:
           import prob4d.covariance_root
           import prob4d.observation_factor_stream
           import prob4d.provider_attestation
+          import prob4d.provider_evaluation
           import prob4d.provider_manifest
           import prob4d.provider_v1
           import prob4d.provider_v2
@@ -236,6 +237,7 @@ jobs:
           "$bin/prob4d" --help
           "$bin/prob4d" provider manifest --help
           "$bin/prob4d" provider manifest --api-version 2 --help
+          "$bin/prob4d" evaluate provider --help
           "$bin/prob4d" observation export --help
           "$bin/prob4d" observation export-v1 --help
           "$bin/prob4d" observation export-calibrated --help
@@ -245,6 +247,7 @@ jobs:
           "$bin/prob4d-ablate" --help
           "$bin/prob4d-ablate-provider-v2-gauge" --help
           "$bin/prob4d-benchmark" --help
+          "$bin/prob4d-evaluate-provider" --help
           "$bin/prob4d-export-observation-belief" --help
           "$bin/prob4d-export-calibrated-observation-belief" --help
           "$bin/prob4d-export-exploratory-observation-belief" --help
