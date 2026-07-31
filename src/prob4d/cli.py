@@ -20,9 +20,9 @@ _ROUTES: Final[dict[Route, tuple[str, str, str]]] = {
         "run the recursive-fusion benchmark",
     ),
     ("motioncrafter",): (
-        "prob4d.motioncrafter",
+        "prob4d.motioncrafter_safe",
         "main",
-        "generate MotionCrafter prediction products",
+        "generate crash-safe MotionCrafter prediction products",
     ),
     ("observation", "export"): (
         "prob4d.cli",
