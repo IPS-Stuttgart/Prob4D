@@ -106,3 +106,66 @@ def test_window_rejects_invalid_active_ray_directions(bad_value: float) -> None:
             valid_mask=np.ones((1, 1, 1), dtype=bool),
             ray_directions=rays,
         )
+
+
+def test_explicit_float32_storage_halves_dense_vectors_and_keeps_ray_parity(
+    tmp_path: Path,
+) -> None:
+    points = np.arange(2 * 3 * 4 * 3, dtype=np.float32).reshape(2, 3, 4, 3)
+    points[..., 2] += 1.0
+    flow = np.ones_like(points)
+    valid = np.ones((2, 3, 4), dtype=bool)
+    deform = np.ones_like(valid)
+    legacy = PredictionWindow(
+        "legacy",
+        np.array([0, 1]),
+        points,
+        valid,
+        scene_flow=flow,
+        deform_mask=deform,
+    )
+    compact = PredictionWindow(
+        "compact",
+        np.array([0, 1]),
+        points,
+        valid,
+        scene_flow=flow,
+        deform_mask=deform,
+        dense_storage_dtype="float32",
+    )
+
+    assert compact.point_map.dtype == np.float32
+    assert compact.scene_flow.dtype == np.float32
+    assert legacy.point_map.dtype == np.float64
+    assert compact.dense_vector_storage_bytes * 2 == legacy.dense_vector_storage_bytes
+    np.testing.assert_array_equal(
+        compact.rays_at(1, dtype=np.float64),
+        legacy.rays_at(1, dtype=np.float64),
+    )
+    np.testing.assert_array_equal(
+        compact.rays(dtype=np.float64)[1],
+        compact.rays_at(1, dtype=np.float64),
+    )
+    with pytest.raises(ValueError):
+        compact.point_map[0, 0, 0, 0] = 1.0
+
+    path = tmp_path / "compact.npz"
+    compact.to_npz(path)
+    restored = PredictionWindow.from_npz(
+        path,
+        dense_storage_dtype="float32",
+    )
+    assert restored.point_map.dtype == np.float32
+    assert restored.scene_flow.dtype == np.float32
+    np.testing.assert_array_equal(restored.point_map, compact.point_map)
+
+
+def test_window_rejects_unknown_dense_storage_dtype() -> None:
+    with pytest.raises(ValueError, match="dense_storage_dtype"):
+        PredictionWindow(
+            window_id="bad-storage",
+            frame_indices=np.array([0]),
+            point_map=np.ones((1, 1, 1, 3)),
+            valid_mask=np.ones((1, 1, 1), dtype=bool),
+            dense_storage_dtype="float16",  # type: ignore[arg-type]
+        )

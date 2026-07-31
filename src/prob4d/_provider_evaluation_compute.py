@@ -12,6 +12,7 @@ from typing import Any
 import numpy as np
 
 from ._provider_evaluation_manifest import ProviderEvaluationCase
+from .data import DENSE_STORAGE_DTYPES
 from .evaluation_modes import EvaluationModes, evaluate_sequence_modes
 from .io import FusedPredictionMetadata, load_fused_prediction_artifact, load_truth
 
@@ -95,6 +96,12 @@ def _validate_method_metadata(
         raise ValueError(
             f"{path} metadata.includes_covariance must be true for provider evaluation"
         )
+    dense_storage_dtype = details.get("dense_storage_dtype", "float64")
+    if dense_storage_dtype not in DENSE_STORAGE_DTYPES:
+        raise ValueError(
+            f"{path} metadata.dense_storage_dtype must be one of "
+            + ", ".join(DENSE_STORAGE_DTYPES)
+        )
     for field in ("gauge_estimator", "uncertainty_calibration"):
         value = details.get(field)
         if not isinstance(value, str) or not value.strip():
@@ -140,6 +147,7 @@ def _method_signature(metadata: FusedPredictionMetadata) -> tuple[object, ...]:
         details.get("motioncrafter_revision"),
         details.get("motioncrafter_seed_policy"),
         details.get("motioncrafter_model_set_sha256"),
+        details.get("dense_storage_dtype", "float64"),
         details.get("gauge_estimator"),
         details.get("uncertainty_calibration"),
         details.get("gauge_covariance_calibration_artifact_id"),
