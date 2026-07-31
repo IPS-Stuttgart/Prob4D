@@ -103,8 +103,8 @@ def _existing_prediction_manifest(
         ) from error
     if not isinstance(manifest, dict):
         raise ValueError("existing benchmark prediction manifest must be an object")
-    config = manifest.get("config")
-    if not isinstance(config, dict):
+    manifest_config = manifest.get("config")
+    if not isinstance(manifest_config, dict):
         raise ValueError("existing benchmark prediction manifest lacks config metadata")
     expected = {
         "motioncrafter_commit": motioncrafter_commit,
@@ -113,8 +113,10 @@ def _existing_prediction_manifest(
     }
     actual = {
         "motioncrafter_commit": manifest.get("motioncrafter_commit"),
-        "seed_policy": config.get("seed_policy"),
-        "model_source_set_sha256": config.get("model_source_set_sha256"),
+        "seed_policy": manifest_config.get("seed_policy"),
+        "model_source_set_sha256": manifest_config.get(
+            "model_source_set_sha256"
+        ),
     }
     if actual != expected:
         raise ValueError(
@@ -157,7 +159,9 @@ def _validate_existing_outputs(
         ),
     )
     for source, destination in baseline_pairs:
-        if not destination.is_file() or _sha256_file(source) != _sha256_file(destination):
+        if not destination.is_file() or _sha256_file(source) != _sha256_file(
+            destination
+        ):
             raise ValueError(
                 f"existing benchmark baseline {destination} differs from its bound source"
             )
@@ -202,6 +206,37 @@ def _validate_existing_outputs(
     return manifest_path, frame_count
 
 
+def _validate_existing_benchmark_manifest(
+    path: Path,
+    *,
+    prob4d_commit: str,
+    motioncrafter_commit: str,
+    model_set_sha256: str,
+) -> None:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError(f"cannot validate existing benchmark manifest {path}") from error
+    if not isinstance(payload, dict):
+        raise ValueError("existing benchmark manifest must be an object")
+    actual = {
+        "prob4d_commit": payload.get("prob4d_commit"),
+        "motioncrafter_commit": payload.get("motioncrafter_commit"),
+        "motioncrafter_model_set_sha256": payload.get(
+            "motioncrafter_model_set_sha256"
+        ),
+    }
+    expected = {
+        "prob4d_commit": prob4d_commit,
+        "motioncrafter_commit": motioncrafter_commit,
+        "motioncrafter_model_set_sha256": model_set_sha256,
+    }
+    if actual != expected:
+        raise ValueError(
+            f"existing benchmark manifest belongs to another run: {actual}"
+        )
+
+
 def run_benchmark_export(config: BenchmarkExportConfig) -> Path:
     """Run one pinned model-loading session across all registered videos."""
 
@@ -216,24 +251,6 @@ def run_benchmark_export(config: BenchmarkExportConfig) -> Path:
     if not fusion_methods:
         raise ValueError("at least one fusion method must be requested")
 
-    first_video = config.dataset_directory / video_paths[0]
-    first_artifact_directory = (
-        config.output_directory / "artifacts" / video_paths[0].with_suffix("")
-    )
-    adapter_config = model_set.build_config(
-        upstream_root=config.upstream_root,
-        video_path=first_video,
-        output_directory=first_artifact_directory,
-        cache_directory=config.cache_directory,
-        height=config.height,
-        width=config.width,
-        window_size=config.window_size,
-        overlap=config.overlap,
-        seed=config.seed,
-        seed_policy=config.seed_policy,
-    )
-    adapter = model_set.adapter_factory()(adapter_config)
-
     methods = {
         "motioncrafter_disjoint": config.output_directory / "motioncrafter_disjoint",
         "motioncrafter_latent_linear": config.output_directory
@@ -243,6 +260,7 @@ def run_benchmark_export(config: BenchmarkExportConfig) -> Path:
     prob4d_commit = _git_commit(Path(__file__).resolve().parents[2])
     motioncrafter_commit = _git_commit(config.upstream_root)
     samples: list[dict[str, object]] = []
+    adapter: Any | None = None
 
     for sample_index, relative_video_path in enumerate(video_paths):
         relative_prediction_path = relative_video_path.with_suffix(".npz")
@@ -252,7 +270,9 @@ def run_benchmark_export(config: BenchmarkExportConfig) -> Path:
         artifact_directory = (
             config.output_directory / "artifacts" / relative_video_path.with_suffix("")
         )
-        existing_destinations = [path for path in destinations.values() if path.exists()]
+        existing_destinations = [
+            path for path in destinations.values() if path.exists()
+        ]
         if config.skip_existing and len(existing_destinations) == len(destinations):
             _, frame_count = _validate_existing_outputs(
                 artifact_directory=artifact_directory,
@@ -283,6 +303,20 @@ def run_benchmark_export(config: BenchmarkExportConfig) -> Path:
                 f"benchmark prediction directory is nonempty: {artifact_directory}; "
                 "remove the incomplete directory before rerunning"
             )
+        if adapter is None:
+            adapter_config = model_set.build_config(
+                upstream_root=config.upstream_root,
+                video_path=config.dataset_directory / relative_video_path,
+                output_directory=artifact_directory,
+                cache_directory=config.cache_directory,
+                height=config.height,
+                width=config.width,
+                window_size=config.window_size,
+                overlap=config.overlap,
+                seed=config.seed,
+                seed_policy=config.seed_policy,
+            )
+            adapter = model_set.adapter_factory()(adapter_config)
 
         total_started = time.perf_counter()
         inference_started = time.perf_counter()
@@ -373,7 +407,14 @@ def run_benchmark_export(config: BenchmarkExportConfig) -> Path:
     config.output_directory.mkdir(parents=True, exist_ok=True)
     manifest_path = config.output_directory / "benchmark_export.json"
     if manifest_path.exists():
-        raise ValueError(f"benchmark manifest already exists: {manifest_path}")
+        if not config.skip_existing:
+            raise ValueError(f"benchmark manifest already exists: {manifest_path}")
+        _validate_existing_benchmark_manifest(
+            manifest_path,
+            prob4d_commit=prob4d_commit,
+            motioncrafter_commit=motioncrafter_commit,
+            model_set_sha256=model_set.set_sha256,
+        )
     manifest_path.write_text(
         json.dumps(manifest, indent=2, sort_keys=True, allow_nan=False) + "\n",
         encoding="utf-8",
