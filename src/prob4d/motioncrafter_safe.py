@@ -26,6 +26,22 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--model-type", choices=["determ", "diff"], default="determ")
     parser.add_argument("--unet-path", default="TencentARC/MotionCrafter")
     parser.add_argument("--vae-path", default="TencentARC/MotionCrafter")
+    parser.add_argument(
+        "--base-model-path",
+        default="stabilityai/stable-video-diffusion-img2vid-xt",
+    )
+    parser.add_argument(
+        "--unet-revision",
+        help="exact 40- or 64-character model snapshot revision",
+    )
+    parser.add_argument(
+        "--vae-revision",
+        help="exact 40- or 64-character model snapshot revision",
+    )
+    parser.add_argument(
+        "--base-model-revision",
+        help="exact 40- or 64-character model snapshot revision",
+    )
     parser.add_argument("--cache-dir", default="workspace/pretrained_models")
     parser.add_argument("--height", type=int, default=320)
     parser.add_argument("--width", type=int, default=640)
@@ -82,6 +98,10 @@ def main(argv: list[str] | None = None) -> int:
         model_type=arguments.model_type,
         unet_path=arguments.unet_path,
         vae_path=arguments.vae_path,
+        base_model_path=arguments.base_model_path,
+        unet_revision=arguments.unet_revision,
+        vae_revision=arguments.vae_revision,
+        base_model_revision=arguments.base_model_revision,
         cache_directory=arguments.cache_dir,
         height=arguments.height,
         width=arguments.width,
