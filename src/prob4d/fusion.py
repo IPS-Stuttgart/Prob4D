@@ -6,9 +6,9 @@ from dataclasses import dataclass
 from typing import Literal
 
 import numpy as np
-from numpy.typing import NDArray
+from numpy.typing import ArrayLike, DTypeLike, NDArray
 
-from .covariance import regularized_inverse_psd
+from .covariance import regularized_inverse_psd, validated_covariance_psd
 from .data import PredictionWindow
 from .sim3 import Sim3, so3_log, so3_right_jacobian
 from .uncertainty import StructuredCovariance
@@ -19,7 +19,14 @@ FusionMethod = Literal["uniform", "precision", "covariance_intersection"]
 
 @dataclass(frozen=True)
 class FusedSequence:
-    """A global-gauge dense sequence and its marginal covariance."""
+    """A validated immutable global-gauge dense sequence.
+
+    The public constructor defensively copies every NumPy field, normalizes it to
+    the canonical dtype, and makes it read-only. Point and flow covariance
+    matrices are validated as symmetric positive semidefinite on their active
+    geometry. Inactive payload entries are preserved because historical artifacts
+    may use arbitrary sentinels outside their masks.
+    """
 
     frame_indices: NDArray[np.integer]
     point_map: FloatArray
@@ -31,29 +38,264 @@ class FusedSequence:
     flow_covariance: FloatArray | None = None
 
     def __post_init__(self) -> None:
-        frames = np.asarray(self.frame_indices, dtype=np.int64)
-        points = np.asarray(self.point_map, dtype=np.float64)
-        mask = np.asarray(self.valid_mask, dtype=bool)
-        covariance = np.asarray(self.point_covariance, dtype=np.float64)
-        contributors = np.asarray(self.contributors)
-        if points.shape[:-1] != mask.shape or points.shape[-1] != 3:
-            raise ValueError("point_map and valid_mask shapes are inconsistent")
-        if covariance.shape != points.shape + (3,):
-            raise ValueError("point_covariance must have shape (T, H, W, 3, 3)")
-        if contributors.shape != mask.shape:
-            raise ValueError("contributors must have shape (T, H, W)")
-        if frames.shape != (points.shape[0],):
+        self._validate_and_store(copy_arrays=True)
+
+    @classmethod
+    def _from_owned_arrays(
+        cls,
+        *,
+        frame_indices: NDArray[np.integer],
+        point_map: FloatArray,
+        valid_mask: NDArray[np.bool_],
+        point_covariance: FloatArray,
+        contributors: NDArray[np.integer],
+        scene_flow: FloatArray | None = None,
+        deform_mask: NDArray[np.bool_] | None = None,
+        flow_covariance: FloatArray | None = None,
+    ) -> FusedSequence:
+        """Adopt private producer arrays without a second dense defensive copy.
+
+        The caller transfers ownership: accepted arrays are validated in place and
+        made read-only. This private path is used only where Prob4D allocated all
+        payloads locally and no external mutable aliases can survive the return.
+        """
+
+        instance = object.__new__(cls)
+        object.__setattr__(instance, "frame_indices", frame_indices)
+        object.__setattr__(instance, "point_map", point_map)
+        object.__setattr__(instance, "valid_mask", valid_mask)
+        object.__setattr__(instance, "point_covariance", point_covariance)
+        object.__setattr__(instance, "contributors", contributors)
+        object.__setattr__(instance, "scene_flow", scene_flow)
+        object.__setattr__(instance, "deform_mask", deform_mask)
+        object.__setattr__(instance, "flow_covariance", flow_covariance)
+        instance._validate_and_store(copy_arrays=False)
+        return instance
+
+    def _validate_and_store(self, *, copy_arrays: bool) -> None:
+        frames = _canonical_array(self.frame_indices, dtype=np.int64, copy=copy_arrays)
+        points = _canonical_array(self.point_map, dtype=np.float64, copy=copy_arrays)
+        mask = _canonical_array(self.valid_mask, dtype=bool, copy=copy_arrays)
+        raw_contributors = np.asarray(self.contributors)
+
+        if frames.ndim != 1 or frames.size == 0:
+            raise ValueError("frame_indices must be a non-empty one-dimensional array")
+        if np.any(frames < 0):
+            raise ValueError("frame_indices must be non-negative")
+        if np.any(np.diff(frames) <= 0):
+            raise ValueError("frame_indices must be strictly increasing")
+        if points.ndim != 4 or points.shape[-1] != 3:
+            raise ValueError("point_map must have shape (T, H, W, 3)")
+        if mask.shape != points.shape[:-1]:
+            raise ValueError("valid_mask must have shape (T, H, W)")
+        if points.shape[0] != frames.size:
             raise ValueError("frame_indices must match the sequence time dimension")
-        if (self.scene_flow is None) != (self.deform_mask is None):
-            raise ValueError("scene_flow and deform_mask must both be present or absent")
-        if self.scene_flow is not None:
-            flow = np.asarray(self.scene_flow, dtype=np.float64)
-            flow_mask = np.asarray(self.deform_mask, dtype=bool)
-            flow_covariance = np.asarray(self.flow_covariance, dtype=np.float64)
+        _validate_finite_active_vectors(
+            points,
+            active_mask=mask,
+            name="valid point_map",
+        )
+
+        if raw_contributors.shape != mask.shape:
+            raise ValueError("contributors must have shape (T, H, W)")
+        if not np.issubdtype(raw_contributors.dtype, np.integer):
+            raise ValueError("contributors must contain integers")
+        contributor_values = np.asarray(raw_contributors, dtype=np.int64)
+        if np.any(contributor_values < 0):
+            raise ValueError("contributors must be non-negative")
+        if np.any(contributor_values > np.iinfo(np.uint16).max):
+            raise ValueError("contributors exceed the uint16 storage range")
+        if np.any(mask & (contributor_values == 0)):
+            raise ValueError("valid points must have at least one contributor")
+        contributors = _canonical_array(
+            raw_contributors,
+            dtype=np.uint16,
+            copy=copy_arrays,
+        )
+
+        covariance = _validated_covariance_field(
+            self.point_covariance,
+            expected_shape=points.shape + (3,),
+            active_mask=mask,
+            name="point_covariance",
+            copy=copy_arrays,
+        )
+
+        flow_values = (self.scene_flow, self.deform_mask, self.flow_covariance)
+        present = tuple(value is not None for value in flow_values)
+        if any(present) and not all(present):
+            raise ValueError(
+                "scene_flow, deform_mask, and flow_covariance must all be present or absent"
+            )
+
+        flow: np.ndarray | None = None
+        flow_mask: np.ndarray | None = None
+        flow_covariance: np.ndarray | None = None
+        if all(present):
+            assert self.scene_flow is not None
+            assert self.deform_mask is not None
+            assert self.flow_covariance is not None
+            flow = _canonical_array(
+                self.scene_flow,
+                dtype=np.float64,
+                copy=copy_arrays,
+            )
+            flow_mask = _canonical_array(
+                self.deform_mask,
+                dtype=bool,
+                copy=copy_arrays,
+            )
             if flow.shape != points.shape or flow_mask.shape != mask.shape:
                 raise ValueError("scene-flow arrays must match point-map shape")
-            if flow_covariance.shape != covariance.shape:
-                raise ValueError("flow_covariance must match point_covariance shape")
+            active_flow = flow_mask & mask
+            _validate_finite_active_vectors(
+                flow,
+                active_mask=active_flow,
+                name="active scene_flow",
+            )
+            flow_covariance = _validated_covariance_field(
+                self.flow_covariance,
+                expected_shape=covariance.shape,
+                active_mask=active_flow,
+                name="flow_covariance",
+                copy=copy_arrays,
+            )
+
+        object.__setattr__(self, "frame_indices", _readonly_owned(frames))
+        object.__setattr__(self, "point_map", _readonly_owned(points))
+        object.__setattr__(self, "valid_mask", _readonly_owned(mask))
+        object.__setattr__(self, "point_covariance", _readonly_owned(covariance))
+        object.__setattr__(self, "contributors", _readonly_owned(contributors))
+        object.__setattr__(
+            self,
+            "scene_flow",
+            None if flow is None else _readonly_owned(flow),
+        )
+        object.__setattr__(
+            self,
+            "deform_mask",
+            None if flow_mask is None else _readonly_owned(flow_mask),
+        )
+        object.__setattr__(
+            self,
+            "flow_covariance",
+            None if flow_covariance is None else _readonly_owned(flow_covariance),
+        )
+
+
+def _canonical_array(
+    value: ArrayLike,
+    *,
+    dtype: DTypeLike,
+    copy: bool,
+) -> np.ndarray:
+    """Normalize an array and optionally make a defensive owned copy."""
+
+    array = np.asarray(value, dtype=dtype)
+    return array.copy() if copy else array
+
+
+def _readonly_owned(value: np.ndarray) -> np.ndarray:
+    """Freeze an array that is already an owned defensive copy."""
+
+    value.setflags(write=False)
+    return value
+
+
+def _validate_finite_active_vectors(
+    values: np.ndarray,
+    *,
+    active_mask: NDArray[np.bool_],
+    name: str,
+    chunk_size: int = 65_536,
+) -> None:
+    """Validate active three-vectors without materializing one full masked copy."""
+
+    if chunk_size < 1:
+        raise ValueError("vector validation chunk_size must be positive")
+    flat_values = values.reshape(-1, values.shape[-1])
+    flat_active = np.asarray(active_mask, dtype=bool).reshape(-1)
+    for start in range(0, flat_values.shape[0], chunk_size):
+        stop = min(start + chunk_size, flat_values.shape[0])
+        selected = flat_active[start:stop]
+        if np.any(selected) and not np.all(np.isfinite(flat_values[start:stop][selected])):
+            raise ValueError(f"{name} entries must be finite")
+
+
+def _validated_covariance_field(
+    value: FloatArray | None,
+    *,
+    expected_shape: tuple[int, ...],
+    active_mask: NDArray[np.bool_],
+    name: str,
+    copy: bool,
+    chunk_size: int = 65_536,
+) -> np.ndarray:
+    """Validate active dense 3-D covariances without a full-field eigensolve.
+
+    Positive semidefiniteness of a symmetric 3x3 matrix is equivalent to all
+    principal minors being non-negative. The fast path checks those minors in
+    bounded chunks. Only matrices with a negative principal minor enter the
+    scale-aware eigendecomposition used by :func:`validated_covariance_psd`, so
+    the common production path remains linear and memory bounded while numerical
+    near-boundary cases retain the repository-wide tolerance semantics.
+    """
+
+    if value is None:
+        raise ValueError(f"{name} is required")
+    if chunk_size < 1:
+        raise ValueError("covariance validation chunk_size must be positive")
+    covariance = _canonical_array(value, dtype=np.float64, copy=copy)
+    if covariance.shape != expected_shape:
+        raise ValueError(f"{name} must have shape {expected_shape}")
+
+    flat_covariance = covariance.reshape(-1, 3, 3)
+    flat_active = np.asarray(active_mask, dtype=bool).reshape(-1)
+    for start in range(0, flat_covariance.shape[0], chunk_size):
+        stop = min(start + chunk_size, flat_covariance.shape[0])
+        selected = flat_active[start:stop]
+        if not np.any(selected):
+            continue
+        chunk = flat_covariance[start:stop]
+        matrices = chunk[selected]
+        if not np.all(np.isfinite(matrices)):
+            raise ValueError(f"active {name} entries must be finite")
+
+        transposed = np.swapaxes(matrices, -1, -2)
+        symmetric = 0.5 * (matrices + transposed)
+        if not np.allclose(matrices, symmetric, atol=1e-12, rtol=1e-10):
+            raise ValueError(f"active {name} matrices must be symmetric")
+
+        a = symmetric[:, 0, 0]
+        b = symmetric[:, 0, 1]
+        c = symmetric[:, 0, 2]
+        d = symmetric[:, 1, 1]
+        e = symmetric[:, 1, 2]
+        f = symmetric[:, 2, 2]
+        suspicious = (
+            (a < 0.0)
+            | (d < 0.0)
+            | (f < 0.0)
+            | (a * d - b * b < 0.0)
+            | (a * f - c * c < 0.0)
+            | (d * f - e * e < 0.0)
+            | (
+                a * d * f
+                + 2.0 * b * c * e
+                - a * e * e
+                - d * c * c
+                - f * b * b
+                < 0.0
+            )
+        )
+        if np.any(suspicious):
+            symmetric[suspicious] = validated_covariance_psd(
+                symmetric[suspicious],
+                name=f"active {name}",
+                readonly=False,
+            )
+        chunk[selected] = symmetric
+    return covariance
 
 
 def _regularized_inverse(covariance: FloatArray, floor: float = 1e-12) -> FloatArray:
@@ -215,7 +457,6 @@ def fuse_gaussians_covariance_intersection(
         output_covariance.reshape(first_covariance.shape),
         output_weight.reshape(leading_shape),
     )
-
 
 
 def fuse_gaussians_generalized_covariance_intersection(
@@ -384,6 +625,7 @@ def _structured_covariance_frame(
         parallel - lateral
     )[..., None, None] * outer
 
+
 def _gauge_induced_covariance(
     values: FloatArray,
     transform: Sim3,
@@ -427,7 +669,6 @@ def _gauge_induced_covariance(
             "nij,jk,nlk->nil", jacobian, covariance, jacobian
         )
     return propagated.reshape(values.shape + (3,))
-
 
 
 def fuse_windows(
@@ -568,7 +809,7 @@ def fuse_windows(
                 method=method,
             )
 
-    return FusedSequence(
+    return FusedSequence._from_owned_arrays(
         frame_indices=all_frames,
         point_map=point_map,
         valid_mask=valid_mask,
