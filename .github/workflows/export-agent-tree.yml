@@ -1,0 +1,26 @@
+name: Export agent branch tree
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  export-tree:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+      - name: Record exact head tree
+        run: git rev-parse 'HEAD^{tree}' > tree-sha.txt
+      - uses: actions/upload-artifact@v7
+        with:
+          name: agent-head-tree-sha
+          path: tree-sha.txt
+          if-no-files-found: error
+          retention-days: 1
