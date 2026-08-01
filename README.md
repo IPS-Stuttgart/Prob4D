@@ -326,3 +326,10 @@ Low-dimensional gauge estimation and covariance calculations still use
 the caller explicitly selects another storage mode. Frame-local ray access also
 avoids full-window normalization temporaries in cross-fitted overlap diagnostics.
 See [dense-memory execution](docs/dense-memory.md).
+
+Dense fused outputs now use an immutable `FusedSequence` contract: public
+construction defensively copies and normalizes arrays, active point/flow
+covariances fail closed on asymmetry or indefiniteness, and every retained array
+is read-only. Internal fusion and artifact-loading paths can transfer ownership of
+private arrays to avoid a second dense copy while preserving the same validation.
+See [the fused-sequence contract](docs/fused-sequence-contract.md).
