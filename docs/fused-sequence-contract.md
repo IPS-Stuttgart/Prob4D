@@ -52,6 +52,9 @@ This distinction is part of execution semantics only. It does not change fused
 means, covariance meanings, correlation assumptions, provider schemas, or
 claim-bearing artifact identities.
 
+The serialized fused-prediction schema remains version 1; this change strengthens
+in-memory admission without rewriting frozen artifacts.
+
 ## Regression coverage
 
 Tests cover defensive-copy isolation, canonical dtypes, read-only fields, the
