@@ -138,6 +138,11 @@ def test_fused_prediction_metadata_round_trip(tmp_path: Path) -> None:
         metadata.metadata["calibration"] = "changed"
     artifact = load_fused_prediction_artifact(path)
     np.testing.assert_allclose(artifact.sequence.point_map, sequence.point_map, rtol=1e-3)
+    assert not artifact.sequence.frame_indices.flags.writeable
+    assert not artifact.sequence.point_map.flags.writeable
+    assert not artifact.sequence.valid_mask.flags.writeable
+    assert not artifact.sequence.point_covariance.flags.writeable
+    assert not artifact.sequence.contributors.flags.writeable
 
 
 def test_legacy_fused_prediction_is_explicitly_unspecified(tmp_path: Path) -> None:
