@@ -77,11 +77,25 @@ def _sequence(covariance: np.ndarray) -> tuple[FusedSequence, TruthSequence]:
     return prediction, truth
 
 
-def test_sequence_metrics_reject_indefinite_active_covariance() -> None:
-    prediction, truth = _sequence(np.diag([1.0, 1.0, -0.1]))
-
+def test_fused_sequence_rejects_indefinite_active_covariance() -> None:
     with pytest.raises(ValueError, match="positive semidefinite"):
-        evaluate_sequence(prediction, truth, align_scale_translation=False)
+        _sequence(np.diag([1.0, 1.0, -0.1]))
+
+
+def test_fused_sequence_projects_tolerated_negative_roundoff() -> None:
+    prediction, truth = _sequence(np.diag([1.0, 1.0, -1e-15]))
+
+    assert np.min(np.linalg.eigvalsh(prediction.point_covariance[0, 0, 0])) >= 0.0
+    result = evaluate_sequence(prediction, truth, align_scale_translation=False)
+    assert result.point_rmse == 0.0
+
+
+def test_fused_sequence_rejects_asymmetric_active_covariance() -> None:
+    covariance = np.eye(3)
+    covariance[0, 1] = 0.1
+
+    with pytest.raises(ValueError, match="symmetric"):
+        _sequence(covariance)
 
 
 def test_uncertainty_diagnostics_reject_indefinite_covariance() -> None:
