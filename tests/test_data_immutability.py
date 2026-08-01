@@ -3,6 +3,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+import prob4d.fusion as fusion_module
+from prob4d import FusedSequence
 from prob4d.data import PredictionWindow
 
 
@@ -97,3 +99,200 @@ def test_prediction_window_rejects_nonfinite_active_optional_values() -> None:
             valid_mask=valid,
             ray_directions=rays,
         )
+
+
+def _fused_inputs() -> tuple[
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+]:
+    frames = np.asarray([3, 4], dtype=np.int32)
+    points = np.asarray(
+        [
+            [[[1.0, 0.0, 1.0], [0.0, 2.0, 1.0]]],
+            [[[1.5, 0.0, 1.0], [0.0, 2.5, 1.0]]],
+        ],
+        dtype=np.float32,
+    )
+    valid = np.ones(points.shape[:-1], dtype=bool)
+    covariance = np.broadcast_to(
+        np.eye(3, dtype=np.float32),
+        points.shape + (3,),
+    ).copy()
+    contributors = np.ones(valid.shape, dtype=np.int32)
+    flow = np.full(points.shape, 0.25, dtype=np.float32)
+    deform = valid.copy()
+    flow_covariance = 2.0 * covariance
+    return (
+        frames,
+        points,
+        valid,
+        covariance,
+        contributors,
+        flow,
+        deform,
+        flow_covariance,
+    )
+
+
+def test_fused_sequence_defensively_copies_normalizes_and_freezes_arrays() -> None:
+    (
+        frames,
+        points,
+        valid,
+        covariance,
+        contributors,
+        flow,
+        deform,
+        flow_covariance,
+    ) = _fused_inputs()
+    sequence = FusedSequence(
+        frame_indices=frames,
+        point_map=points,
+        valid_mask=valid,
+        point_covariance=covariance,
+        contributors=contributors,
+        scene_flow=flow,
+        deform_mask=deform,
+        flow_covariance=flow_covariance,
+    )
+
+    frames[0] = 99
+    points[...] = 99.0
+    valid[...] = False
+    covariance[...] = 99.0
+    contributors[...] = 7
+    flow[...] = 99.0
+    deform[...] = False
+    flow_covariance[...] = 99.0
+
+    np.testing.assert_array_equal(sequence.frame_indices, [3, 4])
+    np.testing.assert_allclose(sequence.point_map[0, 0, 0], [1.0, 0.0, 1.0])
+    np.testing.assert_allclose(sequence.point_covariance[0, 0, 0], np.eye(3))
+    np.testing.assert_array_equal(sequence.contributors, 1)
+    np.testing.assert_allclose(sequence.scene_flow, 0.25)
+    np.testing.assert_allclose(sequence.flow_covariance[0, 0, 0], 2.0 * np.eye(3))
+    assert np.all(sequence.valid_mask)
+    assert np.all(sequence.deform_mask)
+
+    assert sequence.frame_indices.dtype == np.int64
+    assert sequence.point_map.dtype == np.float64
+    assert sequence.point_covariance.dtype == np.float64
+    assert sequence.contributors.dtype == np.uint16
+    assert sequence.scene_flow.dtype == np.float64
+    assert sequence.flow_covariance.dtype == np.float64
+
+    arrays = (
+        sequence.frame_indices,
+        sequence.point_map,
+        sequence.valid_mask,
+        sequence.point_covariance,
+        sequence.contributors,
+        sequence.scene_flow,
+        sequence.deform_mask,
+        sequence.flow_covariance,
+    )
+    assert all(not array.flags.writeable for array in arrays)
+    with pytest.raises(ValueError, match="read-only"):
+        sequence.point_covariance[0, 0, 0, 0, 0] = 2.0
+
+
+def test_fused_sequence_rejects_incomplete_flow_and_invalid_contributors() -> None:
+    frames, points, valid, covariance, contributors, flow, deform, _ = _fused_inputs()
+
+    with pytest.raises(ValueError, match="all be present or absent"):
+        FusedSequence(
+            frame_indices=frames,
+            point_map=points,
+            valid_mask=valid,
+            point_covariance=covariance,
+            contributors=contributors,
+            scene_flow=flow,
+            deform_mask=deform,
+        )
+
+    invalid_contributors = contributors.copy()
+    invalid_contributors[0, 0, 0] = 0
+    with pytest.raises(ValueError, match="at least one contributor"):
+        FusedSequence(
+            frame_indices=frames,
+            point_map=points,
+            valid_mask=valid,
+            point_covariance=covariance,
+            contributors=invalid_contributors,
+        )
+
+
+def test_fused_sequence_rejects_nonfinite_active_geometry() -> None:
+    frames, points, valid, covariance, contributors, *_ = _fused_inputs()
+    points[0, 0, 0, 0] = np.nan
+
+    with pytest.raises(ValueError, match="valid point_map"):
+        FusedSequence(
+            frame_indices=frames,
+            point_map=points,
+            valid_mask=valid,
+            point_covariance=covariance,
+            contributors=contributors,
+        )
+
+
+def test_fused_sequence_private_owned_path_avoids_second_dense_copy() -> None:
+    frames, points, valid, covariance, contributors, *_ = _fused_inputs()
+    frames = frames.astype(np.int64)
+    points = points.astype(np.float64)
+    covariance = covariance.astype(np.float64)
+    contributors = contributors.astype(np.uint16)
+
+    sequence = FusedSequence._from_owned_arrays(
+        frame_indices=frames,
+        point_map=points,
+        valid_mask=valid,
+        point_covariance=covariance,
+        contributors=contributors,
+    )
+
+    assert np.shares_memory(sequence.frame_indices, frames)
+    assert np.shares_memory(sequence.point_map, points)
+    assert np.shares_memory(sequence.valid_mask, valid)
+    assert np.shares_memory(sequence.point_covariance, covariance)
+    assert np.shares_memory(sequence.contributors, contributors)
+    assert all(
+        not array.flags.writeable
+        for array in (
+            frames,
+            points,
+            valid,
+            covariance,
+            contributors,
+        )
+    )
+
+
+def test_fused_sequence_psd_fast_path_avoids_eigendecomposition(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    frames, points, valid, covariance, contributors, *_ = _fused_inputs()
+
+    def forbidden_eigendecomposition(*args: object, **kwargs: object) -> np.ndarray:
+        raise AssertionError("well-conditioned PSD matrices should stay on the minor fast path")
+
+    monkeypatch.setattr(
+        fusion_module,
+        "validated_covariance_psd",
+        forbidden_eigendecomposition,
+    )
+    sequence = FusedSequence(
+        frame_indices=frames,
+        point_map=points,
+        valid_mask=valid,
+        point_covariance=covariance,
+        contributors=contributors,
+    )
+
+    np.testing.assert_allclose(sequence.point_covariance[0, 0, 0], np.eye(3))
