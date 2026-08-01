@@ -38,6 +38,7 @@ from .evaluation_modes import (
     EvaluationModes,
     evaluate_sequence_modes,
 )
+from .fusion import FusedSequence
 from .observation_contract import (
     OBSERVATION_BELIEF_SCHEMA,
     OBSERVATION_BELIEF_VERSION,
@@ -109,6 +110,7 @@ __all__ = [
     "CrossFittedDisagreementReport",
     "EvaluationModeResult",
     "EvaluationModes",
+    "FusedSequence",
     "GaugeCovarianceCalibrationV1",
     "GroupBalancedCalibrationReport",
     "JointGaugePosterior",
