@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import platform
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -16,6 +17,18 @@ import numpy as np
 from .data import DENSE_STORAGE_DTYPES
 from .io import load_prediction_bundle
 from .prediction_store import load_prediction_bundle_store
+
+
+def _git_revision(repository_root: Path) -> str | None:
+    completed = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repository_root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    value = completed.stdout.strip()
+    return value if completed.returncode == 0 and len(value) == 40 else None
 
 
 def _peak_rss_bytes() -> int | None:
@@ -57,9 +70,18 @@ def run_benchmark(arguments: argparse.Namespace) -> dict[str, Any]:
         }
     loading_seconds = time.perf_counter() - started
     summary = bundle.dense_storage_summary()
+    actual_storage_dtypes = summary["storage_dtypes"]
+    expected_storage_dtypes = [arguments.dense_storage_dtype]
+    if actual_storage_dtypes != expected_storage_dtypes:
+        raise ValueError(
+            "prediction backend storage dtype differs from the requested benchmark "
+            f"contract: requested={expected_storage_dtypes}, actual={actual_storage_dtypes}"
+        )
+    repository_root = Path(__file__).resolve().parents[2]
     return {
         "schema": "prob4d.prediction-store-memory-benchmark",
         "version": 1,
+        "repository_revision": _git_revision(repository_root),
         "python_version": platform.python_version(),
         "numpy_version": np.__version__,
         "platform": platform.platform(),
@@ -79,7 +101,7 @@ def run_benchmark(arguments: argparse.Namespace) -> dict[str, Any]:
         "bundle": {
             "window_count": summary["window_count"],
             "dense_vector_field_count": summary["dense_vector_field_count"],
-            "storage_dtypes": summary["storage_dtypes"],
+            "storage_dtypes": actual_storage_dtypes,
             "manifest_path": str(manifest_path),
         },
         "claim_boundary": (
