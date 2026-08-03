@@ -333,3 +333,11 @@ covariances fail closed on asymmetry or indefiniteness, and every retained array
 is read-only. Internal fusion and artifact-loading paths can transfer ownership of
 private arrays to avoid a second dense copy while preserving the same validation.
 See [the fused-sequence contract](docs/fused-sequence-contract.md).
+
+
+Dense fusion now preserves structured ray-parallel/lateral covariance until a
+representative CI sample or active spatial tile is needed. Covariance-intersection
+weights are still optimized once per complete frame/mask pattern and reused for
+all tiles, so `fusion_tile_size` changes temporary memory rather than estimator
+semantics. A deterministic process-level benchmark records peak RSS, timing, and
+an output digest. See [tiled dense fusion](docs/tiled-fusion.md).
