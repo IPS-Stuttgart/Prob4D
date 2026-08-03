@@ -231,7 +231,7 @@ jobs:
           python-version: "3.12"
       - name: Build and validate wheel and source distribution
         run: |
-          python -m pip install build pytest twine
+          python -m pip install build numpy pytest twine
           python -m build
           python -m twine check dist/*
           archive=$(find dist -maxdepth 1 -name '*.tar.gz' -print -quit)
