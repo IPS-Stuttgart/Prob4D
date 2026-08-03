@@ -434,11 +434,15 @@ def load_provider_evaluation_plan(
 def load_provider_evaluation_cases(
     manifest_path: Path,
 ) -> tuple[list[ProviderEvaluationCase], EvaluationModeName, str, dict[str, Any]]:
-    """Load the frozen v1-compatible paired-case surface."""
+    """Load only the frozen manifest-v1 paired-case surface."""
 
-    cases, primary_mode, reference_method, metadata, _ = (
+    cases, primary_mode, reference_method, metadata, policy = (
         load_provider_evaluation_plan(manifest_path)
     )
+    if policy is not None:
+        raise ValueError(
+            "decision-bearing manifest requires load_provider_evaluation_plan"
+        )
     return cases, primary_mode, reference_method, metadata
 
 
