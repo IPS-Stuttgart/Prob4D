@@ -24,6 +24,9 @@ All notable changes to Prob4D are documented here.
   access, and deterministic retained-storage accounting for benchmark runs.
 - `FusedSequence` as a public immutable dense-output contract with canonical
   dtypes, bounded active covariance validation, and read-only arrays.
+- Bounded spatial-tile dense fusion that preserves structured covariance until a
+  representative covariance-intersection sample or active tile is required, plus
+  a deterministic process-level memory and timing benchmark.
 
 ### Changed
 
@@ -41,6 +44,9 @@ All notable changes to Prob4D are documented here.
   states, or dense-storage execution semantics across cases.
 - Fusion and fused-artifact loading transfer ownership of private arrays into the
   immutable `FusedSequence` contract without an unnecessary second dense copy.
+- Dense covariance-intersection weights remain optimized once per complete
+  frame/contributor-mask pattern and are reused across bounded application tiles,
+  so the tile size changes temporary memory rather than estimator semantics.
 
 ### Fixed
 
