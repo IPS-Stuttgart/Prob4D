@@ -4,17 +4,40 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "prob4d"
-version = "0.3.0"
+version = "0.3.1"
 description = "Probabilistic recursive fusion for long-horizon 4D reconstruction"
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [{name = "Florian Pfaff"}]
+keywords = [
+  "4d-reconstruction",
+  "bayesian-estimation",
+  "computer-vision",
+  "robotics",
+  "uncertainty-quantification",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Scientific/Engineering :: Information Analysis",
+]
 dependencies = ["numpy>=1.24"]
 
 [project.urls]
 Repository = "https://github.com/IPS-Stuttgart/Prob4D"
 Documentation = "https://github.com/IPS-Stuttgart/Prob4D/tree/main/docs"
 Issues = "https://github.com/IPS-Stuttgart/Prob4D/issues"
+Changelog = "https://github.com/IPS-Stuttgart/Prob4D/blob/main/CHANGELOG.md"
+Citation = "https://github.com/IPS-Stuttgart/Prob4D/blob/main/CITATION.cff"
+Security = "https://github.com/IPS-Stuttgart/Prob4D/blob/main/SECURITY.md"
 Project-Notes = "https://github.com/FlorianPfaff/BayesianPhysTwin-Paper"
 
 [project.optional-dependencies]
@@ -24,6 +47,7 @@ dev = [
   "pytest>=7.4",
   "pytest-cov>=4.1",
   "ruff>=0.6",
+  "tomli>=2.0; python_version < '3.11'",
   "twine>=5.0",
 ]
 
