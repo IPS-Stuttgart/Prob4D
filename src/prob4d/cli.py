@@ -22,7 +22,7 @@ _ROUTES: Final[dict[Route, tuple[str, str, str]]] = {
     ("diagnostic", "gauge-graph"): (
         "prob4d.causal_gauge_graph_ablation",
         "main",
-        "compare causal gauge-tree, multi-parent, graph, and fixed-lag modes",
+        "compare causal gauge-tree, graph, guarded fallback, and fixed-lag modes",
     ),
     ("evaluate", "provider"): (
         "prob4d.provider_evaluation",
