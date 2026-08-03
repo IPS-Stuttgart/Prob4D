@@ -34,6 +34,9 @@ All notable changes to Prob4D are documented here.
 - Bounded spatial-tile dense fusion that preserves structured covariance until a
   representative covariance-intersection sample or active tile is required, plus
   a deterministic process-level memory and timing benchmark.
+- Bounded-memory metric, prefix-aligned, and oracle-aligned evaluation with an
+  explicit chunk-size execution contract and deterministic process-level memory,
+  timing, retained-storage, and numerical-agreement benchmark.
 
 ### Changed
 
@@ -59,6 +62,12 @@ All notable changes to Prob4D are documented here.
 - Dense covariance-intersection weights remain optimized once per complete
   frame/contributor-mask pattern and are reused across bounded application tiles,
   so the tile size changes temporary memory rather than estimator semantics.
+- Provider evaluation accumulates active point, covariance, flow, alignment, and
+  seam statistics in bounded chunks; prefix and oracle modes apply transforms
+  during evaluation instead of constructing complete transformed sequences.
+- Provider reports record `evaluation_chunk_size`; changing it affects resource
+  use and floating-point summation order, not registered support or metric
+  semantics.
 
 ### Fixed
 

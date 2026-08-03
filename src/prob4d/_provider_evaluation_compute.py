@@ -21,7 +21,7 @@ from .io import (
     load_fused_prediction_artifact,
     load_truth,
 )
-from .metrics import TruthSequence
+from .metrics import DEFAULT_EVALUATION_CHUNK_SIZE, TruthSequence
 
 
 def _numeric_leaves(value: object, *, prefix: str = "") -> dict[str, float]:
@@ -267,9 +267,12 @@ def evaluate_provider_cases(
     cases: list[ProviderEvaluationCase],
     *,
     allow_legacy_artifacts: bool,
+    evaluation_chunk_size: int = DEFAULT_EVALUATION_CHUNK_SIZE,
 ) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:
     """Evaluate every paired case and enforce one semantic signature per method."""
 
+    if evaluation_chunk_size < 1:
+        raise ValueError("evaluation_chunk_size must be positive")
     records: list[dict[str, Any]] = []
     signatures: dict[str, tuple[object, ...]] = {}
     method_metadata: dict[str, dict[str, Any]] = {}
@@ -318,6 +321,7 @@ def evaluate_provider_cases(
                 truth,
                 boundary_frames=list(case.boundary_frames),
                 prefix_frame_stop_exclusive=case.prefix_frame_stop_exclusive,
+                evaluation_chunk_size=evaluation_chunk_size,
             )
             common_modes: EvaluationModes = evaluate_sequence_modes(
                 artifact.sequence,
@@ -326,6 +330,7 @@ def evaluate_provider_cases(
                 prefix_frame_stop_exclusive=case.prefix_frame_stop_exclusive,
                 truth_support_mask=common_point_support,
                 truth_flow_support_mask=common_flow_support,
+                evaluation_chunk_size=evaluation_chunk_size,
             )
             evaluation = common_modes.to_dict()
             native_evaluation = native_modes.to_dict()

@@ -23,6 +23,7 @@ from ._provider_evaluation_manifest import (
     validate_finite_json,
 )
 from ._provider_evaluation_output import write_provider_evaluation_outputs
+from .metrics import DEFAULT_EVALUATION_CHUNK_SIZE
 
 
 def run_provider_evaluation(
@@ -32,11 +33,14 @@ def run_provider_evaluation(
     bootstrap_resamples: int = 2_000,
     seed: int = 0,
     allow_legacy_artifacts: bool = False,
+    evaluation_chunk_size: int = DEFAULT_EVALUATION_CHUNK_SIZE,
 ) -> dict[str, Any]:
     """Run paired multi-case evaluation with equal-group bootstrap aggregation."""
 
     if isinstance(bootstrap_resamples, bool) or bootstrap_resamples < 1:
         raise ValueError("bootstrap_resamples must be positive")
+    if isinstance(evaluation_chunk_size, bool) or evaluation_chunk_size < 1:
+        raise ValueError("evaluation_chunk_size must be positive")
     if isinstance(seed, bool):
         raise ValueError("seed must be an integer")
     normalized_seed = int(seed)
@@ -49,6 +53,7 @@ def run_provider_evaluation(
     records, method_metadata = evaluate_provider_cases(
         cases,
         allow_legacy_artifacts=allow_legacy_artifacts,
+        evaluation_chunk_size=evaluation_chunk_size,
     )
     aggregate, comparisons = aggregate_provider_records(
         records,
@@ -83,6 +88,7 @@ def run_provider_evaluation(
         "bootstrap_resamples": bootstrap_resamples,
         "bootstrap_seed": normalized_seed,
         "legacy_artifacts_allowed": allow_legacy_artifacts,
+        "evaluation_chunk_size": evaluation_chunk_size,
         "manifest_metadata": manifest_metadata,
         "method_metadata": method_metadata,
         "cases": clean_records,
@@ -124,6 +130,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--bootstrap-resamples", type=int, default=2_000)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument(
+        "--evaluation-chunk-size",
+        type=int,
+        default=DEFAULT_EVALUATION_CHUNK_SIZE,
+        help=(
+            "maximum spatial samples materialized per metric/covariance chunk; "
+            "changes execution memory, not estimator semantics"
+        ),
+    )
+    parser.add_argument(
         "--allow-legacy-artifacts",
         action="store_true",
         help=(
@@ -146,6 +161,7 @@ def main(argv: list[str] | None = None) -> int:
         bootstrap_resamples=arguments.bootstrap_resamples,
         seed=arguments.seed,
         allow_legacy_artifacts=arguments.allow_legacy_artifacts,
+        evaluation_chunk_size=arguments.evaluation_chunk_size,
     )
     print(arguments.output_dir / "provider_evaluation.json")
     if arguments.require_decision_pass:

@@ -309,10 +309,11 @@ The core package intentionally depends only on NumPy. Torch, Diffusers, Decord,
 and model-loading dependencies are imported lazily by `prob4d-motioncrafter`.
 The tested GPU environment is pinned separately under `environments/`.
 
-Continuous integration tests Python 3.10, 3.12, and 3.14, checks both provider
-manifests and clean-checkout runtime attestation, builds source and wheel
-distributions, installs each artifact in isolation, and smoke-tests every
-installed command including the explicit provider-v2 surfaces.
+Continuous integration tests Python 3.10 through 3.14, including the declared
+NumPy 1.24.0 floor, checks provider manifests and clean-checkout runtime
+attestation, builds source and wheel distributions, audits the extracted source
+archive, installs each artifact in isolation, and smoke-tests every installed
+command including the explicit provider-v2 surfaces.
 
 The implementation has been exercised at full `25 x 320 x 640` window size on
 an RTX 6000 Ada host. Frame-level covariance intersection is the production
@@ -341,3 +342,10 @@ weights are still optimized once per complete frame/mask pattern and reused for
 all tiles, so `fusion_tile_size` changes temporary memory rather than estimator
 semantics. A deterministic process-level benchmark records peak RSS, timing, and
 an output digest. See [tiled dense fusion](docs/tiled-fusion.md).
+
+Provider evaluation likewise processes active point, covariance, flow, and seam
+rows in bounded spatial chunks. Prefix and oracle alignment modes apply their
+fitted transforms during accumulation instead of materializing complete
+transformed sequences. The provider report records the selected chunk size, and
+a deterministic process benchmark measures peak RSS and numerical agreement. See
+[bounded-memory provider evaluation](docs/streaming-evaluation.md).
