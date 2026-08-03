@@ -2,6 +2,11 @@
 name: Apply bounded provider evaluation
 
 on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/apply-bounded-provider-evaluation.yml"
+      - ".github/patches/bounded-provider-evaluation.patch.gz.b64"
   push:
     branches:
       - agent/bounded-provider-evaluation
@@ -22,6 +27,7 @@ jobs:
       - name: Check out branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: agent/bounded-provider-evaluation
           fetch-depth: 0
           persist-credentials: false
 
