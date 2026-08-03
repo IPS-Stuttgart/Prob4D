@@ -6,7 +6,7 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/apply-bounded-provider-evaluation.yml"
-      - ".github/patches/bounded-provider-evaluation.patch.gz.b64"
+      - ".github/patches/bounded-provider-evaluation.patch.gz.b64*"
   push:
     branches:
       - agent/bounded-provider-evaluation
@@ -16,7 +16,7 @@ permissions:
 
 concurrency:
   group: apply-bounded-provider-evaluation
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   apply-and-validate:
@@ -36,19 +36,31 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Apply source patch
+      - name: Reassemble and apply source patch
         shell: bash
         run: |
           set -euo pipefail
-          base64 --decode .github/patches/bounded-provider-evaluation.patch.gz.b64 \
+          cat \
+            .github/patches/bounded-provider-evaluation.patch.gz.b64 \
+            .github/patches/bounded-provider-evaluation.patch.gz.b64.part01 \
+            .github/patches/bounded-provider-evaluation.patch.gz.b64.part02 \
+            .github/patches/bounded-provider-evaluation.patch.gz.b64.part03 \
+            .github/patches/bounded-provider-evaluation.patch.gz.b64.part04 \
+            .github/patches/bounded-provider-evaluation.patch.gz.b64.part05 \
+            > /tmp/bounded-provider-evaluation.patch.gz.b64
+          echo '56b766fde305cd85d303effc9481df579b9941eb948b25bf1e1346988da3372e  /tmp/bounded-provider-evaluation.patch.gz.b64' \
+            | sha256sum --check --strict
+          base64 --decode /tmp/bounded-provider-evaluation.patch.gz.b64 \
             | gzip --decompress > /tmp/bounded-provider-evaluation.patch
+          echo 'd8b02d879077a7ca0d4b52ae0dc2109ca29b5580a68532b13e0eaf79130846eb  /tmp/bounded-provider-evaluation.patch' \
+            | sha256sum --check --strict
           git apply --check /tmp/bounded-provider-evaluation.patch
           git apply /tmp/bounded-provider-evaluation.patch
 
       - name: Remove one-shot staging files
         shell: bash
         run: |
-          rm .github/patches/bounded-provider-evaluation.patch.gz.b64
+          rm .github/patches/bounded-provider-evaluation.patch.gz.b64*
           rm .github/workflows/apply-bounded-provider-evaluation.yml
           rmdir .github/patches 2>/dev/null || true
 
