@@ -68,6 +68,15 @@ is permutation invariant. This estimator change does not reinterpret the unfused
 observation-factor or `ObservationBeliefV1` contracts, which remain the preferred
 downstream Bayesian representations when explicit nuisance structure is required.
 
+The separate causal multi-edge gauge-graph diagnostic fuses complete augmented joint
+gauge distributions with covariance intersection. Its optional source-only guard
+compares direct edges with two-edge paths in representative displacement. A
+source/calibration-frozen threshold and minimum per-multi-edge-child cycle count
+either admit the unchanged graph or return the exact provider-v2 spanning tree for
+the complete case.
+The guard never uses target truth or a downstream physical innovation, and neither
+graph mode is claim-bearing without a later frozen held-out promotion study.
+
 ## Seven Variants
 
 1. Upstream disjoint 25-frame inference.
