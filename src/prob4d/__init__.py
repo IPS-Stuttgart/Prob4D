@@ -73,6 +73,17 @@ from .observation_factors import (
     write_observation_factor_bundle,
 )
 from .observation_validation import load_observation_belief_export
+from .project_identity import (
+    PROB4D_CANONICAL_REPOSITORY,
+    PROB4D_FROZEN_ARTIFACT_REPOSITORY,
+    PROB4D_GITHUB_REPOSITORY_ID,
+    PROB4D_PROJECT_ID,
+    PROB4D_REPOSITORY_ALIASES,
+    canonical_prob4d_repository,
+    is_prob4d_repository,
+    prob4d_project_identity,
+    validate_prob4d_project_identity,
+)
 from .sim3 import Sim3
 from .source_reliability import (
     SOURCE_RELIABILITY_SCHEMA,
@@ -101,6 +112,11 @@ __all__ = [
     "OBSERVATION_FACTOR_STREAM_VERSION",
     "POINT_UNCERTAINTY_CALIBRATION_SCHEMA",
     "POINT_UNCERTAINTY_CALIBRATION_VERSION",
+    "PROB4D_CANONICAL_REPOSITORY",
+    "PROB4D_FROZEN_ARTIFACT_REPOSITORY",
+    "PROB4D_GITHUB_REPOSITORY_ID",
+    "PROB4D_PROJECT_ID",
+    "PROB4D_REPOSITORY_ALIASES",
     "SOURCE_RELIABILITY_SCHEMA",
     "SOURCE_RELIABILITY_VERSION",
     "AlignmentCycleAudit",
@@ -135,12 +151,14 @@ __all__ = [
     "build_causal_scene_flow_tracklets",
     "build_prob4d_observation_belief",
     "build_source_reliability_features",
+    "canonical_prob4d_repository",
     "deterministic_covariance_root",
     "estimate_joint_gauge_tree",
     "evaluate_sequence_modes",
     "fit_group_balanced_point_uncertainty_calibration",
     "fit_group_balanced_source_reliability",
     "group_balanced_point_calibration_metadata",
+    "is_prob4d_repository",
     "load_gauge_covariance_calibration",
     "load_metric_gauge_anchor",
     "load_observation_belief_export",
@@ -148,6 +166,7 @@ __all__ = [
     "load_observation_factor_stream",
     "load_point_uncertainty_calibration",
     "load_source_reliability_model",
+    "prob4d_project_identity",
     "save_gauge_covariance_calibration",
     "save_metric_gauge_anchor",
     "save_observation_belief_export",
@@ -155,6 +174,7 @@ __all__ = [
     "save_source_reliability_model",
     "stack_observation_factors",
     "tracklets_to_observation_factors",
+    "validate_prob4d_project_identity",
     "write_observation_factor_bundle",
     "write_observation_factor_stream",
 ]
