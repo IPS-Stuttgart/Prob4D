@@ -1,0 +1,68 @@
+name: Provider evaluation decision contract
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/provider-evaluation-decision.yml"
+      - "docs/provider-evaluation-decisions.md"
+      - "src/prob4d/_provider_evaluation_decision.py"
+      - "src/prob4d/_provider_evaluation_manifest.py"
+      - "src/prob4d/_provider_evaluation_output.py"
+      - "src/prob4d/provider_evaluation.py"
+      - "tests/test_provider_evaluation.py"
+      - "tests/test_provider_evaluation_decision.py"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/provider-evaluation-decision.yml"
+      - "docs/provider-evaluation-decisions.md"
+      - "src/prob4d/_provider_evaluation_decision.py"
+      - "src/prob4d/_provider_evaluation_manifest.py"
+      - "src/prob4d/_provider_evaluation_output.py"
+      - "src/prob4d/provider_evaluation.py"
+      - "tests/test_provider_evaluation.py"
+      - "tests/test_provider_evaluation_decision.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: provider-decision-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  provider-decision:
+    name: Provider decision manifest and report
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install development environment
+        run: python -m pip install -e ".[dev]"
+      - name: Check focused source quality
+        run: |
+          python -m ruff check \
+            src/prob4d/_provider_evaluation_decision.py \
+            src/prob4d/_provider_evaluation_manifest.py \
+            src/prob4d/_provider_evaluation_output.py \
+            src/prob4d/provider_evaluation.py \
+            tests/test_provider_evaluation.py \
+            tests/test_provider_evaluation_decision.py
+          python -m mypy \
+            src/prob4d/_provider_evaluation_decision.py \
+            src/prob4d/_provider_evaluation_manifest.py \
+            src/prob4d/provider_evaluation.py
+      - name: Run decision and compatibility regressions
+        run: >-
+          python -m pytest -q
+          tests/test_provider_evaluation.py
+          tests/test_provider_evaluation_decision.py
