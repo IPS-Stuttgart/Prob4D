@@ -24,6 +24,13 @@ All notable changes to Prob4D are documented here.
   access, and deterministic retained-storage accounting for benchmark runs.
 - `FusedSequence` as a public immutable dense-output contract with canonical
   dtypes, bounded active covariance validation, and read-only arrays.
+- `TruthSequence` as an immutable, canonical, alias-safe truth-input contract with
+  strict frame ordering and active point/flow finiteness validation.
+- Common-support primary provider evaluation, native-support secondary results,
+  support-retention diagnostics, frame-balanced errors, multi-level coverage,
+  covariance-width summaries, uncertainty-error ranking, selective risk, and
+  worst-group coverage-shortfall reporting. Selective-risk metrics are invariant
+  to sample ordering when uncertainty scores tie.
 - Bounded spatial-tile dense fusion that preserves structured covariance until a
   representative covariance-intersection sample or active tile is required, plus
   a deterministic process-level memory and timing benchmark.
@@ -44,6 +51,11 @@ All notable changes to Prob4D are documented here.
   states, or dense-storage execution semantics across cases.
 - Fusion and fused-artifact loading transfer ownership of private arrays into the
   immutable `FusedSequence` contract without an unnecessary second dense copy.
+- Provider-evaluation report schema version 2 keeps the established unprefixed
+  metric paths for common-support primary results and adds explicit
+  `native_support` and `support` secondary diagnostics.
+- Evaluation modes rely on the immutable finite-active point/flow contracts
+  directly instead of rebuilding dense sequences solely to sanitize flow masks.
 - Dense covariance-intersection weights remain optimized once per complete
   frame/contributor-mask pattern and are reused across bounded application tiles,
   so the tile size changes temporary memory rather than estimator semantics.
@@ -55,6 +67,11 @@ All notable changes to Prob4D are documented here.
   covariance now fail closed on non-finite, asymmetric, or materially indefinite
   matrices, while tolerated floating-point-scale negative eigenvalues are
   projected to the positive-semidefinite boundary.
+- Truth arrays can no longer change after validation through caller-owned aliases,
+  and malformed frame indices or non-finite active truth geometry now fail before
+  evaluation.
+- Paired provider comparisons no longer reward methods for omitting difficult
+  frames or pixels from their primary score.
 
 ## 0.3.0 — 2026-07-30
 

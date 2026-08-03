@@ -14,7 +14,14 @@ import numpy as np
 from ._provider_evaluation_manifest import ProviderEvaluationCase
 from .data import DENSE_STORAGE_DTYPES
 from .evaluation_modes import EvaluationModes, evaluate_sequence_modes
-from .io import FusedPredictionMetadata, load_fused_prediction_artifact, load_truth
+from .fusion import FusedSequence
+from .io import (
+    FusedPredictionArtifact,
+    FusedPredictionMetadata,
+    load_fused_prediction_artifact,
+    load_truth,
+)
+from .metrics import TruthSequence
 
 
 def _numeric_leaves(value: object, *, prefix: str = "") -> dict[str, float]:
@@ -156,6 +163,106 @@ def _method_signature(metadata: FusedPredictionMetadata) -> tuple[object, ...]:
     )
 
 
+def _paired_common_support(
+    truth: TruthSequence,
+    predictions: Mapping[str, FusedSequence],
+) -> tuple[np.ndarray, np.ndarray | None, dict[str, Any]]:
+    """Build truth-indexed support shared by every registered method in one case."""
+
+    if not predictions:
+        raise ValueError("provider evaluation requires at least one prediction method")
+    spatial_shape = truth.valid_mask.shape[1:]
+    common_frames = truth.frame_indices
+    for method_id, prediction in sorted(predictions.items()):
+        if prediction.valid_mask.shape[1:] != spatial_shape:
+            raise ValueError(
+                f"method {method_id!r} has spatial support "
+                f"{prediction.valid_mask.shape[1:]}, expected {spatial_shape}"
+            )
+        common_frames = np.intersect1d(common_frames, prediction.frame_indices)
+    if common_frames.size == 0:
+        raise ValueError("registered methods and truth have no common frames")
+
+    truth_indices = np.searchsorted(truth.frame_indices, common_frames)
+    common_point_support = np.zeros_like(truth.valid_mask, dtype=bool)
+    active_points = truth.valid_mask[truth_indices].copy()
+    prediction_indices: dict[str, np.ndarray] = {}
+    for method_id, prediction in sorted(predictions.items()):
+        indices = np.searchsorted(prediction.frame_indices, common_frames)
+        prediction_indices[method_id] = indices
+        active_points &= prediction.valid_mask[indices]
+    common_point_support[truth_indices] = active_points
+    common_point_count = int(np.count_nonzero(active_points))
+    if common_point_count == 0:
+        raise ValueError(
+            "registered methods and truth have no jointly valid common point support"
+        )
+
+    all_methods_have_flow = truth.scene_flow is not None and all(
+        prediction.scene_flow is not None for prediction in predictions.values()
+    )
+    common_flow_support: np.ndarray | None = None
+    common_flow_count = 0
+    if truth.scene_flow is not None:
+        common_flow_support = np.zeros_like(truth.valid_mask, dtype=bool)
+        if all_methods_have_flow:
+            assert truth.deform_mask is not None
+            active_flow = truth.deform_mask[truth_indices] & active_points
+            for method_id, prediction in sorted(predictions.items()):
+                assert prediction.deform_mask is not None
+                active_flow &= prediction.deform_mask[
+                    prediction_indices[method_id]
+                ]
+            common_flow_support[truth_indices] = active_flow
+            common_flow_count = int(np.count_nonzero(active_flow))
+
+    truth_valid_on_common_frames = int(
+        np.count_nonzero(truth.valid_mask[truth_indices])
+    )
+    return common_point_support, common_flow_support, {
+        "truth_frame_count": int(truth.frame_indices.size),
+        "common_frame_count": int(common_frames.size),
+        "common_frame_fraction_of_truth": float(
+            common_frames.size / truth.frame_indices.size
+        ),
+        "truth_valid_points_on_common_frames": truth_valid_on_common_frames,
+        "common_valid_points": common_point_count,
+        "common_point_fraction_of_truth_on_common_frames": float(
+            common_point_count / truth_valid_on_common_frames
+        ),
+        "all_methods_have_flow": all_methods_have_flow,
+        "common_valid_flow_points": common_flow_count,
+    }
+
+
+def _method_support_summary(
+    *,
+    common: EvaluationModes,
+    native: EvaluationModes,
+    paired: Mapping[str, Any],
+) -> dict[str, Any]:
+    common_metrics = common.metric.metrics
+    native_metrics = native.metric.metrics
+    common_points = common_metrics.evaluated_points
+    native_points = native_metrics.evaluated_points
+    common_frames = common_metrics.evaluated_frames
+    native_frames = native_metrics.evaluated_frames
+    common_flow = common_metrics.evaluated_flow_points
+    native_flow = native_metrics.evaluated_flow_points
+    return {
+        **paired,
+        "native_valid_points": native_points,
+        "common_point_fraction_of_native": float(common_points / native_points),
+        "native_evaluated_frames": native_frames,
+        "common_evaluated_frames": common_frames,
+        "common_frame_fraction_of_native": float(common_frames / native_frames),
+        "native_valid_flow_points": native_flow,
+        "common_flow_fraction_of_native": (
+            float(common_flow / native_flow) if native_flow > 0 else None
+        ),
+    }
+
+
 def evaluate_provider_cases(
     cases: list[ProviderEvaluationCase],
     *,
@@ -168,8 +275,10 @@ def evaluate_provider_cases(
     method_metadata: dict[str, dict[str, Any]] = {}
     for case in cases:
         truth = load_truth(case.truth_path)
+        artifacts: dict[str, FusedPredictionArtifact] = {}
         for method_id, prediction_path in sorted(case.predictions.items()):
             artifact = load_fused_prediction_artifact(prediction_path)
+            artifacts[method_id] = artifact
             metadata = artifact.metadata
             if metadata.legacy_unspecified and not allow_legacy_artifacts:
                 raise ValueError(
@@ -192,13 +301,47 @@ def evaluate_provider_cases(
                     "revision semantics"
                 )
             method_metadata.setdefault(method_id, metadata.to_dict())
-            modes: EvaluationModes = evaluate_sequence_modes(
+
+        common_point_support, common_flow_support, paired_support = (
+            _paired_common_support(
+                truth,
+                {
+                    method_id: artifact.sequence
+                    for method_id, artifact in artifacts.items()
+                },
+            )
+        )
+        for method_id, prediction_path in sorted(case.predictions.items()):
+            artifact = artifacts[method_id]
+            native_modes: EvaluationModes = evaluate_sequence_modes(
                 artifact.sequence,
                 truth,
                 boundary_frames=list(case.boundary_frames),
                 prefix_frame_stop_exclusive=case.prefix_frame_stop_exclusive,
             )
-            evaluation = modes.to_dict()
+            common_modes: EvaluationModes = evaluate_sequence_modes(
+                artifact.sequence,
+                truth,
+                boundary_frames=list(case.boundary_frames),
+                prefix_frame_stop_exclusive=case.prefix_frame_stop_exclusive,
+                truth_support_mask=common_point_support,
+                truth_flow_support_mask=common_flow_support,
+            )
+            evaluation = common_modes.to_dict()
+            native_evaluation = native_modes.to_dict()
+            support = _method_support_summary(
+                common=common_modes,
+                native=native_modes,
+                paired=paired_support,
+            )
+            numeric = _numeric_leaves(evaluation)
+            numeric.update(
+                _numeric_leaves(
+                    native_evaluation,
+                    prefix="native_support",
+                )
+            )
+            numeric.update(_numeric_leaves(support, prefix="support"))
             records.append(
                 {
                     "case_id": case.case_id,
@@ -206,9 +349,11 @@ def evaluate_provider_cases(
                     "method_id": method_id,
                     "prediction_path": str(prediction_path),
                     "truth_path": str(case.truth_path),
-                    "artifact": metadata.to_dict(),
+                    "artifact": artifact.metadata.to_dict(),
                     "evaluation": evaluation,
-                    "_numeric": _numeric_leaves(evaluation),
+                    "native_support_evaluation": native_evaluation,
+                    "support": support,
+                    "_numeric": numeric,
                 }
             )
     return records, method_metadata
@@ -251,15 +396,21 @@ def aggregate_provider_records(
         )
         metrics: dict[str, Any] = {}
         for metric in metric_names:
+            group_ids = sorted(groups)
             group_means = np.asarray(
-                [np.mean(groups[group_id][metric]) for group_id in sorted(groups)],
+                [np.mean(groups[group_id][metric]) for group_id in group_ids],
                 dtype=np.float64,
             )
-            metrics[metric] = _bootstrap_summary(
+            summary = _bootstrap_summary(
                 group_means,
                 resamples=bootstrap_resamples,
                 seed=_stable_seed(seed, method_id, metric),
             )
+            if metric.endswith("coverage_shortfall_95"):
+                worst_index = int(np.argmax(group_means))
+                summary["worst_group_mean"] = float(group_means[worst_index])
+                summary["worst_group_id"] = group_ids[worst_index]
+            metrics[metric] = summary
         aggregate[method_id] = {
             "case_count": method_case_counts[method_id],
             "group_count": len(groups),

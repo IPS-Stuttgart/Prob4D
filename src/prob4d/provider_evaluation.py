@@ -58,10 +58,12 @@ def run_provider_evaluation(
     ]
     report: dict[str, Any] = {
         "schema_name": "prob4d.provider-evaluation-report",
-        "schema_version": 1,
+        "schema_version": 2,
         "source_manifest": str(source),
         "source_manifest_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
         "primary_mode": primary_mode,
+        "primary_support": "common_across_registered_methods",
+        "secondary_support": "native_per_method",
         "reference_method": reference_method,
         "bootstrap_resamples": bootstrap_resamples,
         "bootstrap_seed": normalized_seed,
@@ -71,6 +73,12 @@ def run_provider_evaluation(
         "cases": clean_records,
         "aggregate": aggregate,
         "comparisons": comparisons,
+        "support_semantics": (
+            "Primary metrics use the intersection of truth support and every "
+            "registered method within each case. Native per-method metrics and "
+            "retention fractions are reported separately to expose selective "
+            "missingness."
+        ),
         "claim_boundary": (
             "This report measures held-out observation competence. It does not by itself "
             "establish Bayesian-PhysTwin acceptance, physical-prediction benefit, or "

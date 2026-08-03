@@ -102,24 +102,32 @@ def _write_markdown(
 ) -> None:
     selected = (
         "metric_point_rmse",
-        "point_rmse",
+        "frame_balanced_point_rmse",
         "endpoint_point_rmse",
         "drift_slope",
         "seam_rmse",
         "coverage_95",
+        "coverage_shortfall_95",
+        "mean_covariance_trace",
         "gaussian_nll",
+        "uncertainty_error_spearman",
+        "risk_coverage_auc",
     )
     headers = [
         "Method",
         "Groups",
         "Cases",
         "Metric point RMSE",
-        "Point RMSE",
+        "Frame-balanced RMSE",
         "Endpoint RMSE",
         "Drift slope",
         "Seam RMSE",
         "Coverage 95%",
+        "Coverage shortfall",
+        "Mean covariance trace",
         "Gaussian NLL",
+        "UQ-error Spearman",
+        "Risk-coverage AUC",
     ]
     separator = "| " + " | ".join(["---"] + ["---:"] * (len(headers) - 1)) + " |"
     lines = [
@@ -127,6 +135,10 @@ def _write_markdown(
         "",
         f"Primary evaluation mode: `{primary_mode}`.",
         f"Registered reference method: `{reference_method}`.",
+        "",
+        "The primary table uses only frame/pixel support shared by truth and every "
+        "registered method in each case. Native per-method results and support "
+        "retention are retained in the JSON and CSV outputs.",
         "",
         "Intervals are deterministic group-bootstrap 95% intervals. Each physical "
         "object or independent acquisition session contributes equal aggregate mass.",

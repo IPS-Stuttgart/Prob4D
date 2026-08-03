@@ -16,12 +16,22 @@ The evaluator is deliberately paired and fail-closed:
   that covariance fields are present;
 - historical archives without embedded semantics are rejected unless the run is
   explicitly labelled with `--allow-legacy-artifacts`;
+- primary metrics use only frames and pixels supported by truth and every
+  registered method in the case;
+- native per-method metrics and common/native support-retention fractions are
+  retained as secondary diagnostics, so selective missingness cannot silently
+  improve the primary score;
 - cases are first averaged within a registered `group_id`, then groups receive
   equal aggregate mass;
 - one registered reference method defines paired within-case differences for every
   candidate;
 - confidence intervals use a deterministic bootstrap over groups, not dense
   pixels or frames.
+
+Truth inputs are admitted through the immutable `TruthSequence` contract. Frame
+indices are canonical nonnegative, strictly increasing `int64` values; point and
+flow arrays are defensively copied; active geometry must be finite; and all
+retained arrays are read-only after validation.
 
 ## Prediction artifact semantics
 
@@ -128,6 +138,30 @@ identify one method present in every case. The report computes
 `candidate - reference` differences within case, averages them within group, and
 bootstraps groups.
 
+## Common-support primary and native-support secondary results
+
+Report schema version 2 preserves the existing primary metric paths, but their
+support semantics are now explicit:
+
+- `cases[*].evaluation` and the unprefixed aggregate metric paths use the
+  intersection of truth support and every registered method in that case;
+- `cases[*].native_support_evaluation` evaluates each method on its own available
+  support;
+- `cases[*].support` reports common frame/pixel counts, common/native retention,
+  truth-relative retention, and flow-support availability;
+- aggregate CSV columns prefixed with `native_support.` and `support.` retain the
+  corresponding secondary diagnostics.
+
+A case fails closed when the registered methods have no common frames, use
+incompatible spatial grids, or have no jointly valid common point support. Flow
+EPE is a paired common-support metric only when truth and every registered method
+provide flow. Otherwise native flow results remain secondary and the common flow
+support is empty.
+
+This distinction prevents a method from appearing more accurate merely because
+it abstains on difficult pixels or frames. Native-support results remain useful
+for diagnosing whether gains are purchased through reduced coverage.
+
 ## Command
 
 ```bash
@@ -146,14 +180,22 @@ prob4d-evaluate-provider protocols/provider-evaluation.json \
 
 Outputs are:
 
-- `provider_evaluation.json`: nested case results, artifact semantics, equal-group
+- `provider_evaluation.json`: nested common-support and native-support case
+  results, artifact semantics, support-retention diagnostics, equal-group
   aggregate intervals, and paired differences from the reference;
-- `provider_evaluation.csv`: one flat row per case and method;
-- `provider_evaluation.md`: a compact primary-mode table.
+- `provider_evaluation.csv`: one flat row per case and method, including native
+  metrics and support-retention columns;
+- `provider_evaluation.md`: a compact common-support primary-mode table.
 
-Reported metrics include metric and optionally aligned point RMSE, endpoint
-error, drift slope, seam error, flow endpoint error, 95% ellipsoid coverage,
-Gaussian negative log likelihood, and mean squared Mahalanobis error.
+Reported metrics include pooled and frame-balanced point RMSE, endpoint error,
+drift slope, seam error, flow endpoint error, 50%, 80%, 90%, and 95% ellipsoid
+coverage, 95% coverage shortfall, multi-level calibration error, Gaussian
+negative log likelihood, mean and median squared Mahalanobis error, covariance
+trace and log determinant, uncertainty-error Spearman correlation, fixed-retention
+selective risk, and risk-coverage area. Selective-risk summaries use the expected
+risk under random tie-breaking, so equal uncertainty scores cannot make results
+depend on pixel order. Aggregate coverage-shortfall summaries also identify the
+worst registered group.
 
 ## Claim boundary
 
