@@ -13,3 +13,5 @@ def test_grouped_causal_gauge_graph_help(capsys) -> None:
     assert "--predictions" in output
     assert "--calibration-predictions" in output
     assert "--minimum-edge-weight" in output
+    assert "--maximum-cycle-displacement" in output
+    assert "--minimum-cycles-per-multi-edge-child" in output
