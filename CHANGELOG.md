@@ -37,6 +37,10 @@ All notable changes to Prob4D are documented here.
 - Bounded-memory metric, prefix-aligned, and oracle-aligned evaluation with an
   explicit chunk-size execution contract and deterministic process-level memory,
   timing, retained-storage, and numerical-agreement benchmark.
+- An optional source-only directed-cycle gate for the experimental full-joint
+  gauge graph, with a preregistered displacement threshold,
+  per-multi-edge-child cycle support, complete audit reporting, and exact analytic
+  provider-v2 tree fallback.
 
 ### Changed
 
