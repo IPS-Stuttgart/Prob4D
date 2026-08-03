@@ -40,6 +40,24 @@ validated before claim-bearing calibration compatibility is accepted. See
 The deliberately ambiguous grouped command fails closed. Historical scripts may
 continue using the unchanged standalone provider-v1 executable.
 
+## Repository transfer identity
+
+The canonical repository is `IPS-Stuttgart/Prob4D`, but frozen artifacts may
+correctly retain `FlorianPfaff/Prob4D`. Repository owner/name strings must not be
+rewritten inside content-addressed provider or observation artifacts.
+
+Use:
+
+```bash
+prob4d project identity --compact
+```
+
+for the additive stable project descriptor. New orchestration metadata should
+bind `github-repository-id:1295794737` as the durable project identity and record
+the canonical repository separately for navigation. Existing provider-v1,
+causal-stream, and provider-v2 artifact schemas retain their exact historical
+repository semantics. See [repository identity](repository-identity.md).
+
 ## Companion projects
 
 At the time Prob4D 0.3.0 was prepared, the companion package versions on their
@@ -65,6 +83,8 @@ manifests, artifacts, and protocol identifiers.
   content-addressed calibration artifacts.
 - A changed stochastic seed derivation requires a new MotionCrafter model
   identifier schema and regenerated calibration artifacts.
+- A repository transfer alone does not permit rewriting a frozen artifact's
+  source-repository field.
 
 Passing compatibility tests is infrastructure evidence. It does not establish
 accuracy, calibration, transfer, intervention benefit, or safety.
