@@ -1,0 +1,15 @@
+include CHANGELOG.md
+include CITATION.cff
+include CONTRIBUTING.md
+include README.md
+include SECURITY.md
+include pyproject.toml
+graft .github
+graft docs
+graft environments
+graft requirements
+graft scripts
+graft tests
+global-exclude __pycache__
+global-exclude *.py[cod]
+global-exclude .DS_Store

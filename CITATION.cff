@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use Prob4D in research, please cite this software and the associated paper."
+title: "Prob4D"
+type: software
+authors:
+  - family-names: "Pfaff"
+    given-names: "Florian"
+repository-code: "https://github.com/IPS-Stuttgart/Prob4D"
+url: "https://github.com/IPS-Stuttgart/Prob4D"
+version: "0.3.1"
+abstract: >-
+  Probabilistic recursive fusion for long-horizon 4D reconstruction from overlapping
+  MotionCrafter windows, with uncertain Sim(3) gauges, calibrated covariance, causal
+  observation export, and versioned provider contracts.
+keywords:
+  - "4D reconstruction"
+  - "Bayesian estimation"
+  - "robotics"
+  - "uncertainty quantification"
