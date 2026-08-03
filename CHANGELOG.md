@@ -37,6 +37,10 @@ All notable changes to Prob4D are documented here.
 - Bounded-memory metric, prefix-aligned, and oracle-aligned evaluation with an
   explicit chunk-size execution contract and deterministic process-level memory,
   timing, retained-storage, and numerical-agreement benchmark.
+- An opt-in self-hosted full-resolution memory-profile workflow that runs fusion
+  and provider evaluation in fresh processes, optionally profiles verified eager
+  and mmap prediction loading, binds host and revision identity, and uploads
+  checksummed machine-readable evidence.
 
 ### Changed
 
