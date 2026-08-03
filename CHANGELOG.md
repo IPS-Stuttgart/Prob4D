@@ -12,6 +12,18 @@ All notable changes to Prob4D are documented here.
 - Fail-closed seed-schedule validation that recomputes effective seeds and
   rejects missing, reordered, inconsistent, duplicated, or colliding derived
   calls.
+- Atomic, crash-safe, resumable MotionCrafter prediction production with a
+  content-addressed progress journal and member verification before reuse.
+- Immutable model-set identities for the MotionCrafter UNet, geometry/motion VAE,
+  base pipeline, and executed loader, using exact remote revisions or recursively
+  content-addressed local snapshots.
+- Versioned fused-prediction covariance semantics and a held-out provider
+  evaluator with paired equal-group aggregation and deterministic group
+  bootstrap intervals.
+- Explicit `float32` or `float64` dense prediction storage, frame-local ray
+  access, and deterministic retained-storage accounting for benchmark runs.
+- `FusedSequence` as a public immutable dense-output contract with canonical
+  dtypes, bounded active covariance validation, and read-only arrays.
 
 ### Changed
 
@@ -19,7 +31,24 @@ All notable changes to Prob4D are documented here.
   version-1 model identifier for legacy common-seed runs and uses a version-2
   identifier for `derived-per-call` runs, preventing silent calibration reuse
   across stochastic semantics.
-- `prob4d-benchmark` forwards and records the selected MotionCrafter seed policy.
+- `prob4d-benchmark` forwards and records the selected MotionCrafter seed policy,
+  model-set identity, prediction manifest identity, and dense-storage mode.
+- Reused benchmark outputs are admitted only after the prediction bundle,
+  baseline bytes, fused semantics, revisions, model identities, covariance
+  presence, and execution settings validate against the current run.
+- Held-out provider evaluation rejects one method label that mixes revisions,
+  model sets, seed policies, covariance meanings, gauge estimators, calibration
+  states, or dense-storage execution semantics across cases.
+- Fusion and fused-artifact loading transfer ownership of private arrays into the
+  immutable `FusedSequence` contract without an unnecessary second dense copy.
+
+### Fixed
+
+- `FusedSequence` no longer retains mutable aliases to caller-owned arrays or
+  leaves apparent dtype normalization local to validation. Active point and flow
+  covariance now fail closed on non-finite, asymmetric, or materially indefinite
+  matrices, while tolerated floating-point-scale negative eigenvalues are
+  projected to the positive-semidefinite boundary.
 
 ## 0.3.0 — 2026-07-30
 

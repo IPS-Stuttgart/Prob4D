@@ -294,7 +294,7 @@ def load_fused_prediction_artifact(path: str | Path) -> FusedPredictionArtifact:
                 f"{source} is missing fused uncertainty fields: {sorted(missing)}"
             )
         metadata = _metadata_from_archive(source, data)
-        sequence = FusedSequence(
+        sequence = FusedSequence._from_owned_arrays(
             frame_indices=data["frame_indices"],
             point_map=data["point_map"],
             valid_mask=data["valid_mask"],
