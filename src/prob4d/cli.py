@@ -79,6 +79,21 @@ _ROUTES: Final[dict[Route, tuple[str, str, str]]] = {
         "main",
         "run the held-out Sintel uncertainty analysis",
     ),
+    ("storage", "benchmark"): (
+        "prob4d.prediction_store_benchmark",
+        "main",
+        "profile eager or memory-mapped prediction loading",
+    ),
+    ("storage", "materialize"): (
+        "prob4d.prediction_store_cli",
+        "main_materialize",
+        "create a content-addressed memory-mapped prediction store",
+    ),
+    ("storage", "validate"): (
+        "prob4d.prediction_store_cli",
+        "main_validate",
+        "validate and summarize a memory-mapped prediction store",
+    ),
     ("vggt", "baseline"): (
         "prob4d.vggt_baseline",
         "main",
