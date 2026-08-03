@@ -7,6 +7,7 @@ from prob4d.fusion_memory_benchmark import run_benchmark
 
 def _arguments(**overrides: object) -> Namespace:
     values: dict[str, object] = {
+        "frames": 2,
         "height": 8,
         "width": 12,
         "contributors": 3,
@@ -25,6 +26,7 @@ def test_dense_fusion_memory_benchmark_emits_reproducible_contract() -> None:
     assert first["schema"] == "prob4d.dense-fusion-memory-benchmark"
     assert first["version"] == 1
     assert first["configuration"] == second["configuration"]
+    assert first["configuration"]["frames"] == 2
     assert first["output"] == second["output"]
     assert len(first["output"]["artifact_digest"]) == 64
     assert first["memory_bytes"]["retained_prediction_vectors"] > 0
@@ -38,6 +40,7 @@ def test_dense_fusion_memory_benchmark_emits_reproducible_contract() -> None:
 @pytest.mark.parametrize(
     ("field", "value", "message"),
     [
+        ("frames", 0, "frames must be positive"),
         ("height", 0, "height and width must be positive"),
         ("contributors", 0, "contributors must be positive"),
         ("fusion_tile_size", 0, "fusion tile size must be positive"),
