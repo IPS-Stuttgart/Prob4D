@@ -59,6 +59,9 @@ jobs:
           src/prob4d/composition_jacobian.py
           src/prob4d/covariance_root.py
           src/prob4d/observation_factor_stream.py
+          src/prob4d/prediction_store.py
+          src/prob4d/prediction_store_benchmark.py
+          src/prob4d/prediction_store_cli.py
           src/prob4d/project_identity.py
           src/prob4d/provider_attestation.py
           src/prob4d/provider_manifest.py
@@ -140,6 +143,9 @@ jobs:
           import prob4d.composition_jacobian
           import prob4d.covariance_root
           import prob4d.observation_factor_stream
+          import prob4d.prediction_store
+          import prob4d.prediction_store_benchmark
+          import prob4d.prediction_store_cli
           import prob4d.project_identity
           import prob4d.provider_attestation
           import prob4d.provider_evaluation
@@ -232,6 +238,7 @@ jobs:
           import prob4d.provider_v1 as provider_v1
           import prob4d.provider_v2 as provider_v2
           from prob4d.composition_jacobian import current_composition_jacobian_mode
+          from prob4d.prediction_store import load_prediction_bundle_store
           from prob4d.project_identity import prob4d_project_identity
 
           print(prob4d.__version__)
@@ -240,6 +247,7 @@ jobs:
           assert provider_v2.PROVIDER_API_VERSION == 2
           assert provider_v2.OBSERVATION_FACTOR_STREAM_VERSION == 1
           assert callable(provider_v2.load_claim_bearing_observation_belief)
+          assert callable(load_prediction_bundle_store)
           assert resources.files("prob4d").joinpath("py.typed").is_file()
           assert current_composition_jacobian_mode() == "legacy_finite_difference"
           assert prob4d_project_identity()["canonical_repository"] == "IPS-Stuttgart/Prob4D"
@@ -258,6 +266,9 @@ jobs:
           "$bin/prob4d" observation export-calibrated --help
           "$bin/prob4d" observation export-exploratory --help
           "$bin/prob4d" motioncrafter --help
+          "$bin/prob4d" storage benchmark --help
+          "$bin/prob4d" storage materialize --help
+          "$bin/prob4d" storage validate --help
           "$bin/prob4d-provider-manifest" --help
           "$bin/prob4d-ablate" --help
           "$bin/prob4d-ablate-provider-v2-gauge" --help
