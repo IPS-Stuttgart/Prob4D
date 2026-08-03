@@ -68,47 +68,6 @@ class EvaluationModes:
         }
 
 
-def _sanitize_flow_support(
-    prediction: FusedSequence,
-    truth: TruthSequence,
-) -> tuple[FusedSequence, TruthSequence]:
-    """Exclude invalid or non-finite flow entries before legacy metric calls."""
-
-    sanitized_prediction = prediction
-    if prediction.scene_flow is not None:
-        prediction_flow_mask = (
-            np.asarray(prediction.deform_mask, dtype=bool)
-            & prediction.valid_mask
-            & np.all(np.isfinite(prediction.scene_flow), axis=-1)
-        )
-        sanitized_prediction = FusedSequence(
-            frame_indices=prediction.frame_indices,
-            point_map=prediction.point_map,
-            valid_mask=prediction.valid_mask,
-            point_covariance=prediction.point_covariance,
-            contributors=prediction.contributors,
-            scene_flow=prediction.scene_flow,
-            deform_mask=prediction_flow_mask,
-            flow_covariance=prediction.flow_covariance,
-        )
-
-    sanitized_truth = truth
-    if truth.scene_flow is not None:
-        truth_flow_mask = (
-            np.asarray(truth.deform_mask, dtype=bool)
-            & truth.valid_mask
-            & np.all(np.isfinite(truth.scene_flow), axis=-1)
-        )
-        sanitized_truth = TruthSequence(
-            frame_indices=truth.frame_indices,
-            point_map=truth.point_map,
-            valid_mask=truth.valid_mask,
-            scene_flow=truth.scene_flow,
-            deform_mask=truth_flow_mask,
-        )
-    return sanitized_prediction, sanitized_truth
-
-
 def _common_pairs(
     prediction: FusedSequence,
     truth: TruthSequence,
@@ -132,6 +91,7 @@ def _fit_scale_translation_streaming(
     truth: TruthSequence,
     *,
     frame_stop_exclusive: int | None,
+    truth_support_mask: np.ndarray | None,
 ) -> tuple[float, np.ndarray, int, int]:
     """Fit one isotropic scale and translation without stacking dense frames."""
 
@@ -155,6 +115,8 @@ def _fit_scale_translation_streaming(
             & np.all(np.isfinite(source_frame), axis=-1)
             & np.all(np.isfinite(target_frame), axis=-1)
         )
+        if truth_support_mask is not None:
+            active &= truth_support_mask[truth_index]
         if not np.any(active):
             continue
         source = source_frame[active]
@@ -230,6 +192,8 @@ def _evaluate_transformed(
     fit_point_count: int,
     fit_frame_stop_exclusive: int | None,
     boundary_frames: list[int] | None,
+    truth_support_mask: np.ndarray | None,
+    truth_flow_support_mask: np.ndarray | None,
 ) -> EvaluationModeResult:
     transformed = _transformed_prediction(
         prediction,
@@ -241,6 +205,8 @@ def _evaluate_transformed(
         truth,
         boundary_frames=boundary_frames,
         align_scale_translation=False,
+        truth_support_mask=truth_support_mask,
+        truth_flow_support_mask=truth_flow_support_mask,
     )
     metrics = replace(metrics, fitted_alignment_scale=scale)
     return EvaluationModeResult(
@@ -260,6 +226,8 @@ def evaluate_sequence_modes(
     *,
     boundary_frames: list[int] | None = None,
     prefix_frame_stop_exclusive: int | None = None,
+    truth_support_mask: np.ndarray | None = None,
+    truth_flow_support_mask: np.ndarray | None = None,
 ) -> EvaluationModes:
     """Evaluate metric, causal-prefix-aligned, and oracle-aligned interpretations.
 
@@ -270,7 +238,18 @@ def evaluate_sequence_modes(
     than a causal prediction result.
     """
 
-    prediction, truth = _sanitize_flow_support(prediction, truth)
+    support_mask = None
+    if truth_support_mask is not None:
+        support_mask = np.asarray(truth_support_mask, dtype=bool)
+        if support_mask.shape != truth.valid_mask.shape:
+            raise ValueError("truth_support_mask must match truth valid_mask shape")
+    flow_support_mask = None
+    if truth_flow_support_mask is not None:
+        flow_support_mask = np.asarray(truth_flow_support_mask, dtype=bool)
+        if flow_support_mask.shape != truth.valid_mask.shape:
+            raise ValueError(
+                "truth_flow_support_mask must match truth valid_mask shape"
+            )
     metric = _evaluate_transformed(
         "metric",
         prediction,
@@ -281,6 +260,8 @@ def evaluate_sequence_modes(
         fit_point_count=0,
         fit_frame_stop_exclusive=None,
         boundary_frames=boundary_frames,
+        truth_support_mask=support_mask,
+        truth_flow_support_mask=flow_support_mask,
     )
 
     oracle_scale, oracle_translation, oracle_frames, oracle_points = (
@@ -288,6 +269,7 @@ def evaluate_sequence_modes(
             prediction,
             truth,
             frame_stop_exclusive=None,
+            truth_support_mask=support_mask,
         )
     )
     oracle = _evaluate_transformed(
@@ -300,6 +282,8 @@ def evaluate_sequence_modes(
         fit_point_count=oracle_points,
         fit_frame_stop_exclusive=None,
         boundary_frames=boundary_frames,
+        truth_support_mask=support_mask,
+        truth_flow_support_mask=flow_support_mask,
     )
 
     prefix: EvaluationModeResult | None = None
@@ -309,6 +293,7 @@ def evaluate_sequence_modes(
                 prediction,
                 truth,
                 frame_stop_exclusive=prefix_frame_stop_exclusive,
+                truth_support_mask=support_mask,
             )
         )
         prefix = _evaluate_transformed(
@@ -321,6 +306,8 @@ def evaluate_sequence_modes(
             fit_point_count=prefix_points,
             fit_frame_stop_exclusive=prefix_frame_stop_exclusive,
             boundary_frames=boundary_frames,
+            truth_support_mask=support_mask,
+            truth_flow_support_mask=flow_support_mask,
         )
 
     return EvaluationModes(
