@@ -48,6 +48,9 @@ Chunking is an execution setting, not an estimator or artifact setting:
 - no provider-v1, provider-v2, factor-bundle, or fused-prediction schema changes;
 - no artifact identity changes are introduced.
 
+The setting is orthogonal to the gauge estimator or diagnostic that produced the
+fused sequence. It neither promotes nor relabels experimental gauge-graph output.
+
 The provider report records `evaluation_chunk_size` so resource-sensitive runs
 remain auditable. Results may differ from the former eager implementation by
 floating-point summation roundoff only. Regression tests compare small and large
