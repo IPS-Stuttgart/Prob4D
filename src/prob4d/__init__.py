@@ -29,12 +29,6 @@ from .causal_gauge_graph import (
     CausalGaugeGraphStep,
     estimate_causal_multi_edge_gauge_graph,
 )
-from .guarded_causal_gauge_graph import (
-    GUARDED_CAUSAL_GAUGE_GRAPH_DEPENDENCE,
-    GUARDED_CAUSAL_GAUGE_GRAPH_MODE,
-    GuardedCausalGaugeGraphReport,
-    estimate_guarded_causal_multi_edge_gauge_graph,
-)
 from .causal_tracklets import (
     CausalTrackletReport,
     CausalTrackletSet,
@@ -52,6 +46,12 @@ from .evaluation_modes import (
     evaluate_sequence_modes,
 )
 from .fusion import FusedSequence
+from .guarded_causal_gauge_graph import (
+    GUARDED_CAUSAL_GAUGE_GRAPH_DEPENDENCE,
+    GUARDED_CAUSAL_GAUGE_GRAPH_MODE,
+    GuardedCausalGaugeGraphReport,
+    estimate_guarded_causal_multi_edge_gauge_graph,
+)
 from .observation_contract import (
     OBSERVATION_BELIEF_SCHEMA,
     OBSERVATION_BELIEF_VERSION,
