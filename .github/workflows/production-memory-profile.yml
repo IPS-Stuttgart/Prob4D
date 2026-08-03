@@ -1,0 +1,276 @@
+name: Production memory profile
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/production-memory-profile.yml"
+      - "docs/production-memory-profile.md"
+      - "src/prob4d/evaluation_memory_benchmark.py"
+      - "src/prob4d/fusion_memory_benchmark.py"
+      - "src/prob4d/prediction_store_benchmark.py"
+      - "tests/test_fusion_memory_benchmark.py"
+  workflow_dispatch:
+    inputs:
+      frames:
+        description: "Number of full-resolution frames"
+        required: true
+        default: "25"
+        type: string
+      height:
+        description: "Frame height"
+        required: true
+        default: "320"
+        type: string
+      width:
+        description: "Frame width"
+        required: true
+        default: "640"
+        type: string
+      contributors:
+        description: "Overlapping fusion contributors"
+        required: true
+        default: "3"
+        type: string
+      include_flow:
+        description: "Include dense scene flow in evaluation"
+        required: true
+        default: true
+        type: boolean
+      fusion_tile_size:
+        description: "Fusion tile size"
+        required: true
+        default: "16384"
+        type: string
+      evaluation_chunk_size:
+        description: "Evaluation chunk size"
+        required: true
+        default: "65536"
+        type: string
+      prediction_manifest:
+        description: "Optional absolute NPZ-bundle manifest path on the runner"
+        required: false
+        default: ""
+        type: string
+      prediction_store:
+        description: "Optional absolute mmap-store directory on the runner"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-memory-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PROFILE_FRAMES: ${{ inputs.frames }}
+  PROFILE_HEIGHT: ${{ inputs.height }}
+  PROFILE_WIDTH: ${{ inputs.width }}
+  PROFILE_CONTRIBUTORS: ${{ inputs.contributors }}
+  PROFILE_INCLUDE_FLOW: ${{ inputs.include_flow }}
+  PROFILE_FUSION_TILE_SIZE: ${{ inputs.fusion_tile_size }}
+  PROFILE_EVALUATION_CHUNK_SIZE: ${{ inputs.evaluation_chunk_size }}
+  PROFILE_PREDICTION_MANIFEST: ${{ inputs.prediction_manifest }}
+  PROFILE_PREDICTION_STORE: ${{ inputs.prediction_store }}
+
+jobs:
+  profile:
+    name: Full-resolution memory profile
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Linux, X64, nvidia-smi]
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install lightweight package
+        run: python -m pip install -e .
+      - name: Resolve profile configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "PROFILE_FRAMES=${PROFILE_FRAMES:-25}"
+            echo "PROFILE_HEIGHT=${PROFILE_HEIGHT:-320}"
+            echo "PROFILE_WIDTH=${PROFILE_WIDTH:-640}"
+            echo "PROFILE_CONTRIBUTORS=${PROFILE_CONTRIBUTORS:-3}"
+            echo "PROFILE_INCLUDE_FLOW=${PROFILE_INCLUDE_FLOW:-true}"
+            echo "PROFILE_FUSION_TILE_SIZE=${PROFILE_FUSION_TILE_SIZE:-16384}"
+            echo "PROFILE_EVALUATION_CHUNK_SIZE=${PROFILE_EVALUATION_CHUNK_SIZE:-65536}"
+            echo "PROFILE_PREDICTION_MANIFEST=${PROFILE_PREDICTION_MANIFEST:-}"
+            echo "PROFILE_PREDICTION_STORE=${PROFILE_PREDICTION_STORE:-}"
+          } >> "${GITHUB_ENV}"
+      - name: Record host identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p outputs/production-memory
+          {
+            echo "github_repository=${GITHUB_REPOSITORY}"
+            echo "github_sha=${GITHUB_SHA}"
+            echo "github_run_id=${GITHUB_RUN_ID}"
+            echo "runner_name=${RUNNER_NAME}"
+            echo "runner_os=${RUNNER_OS}"
+            echo "runner_arch=${RUNNER_ARCH}"
+            echo
+            uname -a
+            echo
+            lscpu
+            echo
+            free -b
+            echo
+            nvidia-smi
+            echo
+            python -VV
+            python -c 'import numpy; print("numpy=" + numpy.__version__)'
+          } > outputs/production-memory/host.txt 2>&1
+      - name: Profile full-window dense fusion
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m prob4d.fusion_memory_benchmark \
+            --frames "${PROFILE_FRAMES}" \
+            --height "${PROFILE_HEIGHT}" \
+            --width "${PROFILE_WIDTH}" \
+            --contributors "${PROFILE_CONTRIBUTORS}" \
+            --method covariance_intersection \
+            --fusion-tile-size "${PROFILE_FUSION_TILE_SIZE}" \
+            --output-json outputs/production-memory/fusion.json \
+            > outputs/production-memory/fusion.stdout.json
+      - name: Profile bounded provider evaluation
+        shell: bash
+        run: |
+          set -euo pipefail
+          flow_flag=()
+          if [[ "${PROFILE_INCLUDE_FLOW}" == "true" ]]; then
+            flow_flag+=(--include-flow)
+          fi
+          python -m prob4d.evaluation_memory_benchmark \
+            --frames "${PROFILE_FRAMES}" \
+            --height "${PROFILE_HEIGHT}" \
+            --width "${PROFILE_WIDTH}" \
+            --evaluation-chunk-size "${PROFILE_EVALUATION_CHUNK_SIZE}" \
+            "${flow_flag[@]}" \
+            --output-json outputs/production-memory/evaluation.json \
+            > outputs/production-memory/evaluation.stdout.json
+      - name: Profile optional prediction backends
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "${PROFILE_PREDICTION_MANIFEST}" ]]; then
+            python -m prob4d.prediction_store_benchmark \
+              "${PROFILE_PREDICTION_MANIFEST}" \
+              --backend eager_npz \
+              --dense-storage-dtype float32 \
+              --output-json outputs/production-memory/prediction-eager.json \
+              > outputs/production-memory/prediction-eager.stdout.json
+          fi
+          if [[ -n "${PROFILE_PREDICTION_STORE}" ]]; then
+            python -m prob4d.prediction_store_benchmark \
+              "${PROFILE_PREDICTION_STORE}" \
+              --backend mmap_npy \
+              --dense-storage-dtype float32 \
+              --output-json outputs/production-memory/prediction-mmap.json \
+              > outputs/production-memory/prediction-mmap.stdout.json
+          fi
+      - name: Validate and summarize reports
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path("outputs/production-memory")
+          reports = {}
+          for name in ("fusion", "evaluation", "prediction-eager", "prediction-mmap"):
+              path = root / f"{name}.json"
+              if not path.is_file():
+                  continue
+              report = json.loads(path.read_text(encoding="utf-8"))
+              if report["repository_revision"] != os.environ["GITHUB_SHA"]:
+                  raise RuntimeError(f"{name} revision does not match GITHUB_SHA")
+              peak = report["memory_bytes"]["peak_process_rss"]
+              if peak is None or int(peak) <= 0:
+                  raise RuntimeError(f"{name} did not report positive peak RSS")
+              reports[name] = report
+
+          if set(reports) < {"fusion", "evaluation"}:
+              raise RuntimeError("fusion and evaluation reports are required")
+
+          summary = {
+              "schema": "prob4d.production-memory-profile",
+              "version": 1,
+              "repository_revision": os.environ["GITHUB_SHA"],
+              "run_id": os.environ["GITHUB_RUN_ID"],
+              "runner_name": os.environ["RUNNER_NAME"],
+              "reports": {
+                  name: {
+                      "schema": value["schema"],
+                      "configuration": value["configuration"],
+                      "timing_seconds": value["timing_seconds"],
+                      "memory_bytes": value["memory_bytes"],
+                      "output": value["output"],
+                  }
+                  for name, value in sorted(reports.items())
+              },
+              "claim_boundary": (
+                  "Hardware-specific engineering evidence only. This report does not "
+                  "establish reconstruction accuracy, uncertainty calibration, "
+                  "Bayesian-PhysTwin benefit, or Causal4D benefit."
+              ),
+          }
+          encoded = json.dumps(summary, indent=2, sort_keys=True, allow_nan=False) + "\n"
+          (root / "summary.json").write_text(encoded, encoding="utf-8")
+
+          for path in sorted(root.iterdir()):
+              if path.is_file():
+                  digest = hashlib.sha256(path.read_bytes()).hexdigest()
+                  with (root / "SHA256SUMS").open("a", encoding="utf-8") as stream:
+                      stream.write(f"{digest}  {path.name}\n")
+
+          mib = 1024 * 1024
+          fusion = reports["fusion"]
+          evaluation = reports["evaluation"]
+          lines = [
+              "## Production memory profile",
+              "",
+              "| Phase | Peak RSS | Runtime |",
+              "| --- | ---: | ---: |",
+              (
+                  f"| Dense fusion | "
+                  f"{fusion['memory_bytes']['peak_process_rss'] / mib:.2f} MiB | "
+                  f"{fusion['timing_seconds']['fusion']:.3f} s |"
+              ),
+              (
+                  f"| Provider evaluation | "
+                  f"{evaluation['memory_bytes']['peak_process_rss'] / mib:.2f} MiB | "
+                  f"{evaluation['timing_seconds']['evaluation']:.3f} s |"
+              ),
+              "",
+              f"Runner: `{os.environ['RUNNER_NAME']}`; revision: `{os.environ['GITHUB_SHA']}`.",
+          ]
+          with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a", encoding="utf-8") as stream:
+              stream.write("\n".join(lines) + "\n")
+          PY
+      - name: Upload profile evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: production-memory-profile-${{ github.run_id }}
+          path: outputs/production-memory
+          if-no-files-found: error
+          retention-days: 30
