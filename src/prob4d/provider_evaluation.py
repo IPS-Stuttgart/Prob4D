@@ -11,11 +11,15 @@ from ._provider_evaluation_compute import (
     aggregate_provider_records,
     evaluate_provider_cases,
 )
+from ._provider_evaluation_decision import evaluate_provider_decision_policy
 from ._provider_evaluation_manifest import (
+    PROVIDER_EVALUATION_DECISION_VERSION,
     PROVIDER_EVALUATION_SCHEMA,
     PROVIDER_EVALUATION_VERSION,
     ProviderEvaluationCase,
-    load_provider_evaluation_cases,
+    ProviderEvaluationDecisionPolicy,
+    ProviderEvaluationDecisionRule,
+    load_provider_evaluation_plan,
     validate_finite_json,
 )
 from ._provider_evaluation_output import write_provider_evaluation_outputs
@@ -39,8 +43,8 @@ def run_provider_evaluation(
     if normalized_seed != seed:
         raise ValueError("seed must be an integer")
     source = Path(manifest_path).resolve()
-    cases, primary_mode, reference_method, manifest_metadata = (
-        load_provider_evaluation_cases(source)
+    cases, primary_mode, reference_method, manifest_metadata, decision_policy = (
+        load_provider_evaluation_plan(source)
     )
     records, method_metadata = evaluate_provider_cases(
         cases,
@@ -52,13 +56,24 @@ def run_provider_evaluation(
         bootstrap_resamples=bootstrap_resamples,
         seed=normalized_seed,
     )
+    decision = (
+        None
+        if decision_policy is None
+        else evaluate_provider_decision_policy(
+            decision_policy,
+            aggregate=aggregate,
+            comparisons=comparisons,
+            primary_mode=primary_mode,
+            reference_method=reference_method,
+        )
+    )
     clean_records = [
         {key: value for key, value in record.items() if key != "_numeric"}
         for record in records
     ]
     report: dict[str, Any] = {
         "schema_name": "prob4d.provider-evaluation-report",
-        "schema_version": 2,
+        "schema_version": 2 if decision_policy is None else 3,
         "source_manifest": str(source),
         "source_manifest_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
         "primary_mode": primary_mode,
@@ -85,6 +100,9 @@ def run_provider_evaluation(
             "Causal4D intervention benefit."
         ),
     }
+    if decision_policy is not None:
+        report["decision_policy"] = decision_policy.to_dict()
+        report["decision"] = decision
     validate_finite_json(report, name="provider-evaluation report")
     write_provider_evaluation_outputs(
         output_directory,
@@ -94,6 +112,7 @@ def run_provider_evaluation(
         reference_method=reference_method,
         aggregate=aggregate,
         comparisons=comparisons,
+        decision=decision,
     )
     return report
 
@@ -112,8 +131,16 @@ def main(argv: list[str] | None = None) -> int:
             "semantics were not embedded; use only for labelled diagnostics"
         ),
     )
+    parser.add_argument(
+        "--require-decision-pass",
+        action="store_true",
+        help=(
+            "require a schema-v2 preregistered decision policy and return exit code "
+            "3 when its independent-group or paired metric gates do not pass"
+        ),
+    )
     arguments = parser.parse_args(argv)
-    run_provider_evaluation(
+    report = run_provider_evaluation(
         arguments.manifest,
         arguments.output_dir,
         bootstrap_resamples=arguments.bootstrap_resamples,
@@ -121,6 +148,14 @@ def main(argv: list[str] | None = None) -> int:
         allow_legacy_artifacts=arguments.allow_legacy_artifacts,
     )
     print(arguments.output_dir / "provider_evaluation.json")
+    if arguments.require_decision_pass:
+        decision = report.get("decision")
+        if not isinstance(decision, dict):
+            parser.error(
+                "--require-decision-pass requires a schema-v2 manifest decision_policy"
+            )
+        if decision.get("overall_passed") is not True:
+            return 3
     return 0
 
 
@@ -129,8 +164,11 @@ if __name__ == "__main__":
 
 
 __all__ = [
+    "PROVIDER_EVALUATION_DECISION_VERSION",
     "PROVIDER_EVALUATION_SCHEMA",
     "PROVIDER_EVALUATION_VERSION",
     "ProviderEvaluationCase",
+    "ProviderEvaluationDecisionPolicy",
+    "ProviderEvaluationDecisionRule",
     "run_provider_evaluation",
 ]
