@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Literal
 
@@ -15,6 +16,12 @@ from .uncertainty import StructuredCovariance
 
 FloatArray = NDArray[np.floating]
 FusionMethod = Literal["uniform", "precision", "covariance_intersection"]
+DEFAULT_FUSION_TILE_SIZE = 16_384
+DEFAULT_CI_WEIGHT_SAMPLE_SIZE = 4_096
+FrameFieldLoader = Callable[
+    [int, NDArray[np.int64]],
+    tuple[FloatArray, FloatArray],
+]
 
 
 @dataclass(frozen=True)
@@ -571,44 +578,346 @@ def _fuse_contributor_stack(
     raise ValueError(f"unknown fusion method {method!r}")
 
 
-def _fuse_frame_fields(
-    means: list[FloatArray],
-    covariances: list[FloatArray],
+def _covariance_intersection_weights(
+    means: FloatArray,
+    covariances: FloatArray,
+) -> FloatArray:
+    """Optimize one global CI weight vector for a bounded representative sample."""
+
+    contributor_count = means.shape[0]
+    if contributor_count < 2:
+        return np.ones(1, dtype=np.float64)
+    if contributor_count == 2:
+        _, _, first_weight = fuse_gaussians_covariance_intersection(
+            means[0],
+            covariances[0],
+            means[1],
+            covariances[1],
+            weight_sample_size=means.shape[1],
+        )
+        value = float(np.ravel(first_weight)[0])
+        return np.asarray([value, 1.0 - value], dtype=np.float64)
+
+    from ._generalized_ci import fuse_nway_covariance_intersection
+
+    _, _, weights = fuse_nway_covariance_intersection(
+        means,
+        covariances,
+        weight_sample_size=means.shape[1],
+        canonicalize=False,
+    )
+    return weights
+
+
+def _fuse_contributor_stack_fixed_ci(
+    means: FloatArray,
+    covariances: FloatArray,
+    weights: FloatArray,
+) -> tuple[FloatArray, FloatArray]:
+    """Apply already optimized CI weights to one bounded spatial tile."""
+
+    contributor_count = means.shape[0]
+    normalized_weights = np.asarray(weights, dtype=np.float64)
+    if normalized_weights.shape != (contributor_count,):
+        raise ValueError("CI weights must match the contributor count")
+    if contributor_count == 1:
+        return means[0], covariances[0]
+
+    information = _regularized_inverse(covariances)
+    if contributor_count == 2:
+        first_weight = float(normalized_weights[0])
+        second_weight = float(normalized_weights[1])
+        fused_covariance = _regularized_inverse(
+            first_weight * information[0] + second_weight * information[1]
+        )
+        information_vector = first_weight * np.einsum(
+            "nij,nj->ni", information[0], means[0]
+        ) + second_weight * np.einsum(
+            "nij,nj->ni", information[1], means[1]
+        )
+    else:
+        fused_covariance = _regularized_inverse(
+            np.einsum(
+                "k,knij->nij",
+                normalized_weights,
+                information,
+                optimize=True,
+            )
+        )
+        information_vector = np.einsum(
+            "k,knij,knj->ni",
+            normalized_weights,
+            information,
+            means,
+            optimize=True,
+        )
+    fused_mean = np.einsum(
+        "nij,nj->ni",
+        fused_covariance,
+        information_vector,
+        optimize=True,
+    )
+    return fused_mean, fused_covariance
+
+
+def _representative_positions(sample_count: int) -> NDArray[np.int64]:
+    """Match the existing deterministic CI sampling policy without dense copies."""
+
+    if sample_count < 1:
+        raise ValueError("CI weight optimization requires at least one sample")
+    if sample_count <= DEFAULT_CI_WEIGHT_SAMPLE_SIZE:
+        return np.arange(sample_count, dtype=np.int64)
+    return np.linspace(
+        0,
+        sample_count - 1,
+        DEFAULT_CI_WEIGHT_SAMPLE_SIZE,
+        dtype=np.int64,
+    )
+
+
+def _validated_loaded_tile(
+    loader: FrameFieldLoader,
+    contributor_index: int,
+    indices: NDArray[np.int64],
+) -> tuple[np.ndarray, np.ndarray]:
+    """Load one contributor tile and validate its compact dense shapes."""
+
+    means, covariances = loader(contributor_index, indices)
+    mean_array = np.asarray(means, dtype=np.float64)
+    covariance_array = np.asarray(covariances, dtype=np.float64)
+    expected_mean_shape = (indices.size, 3)
+    expected_covariance_shape = (indices.size, 3, 3)
+    if mean_array.shape != expected_mean_shape:
+        raise ValueError(f"frame tile means must have shape {expected_mean_shape}")
+    if covariance_array.shape != expected_covariance_shape:
+        raise ValueError(
+            f"frame tile covariances must have shape {expected_covariance_shape}"
+        )
+    return mean_array, covariance_array
+
+
+def _fuse_frame_field_loader(
     masks: list[NDArray[np.bool_]],
     *,
     method: FusionMethod,
+    loader: FrameFieldLoader,
+    tile_size: int,
 ) -> tuple[FloatArray, FloatArray, NDArray[np.bool_], NDArray[np.uint16]]:
-    """Fuse all contributors to one frame without pairwise ordering effects."""
+    """Fuse one frame from a tile loader while retaining frame-global CI weights."""
 
-    stacked_means = np.stack(means)
-    stacked_covariances = np.stack(covariances)
-    stacked_masks = np.stack(masks)
+    if tile_size < 1:
+        raise ValueError("fusion tile_size must be positive")
+    if not masks:
+        raise ValueError("frame fusion requires at least one contributor")
+    if len(masks) > np.iinfo(np.uint16).max:
+        raise ValueError("frame fusion contributor count exceeds uint16 storage")
+
+    normalized_masks = [np.asarray(mask, dtype=bool) for mask in masks]
+    first_shape = normalized_masks[0].shape
+    if len(first_shape) != 2:
+        raise ValueError("frame masks must have shape (H, W)")
+    if any(mask.shape != first_shape for mask in normalized_masks):
+        raise ValueError(f"frame masks must have shape {first_shape}")
+
+    stacked_masks = np.stack(normalized_masks)
     contributor_count, height, width = stacked_masks.shape
     active_rows = stacked_masks.reshape(contributor_count, -1).T
     patterns, inverse = np.unique(active_rows, axis=0, return_inverse=True)
     output_mean = np.zeros((height * width, 3), dtype=np.float64)
     output_covariance = np.zeros((height * width, 3, 3), dtype=np.float64)
     output_count = np.sum(active_rows, axis=1, dtype=np.uint16)
-    flat_means = stacked_means.reshape(contributor_count, -1, 3)
-    flat_covariances = stacked_covariances.reshape(contributor_count, -1, 3, 3)
+
     for pattern_index, pattern in enumerate(patterns):
         active = np.flatnonzero(pattern)
-        if len(active) == 0:
+        if active.size == 0:
             continue
-        selected = inverse == pattern_index
-        fused_mean, fused_covariance = _fuse_contributor_stack(
-            flat_means[active][:, selected],
-            flat_covariances[active][:, selected],
-            method=method,
-        )
-        output_mean[selected] = fused_mean
-        output_covariance[selected] = fused_covariance
+        selected_indices = np.flatnonzero(inverse == pattern_index)
+
+        ci_weights: FloatArray | None = None
+        if method == "covariance_intersection" and active.size > 1:
+            sample_positions = _representative_positions(selected_indices.size)
+            sample_indices = selected_indices[sample_positions]
+            loaded_sample = [
+                _validated_loaded_tile(loader, int(index), sample_indices)
+                for index in active
+            ]
+            sample_means = np.stack([values[0] for values in loaded_sample])
+            sample_covariances = np.stack([values[1] for values in loaded_sample])
+            ci_weights = _covariance_intersection_weights(
+                sample_means,
+                sample_covariances,
+            )
+
+        for start in range(0, selected_indices.size, tile_size):
+            stop = min(start + tile_size, selected_indices.size)
+            tile_indices = selected_indices[start:stop]
+            loaded_tile = [
+                _validated_loaded_tile(loader, int(index), tile_indices)
+                for index in active
+            ]
+            tile_means = np.stack([values[0] for values in loaded_tile])
+            tile_covariances = np.stack([values[1] for values in loaded_tile])
+            if ci_weights is None:
+                fused_mean, fused_covariance = _fuse_contributor_stack(
+                    tile_means,
+                    tile_covariances,
+                    method=method,
+                )
+            else:
+                fused_mean, fused_covariance = _fuse_contributor_stack_fixed_ci(
+                    tile_means,
+                    tile_covariances,
+                    ci_weights,
+                )
+            output_mean[tile_indices] = fused_mean
+            output_covariance[tile_indices] = fused_covariance
+
     valid = output_count > 0
     return (
         output_mean.reshape(height, width, 3),
         output_covariance.reshape(height, width, 3, 3),
         valid.reshape(height, width),
         output_count.reshape(height, width),
+    )
+
+
+def _fuse_frame_fields(
+    means: list[FloatArray],
+    covariances: list[FloatArray],
+    masks: list[NDArray[np.bool_]],
+    *,
+    method: FusionMethod,
+    tile_size: int = DEFAULT_FUSION_TILE_SIZE,
+) -> tuple[FloatArray, FloatArray, NDArray[np.bool_], NDArray[np.uint16]]:
+    """Fuse already materialized frame fields in bounded spatial tiles."""
+
+    if not means or len(means) != len(covariances) or len(means) != len(masks):
+        raise ValueError("frame fusion requires matching nonempty contributor lists")
+
+    first_mask = np.asarray(masks[0], dtype=bool)
+    if first_mask.ndim != 2:
+        raise ValueError("frame masks must have shape (H, W)")
+    height, width = first_mask.shape
+    expected_mean_shape = (height, width, 3)
+    expected_covariance_shape = (height, width, 3, 3)
+    normalized_means: list[np.ndarray] = []
+    normalized_covariances: list[np.ndarray] = []
+    for mean, covariance in zip(means, covariances, strict=True):
+        mean_array = np.asarray(mean, dtype=np.float64)
+        covariance_array = np.asarray(covariance, dtype=np.float64)
+        if mean_array.shape != expected_mean_shape:
+            raise ValueError(f"frame means must have shape {expected_mean_shape}")
+        if covariance_array.shape != expected_covariance_shape:
+            raise ValueError(
+                f"frame covariances must have shape {expected_covariance_shape}"
+            )
+        normalized_means.append(mean_array.reshape(-1, 3))
+        normalized_covariances.append(covariance_array.reshape(-1, 3, 3))
+
+    def loader(
+        contributor_index: int,
+        indices: NDArray[np.int64],
+    ) -> tuple[FloatArray, FloatArray]:
+        return (
+            normalized_means[contributor_index][indices],
+            normalized_covariances[contributor_index][indices],
+        )
+
+    return _fuse_frame_field_loader(
+        masks,
+        method=method,
+        loader=loader,
+        tile_size=tile_size,
+    )
+
+
+@dataclass(frozen=True)
+class _WindowFrameField:
+    """One local point or flow field with lazily materialized world covariance."""
+
+    values: FloatArray
+    uncertainty: StructuredCovariance
+    transform: Sim3
+    local_index: int
+    gauge_covariance: FloatArray | None
+    include_translation: bool
+
+
+def _structured_covariance_rows(
+    uncertainty: StructuredCovariance,
+    transform: Sim3,
+    local_index: int,
+    flat_indices: NDArray[np.int64],
+) -> FloatArray:
+    """Expand structured covariance only for selected spatial rows."""
+
+    rays = uncertainty.ray_directions[local_index].reshape(-1, 3)[flat_indices]
+    rays = transform.rotate_directions(rays)
+    parallel = (
+        transform.scale**2
+        * uncertainty.parallel_variance[local_index].reshape(-1)[flat_indices]
+    )
+    lateral = (
+        transform.scale**2
+        * uncertainty.lateral_variance[local_index].reshape(-1)[flat_indices]
+    )
+    outer = np.einsum("ni,nj->nij", rays, rays)
+    return lateral[:, None, None] * np.eye(3) + (
+        parallel - lateral
+    )[:, None, None] * outer
+
+
+def _load_window_frame_tile(
+    field: _WindowFrameField,
+    flat_indices: NDArray[np.int64],
+) -> tuple[FloatArray, FloatArray]:
+    """Transform one compact tile and add local plus gauge-induced covariance."""
+
+    local_values = np.asarray(field.values).reshape(-1, 3)[flat_indices]
+    transformed = (
+        field.transform.transform_points(local_values)
+        if field.include_translation
+        else field.transform.transform_vectors(local_values)
+    )
+    covariance = _structured_covariance_rows(
+        field.uncertainty,
+        field.transform,
+        field.local_index,
+        flat_indices,
+    )
+    if field.gauge_covariance is not None:
+        covariance += _gauge_induced_covariance(
+            local_values,
+            field.transform,
+            field.gauge_covariance,
+            include_translation=field.include_translation,
+        )
+    return transformed, covariance
+
+
+def _fuse_window_frame_fields(
+    fields: list[_WindowFrameField],
+    masks: list[NDArray[np.bool_]],
+    *,
+    method: FusionMethod,
+    tile_size: int,
+) -> tuple[FloatArray, FloatArray, NDArray[np.bool_], NDArray[np.uint16]]:
+    """Fuse local window fields without materializing contributor-sized matrices."""
+
+    if len(fields) != len(masks) or not fields:
+        raise ValueError("window-frame fusion requires matching nonempty fields and masks")
+
+    def loader(
+        contributor_index: int,
+        indices: NDArray[np.int64],
+    ) -> tuple[FloatArray, FloatArray]:
+        return _load_window_frame_tile(fields[contributor_index], indices)
+
+    return _fuse_frame_field_loader(
+        masks,
+        method=method,
+        loader=loader,
+        tile_size=tile_size,
     )
 
 
@@ -679,12 +988,14 @@ def fuse_windows(
     method: FusionMethod,
     flow_uncertainties: dict[str, StructuredCovariance] | None = None,
     gauge_covariances: dict[str, FloatArray] | None = None,
+    fusion_tile_size: int = DEFAULT_FUSION_TILE_SIZE,
 ) -> FusedSequence:
     """Transform and jointly fuse duplicate pixels in canonical window order.
 
-    Every frame/mask pattern is fused in one batch. Uniform and independent
-    precision fusion use their exact multi-input formulas; covariance intersection
-    solves one generalized simplex problem for all contributors.
+    Uniform and independent precision fusion use their exact multi-input formulas;
+    covariance intersection solves one generalized simplex problem for every full
+    frame/mask pattern. Dense application is then processed in bounded spatial
+    tiles without changing those global weights.
     """
 
     if not windows:
@@ -704,6 +1015,8 @@ def fuse_windows(
         raise ValueError("all windows must use the same spatial resolution")
     if method not in {"uniform", "precision", "covariance_intersection"}:
         raise ValueError(f"unknown fusion method {method!r}")
+    if fusion_tile_size < 1:
+        raise ValueError("fusion_tile_size must be positive")
     for window in ordered_windows:
         if window.window_id not in gauges or window.window_id not in point_uncertainties:
             raise KeyError(f"missing gauge or uncertainty for window {window.window_id!r}")
@@ -730,11 +1043,9 @@ def fuse_windows(
     flow_covariance = np.zeros_like(point_covariance) if has_flow else None
 
     for output_index, frame in enumerate(all_frames):
-        point_means: list[FloatArray] = []
-        point_covariances: list[FloatArray] = []
+        point_fields: list[_WindowFrameField] = []
         point_masks: list[NDArray[np.bool_]] = []
-        flow_means: list[FloatArray] = []
-        flow_covariances: list[FloatArray] = []
+        flow_fields: list[_WindowFrameField] = []
         flow_masks: list[NDArray[np.bool_]] = []
         for window in ordered_windows:
             try:
@@ -742,22 +1053,21 @@ def fuse_windows(
             except KeyError:
                 continue
             gauge = gauges[window.window_id]
-            local_points = window.point_map[local_index]
-            transformed_points = gauge.transform_points(local_points)
-            transformed_point_covariance = _structured_covariance_frame(
-                point_uncertainties[window.window_id],
-                gauge,
-                local_index,
+            gauge_covariance = (
+                None
+                if gauge_covariances is None
+                else gauge_covariances[window.window_id]
             )
-            if gauge_covariances is not None:
-                transformed_point_covariance += _gauge_induced_covariance(
-                    local_points,
-                    gauge,
-                    gauge_covariances[window.window_id],
+            point_fields.append(
+                _WindowFrameField(
+                    values=window.point_map[local_index],
+                    uncertainty=point_uncertainties[window.window_id],
+                    transform=gauge,
+                    local_index=local_index,
+                    gauge_covariance=gauge_covariance,
                     include_translation=True,
                 )
-            point_means.append(transformed_points)
-            point_covariances.append(transformed_point_covariance)
+            )
             point_masks.append(window.valid_mask[local_index])
 
             if window.scene_flow is None:
@@ -767,22 +1077,17 @@ def fuse_windows(
                 if flow_uncertainties is not None
                 else point_uncertainties[window.window_id]
             )
-            local_flow = window.scene_flow[local_index]
-            transformed_flow = gauge.transform_vectors(local_flow)
-            transformed_flow_covariance = _structured_covariance_frame(
-                uncertainty,
-                gauge,
-                local_index,
-            )
-            if gauge_covariances is not None:
-                transformed_flow_covariance += _gauge_induced_covariance(
-                    local_flow,
-                    gauge,
-                    gauge_covariances[window.window_id],
+            flow_fields.append(
+                _WindowFrameField(
+                    values=window.scene_flow[local_index],
+                    uncertainty=uncertainty,
+                    transform=gauge,
+                    local_index=local_index,
+                    gauge_covariance=gauge_covariance,
                     include_translation=False,
                 )
-            flow_means.append(transformed_flow)
-            flow_covariances.append(transformed_flow_covariance)
+            )
+            assert window.deform_mask is not None
             flow_masks.append(window.deform_mask[local_index])
 
         (
@@ -790,23 +1095,26 @@ def fuse_windows(
             point_covariance[output_index],
             valid_mask[output_index],
             contributors[output_index],
-        ) = _fuse_frame_fields(
-            point_means,
-            point_covariances,
+        ) = _fuse_window_frame_fields(
+            point_fields,
             point_masks,
             method=method,
+            tile_size=fusion_tile_size,
         )
-        if flow_means:
+        if flow_fields:
+            assert scene_flow is not None
+            assert flow_covariance is not None
+            assert deform_mask is not None
             (
                 scene_flow[output_index],
                 flow_covariance[output_index],
                 deform_mask[output_index],
                 _,
-            ) = _fuse_frame_fields(
-                flow_means,
-                flow_covariances,
+            ) = _fuse_window_frame_fields(
+                flow_fields,
                 flow_masks,
                 method=method,
+                tile_size=fusion_tile_size,
             )
 
     return FusedSequence._from_owned_arrays(
