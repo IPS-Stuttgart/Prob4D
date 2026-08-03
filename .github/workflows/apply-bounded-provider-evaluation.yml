@@ -57,6 +57,28 @@ jobs:
           git apply --check /tmp/bounded-provider-evaluation.patch
           git apply /tmp/bounded-provider-evaluation.patch
 
+      - name: Normalize benchmark wrapper formatting
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("scripts/benchmark_evaluation_memory.py")
+          text = path.read_text(encoding="utf-8")
+          old = (
+              "from prob4d.evaluation_memory_benchmark import main\n\n\n"
+              "if __name__ == \"__main__\":\n"
+          )
+          new = (
+              "from prob4d.evaluation_memory_benchmark import main\n\n"
+              "if __name__ == \"__main__\":\n"
+          )
+          if text.count(old) != 1:
+              raise RuntimeError("unexpected benchmark wrapper layout")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
+
       - name: Remove one-shot staging files
         shell: bash
         run: |
