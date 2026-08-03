@@ -101,7 +101,7 @@ from .uncertainty import GroupBalancedCalibrationReport
 try:
     __version__ = version("prob4d")
 except PackageNotFoundError:  # Source tree without installed distribution metadata.
-    __version__ = "0.3.0"
+    __version__ = "0.3.1"
 
 __all__ = [
     "GAUGE_COVARIANCE_CALIBRATION_SCHEMA",
