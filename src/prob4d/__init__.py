@@ -22,6 +22,13 @@ from .calibration import (
     save_gauge_covariance_calibration,
     save_point_uncertainty_calibration,
 )
+from .causal_gauge_graph import (
+    CAUSAL_GAUGE_GRAPH_DEPENDENCE,
+    CAUSAL_GAUGE_GRAPH_MODE,
+    CausalGaugeGraphReport,
+    CausalGaugeGraphStep,
+    estimate_causal_multi_edge_gauge_graph,
+)
 from .causal_tracklets import (
     CausalTrackletReport,
     CausalTrackletSet,
@@ -124,6 +131,8 @@ except PackageNotFoundError:  # Source tree without installed distribution metad
     __version__ = "0.3.1"
 
 __all__ = [
+    "CAUSAL_GAUGE_GRAPH_DEPENDENCE",
+    "CAUSAL_GAUGE_GRAPH_MODE",
     "GAUGE_COVARIANCE_CALIBRATION_SCHEMA",
     "GAUGE_COVARIANCE_CALIBRATION_VERSION",
     "OBSERVATION_BELIEF_SCHEMA",
@@ -145,6 +154,8 @@ __all__ = [
     "SOURCE_RELIABILITY_VERSION",
     "AlignmentCycleAudit",
     "AlignmentCycleResidual",
+    "CausalGaugeGraphReport",
+    "CausalGaugeGraphStep",
     "CausalTrackletReport",
     "CausalTrackletSet",
     "CommonModeFailureAudit",
@@ -184,6 +195,7 @@ __all__ = [
     "build_source_reliability_features",
     "canonical_prob4d_repository",
     "deterministic_covariance_root",
+    "estimate_causal_multi_edge_gauge_graph",
     "estimate_joint_gauge_tree",
     "evaluate_sequence_modes",
     "fit_group_balanced_point_uncertainty_calibration",
