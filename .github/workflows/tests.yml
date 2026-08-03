@@ -68,6 +68,7 @@ jobs:
           src/prob4d/provider_v2_cli.py
           src/prob4d/provider_v2_loading.py
           src/prob4d/runtime_revision.py
+          src/prob4d/source_diagnostics.py
           2>&1 | tee mypy-output.txt
       - name: Upload mypy diagnostics
         if: steps.mypy.outcome == 'failure'
@@ -154,6 +155,7 @@ jobs:
           import prob4d.provider_v2_cli
           import prob4d.provider_v2_loading
           import prob4d.runtime_revision
+          import prob4d.source_diagnostics
 
           forbidden = {"torch", "diffusers", "decord"}
           loaded = sorted(forbidden & set(sys.modules))

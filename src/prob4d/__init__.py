@@ -85,6 +85,14 @@ from .project_identity import (
     validate_prob4d_project_identity,
 )
 from .sim3 import Sim3
+from .source_diagnostics import (
+    CommonModeFailureAudit,
+    SourceOnlyDiagnosticGrid,
+    audit_common_mode_failures,
+    augment_source_reliability_features,
+    build_common_gauge_seed_dispersion_diagnostic,
+    build_flow_point_consistency_diagnostic,
+)
 from .source_reliability import (
     SOURCE_RELIABILITY_SCHEMA,
     SOURCE_RELIABILITY_VERSION,
@@ -123,6 +131,7 @@ __all__ = [
     "AlignmentCycleResidual",
     "CausalTrackletReport",
     "CausalTrackletSet",
+    "CommonModeFailureAudit",
     "CrossFittedDisagreementReport",
     "EvaluationModeResult",
     "EvaluationModes",
@@ -140,6 +149,7 @@ __all__ = [
     "PointUncertaintyCalibrationV1",
     "PredictionWindow",
     "Sim3",
+    "SourceOnlyDiagnosticGrid",
     "SourceReliabilityCalibrationReport",
     "SourceReliabilityFeatures",
     "SourceReliabilityModelV1",
@@ -148,7 +158,11 @@ __all__ = [
     "alignment_edge_id",
     "append_observation_factor_bundle",
     "audit_alignment_cycles",
+    "audit_common_mode_failures",
+    "augment_source_reliability_features",
     "build_causal_scene_flow_tracklets",
+    "build_common_gauge_seed_dispersion_diagnostic",
+    "build_flow_point_consistency_diagnostic",
     "build_prob4d_observation_belief",
     "build_source_reliability_features",
     "canonical_prob4d_repository",
