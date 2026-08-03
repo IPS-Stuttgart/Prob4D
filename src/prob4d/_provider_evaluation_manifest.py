@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,8 +14,14 @@ import numpy as np
 
 PROVIDER_EVALUATION_SCHEMA = "prob4d.provider-evaluation"
 PROVIDER_EVALUATION_VERSION = 1
+PROVIDER_EVALUATION_DECISION_VERSION = 2
 EvaluationModeName = Literal["metric", "prefix_aligned", "oracle_aligned"]
+DecisionDirection = Literal["lower", "higher"]
+DecisionCriterion = Literal["superiority", "noninferiority"]
 _EVALUATION_MODES = {"metric", "prefix_aligned", "oracle_aligned"}
+_DECISION_DIRECTIONS = {"lower", "higher"}
+_DECISION_CRITERIA = {"superiority", "noninferiority"}
+_METRIC_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
 
 
 @dataclass(frozen=True)
@@ -65,6 +72,95 @@ class ProviderEvaluationCase:
         object.__setattr__(self, "prefix_frame_stop_exclusive", prefix_stop)
 
 
+@dataclass(frozen=True)
+class ProviderEvaluationDecisionRule:
+    """One preregistered paired comparison against the manifest reference method."""
+
+    rule_id: str
+    candidate_method: str
+    metric: str
+    direction: DecisionDirection
+    criterion: DecisionCriterion
+    margin: float = 0.0
+
+    def __post_init__(self) -> None:
+        rule_id = str(self.rule_id).strip()
+        candidate_method = str(self.candidate_method).strip()
+        metric = str(self.metric).strip()
+        direction = str(self.direction).strip()
+        criterion = str(self.criterion).strip()
+        margin = float(self.margin)
+        if not rule_id or not candidate_method:
+            raise ValueError("decision rule and candidate IDs must be nonempty")
+        if _METRIC_NAME.fullmatch(metric) is None:
+            raise ValueError(
+                "decision metric must be one unqualified evaluation metric name"
+            )
+        if direction not in _DECISION_DIRECTIONS:
+            raise ValueError(
+                f"decision direction must be one of {sorted(_DECISION_DIRECTIONS)}"
+            )
+        if criterion not in _DECISION_CRITERIA:
+            raise ValueError(
+                f"decision criterion must be one of {sorted(_DECISION_CRITERIA)}"
+            )
+        if not math.isfinite(margin) or margin < 0.0:
+            raise ValueError("decision margin must be finite and nonnegative")
+        object.__setattr__(self, "rule_id", rule_id)
+        object.__setattr__(self, "candidate_method", candidate_method)
+        object.__setattr__(self, "metric", metric)
+        object.__setattr__(self, "direction", direction)
+        object.__setattr__(self, "criterion", criterion)
+        object.__setattr__(self, "margin", margin)
+
+    def to_dict(self) -> dict[str, str | float]:
+        return {
+            "rule_id": self.rule_id,
+            "candidate_method": self.candidate_method,
+            "metric": self.metric,
+            "direction": self.direction,
+            "criterion": self.criterion,
+            "margin": self.margin,
+        }
+
+
+@dataclass(frozen=True)
+class ProviderEvaluationDecisionPolicy:
+    """Target-frozen provider competence rule set."""
+
+    policy_id: str
+    minimum_group_count: int
+    rules: tuple[ProviderEvaluationDecisionRule, ...]
+
+    def __post_init__(self) -> None:
+        policy_id = str(self.policy_id).strip()
+        if not policy_id:
+            raise ValueError("decision policy_id must be nonempty")
+        minimum_group_count = self.minimum_group_count
+        if (
+            isinstance(minimum_group_count, bool)
+            or not isinstance(minimum_group_count, int)
+            or minimum_group_count < 1
+        ):
+            raise ValueError("decision minimum_group_count must be a positive integer")
+        rules = tuple(self.rules)
+        if not rules:
+            raise ValueError("decision policy must contain at least one rule")
+        rule_ids = tuple(rule.rule_id for rule in rules)
+        if len(set(rule_ids)) != len(rule_ids):
+            raise ValueError("decision rule IDs must be unique")
+        object.__setattr__(self, "policy_id", policy_id)
+        object.__setattr__(self, "minimum_group_count", minimum_group_count)
+        object.__setattr__(self, "rules", rules)
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "policy_id": self.policy_id,
+            "minimum_group_count": self.minimum_group_count,
+            "rules": [rule.to_dict() for rule in self.rules],
+        }
+
+
 def _reject_constant(value: str) -> None:
     raise ValueError(f"non-standard JSON constant is forbidden: {value}")
 
@@ -112,10 +208,92 @@ def _resolve_path(root: Path, value: object, *, name: str) -> Path:
     return resolved
 
 
-def load_provider_evaluation_cases(
+def _decision_policy(
+    value: object,
+    *,
+    methods: tuple[str, ...],
+    reference_method: str,
+) -> ProviderEvaluationDecisionPolicy:
+    policy = _mapping(value, name="decision_policy")
+    if set(policy) != {"policy_id", "minimum_group_count", "rules"}:
+        raise ValueError("decision_policy fields changed")
+    raw_rules = policy.get("rules")
+    if not isinstance(raw_rules, list) or not raw_rules:
+        raise ValueError("decision_policy.rules must be a nonempty array")
+    rules: list[ProviderEvaluationDecisionRule] = []
+    for index, raw_rule in enumerate(raw_rules):
+        item = _mapping(raw_rule, name=f"decision_policy.rules[{index}]")
+        fields = {
+            "rule_id",
+            "candidate_method",
+            "metric",
+            "direction",
+            "criterion",
+            "margin",
+        }
+        if set(item) != fields:
+            raise ValueError(f"decision_policy.rules[{index}] fields changed")
+        direction = _text(
+            item.get("direction"),
+            name=f"decision_policy.rules[{index}].direction",
+        )
+        criterion = _text(
+            item.get("criterion"),
+            name=f"decision_policy.rules[{index}].criterion",
+        )
+        margin_value = item.get("margin")
+        if isinstance(margin_value, bool) or not isinstance(
+            margin_value, (int, float)
+        ):
+            raise ValueError(
+                f"decision_policy.rules[{index}].margin must be numeric"
+            )
+        rule = ProviderEvaluationDecisionRule(
+            rule_id=_text(
+                item.get("rule_id"),
+                name=f"decision_policy.rules[{index}].rule_id",
+            ),
+            candidate_method=_text(
+                item.get("candidate_method"),
+                name=f"decision_policy.rules[{index}].candidate_method",
+            ),
+            metric=_text(
+                item.get("metric"),
+                name=f"decision_policy.rules[{index}].metric",
+            ),
+            direction=cast(DecisionDirection, direction),
+            criterion=cast(DecisionCriterion, criterion),
+            margin=float(margin_value),
+        )
+        if rule.candidate_method == reference_method:
+            raise ValueError("decision candidate must differ from reference_method")
+        if rule.candidate_method not in methods:
+            raise ValueError(
+                f"decision candidate {rule.candidate_method!r} is not a registered method"
+            )
+        rules.append(rule)
+    minimum_group_count = policy.get("minimum_group_count")
+    if isinstance(minimum_group_count, bool) or not isinstance(
+        minimum_group_count, int
+    ):
+        raise ValueError("decision_policy.minimum_group_count must be an integer")
+    return ProviderEvaluationDecisionPolicy(
+        policy_id=_text(policy.get("policy_id"), name="decision_policy.policy_id"),
+        minimum_group_count=minimum_group_count,
+        rules=tuple(rules),
+    )
+
+
+def load_provider_evaluation_plan(
     manifest_path: Path,
-) -> tuple[list[ProviderEvaluationCase], EvaluationModeName, str, dict[str, Any]]:
-    """Load a strict paired-case manifest and resolve all input paths."""
+) -> tuple[
+    list[ProviderEvaluationCase],
+    EvaluationModeName,
+    str,
+    dict[str, Any],
+    ProviderEvaluationDecisionPolicy | None,
+]:
+    """Load paired cases and an optional target-frozen decision policy."""
 
     try:
         manifest = _mapping(
@@ -129,6 +307,14 @@ def load_provider_evaluation_cases(
         raise ValueError(
             f"cannot read provider-evaluation manifest: {manifest_path}"
         ) from error
+    if manifest.get("schema_name") != PROVIDER_EVALUATION_SCHEMA:
+        raise ValueError("unsupported provider-evaluation manifest schema")
+    schema_version = manifest.get("schema_version")
+    if isinstance(schema_version, bool) or schema_version not in {
+        PROVIDER_EVALUATION_VERSION,
+        PROVIDER_EVALUATION_DECISION_VERSION,
+    }:
+        raise ValueError("unsupported provider-evaluation manifest version")
     expected_fields = {
         "schema_name",
         "schema_version",
@@ -137,6 +323,8 @@ def load_provider_evaluation_cases(
         "cases",
         "metadata",
     }
+    if schema_version == PROVIDER_EVALUATION_DECISION_VERSION:
+        expected_fields.add("decision_policy")
     actual_fields = set(manifest)
     if actual_fields != expected_fields:
         raise ValueError(
@@ -144,14 +332,15 @@ def load_provider_evaluation_cases(
             f"missing={sorted(expected_fields - actual_fields)}, "
             f"extra={sorted(actual_fields - expected_fields)}"
         )
-    if manifest.get("schema_name") != PROVIDER_EVALUATION_SCHEMA:
-        raise ValueError("unsupported provider-evaluation manifest schema")
-    if manifest.get("schema_version") != PROVIDER_EVALUATION_VERSION:
-        raise ValueError("unsupported provider-evaluation manifest version")
     primary_mode_value = _text(manifest.get("primary_mode"), name="primary_mode")
     if primary_mode_value not in _EVALUATION_MODES:
         raise ValueError(f"primary_mode must be one of {sorted(_EVALUATION_MODES)}")
     primary_mode = cast(EvaluationModeName, primary_mode_value)
+    if (
+        schema_version == PROVIDER_EVALUATION_DECISION_VERSION
+        and primary_mode == "oracle_aligned"
+    ):
+        raise ValueError("decision-bearing evaluation cannot use oracle_aligned mode")
     reference_method = _text(
         manifest.get("reference_method"),
         name="reference_method",
@@ -232,14 +421,42 @@ def load_provider_evaluation_cases(
         raise ValueError(
             "reference_method must identify one prediction method in every case"
         )
+    policy = None
+    if schema_version == PROVIDER_EVALUATION_DECISION_VERSION:
+        policy = _decision_policy(
+            manifest.get("decision_policy"),
+            methods=expected_methods,
+            reference_method=reference_method,
+        )
+    return cases, primary_mode, reference_method, metadata, policy
+
+
+def load_provider_evaluation_cases(
+    manifest_path: Path,
+) -> tuple[list[ProviderEvaluationCase], EvaluationModeName, str, dict[str, Any]]:
+    """Load only the frozen manifest-v1 paired-case surface."""
+
+    cases, primary_mode, reference_method, metadata, policy = (
+        load_provider_evaluation_plan(manifest_path)
+    )
+    if policy is not None:
+        raise ValueError(
+            "decision-bearing manifest requires load_provider_evaluation_plan"
+        )
     return cases, primary_mode, reference_method, metadata
 
 
 __all__ = [
+    "PROVIDER_EVALUATION_DECISION_VERSION",
     "PROVIDER_EVALUATION_SCHEMA",
     "PROVIDER_EVALUATION_VERSION",
+    "DecisionCriterion",
+    "DecisionDirection",
     "EvaluationModeName",
     "ProviderEvaluationCase",
+    "ProviderEvaluationDecisionPolicy",
+    "ProviderEvaluationDecisionRule",
     "load_provider_evaluation_cases",
+    "load_provider_evaluation_plan",
     "validate_finite_json",
 ]

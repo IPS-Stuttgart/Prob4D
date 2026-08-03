@@ -92,6 +92,59 @@ def _table_rows(
     return rows
 
 
+def _decision_lines(decision: Mapping[str, Any] | None) -> list[str]:
+    if decision is None:
+        return []
+    overall = "PASS" if decision.get("overall_passed") is True else "FAIL"
+    group_result = "PASS" if decision.get("group_count_passed") is True else "FAIL"
+    lines = [
+        "",
+        "## Preregistered provider decision",
+        "",
+        f"Policy: `{decision['policy_id']}`. Overall result: **{overall}**.",
+        "",
+        "Independent-group gate: "
+        f"{decision['observed_group_count']} observed / "
+        f"{decision['minimum_group_count']} required — **{group_result}**.",
+        "",
+        "All values use paired `candidate - reference` group-bootstrap intervals.",
+        "",
+        "| Rule | Candidate | Metric | Criterion | Margin | Decision bound | "
+        "Threshold | Result |",
+        "| --- | --- | --- | --- | ---: | ---: | ---: | --- |",
+    ]
+    rules = decision.get("rules")
+    if not isinstance(rules, list):
+        raise ValueError("decision rules must be an array")
+    for rule in rules:
+        if not isinstance(rule, Mapping):
+            raise ValueError("decision rule result must be an object")
+        result = "PASS" if rule.get("passed") is True else "FAIL"
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    str(rule["rule_id"]),
+                    str(rule["candidate_method"]),
+                    str(rule["metric"]),
+                    f"{rule['direction']} {rule['criterion']}",
+                    f"{float(rule['margin']):.6g}",
+                    f"{float(rule['decision_bound_value']):.6g}",
+                    f"{float(rule['pass_threshold']):.6g}",
+                    result,
+                ]
+            )
+            + " |"
+        )
+    lines.extend(
+        [
+            "",
+            str(decision["claim_boundary"]),
+        ]
+    )
+    return lines
+
+
 def _write_markdown(
     path: Path,
     *,
@@ -99,6 +152,7 @@ def _write_markdown(
     reference_method: str,
     aggregate: Mapping[str, Any],
     comparisons: Mapping[str, Any],
+    decision: Mapping[str, Any] | None,
 ) -> None:
     selected = (
         "metric_point_rmse",
@@ -156,6 +210,7 @@ def _write_markdown(
         "| " + " | ".join(headers) + " |",
         separator,
         *_table_rows(comparisons, primary_mode=primary_mode, selected=selected),
+        *_decision_lines(decision),
         "",
         "Covariance semantics are read from each prediction archive and must remain "
         "consistent within a method. Legacy archives are rejected by default.",
@@ -173,6 +228,7 @@ def write_provider_evaluation_outputs(
     reference_method: str,
     aggregate: Mapping[str, Any],
     comparisons: Mapping[str, Any],
+    decision: Mapping[str, Any] | None = None,
 ) -> None:
     """Write the complete report and compact human- and table-readable views."""
 
@@ -189,6 +245,7 @@ def write_provider_evaluation_outputs(
         reference_method=reference_method,
         aggregate=aggregate,
         comparisons=comparisons,
+        decision=decision,
     )
 
 
