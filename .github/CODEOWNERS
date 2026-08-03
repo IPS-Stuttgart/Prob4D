@@ -1,0 +1,13 @@
+# Default ownership for the research codebase.
+* @FlorianPfaff
+
+# Provider, workflow, calibration, and release boundaries require maintainer review.
+/.github/ @FlorianPfaff
+/pyproject.toml @FlorianPfaff
+/MANIFEST.in @FlorianPfaff
+/src/prob4d/provider_*.py @FlorianPfaff
+/src/prob4d/observation_*.py @FlorianPfaff
+/src/prob4d/calibration*.py @FlorianPfaff
+/src/prob4d/runtime_revision.py @FlorianPfaff
+/src/prob4d/motioncrafter_integrity.py @FlorianPfaff
+/tests/fixtures/ @FlorianPfaff

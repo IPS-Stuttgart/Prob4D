@@ -42,6 +42,28 @@ def _pin_errors(text: str, *, source: str) -> list[str]:
     return errors
 
 
+def _checkout_credential_errors(text: str, *, source: str) -> list[str]:
+    lines = text.splitlines()
+    errors: list[str] = []
+    for index, line in enumerate(lines):
+        stripped = line.lstrip()
+        if not stripped.startswith("- uses: actions/checkout@"):
+            continue
+        indentation = len(line) - len(stripped)
+        block: list[str] = []
+        for candidate in lines[index + 1 :]:
+            candidate_stripped = candidate.lstrip()
+            candidate_indentation = len(candidate) - len(candidate_stripped)
+            if candidate_stripped.startswith("- ") and candidate_indentation <= indentation:
+                break
+            block.append(candidate)
+        if not any("persist-credentials: false" in value for value in block):
+            errors.append(
+                f"{source}:{index + 1}: checkout must set persist-credentials: false"
+            )
+    return errors
+
+
 def test_every_external_github_action_is_immutably_pinned() -> None:
     workflow_files = sorted(WORKFLOW_ROOT.glob("*.yml")) + sorted(
         WORKFLOW_ROOT.glob("*.yaml")
@@ -52,6 +74,20 @@ def test_every_external_github_action_is_immutably_pinned() -> None:
     for path in workflow_files:
         errors.extend(
             _pin_errors(
+                path.read_text(encoding="utf-8"),
+                source=path.relative_to(ROOT).as_posix(),
+            )
+        )
+    assert not errors, "\n".join(errors)
+
+
+def test_checkout_actions_disable_persisted_credentials() -> None:
+    errors: list[str] = []
+    for path in sorted(WORKFLOW_ROOT.glob("*.yml")) + sorted(
+        WORKFLOW_ROOT.glob("*.yaml")
+    ):
+        errors.extend(
+            _checkout_credential_errors(
                 path.read_text(encoding="utf-8"),
                 source=path.relative_to(ROOT).as_posix(),
             )
@@ -84,3 +120,12 @@ def test_pin_policy_allows_local_docker_and_annotated_commit_uses() -> None:
     )
 
     assert _pin_errors(text, source="fixture.yml") == []
+
+
+def test_checkout_policy_rejects_credential_persistence() -> None:
+    pinned = "0123456789abcdef0123456789abcdef01234567"
+    unsafe = f"- uses: actions/checkout@{pinned} # v7\n"
+    safe = unsafe + "  with:\n    persist-credentials: false\n"
+
+    assert len(_checkout_credential_errors(unsafe, source="fixture.yml")) == 1
+    assert _checkout_credential_errors(safe, source="fixture.yml") == []

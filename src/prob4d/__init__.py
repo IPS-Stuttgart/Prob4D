@@ -73,6 +73,18 @@ from .observation_factors import (
     write_observation_factor_bundle,
 )
 from .observation_validation import load_observation_belief_export
+from .prediction_store import (
+    PREDICTION_BUNDLE_STORE_SCHEMA,
+    PREDICTION_BUNDLE_STORE_VERSION,
+    PREDICTION_WINDOW_STORE_SCHEMA,
+    PREDICTION_WINDOW_STORE_VERSION,
+    MMapPredictionWindow,
+    load_prediction_bundle_store,
+    load_prediction_window_store,
+    materialize_prediction_bundle_store,
+    prediction_bundle_store_summary,
+    write_prediction_window_store,
+)
 from .project_identity import (
     PROB4D_CANONICAL_REPOSITORY,
     PROB4D_FROZEN_ARTIFACT_REPOSITORY,
@@ -109,7 +121,7 @@ from .uncertainty import GroupBalancedCalibrationReport
 try:
     __version__ = version("prob4d")
 except PackageNotFoundError:  # Source tree without installed distribution metadata.
-    __version__ = "0.3.0"
+    __version__ = "0.3.1"
 
 __all__ = [
     "GAUGE_COVARIANCE_CALIBRATION_SCHEMA",
@@ -120,6 +132,10 @@ __all__ = [
     "OBSERVATION_FACTOR_STREAM_VERSION",
     "POINT_UNCERTAINTY_CALIBRATION_SCHEMA",
     "POINT_UNCERTAINTY_CALIBRATION_VERSION",
+    "PREDICTION_BUNDLE_STORE_SCHEMA",
+    "PREDICTION_BUNDLE_STORE_VERSION",
+    "PREDICTION_WINDOW_STORE_SCHEMA",
+    "PREDICTION_WINDOW_STORE_VERSION",
     "PROB4D_CANONICAL_REPOSITORY",
     "PROB4D_FROZEN_ARTIFACT_REPOSITORY",
     "PROB4D_GITHUB_REPOSITORY_ID",
@@ -140,6 +156,7 @@ __all__ = [
     "GroupBalancedCalibrationReport",
     "JointGaugePosterior",
     "LinearizedObservationFactor",
+    "MMapPredictionWindow",
     "MetricGaugeAnchor",
     "ObservationBeliefExportV1",
     "ObservationFactor",
@@ -179,7 +196,11 @@ __all__ = [
     "load_observation_factor_bundle",
     "load_observation_factor_stream",
     "load_point_uncertainty_calibration",
+    "load_prediction_bundle_store",
+    "load_prediction_window_store",
     "load_source_reliability_model",
+    "materialize_prediction_bundle_store",
+    "prediction_bundle_store_summary",
     "prob4d_project_identity",
     "save_gauge_covariance_calibration",
     "save_metric_gauge_anchor",
@@ -191,4 +212,5 @@ __all__ = [
     "validate_prob4d_project_identity",
     "write_observation_factor_bundle",
     "write_observation_factor_stream",
+    "write_prediction_window_store",
 ]
