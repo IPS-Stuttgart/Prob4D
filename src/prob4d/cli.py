@@ -49,6 +49,11 @@ _ROUTES: Final[dict[Route, tuple[str, str, str]]] = {
         "main_exploratory",
         "export an explicitly exploratory provider-v2 observation belief",
     ),
+    ("project", "identity"): (
+        "prob4d.project_identity",
+        "main",
+        "print the stable project ID and repository aliases",
+    ),
     ("provider", "manifest"): (
         "prob4d.provider_manifest_cli",
         "main",
