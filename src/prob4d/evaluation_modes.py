@@ -8,7 +8,12 @@ from typing import Any, Literal
 import numpy as np
 
 from .fusion import FusedSequence
-from .metrics import SequenceMetrics, TruthSequence, evaluate_sequence
+from .metrics import (
+    DEFAULT_EVALUATION_CHUNK_SIZE,
+    SequenceMetrics,
+    TruthSequence,
+    evaluate_sequence,
+)
 
 EvaluationMode = Literal["metric", "prefix_aligned", "oracle_aligned"]
 
@@ -92,9 +97,12 @@ def _fit_scale_translation_streaming(
     *,
     frame_stop_exclusive: int | None,
     truth_support_mask: np.ndarray | None,
+    evaluation_chunk_size: int,
 ) -> tuple[float, np.ndarray, int, int]:
-    """Fit one isotropic scale and translation without stacking dense frames."""
+    """Fit one isotropic scale and translation with bounded temporaries."""
 
+    if evaluation_chunk_size < 1:
+        raise ValueError("evaluation_chunk_size must be positive")
     pairs = _common_pairs(
         prediction,
         truth,
@@ -107,26 +115,34 @@ def _fit_scale_translation_streaming(
     source_squared_sum = 0.0
     cross_sum = 0.0
     for prediction_index, truth_index in pairs:
-        source_frame = prediction.point_map[prediction_index]
-        target_frame = truth.point_map[truth_index]
+        source_frame = prediction.point_map[prediction_index].reshape(-1, 3)
+        target_frame = truth.point_map[truth_index].reshape(-1, 3)
         active = (
             prediction.valid_mask[prediction_index]
             & truth.valid_mask[truth_index]
-            & np.all(np.isfinite(source_frame), axis=-1)
-            & np.all(np.isfinite(target_frame), axis=-1)
         )
         if truth_support_mask is not None:
             active &= truth_support_mask[truth_index]
-        if not np.any(active):
-            continue
-        source = source_frame[active]
-        target = target_frame[active]
-        frame_count += 1
-        point_count += len(source)
-        source_sum += source.sum(axis=0)
-        target_sum += target.sum(axis=0)
-        source_squared_sum += float(np.sum(source * source))
-        cross_sum += float(np.sum(source * target))
+        flat_active = active.reshape(-1)
+        frame_points = 0
+        for start in range(0, flat_active.size, evaluation_chunk_size):
+            stop = min(start + evaluation_chunk_size, flat_active.size)
+            selected = flat_active[start:stop]
+            if not np.any(selected):
+                continue
+            source = source_frame[start:stop][selected]
+            target = target_frame[start:stop][selected]
+            count = int(source.shape[0])
+            frame_points += count
+            point_count += count
+            source_sum += np.sum(source, axis=0, dtype=np.float64)
+            target_sum += np.sum(target, axis=0, dtype=np.float64)
+            source_squared_sum += float(
+                np.sum(source * source, dtype=np.float64)
+            )
+            cross_sum += float(np.sum(source * target, dtype=np.float64))
+        if frame_points:
+            frame_count += 1
 
     if point_count == 0:
         boundary = (
@@ -153,34 +169,6 @@ def _fit_scale_translation_streaming(
     return float(scale), translation, frame_count, point_count
 
 
-def _transformed_prediction(
-    prediction: FusedSequence,
-    *,
-    scale: float,
-    translation: np.ndarray,
-) -> FusedSequence:
-    scene_flow = (
-        None
-        if prediction.scene_flow is None
-        else scale * prediction.scene_flow
-    )
-    flow_covariance = (
-        None
-        if prediction.flow_covariance is None
-        else scale**2 * prediction.flow_covariance
-    )
-    return FusedSequence(
-        frame_indices=prediction.frame_indices,
-        point_map=scale * prediction.point_map + translation,
-        valid_mask=prediction.valid_mask,
-        point_covariance=scale**2 * prediction.point_covariance,
-        contributors=prediction.contributors,
-        scene_flow=scene_flow,
-        deform_mask=prediction.deform_mask,
-        flow_covariance=flow_covariance,
-    )
-
-
 def _evaluate_transformed(
     mode: EvaluationMode,
     prediction: FusedSequence,
@@ -194,19 +182,18 @@ def _evaluate_transformed(
     boundary_frames: list[int] | None,
     truth_support_mask: np.ndarray | None,
     truth_flow_support_mask: np.ndarray | None,
+    evaluation_chunk_size: int,
 ) -> EvaluationModeResult:
-    transformed = _transformed_prediction(
-        prediction,
-        scale=scale,
-        translation=translation,
-    )
     metrics = evaluate_sequence(
-        transformed,
+        prediction,
         truth,
         boundary_frames=boundary_frames,
         align_scale_translation=False,
         truth_support_mask=truth_support_mask,
         truth_flow_support_mask=truth_flow_support_mask,
+        prediction_scale=scale,
+        prediction_translation=translation,
+        evaluation_chunk_size=evaluation_chunk_size,
     )
     metrics = replace(metrics, fitted_alignment_scale=scale)
     return EvaluationModeResult(
@@ -228,6 +215,7 @@ def evaluate_sequence_modes(
     prefix_frame_stop_exclusive: int | None = None,
     truth_support_mask: np.ndarray | None = None,
     truth_flow_support_mask: np.ndarray | None = None,
+    evaluation_chunk_size: int = DEFAULT_EVALUATION_CHUNK_SIZE,
 ) -> EvaluationModes:
     """Evaluate metric, causal-prefix-aligned, and oracle-aligned interpretations.
 
@@ -238,6 +226,8 @@ def evaluate_sequence_modes(
     than a causal prediction result.
     """
 
+    if evaluation_chunk_size < 1:
+        raise ValueError("evaluation_chunk_size must be positive")
     support_mask = None
     if truth_support_mask is not None:
         support_mask = np.asarray(truth_support_mask, dtype=bool)
@@ -262,6 +252,7 @@ def evaluate_sequence_modes(
         boundary_frames=boundary_frames,
         truth_support_mask=support_mask,
         truth_flow_support_mask=flow_support_mask,
+        evaluation_chunk_size=evaluation_chunk_size,
     )
 
     oracle_scale, oracle_translation, oracle_frames, oracle_points = (
@@ -270,6 +261,7 @@ def evaluate_sequence_modes(
             truth,
             frame_stop_exclusive=None,
             truth_support_mask=support_mask,
+            evaluation_chunk_size=evaluation_chunk_size,
         )
     )
     oracle = _evaluate_transformed(
@@ -284,6 +276,7 @@ def evaluate_sequence_modes(
         boundary_frames=boundary_frames,
         truth_support_mask=support_mask,
         truth_flow_support_mask=flow_support_mask,
+        evaluation_chunk_size=evaluation_chunk_size,
     )
 
     prefix: EvaluationModeResult | None = None
@@ -294,6 +287,7 @@ def evaluate_sequence_modes(
                 truth,
                 frame_stop_exclusive=prefix_frame_stop_exclusive,
                 truth_support_mask=support_mask,
+                evaluation_chunk_size=evaluation_chunk_size,
             )
         )
         prefix = _evaluate_transformed(
@@ -308,6 +302,7 @@ def evaluate_sequence_modes(
             boundary_frames=boundary_frames,
             truth_support_mask=support_mask,
             truth_flow_support_mask=flow_support_mask,
+            evaluation_chunk_size=evaluation_chunk_size,
         )
 
     return EvaluationModes(

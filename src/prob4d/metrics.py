@@ -152,6 +152,9 @@ class UncertaintyDiagnostics:
         return asdict(self)
 
 
+DEFAULT_EVALUATION_CHUNK_SIZE = 65_536
+
+
 _CHI_SQUARED_3 = {
     0.50: 2.3659738843753377,
     0.80: 4.64162767608745,
@@ -275,6 +278,168 @@ def _tie_aware_risk_coverage_auc(
     return integrated_risk / risks.size
 
 
+class _UncertaintyAccumulator:
+    """Accumulate uncertainty diagnostics with bounded covariance temporaries."""
+
+    def __init__(self) -> None:
+        self._count = 0
+        self._coverage_counts = {level: 0 for level in _CHI_SQUARED_3}
+        self._nll_sum = 0.0
+        self._trace_sum = 0.0
+        self._log_determinant_sum = 0.0
+        self._mahalanobis_squared: list[np.ndarray] = []
+        self._relative_error: list[np.ndarray] = []
+        self._uncertainty_score: list[np.ndarray] = []
+
+    def add(
+        self,
+        errors: FloatArray,
+        covariances: FloatArray,
+        target_norms: FloatArray,
+        *,
+        uncertainty_normalizers: FloatArray | None = None,
+    ) -> None:
+        errors = np.asarray(errors, dtype=np.float64)
+        covariances = np.asarray(covariances, dtype=np.float64)
+        target_norms = np.asarray(target_norms, dtype=np.float64)
+        normalizers = (
+            target_norms
+            if uncertainty_normalizers is None
+            else np.asarray(uncertainty_normalizers, dtype=np.float64)
+        )
+        if errors.ndim != 2 or errors.shape[1] != 3:
+            raise ValueError("errors must have shape (N, 3)")
+        if covariances.shape != (errors.shape[0], 3, 3):
+            raise ValueError("covariances must have shape (N, 3, 3)")
+        if target_norms.shape != (errors.shape[0],):
+            raise ValueError("target_norms must have shape (N,)")
+        if normalizers.shape != (errors.shape[0],):
+            raise ValueError("uncertainty_normalizers must have shape (N,)")
+        if not np.all(np.isfinite(covariances)):
+            raise ValueError("diagnostic covariances must be finite")
+        active = (
+            np.all(np.isfinite(errors), axis=1)
+            & np.isfinite(target_norms)
+            & np.isfinite(normalizers)
+        )
+        if not np.any(active):
+            return
+        errors = errors[active]
+        covariances = covariances[active]
+        target_norms = target_norms[active]
+        normalizers = normalizers[active]
+
+        symmetric, inverse, log_determinant = covariance_statistics(
+            covariances,
+            name="diagnostic covariance",
+        )
+        mahalanobis_squared = np.einsum(
+            "...i,...ij,...j->...",
+            errors,
+            inverse,
+            errors,
+        )
+        nll = 0.5 * (
+            3.0 * np.log(2.0 * np.pi) + log_determinant + mahalanobis_squared
+        )
+        count = int(errors.shape[0])
+        self._count += count
+        self._nll_sum += float(np.sum(nll, dtype=np.float64))
+        covariance_trace = np.trace(symmetric, axis1=-2, axis2=-1)
+        self._trace_sum += float(np.sum(covariance_trace, dtype=np.float64))
+        self._log_determinant_sum += float(
+            np.sum(log_determinant, dtype=np.float64)
+        )
+        for level, threshold in _CHI_SQUARED_3.items():
+            self._coverage_counts[level] += int(
+                np.count_nonzero(mahalanobis_squared <= threshold)
+            )
+
+        relative_error = np.linalg.norm(errors, axis=-1) / np.maximum(
+            target_norms,
+            1e-2,
+        )
+        uncertainty_score = covariance_trace / np.maximum(normalizers, 1e-2) ** 2
+        self._mahalanobis_squared.append(mahalanobis_squared.copy())
+        self._relative_error.append(relative_error.copy())
+        self._uncertainty_score.append(uncertainty_score.copy())
+
+    def finalize(self) -> UncertaintyDiagnostics:
+        if self._count == 0:
+            raise ValueError("uncertainty diagnostics have no finite samples")
+        mahalanobis_squared = np.concatenate(self._mahalanobis_squared)
+        self._mahalanobis_squared.clear()
+        relative_error = np.concatenate(self._relative_error)
+        self._relative_error.clear()
+        uncertainty_score = np.concatenate(self._uncertainty_score)
+        self._uncertainty_score.clear()
+        coverage = {
+            level: self._coverage_counts[level] / self._count
+            for level in _CHI_SQUARED_3
+        }
+        calibration_error = float(
+            np.mean([abs(coverage[level] - level) for level in _CHI_SQUARED_3])
+        )
+
+        uncertainty_rank = _rankdata(uncertainty_score)
+        error_rank = _rankdata(relative_error)
+        if np.std(uncertainty_rank) <= 1e-12 or np.std(error_rank) <= 1e-12:
+            spearman = 0.0
+        else:
+            spearman = float(np.corrcoef(uncertainty_rank, error_rank)[0, 1])
+
+        retain_count_50 = max(1, int(np.floor(0.5 * relative_error.size)))
+        retain_count_80 = max(1, int(np.floor(0.8 * relative_error.size)))
+        risk_all = float(np.mean(relative_error))
+        risk_retained_50 = _expected_risk_at_count(
+            relative_error,
+            uncertainty_score,
+            retain_count_50,
+        )
+        risk_retained_80 = _expected_risk_at_count(
+            relative_error,
+            uncertainty_score,
+            retain_count_80,
+        )
+        risk_oracle = _expected_risk_at_count(
+            relative_error,
+            relative_error,
+            retain_count_80,
+        )
+        gain = risk_all - risk_retained_80
+        oracle_gain = risk_all - risk_oracle
+
+        return UncertaintyDiagnostics(
+            count=self._count,
+            coverage_50=coverage[0.50],
+            coverage_80=coverage[0.80],
+            coverage_90=coverage[0.90],
+            coverage_95=coverage[0.95],
+            coverage_shortfall_95=max(0.0, 0.95 - coverage[0.95]),
+            coverage_calibration_error=calibration_error,
+            mean_mahalanobis_squared=float(np.mean(mahalanobis_squared)),
+            median_mahalanobis_squared=float(np.median(mahalanobis_squared)),
+            gaussian_nll=self._nll_sum / self._count,
+            mean_covariance_trace=self._trace_sum / self._count,
+            mean_covariance_log_determinant=(
+                self._log_determinant_sum / self._count
+            ),
+            uncertainty_error_spearman=spearman,
+            mean_relative_error=risk_all,
+            relative_error_retained_50=risk_retained_50,
+            relative_error_retained_80=risk_retained_80,
+            relative_error_oracle_80=risk_oracle,
+            selective_gain_80=gain,
+            selective_oracle_fraction_80=(
+                gain / oracle_gain if oracle_gain > 1e-12 else 0.0
+            ),
+            risk_coverage_auc=_tie_aware_risk_coverage_auc(
+                relative_error,
+                uncertainty_score,
+            ),
+        )
+
+
 def uncertainty_diagnostics(
     errors: FloatArray,
     covariances: FloatArray,
@@ -284,111 +449,14 @@ def uncertainty_diagnostics(
 ) -> UncertaintyDiagnostics:
     """Evaluate calibration and relative-error ranking for sampled 3D residuals."""
 
-    errors = np.asarray(errors, dtype=np.float64)
-    covariances = np.asarray(covariances, dtype=np.float64)
-    target_norms = np.asarray(target_norms, dtype=np.float64)
-    normalizers = (
-        target_norms
-        if uncertainty_normalizers is None
-        else np.asarray(uncertainty_normalizers, dtype=np.float64)
-    )
-    if errors.ndim != 2 or errors.shape[1] != 3:
-        raise ValueError("errors must have shape (N, 3)")
-    if covariances.shape != (errors.shape[0], 3, 3):
-        raise ValueError("covariances must have shape (N, 3, 3)")
-    if target_norms.shape != (errors.shape[0],):
-        raise ValueError("target_norms must have shape (N,)")
-    if normalizers.shape != (errors.shape[0],):
-        raise ValueError("uncertainty_normalizers must have shape (N,)")
-    if not np.all(np.isfinite(covariances)):
-        raise ValueError("diagnostic covariances must be finite")
-    active = (
-        np.all(np.isfinite(errors), axis=1)
-        & np.isfinite(target_norms)
-        & np.isfinite(normalizers)
-    )
-    if not np.any(active):
-        raise ValueError("uncertainty diagnostics have no finite samples")
-    errors = errors[active]
-    covariances = covariances[active]
-    target_norms = target_norms[active]
-    normalizers = normalizers[active]
-
-    symmetric, inverse, log_determinant = covariance_statistics(
+    accumulator = _UncertaintyAccumulator()
+    accumulator.add(
+        errors,
         covariances,
-        name="diagnostic covariance",
+        target_norms,
+        uncertainty_normalizers=uncertainty_normalizers,
     )
-    mahalanobis_squared = np.einsum("...i,...ij,...j->...", errors, inverse, errors)
-    nll = 0.5 * (3.0 * np.log(2.0 * np.pi) + log_determinant + mahalanobis_squared)
-    coverage = {
-        level: float(np.mean(mahalanobis_squared <= threshold))
-        for level, threshold in _CHI_SQUARED_3.items()
-    }
-    calibration_error = float(
-        np.mean([abs(coverage[level] - level) for level in _CHI_SQUARED_3])
-    )
-
-    relative_error = np.linalg.norm(errors, axis=-1) / np.maximum(target_norms, 1e-2)
-    # Match the relative point-error risk: covariance is in squared metric
-    # units, so normalize it by the squared predicted point norm.
-    uncertainty_score = np.trace(symmetric, axis1=-2, axis2=-1) / np.maximum(
-        normalizers, 1e-2
-    ) ** 2
-    uncertainty_rank = _rankdata(uncertainty_score)
-    error_rank = _rankdata(relative_error)
-    if np.std(uncertainty_rank) <= 1e-12 or np.std(error_rank) <= 1e-12:
-        spearman = 0.0
-    else:
-        spearman = float(np.corrcoef(uncertainty_rank, error_rank)[0, 1])
-
-    retain_count_50 = max(1, int(np.floor(0.5 * relative_error.size)))
-    retain_count_80 = max(1, int(np.floor(0.8 * relative_error.size)))
-    risk_all = float(np.mean(relative_error))
-    risk_retained_50 = _expected_risk_at_count(
-        relative_error,
-        uncertainty_score,
-        retain_count_50,
-    )
-    risk_retained_80 = _expected_risk_at_count(
-        relative_error,
-        uncertainty_score,
-        retain_count_80,
-    )
-    risk_oracle = _expected_risk_at_count(
-        relative_error,
-        relative_error,
-        retain_count_80,
-    )
-    gain = risk_all - risk_retained_80
-    oracle_gain = risk_all - risk_oracle
-
-    return UncertaintyDiagnostics(
-        count=int(relative_error.size),
-        coverage_50=coverage[0.50],
-        coverage_80=coverage[0.80],
-        coverage_90=coverage[0.90],
-        coverage_95=coverage[0.95],
-        coverage_shortfall_95=max(0.0, 0.95 - coverage[0.95]),
-        coverage_calibration_error=calibration_error,
-        mean_mahalanobis_squared=float(np.mean(mahalanobis_squared)),
-        median_mahalanobis_squared=float(np.median(mahalanobis_squared)),
-        gaussian_nll=float(np.mean(nll)),
-        mean_covariance_trace=float(
-            np.mean(np.trace(symmetric, axis1=-2, axis2=-1))
-        ),
-        mean_covariance_log_determinant=float(np.mean(log_determinant)),
-        uncertainty_error_spearman=spearman,
-        mean_relative_error=risk_all,
-        relative_error_retained_50=risk_retained_50,
-        relative_error_retained_80=risk_retained_80,
-        relative_error_oracle_80=risk_oracle,
-        selective_gain_80=gain,
-        selective_oracle_fraction_80=(gain / oracle_gain if oracle_gain > 1e-12 else 0.0),
-        risk_coverage_auc=_tie_aware_risk_coverage_auc(
-            relative_error,
-            uncertainty_score,
-        ),
-    )
+    return accumulator.finalize()
 
 
 def _scale_translation_alignment(
@@ -406,6 +474,40 @@ def _scale_translation_alignment(
     return scale, target_mean - scale * source_mean
 
 
+def _scale_translation_from_sufficient_statistics(
+    *,
+    count: int,
+    source_sum: FloatArray,
+    target_sum: FloatArray,
+    source_squared_sum: float,
+    source_target_sum: float,
+) -> tuple[float, FloatArray]:
+    if count < 1:
+        raise ValueError("scale/translation alignment requires at least one sample")
+    source_mean = np.asarray(source_sum, dtype=np.float64) / count
+    target_mean = np.asarray(target_sum, dtype=np.float64) / count
+    denominator = source_squared_sum - count * float(source_mean @ source_mean)
+    if denominator <= np.finfo(np.float64).eps:
+        return 1.0, target_mean - source_mean
+    numerator = source_target_sum - count * float(source_mean @ target_mean)
+    scale = max(numerator / denominator, np.finfo(np.float64).eps)
+    return float(scale), target_mean - scale * source_mean
+
+
+def _frame_support(
+    prediction: FusedSequence,
+    truth: TruthSequence,
+    *,
+    prediction_index: int,
+    truth_index: int,
+    support_mask: NDArray[np.bool_] | None,
+) -> NDArray[np.bool_]:
+    active = prediction.valid_mask[prediction_index] & truth.valid_mask[truth_index]
+    if support_mask is not None:
+        active = active & support_mask[truth_index]
+    return active
+
+
 def evaluate_sequence(
     prediction: FusedSequence,
     truth: TruthSequence,
@@ -414,9 +516,29 @@ def evaluate_sequence(
     align_scale_translation: bool = True,
     truth_support_mask: NDArray[np.bool_] | None = None,
     truth_flow_support_mask: NDArray[np.bool_] | None = None,
+    prediction_scale: float = 1.0,
+    prediction_translation: ArrayLike | None = None,
+    evaluation_chunk_size: int = DEFAULT_EVALUATION_CHUNK_SIZE,
 ) -> SequenceMetrics:
-    """Evaluate one sequence after at most one global scale/translation alignment."""
+    """Evaluate one sequence with bounded point/covariance temporaries.
 
+    The dense prediction and truth contracts remain unchanged, but metric
+    accumulation processes one spatial chunk at a time. Only three scalar
+    vectors needed for median, ranking, and selective-risk diagnostics grow with
+    the evaluated point count.
+    """
+
+    if evaluation_chunk_size < 1:
+        raise ValueError("evaluation_chunk_size must be positive")
+    if not np.isfinite(prediction_scale) or prediction_scale <= 0.0:
+        raise ValueError("prediction_scale must be finite and positive")
+    base_translation = (
+        np.zeros(3, dtype=np.float64)
+        if prediction_translation is None
+        else np.asarray(prediction_translation, dtype=np.float64)
+    )
+    if base_translation.shape != (3,) or not np.all(np.isfinite(base_translation)):
+        raise ValueError("prediction_translation must be a finite three-vector")
     support_mask = _validated_support_mask(
         truth_support_mask,
         truth=truth,
@@ -430,60 +552,193 @@ def evaluate_sequence(
     common_frames = np.intersect1d(prediction.frame_indices, truth.frame_indices)
     if common_frames.size == 0:
         raise ValueError("prediction and truth have no common frames")
-    prediction_indices = [
-        int(np.searchsorted(prediction.frame_indices, frame)) for frame in common_frames
-    ]
-    truth_indices = [
-        int(np.searchsorted(truth.frame_indices, frame)) for frame in common_frames
-    ]
-    predicted_points = prediction.point_map[prediction_indices].copy()
-    predicted_covariance = prediction.point_covariance[prediction_indices].copy()
-    predicted_mask = prediction.valid_mask[prediction_indices]
-    truth_points = truth.point_map[truth_indices]
-    truth_mask = truth.valid_mask[truth_indices]
-    if support_mask is not None:
-        truth_mask = truth_mask & support_mask[truth_indices]
-    active = predicted_mask & truth_mask
-    if not np.any(active):
-        raise ValueError("prediction and truth have no jointly valid points")
+    prediction_indices = np.searchsorted(prediction.frame_indices, common_frames)
+    truth_indices = np.searchsorted(truth.frame_indices, common_frames)
 
-    metric_errors = predicted_points - truth_points
-    metric_squared_norm = np.sum(metric_errors**2, axis=-1)
-    metric_frame_rmse = np.array(
-        [
-            np.sqrt(np.mean(metric_squared_norm[index][active[index]]))
-            if np.any(active[index])
-            else np.nan
-            for index in range(common_frames.size)
-        ]
-    )
+    metric_frame_rmse = np.full(common_frames.size, np.nan, dtype=np.float64)
+    metric_squared_sum = 0.0
+    evaluated_points = 0
+    alignment_source_sum = np.zeros(3, dtype=np.float64)
+    alignment_target_sum = np.zeros(3, dtype=np.float64)
+    alignment_source_squared_sum = 0.0
+    alignment_source_target_sum = 0.0
+
+    for frame_position, (prediction_index, truth_index) in enumerate(
+        zip(prediction_indices, truth_indices, strict=True)
+    ):
+        active = _frame_support(
+            prediction,
+            truth,
+            prediction_index=int(prediction_index),
+            truth_index=int(truth_index),
+            support_mask=support_mask,
+        ).reshape(-1)
+        predicted = prediction.point_map[int(prediction_index)].reshape(-1, 3)
+        target = truth.point_map[int(truth_index)].reshape(-1, 3)
+        frame_squared_sum = 0.0
+        frame_count = 0
+        for start in range(0, active.size, evaluation_chunk_size):
+            stop = min(start + evaluation_chunk_size, active.size)
+            selected = active[start:stop]
+            if not np.any(selected):
+                continue
+            source_values = (
+                prediction_scale * predicted[start:stop][selected]
+                + base_translation
+            )
+            target_values = target[start:stop][selected]
+            errors = source_values - target_values
+            squared_norm = np.einsum("ni,ni->n", errors, errors)
+            count = int(source_values.shape[0])
+            frame_count += count
+            evaluated_points += count
+            squared_sum = float(np.sum(squared_norm, dtype=np.float64))
+            frame_squared_sum += squared_sum
+            metric_squared_sum += squared_sum
+            if align_scale_translation:
+                alignment_source_sum += np.sum(
+                    source_values,
+                    axis=0,
+                    dtype=np.float64,
+                )
+                alignment_target_sum += np.sum(
+                    target_values,
+                    axis=0,
+                    dtype=np.float64,
+                )
+                alignment_source_squared_sum += float(
+                    np.sum(source_values * source_values, dtype=np.float64)
+                )
+                alignment_source_target_sum += float(
+                    np.sum(source_values * target_values, dtype=np.float64)
+                )
+        if frame_count:
+            metric_frame_rmse[frame_position] = np.sqrt(
+                frame_squared_sum / frame_count
+            )
+
+    if evaluated_points == 0:
+        raise ValueError("prediction and truth have no jointly valid points")
     metric_finite_frames = np.flatnonzero(np.isfinite(metric_frame_rmse))
-    metric_point_rmse = float(np.sqrt(np.mean(metric_squared_norm[active])))
+    metric_point_rmse = float(np.sqrt(metric_squared_sum / evaluated_points))
     metric_endpoint_point_rmse = float(metric_frame_rmse[metric_finite_frames[-1]])
     metric_frame_balanced_point_rmse = float(
         np.mean(metric_frame_rmse[metric_finite_frames])
     )
 
-    scale = 1.0
-    translation = np.zeros(3)
+    alignment_scale = 1.0
+    alignment_translation = np.zeros(3, dtype=np.float64)
     if align_scale_translation:
-        scale, translation = _scale_translation_alignment(
-            predicted_points[active], truth_points[active]
+        alignment_scale, alignment_translation = (
+            _scale_translation_from_sufficient_statistics(
+                count=evaluated_points,
+                source_sum=alignment_source_sum,
+                target_sum=alignment_target_sum,
+                source_squared_sum=alignment_source_squared_sum,
+                source_target_sum=alignment_source_target_sum,
+            )
         )
-        predicted_points = scale * predicted_points + translation
-        predicted_covariance *= scale**2
-
-    errors = predicted_points - truth_points
-    squared_norm = np.sum(errors**2, axis=-1)
-    point_rmse = float(np.sqrt(np.mean(squared_norm[active])))
-    frame_rmse = np.array(
-        [
-            np.sqrt(np.mean(squared_norm[index][active[index]]))
-            if np.any(active[index])
-            else np.nan
-            for index in range(common_frames.size)
-        ]
+    effective_scale = alignment_scale * prediction_scale
+    effective_translation = (
+        alignment_scale * base_translation + alignment_translation
     )
+
+    frame_rmse = np.full(common_frames.size, np.nan, dtype=np.float64)
+    squared_sum = 0.0
+    uncertainty = _UncertaintyAccumulator()
+    flow_error_sum = 0.0
+    evaluated_flow_points = 0
+    covariance_scale = effective_scale**2
+
+    for frame_position, (prediction_index, truth_index) in enumerate(
+        zip(prediction_indices, truth_indices, strict=True)
+    ):
+        prediction_index = int(prediction_index)
+        truth_index = int(truth_index)
+        active_frame = _frame_support(
+            prediction,
+            truth,
+            prediction_index=prediction_index,
+            truth_index=truth_index,
+            support_mask=support_mask,
+        )
+        active = active_frame.reshape(-1)
+        predicted = prediction.point_map[prediction_index].reshape(-1, 3)
+        target = truth.point_map[truth_index].reshape(-1, 3)
+        covariance = prediction.point_covariance[prediction_index].reshape(-1, 3, 3)
+        frame_squared_sum = 0.0
+        frame_count = 0
+
+        predicted_flow = (
+            None
+            if prediction.scene_flow is None
+            else prediction.scene_flow[prediction_index].reshape(-1, 3)
+        )
+        target_flow = (
+            None
+            if truth.scene_flow is None
+            else truth.scene_flow[truth_index].reshape(-1, 3)
+        )
+        flow_active = None
+        if predicted_flow is not None and target_flow is not None:
+            assert prediction.deform_mask is not None
+            assert truth.deform_mask is not None
+            flow_active = (
+                active_frame
+                & prediction.deform_mask[prediction_index]
+                & truth.deform_mask[truth_index]
+                & np.all(np.isfinite(prediction.scene_flow[prediction_index]), axis=-1)
+                & np.all(np.isfinite(truth.scene_flow[truth_index]), axis=-1)
+            )
+            if flow_support_mask is not None:
+                flow_active &= flow_support_mask[truth_index]
+            flow_active = flow_active.reshape(-1)
+
+        for start in range(0, active.size, evaluation_chunk_size):
+            stop = min(start + evaluation_chunk_size, active.size)
+            selected = active[start:stop]
+            if np.any(selected):
+                source_values = predicted[start:stop][selected]
+                target_values = target[start:stop][selected]
+                aligned_values = (
+                    effective_scale * source_values + effective_translation
+                )
+                errors = aligned_values - target_values
+                squared_norm = np.einsum("ni,ni->n", errors, errors)
+                count = int(errors.shape[0])
+                frame_count += count
+                value = float(np.sum(squared_norm, dtype=np.float64))
+                frame_squared_sum += value
+                squared_sum += value
+                selected_covariance = covariance[start:stop][selected]
+                if covariance_scale != 1.0:
+                    selected_covariance = selected_covariance * covariance_scale
+                uncertainty.add(
+                    errors,
+                    selected_covariance,
+                    np.linalg.norm(target_values, axis=-1),
+                    uncertainty_normalizers=np.linalg.norm(
+                        aligned_values,
+                        axis=-1,
+                    ),
+                )
+
+            if flow_active is not None:
+                selected_flow = flow_active[start:stop]
+                if np.any(selected_flow):
+                    assert predicted_flow is not None
+                    assert target_flow is not None
+                    flow_errors = (
+                        effective_scale * predicted_flow[start:stop][selected_flow]
+                        - target_flow[start:stop][selected_flow]
+                    )
+                    flow_error_sum += float(
+                        np.sum(np.linalg.norm(flow_errors, axis=-1), dtype=np.float64)
+                    )
+                    evaluated_flow_points += int(flow_errors.shape[0])
+        if frame_count:
+            frame_rmse[frame_position] = np.sqrt(frame_squared_sum / frame_count)
+
     finite_frames = np.isfinite(frame_rmse)
     if np.count_nonzero(finite_frames) >= 2:
         drift_slope = float(
@@ -493,54 +748,70 @@ def evaluate_sequence(
         drift_slope = 0.0
     endpoint_point_rmse = float(frame_rmse[np.flatnonzero(finite_frames)[-1]])
     frame_balanced_point_rmse = float(np.mean(frame_rmse[finite_frames]))
+    point_rmse = float(np.sqrt(squared_sum / evaluated_points))
 
-    seam_values: list[float] = []
+    seam_squared_sum = 0.0
+    seam_count = 0
     common_position = {int(frame): index for index, frame in enumerate(common_frames)}
     for boundary in boundary_frames or []:
         if boundary not in common_position or boundary - 1 not in common_position:
             continue
-        current = common_position[boundary]
-        previous = common_position[boundary - 1]
-        seam_mask = active[current] & active[previous]
-        if np.any(seam_mask):
-            error_jump = errors[current][seam_mask] - errors[previous][seam_mask]
-            seam_values.extend(np.sum(error_jump**2, axis=-1).tolist())
-    seam_rmse = float(np.sqrt(np.mean(seam_values))) if seam_values else 0.0
-
-    active_covariance = predicted_covariance[active]
-    active_error = errors[active]
-    diagnostics = uncertainty_diagnostics(
-        active_error,
-        active_covariance,
-        np.linalg.norm(truth_points[active], axis=-1),
-        uncertainty_normalizers=np.linalg.norm(predicted_points[active], axis=-1),
+        current_position = common_position[boundary]
+        previous_position = common_position[boundary - 1]
+        current_prediction_index = int(prediction_indices[current_position])
+        current_truth_index = int(truth_indices[current_position])
+        previous_prediction_index = int(prediction_indices[previous_position])
+        previous_truth_index = int(truth_indices[previous_position])
+        current_active = _frame_support(
+            prediction,
+            truth,
+            prediction_index=current_prediction_index,
+            truth_index=current_truth_index,
+            support_mask=support_mask,
+        ).reshape(-1)
+        previous_active = _frame_support(
+            prediction,
+            truth,
+            prediction_index=previous_prediction_index,
+            truth_index=previous_truth_index,
+            support_mask=support_mask,
+        ).reshape(-1)
+        seam_active = current_active & previous_active
+        current_prediction = prediction.point_map[current_prediction_index].reshape(-1, 3)
+        current_target = truth.point_map[current_truth_index].reshape(-1, 3)
+        previous_prediction = prediction.point_map[previous_prediction_index].reshape(
+            -1,
+            3,
+        )
+        previous_target = truth.point_map[previous_truth_index].reshape(-1, 3)
+        for start in range(0, seam_active.size, evaluation_chunk_size):
+            stop = min(start + evaluation_chunk_size, seam_active.size)
+            selected = seam_active[start:stop]
+            if not np.any(selected):
+                continue
+            current_error = (
+                effective_scale * current_prediction[start:stop][selected]
+                + effective_translation
+                - current_target[start:stop][selected]
+            )
+            previous_error = (
+                effective_scale * previous_prediction[start:stop][selected]
+                + effective_translation
+                - previous_target[start:stop][selected]
+            )
+            error_jump = current_error - previous_error
+            seam_squared_sum += float(
+                np.sum(error_jump * error_jump, dtype=np.float64)
+            )
+            seam_count += int(error_jump.shape[0])
+    seam_rmse = (
+        float(np.sqrt(seam_squared_sum / seam_count)) if seam_count else 0.0
     )
 
-    flow_epe: float | None = None
-    evaluated_flow_points = 0
-    if prediction.scene_flow is not None and truth.scene_flow is not None:
-        predicted_flow = scale * prediction.scene_flow[prediction_indices]
-        truth_flow = truth.scene_flow[truth_indices]
-        flow_mask = (
-            prediction.deform_mask[prediction_indices]
-            & truth.deform_mask[truth_indices]
-            & predicted_mask
-            & truth_mask
-            & np.all(np.isfinite(predicted_flow), axis=-1)
-            & np.all(np.isfinite(truth_flow), axis=-1)
-        )
-        if flow_support_mask is not None:
-            flow_mask &= flow_support_mask[truth_indices]
-        if np.any(flow_mask):
-            evaluated_flow_points = int(np.count_nonzero(flow_mask))
-            flow_epe = float(
-                np.mean(
-                    np.linalg.norm(
-                        predicted_flow[flow_mask] - truth_flow[flow_mask],
-                        axis=-1,
-                    )
-                )
-            )
+    diagnostics = uncertainty.finalize()
+    flow_epe = (
+        flow_error_sum / evaluated_flow_points if evaluated_flow_points else None
+    )
 
     return SequenceMetrics(
         metric_point_rmse=metric_point_rmse,
@@ -572,8 +843,8 @@ def evaluate_sequence(
         selective_gain_80=diagnostics.selective_gain_80,
         selective_oracle_fraction_80=diagnostics.selective_oracle_fraction_80,
         risk_coverage_auc=diagnostics.risk_coverage_auc,
-        evaluated_points=int(np.count_nonzero(active)),
+        evaluated_points=evaluated_points,
         evaluated_frames=int(np.count_nonzero(finite_frames)),
         evaluated_flow_points=evaluated_flow_points,
-        fitted_alignment_scale=scale,
+        fitted_alignment_scale=alignment_scale,
     )

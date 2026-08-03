@@ -168,6 +168,7 @@ for diagnosing whether gains are purchased through reduced coverage.
 prob4d evaluate provider protocols/provider-evaluation.json \
   --output-dir outputs/provider-evaluation \
   --bootstrap-resamples 2000 \
+  --evaluation-chunk-size 65536 \
   --seed 7
 ```
 
@@ -196,6 +197,13 @@ selective risk, and risk-coverage area. Selective-risk summaries use the expecte
 risk under random tie-breaking, so equal uncertainty scores cannot make results
 depend on pixel order. Aggregate coverage-shortfall summaries also identify the
 worst registered group.
+
+Evaluation processes active point, covariance, flow, and seam rows in bounded
+spatial chunks. Prefix and oracle transforms are applied during accumulation;
+the evaluator does not create full transformed prediction copies. The report
+records `evaluation_chunk_size`, and changing it affects temporary memory and
+floating-point summation order rather than support or metric semantics. See
+[bounded-memory provider evaluation](streaming-evaluation.md).
 
 ## Claim boundary
 

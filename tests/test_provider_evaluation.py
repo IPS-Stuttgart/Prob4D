@@ -6,7 +6,7 @@ import pytest
 
 from prob4d.fusion import FusedSequence
 from prob4d.io import pack_symmetric_covariance, save_fused_prediction, save_truth
-from prob4d.metrics import TruthSequence
+from prob4d.metrics import DEFAULT_EVALUATION_CHUNK_SIZE, TruthSequence
 from prob4d.provider_evaluation import run_provider_evaluation
 
 
@@ -133,6 +133,7 @@ def test_provider_evaluation_uses_equal_group_aggregation(tmp_path: Path) -> Non
         seed=17,
     )
 
+    assert report["evaluation_chunk_size"] == DEFAULT_EVALUATION_CHUNK_SIZE
     uniform = report["aggregate"]["uniform"]
     ci = report["aggregate"]["ci"]
     uniform_metric = uniform["metrics"]["metric.metrics.metric_point_rmse"]
@@ -296,3 +297,38 @@ def test_provider_evaluation_rejects_dense_storage_mode_drift(
 
     with pytest.raises(ValueError, match="mixes covariance, model"):
         run_provider_evaluation(path, tmp_path / "output")
+
+
+def test_provider_evaluation_records_and_validates_chunk_size(tmp_path: Path) -> None:
+    case = _write_case(
+        tmp_path,
+        "c1",
+        "g1",
+        uniform_error=1.0,
+        ci_error=0.5,
+    )
+    manifest = {
+        "schema_name": "prob4d.provider-evaluation",
+        "schema_version": 1,
+        "primary_mode": "metric",
+        "reference_method": "uniform",
+        "cases": [case],
+        "metadata": {},
+    }
+    path = tmp_path / "evaluation.json"
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    report = run_provider_evaluation(
+        path,
+        tmp_path / "output",
+        bootstrap_resamples=10,
+        evaluation_chunk_size=1,
+    )
+    assert report["evaluation_chunk_size"] == 1
+
+    with pytest.raises(ValueError, match="evaluation_chunk_size must be positive"):
+        run_provider_evaluation(
+            path,
+            tmp_path / "invalid",
+            evaluation_chunk_size=0,
+        )
