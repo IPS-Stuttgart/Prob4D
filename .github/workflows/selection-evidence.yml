@@ -11,6 +11,7 @@ on:
       - "src/prob4d/_selection_evidence_replay.py"
       - "src/prob4d/selection_evidence.py"
       - "tests/test_selection_evidence.py"
+      - "tests/test_selection_evidence_claim_boundary.py"
   workflow_dispatch:
 
 permissions:
@@ -27,7 +28,7 @@ env:
 jobs:
   focused-contract:
     name: Target-blind selection and exact fallback contract
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - name: Check out repository
@@ -49,22 +50,28 @@ jobs:
             src/prob4d/_selection_evidence_records.py \
             src/prob4d/_selection_evidence_replay.py \
             src/prob4d/selection_evidence.py \
-            tests/test_selection_evidence.py
+            tests/test_selection_evidence.py \
+            tests/test_selection_evidence_claim_boundary.py
           python -m mypy \
             src/prob4d/_selection_evidence_common.py \
             src/prob4d/_selection_evidence_records.py \
             src/prob4d/_selection_evidence_replay.py \
             src/prob4d/selection_evidence.py
       - name: Run replay and tamper regressions
-        run: python -m pytest -q tests/test_selection_evidence.py
+        run: |
+          python -m pytest -q \
+            tests/test_selection_evidence.py \
+            tests/test_selection_evidence_claim_boundary.py
       - name: Verify installed public module
         run: |
           python - <<'PY'
           from prob4d.selection_evidence import (
+              SELECTION_CLAIM_BOUNDARY,
               SELECTION_EVIDENCE_VERSION,
               SelectionEvidenceBundleV2,
           )
 
           assert SELECTION_EVIDENCE_VERSION == 2
+          assert "frozen target analysis" in SELECTION_CLAIM_BOUNDARY
           assert SelectionEvidenceBundleV2.__name__.endswith("V2")
           PY
