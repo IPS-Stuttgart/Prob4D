@@ -7,7 +7,7 @@ from typing import Any
 
 import numpy as np
 
-from ._point_calibration import PointUncertaintyCalibrationV1
+from ._strict_calibration import PointUncertaintyCalibrationV1
 from .calibration_aggregation import (
     GROUP_BALANCED_UPPER_WINSORIZED_RATIOS_V2,
     LEGACY_GROUP_BALANCED_TRIMMED_RATIOS_V1,
