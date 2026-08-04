@@ -6,14 +6,12 @@ from ._calibration_common import (
     POINT_UNCERTAINTY_CALIBRATION_SCHEMA,
     POINT_UNCERTAINTY_CALIBRATION_VERSION,
 )
-from ._gauge_calibration import (
+from ._strict_calibration import (
     GaugeCovarianceCalibrationV1,
-    load_gauge_covariance_calibration,
-    save_gauge_covariance_calibration,
-)
-from ._point_calibration import (
     PointUncertaintyCalibrationV1,
+    load_gauge_covariance_calibration,
     load_point_uncertainty_calibration,
+    save_gauge_covariance_calibration,
     save_point_uncertainty_calibration,
 )
 from .calibration_aggregation import (
