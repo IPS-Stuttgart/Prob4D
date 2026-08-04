@@ -27,6 +27,20 @@ removing its own ID field. They then validate the known provider name, API
 version, source repository, import boundary, observation schemas, limitations,
 and the required provider-v2 capabilities.
 
+## Strict scalar and object-key types
+
+Validation never converts claim-bearing values through `str(...)`, `bool(...)`,
+or integer equality. SHA-256 identifiers and revisions must already be strings;
+Boolean flags must be literal JSON Booleans; schema and API versions must be JSON
+integers rather than `true`, `false`, or numerically equal floating-point values.
+Every mapping key is checked recursively before JSON normalization, so an integer
+key cannot be silently rewritten into a string key while hashing or validating an
+attestation.
+
+These checks do not change valid schema-version-1 bytes or artifact identifiers.
+They reject only in-memory Python values that do not have the exact JSON types the
+portable contract declares.
+
 ## Claim-bearing requirements
 
 A claim-bearing version-1 attestation must declare all of the following:

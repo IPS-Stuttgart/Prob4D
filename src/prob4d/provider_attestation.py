@@ -70,8 +70,35 @@ def _require(condition: bool, message: str) -> None:
         raise ValueError(message)
 
 
+def _require_string_mapping_keys(
+    value: Any,
+    *,
+    name: str,
+    path: str = "$",
+) -> None:
+    if isinstance(value, Mapping):
+        for key, item in value.items():
+            _require(
+                isinstance(key, str),
+                f"{name} object keys must be strings at {path}",
+            )
+            _require_string_mapping_keys(
+                item,
+                name=name,
+                path=f"{path}.{key}",
+            )
+    elif isinstance(value, (list, tuple)):
+        for index, item in enumerate(value):
+            _require_string_mapping_keys(
+                item,
+                name=name,
+                path=f"{path}[{index}]",
+            )
+
+
 def _finite_json_mapping(value: Any, *, name: str) -> dict[str, Any]:
     _require(isinstance(value, Mapping), f"{name} must be a mapping")
+    _require_string_mapping_keys(value, name=name)
     try:
         normalized = json.loads(
             json.dumps(
@@ -101,24 +128,37 @@ def _require_exact_fields(
     )
 
 
-def _require_sha256(value: Any, *, name: str) -> str:
-    result = str(value)
+def _require_boolean(value: Any, *, name: str) -> bool:
+    _require(isinstance(value, bool), f"{name} must be Boolean")
+    return cast(bool, value)
+
+
+def _require_integer(value: Any, *, name: str) -> int:
     _require(
-        len(result) == 64
-        and all(character in "0123456789abcdef" for character in result),
+        isinstance(value, int) and not isinstance(value, bool),
+        f"{name} must be an integer",
+    )
+    return cast(int, value)
+
+
+def _require_sha256(value: Any, *, name: str) -> str:
+    _require(isinstance(value, str), f"{name} must be a string")
+    _require(
+        len(value) == 64
+        and all(character in "0123456789abcdef" for character in value),
         f"{name} must be a lowercase SHA-256 digest",
     )
-    return result
+    return value
 
 
 def _require_revision(value: Any, *, name: str) -> str:
-    result = str(value)
+    _require(isinstance(value, str), f"{name} must be a string")
     _require(
-        len(result) in {40, 64}
-        and all(character in "0123456789abcdef" for character in result),
+        len(value) in {40, 64}
+        and all(character in "0123456789abcdef" for character in value),
         f"{name} must be an exact lowercase Git commit",
     )
-    return result
+    return value
 
 
 def _canonical_json(value: Mapping[str, Any]) -> bytes:
@@ -166,8 +206,12 @@ def validate_provider_manifest(
         normalized.get("provider_name") == PROVIDER_NAME,
         "provider manifest has changed provider name",
     )
+    provider_api_version = _require_integer(
+        normalized.get("provider_api_version"),
+        name="provider manifest API version",
+    )
     _require(
-        normalized.get("provider_api_version") == PROVIDER_API_VERSION,
+        provider_api_version == PROVIDER_API_VERSION,
         "provider manifest is not API version 2",
     )
 
@@ -187,9 +231,16 @@ def validate_provider_manifest(
     schemas = normalized.get("artifact_schema_versions")
     _require(isinstance(schemas, Mapping), "provider artifact schemas must be a mapping")
     schema_mapping = cast(Mapping[str, Any], schemas)
+    observation_belief_version = _require_integer(
+        schema_mapping.get("ObservationBeliefV1"),
+        name="ObservationBeliefV1 schema version",
+    )
+    causal_stream_version = _require_integer(
+        schema_mapping.get("Prob4DCausalObservationStream"),
+        name="Prob4DCausalObservationStream schema version",
+    )
     _require(
-        schema_mapping.get("ObservationBeliefV1") == 1
-        and schema_mapping.get("Prob4DCausalObservationStream") == 2,
+        observation_belief_version == 1 and causal_stream_version == 2,
         "provider manifest declares unsupported observation schemas",
     )
 
@@ -246,7 +297,8 @@ def _validate_runtime_revision(
     )
     source = runtime.get("source")
     _require(
-        source
+        isinstance(source, str)
+        and source
         in {
             "installed_vcs_metadata",
             "source_checkout",
@@ -261,15 +313,14 @@ def _validate_runtime_revision(
         "runtime clean_checkout must be Boolean or null",
     )
     clean_value = cast(bool | None, clean)
-    matched = runtime.get("matched")
-    independent = runtime.get("independently_verified")
-    _require(isinstance(matched, bool), "runtime matched must be Boolean")
-    _require(
-        isinstance(independent, bool),
-        "runtime independently_verified must be Boolean",
+    matched_value = _require_boolean(
+        runtime.get("matched"),
+        name="runtime matched",
     )
-    matched_value = cast(bool, matched)
-    independent_value = cast(bool, independent)
+    independent_value = _require_boolean(
+        runtime.get("independently_verified"),
+        name="runtime independently_verified",
+    )
     _require(
         matched_value is (observed == expected),
         "runtime matched flag disagrees with its revisions",
@@ -331,18 +382,30 @@ def validate_provider_attestation(
 ) -> dict[str, Any]:
     """Validate and normalize a self-contained provider-v2 attestation."""
 
+    require_claim_bearing_value = _require_boolean(
+        require_claim_bearing,
+        name="require_claim_bearing",
+    )
     normalized = _finite_json_mapping(attestation, name="provider attestation")
     _require_exact_fields(normalized, _ATTESTATION_FIELDS, name="provider attestation")
     _require(
         normalized.get("schema_name") == PROVIDER_ATTESTATION_SCHEMA,
         "unsupported provider-attestation schema",
     )
-    _require(
-        normalized.get("schema_version") == PROVIDER_ATTESTATION_VERSION,
-        "unsupported provider-attestation version",
+    schema_version = _require_integer(
+        normalized.get("schema_version"),
+        name="provider-attestation schema version",
     )
     _require(
-        normalized.get("provider_api_version") == PROVIDER_API_VERSION,
+        schema_version == PROVIDER_ATTESTATION_VERSION,
+        "unsupported provider-attestation version",
+    )
+    provider_api_version = _require_integer(
+        normalized.get("provider_api_version"),
+        name="provider-attestation API version",
+    )
+    _require(
+        provider_api_version == PROVIDER_API_VERSION,
         "provider attestation is not API version 2",
     )
 
@@ -374,26 +437,26 @@ def validate_provider_attestation(
 
     export_mode = normalized.get("export_mode")
     _require(
-        export_mode in {"calibrated", "exploratory"},
+        isinstance(export_mode, str) and export_mode in {"calibrated", "exploratory"},
         "provider attestation export mode is unsupported",
     )
-    claim_bearing_raw = normalized.get("claim_bearing")
-    _require(isinstance(claim_bearing_raw, bool), "claim_bearing must be Boolean")
-    claim_bearing = cast(bool, claim_bearing_raw)
+    claim_bearing = _require_boolean(
+        normalized.get("claim_bearing"),
+        name="claim_bearing",
+    )
     _require(
         claim_bearing is (export_mode == "calibrated"),
         "provider claim-bearing flag disagrees with export mode",
     )
-    compatibility = normalized.get("calibration_compatibility_validated")
-    _require(
-        isinstance(compatibility, bool),
-        "calibration compatibility flag must be Boolean",
+    compatibility = _require_boolean(
+        normalized.get("calibration_compatibility_validated"),
+        name="calibration compatibility flag",
     )
     _require(
         compatibility is claim_bearing,
         "calibration compatibility flag disagrees with export mode",
     )
-    if require_claim_bearing:
+    if require_claim_bearing_value:
         _require(claim_bearing, "a claim-bearing provider-v2 artifact is required")
     calibration = _validate_calibration_ids(
         normalized.get("calibration_artifact_ids"),
@@ -401,12 +464,14 @@ def validate_provider_attestation(
     )
     covariance_mode = normalized.get("covariance_root_mode")
     _require(
-        covariance_mode in {"canonical_eigenspaces", "legacy_eigenvectors"},
+        isinstance(covariance_mode, str)
+        and covariance_mode in {"canonical_eigenspaces", "legacy_eigenvectors"},
         "provider covariance-root mode is unsupported",
     )
     composition_mode = normalized.get("composition_jacobian_mode")
     _require(
-        composition_mode in {"analytic", "legacy_finite_difference"},
+        isinstance(composition_mode, str)
+        and composition_mode in {"analytic", "legacy_finite_difference"},
         "provider composition-Jacobian mode is unsupported",
     )
     if claim_bearing:
@@ -443,6 +508,10 @@ def build_provider_attestation(
 ) -> dict[str, Any]:
     """Construct an attestation and validate the producer's own output."""
 
+    compatibility = _require_boolean(
+        calibration_compatibility_validated,
+        name="calibration compatibility flag",
+    )
     manifest = validate_provider_manifest(
         provider_manifest,
         expected_revision=provider_revision,
@@ -457,9 +526,7 @@ def build_provider_attestation(
         "python_import_boundary": PROVIDER_IMPORT_BOUNDARY,
         "export_mode": export_mode,
         "claim_bearing": export_mode == "calibrated",
-        "calibration_compatibility_validated": bool(
-            calibration_compatibility_validated
-        ),
+        "calibration_compatibility_validated": compatibility,
         "calibration_artifact_ids": dict(calibration_artifact_ids),
         "covariance_root_mode": covariance_root_mode,
         "composition_jacobian_mode": composition_jacobian_mode,
