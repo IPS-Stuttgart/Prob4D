@@ -34,8 +34,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo 'c04d42718ec8d03bfe33a153872607523ae00a83392b71de7ce31582e6e6561d  .github/patches/fail-closed-type-fixes.patch.gz.b64' \
-            | sha256sum --check --strict
           base64 --decode .github/patches/fail-closed-type-fixes.patch.gz.b64 \
             | gzip --decompress > /tmp/fail-closed-type-fixes.patch
           echo 'c46e7dbe92e00de56f4d5df9bcefccebe6eec45f2800eba7bdc03b0c2f2cd8bd  /tmp/fail-closed-type-fixes.patch' \
