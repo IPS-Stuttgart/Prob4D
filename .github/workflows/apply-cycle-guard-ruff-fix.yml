@@ -1,0 +1,55 @@
+name: Apply cycle-guard Ruff fix
+
+on:
+  push:
+    branches:
+      - agent/normalize-cycle-guard
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-cycle-guard-ruff-fix
+  cancel-in-progress: false
+
+jobs:
+  fix-and-commit:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: agent/normalize-cycle-guard
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Apply and verify import-order fix
+        run: |
+          set -euo pipefail
+          python -m pip install ruff
+          python -m ruff check --fix src/prob4d/cycle_guard_monte_carlo.py
+          python -m ruff check \
+            src/prob4d/cycle_guard_monte_carlo.py \
+            src/prob4d/uncertainty_guarded_causal_gauge_graph.py \
+            src/prob4d/uncertainty_normalized_cycles.py \
+            tests/test_cycle_guard_monte_carlo.py \
+            tests/test_uncertainty_normalized_cycle_guard.py
+      - name: Remove one-shot workflow and publish fix
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          rm .github/workflows/apply-cycle-guard-ruff-fix.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/prob4d/cycle_guard_monte_carlo.py \
+            .github/workflows/apply-cycle-guard-ruff-fix.yml
+          git diff --cached --check
+          git commit -m 'Fix cycle guard import order'
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            HEAD:agent/normalize-cycle-guard
