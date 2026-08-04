@@ -64,6 +64,7 @@ class CrossWindowAssociationConfig:
     isotropic_distance_scale_m: float = 0.02
     covariance_floor_m2: float = 1e-10
     maximum_weighted_rms_m: float = 0.05
+    maximum_shared_frame_distance_m: float | None = 0.10
     minimum_compatibility_score: float = 0.05
     minimum_score_margin: float = 0.05
 
@@ -88,6 +89,23 @@ class CrossWindowAssociationConfig:
                     minimum=0.0,
                     strictly_positive=True,
                 ),
+            )
+        if self.maximum_shared_frame_distance_m is not None:
+            maximum_shared_distance = _real(
+                self.maximum_shared_frame_distance_m,
+                name="maximum_shared_frame_distance_m",
+                minimum=0.0,
+                strictly_positive=True,
+            )
+            if maximum_shared_distance < self.maximum_weighted_rms_m:
+                raise ValueError(
+                    "maximum_shared_frame_distance_m must not be smaller than "
+                    "maximum_weighted_rms_m"
+                )
+            object.__setattr__(
+                self,
+                "maximum_shared_frame_distance_m",
+                maximum_shared_distance,
             )
         for name in ("minimum_compatibility_score", "minimum_score_margin"):
             object.__setattr__(
@@ -136,7 +154,11 @@ class CrossWindowAssociationResult:
     links: tuple[CrossWindowAssociationLink, ...]
     unmatched_left_track_ids: tuple[int, ...]
     unmatched_right_track_ids: tuple[int, ...]
+    possible_track_pair_count: int
+    spatial_candidate_pair_count: int
+    spatially_rejected_pair_count: int
     evaluated_track_pair_count: int
+    shared_gate_frame_count: int
     insufficient_shared_frame_pair_count: int
     zero_support_pair_count: int
     low_support_pair_count: int
@@ -186,6 +208,61 @@ def _frame_rows(tracklets: CausalTrackletSet, rows: IntArray) -> dict[int, int]:
     return {int(tracklets.frame_indices[row]): int(row) for row in rows}
 
 
+def _spatial_candidate_pairs(
+    left: CausalTrackletSet,
+    right: CausalTrackletSet,
+    *,
+    left_global_from_local: Sim3,
+    right_global_from_local: Sim3,
+    maximum_distance_m: float | None,
+    chunk_size: int,
+) -> tuple[tuple[int, ...], tuple[tuple[int, int], ...]]:
+    shared_frames = tuple(
+        sorted(
+            set(int(value) for value in np.unique(left.frame_indices))
+            & set(int(value) for value in np.unique(right.frame_indices))
+        )
+    )
+    if not shared_frames:
+        return (), ()
+    if maximum_distance_m is None:
+        return shared_frames, tuple(
+            (left_track_id, right_track_id)
+            for left_track_id in range(left.track_count)
+            for right_track_id in range(right.track_count)
+        )
+
+    maximum_square = maximum_distance_m**2
+    pairs: set[tuple[int, int]] = set()
+    for frame in shared_frames:
+        left_rows = np.flatnonzero(left.frame_indices == frame)
+        right_rows = np.flatnonzero(right.frame_indices == frame)
+        if not len(left_rows) or not len(right_rows):
+            continue
+        left_points = left_global_from_local.transform_points(left.points_local[left_rows])
+        right_points = right_global_from_local.transform_points(
+            right.points_local[right_rows]
+        )
+        right_track_ids = right.track_ids[right_rows]
+        for start in range(0, len(left_rows), chunk_size):
+            stop = min(start + chunk_size, len(left_rows))
+            differences = (
+                left_points[start:stop, None, :] - right_points[None, :, :]
+            )
+            squared = np.einsum("...i,...i->...", differences, differences)
+            local_left, local_right = np.nonzero(squared <= maximum_square)
+            for left_offset, right_offset in zip(
+                local_left, local_right, strict=True
+            ):
+                pairs.add(
+                    (
+                        int(left.track_ids[left_rows[start + int(left_offset)]]),
+                        int(right_track_ids[int(right_offset)]),
+                    )
+                )
+    return shared_frames, tuple(sorted(pairs))
+
+
 def _normalized_square(
     residual: FloatArray,
     *,
@@ -203,7 +280,7 @@ def _normalized_square(
     eigenvalues, eigenvectors = np.linalg.eigh(covariance)
     eigenvalues = np.maximum(eigenvalues, config.covariance_floor_m2)
     coordinates = eigenvectors.T @ residual
-    return float(np.sum(coordinates**2 / eigenvalues) / 3.0)
+    return float(np.sum(coordinates**2 / eigenvalues))
 
 
 def _candidate_rank(
@@ -258,6 +335,7 @@ def associate_cross_window_tracklets(
     configuration: CrossWindowAssociationConfig | None = None,
     left_global_covariance_m2: FloatArray | None = None,
     right_global_covariance_m2: FloatArray | None = None,
+    candidate_chunk_size: int = 256,
 ) -> CrossWindowAssociationResult:
     """Score and conservatively admit source-only links between two windows.
 
@@ -279,6 +357,11 @@ def associate_cross_window_tracklets(
     config = configuration or CrossWindowAssociationConfig()
     if not isinstance(config, CrossWindowAssociationConfig):
         raise TypeError("configuration must be CrossWindowAssociationConfig")
+    chunk_size = _integer(
+        candidate_chunk_size,
+        name="candidate_chunk_size",
+        minimum=1,
+    )
     if (left_global_covariance_m2 is None) != (right_global_covariance_m2 is None):
         raise ValueError("global covariance must be supplied for both windows or neither")
     left_covariance = (
@@ -307,80 +390,93 @@ def associate_cross_window_tracklets(
     low_support_pairs = 0
     left_tracks = _track_rows(left)
     right_tracks = _track_rows(right)
+    shared_gate_frames, pair_candidates = _spatial_candidate_pairs(
+        left,
+        right,
+        left_global_from_local=left_global_from_local,
+        right_global_from_local=right_global_from_local,
+        maximum_distance_m=config.maximum_shared_frame_distance_m,
+        chunk_size=chunk_size,
+    )
 
-    for left_track_id, left_rows in left_tracks.items():
-        left_by_frame = _frame_rows(left, left_rows)
-        for right_track_id, right_rows in right_tracks.items():
-            right_by_frame = _frame_rows(right, right_rows)
-            shared_frames = tuple(sorted(left_by_frame.keys() & right_by_frame.keys()))
-            if len(shared_frames) < config.minimum_shared_frames:
-                insufficient_shared_frames += 1
-                continue
-            left_indices = np.asarray(
-                [left_by_frame[frame] for frame in shared_frames], dtype=np.int64
-            )
-            right_indices = np.asarray(
-                [right_by_frame[frame] for frame in shared_frames], dtype=np.int64
-            )
-            left_points = left_global_from_local.transform_points(
-                left.points_local[left_indices]
-            )
-            right_points = right_global_from_local.transform_points(
-                right.points_local[right_indices]
-            )
-            residuals = left_points - right_points
-            distances = np.linalg.norm(residuals, axis=1)
-            weights = (
-                left.association_probability[left_indices]
-                * right.association_probability[right_indices]
-            )
-            support = float(np.sum(weights))
-            if support <= 0.0:
-                zero_support_pairs += 1
-                continue
-            normalized_squares = np.asarray(
-                [
-                    _normalized_square(
-                        residual,
-                        left_covariance=(
-                            None
-                            if left_covariance is None
-                            else left_covariance[left_index]
-                        ),
-                        right_covariance=(
-                            None
-                            if right_covariance is None
-                            else right_covariance[right_index]
-                        ),
-                        config=config,
-                    )
-                    for residual, left_index, right_index in zip(
-                        residuals, left_indices, right_indices, strict=True
-                    )
-                ],
-                dtype=np.float64,
-            )
-            weighted_rms = float(np.sqrt(np.sum(weights * distances**2) / support))
-            normalized_rms = float(
-                np.sqrt(np.sum(weights * normalized_squares) / support)
-            )
-            support_fraction = min(1.0, support / config.minimum_effective_support)
-            score = float(support_fraction * np.exp(-0.5 * normalized_rms**2))
-            if support < config.minimum_effective_support:
-                low_support_pairs += 1
-            candidates.append(
-                CrossWindowAssociationCandidate(
-                    left_track_id=left_track_id,
-                    right_track_id=right_track_id,
-                    shared_frame_indices=shared_frames,
-                    effective_support=support,
-                    weighted_rms_m=weighted_rms,
-                    maximum_distance_m=float(np.max(distances)),
-                    normalized_rms=normalized_rms,
-                    compatibility_score=score,
-                    used_covariance=used_covariance,
+    left_frame_rows = {
+        track_id: _frame_rows(left, rows) for track_id, rows in left_tracks.items()
+    }
+    right_frame_rows = {
+        track_id: _frame_rows(right, rows) for track_id, rows in right_tracks.items()
+    }
+    for left_track_id, right_track_id in pair_candidates:
+        left_by_frame = left_frame_rows[left_track_id]
+        right_by_frame = right_frame_rows[right_track_id]
+        shared_frames = tuple(sorted(left_by_frame.keys() & right_by_frame.keys()))
+        if len(shared_frames) < config.minimum_shared_frames:
+            insufficient_shared_frames += 1
+            continue
+        left_indices = np.asarray(
+            [left_by_frame[frame] for frame in shared_frames], dtype=np.int64
+        )
+        right_indices = np.asarray(
+            [right_by_frame[frame] for frame in shared_frames], dtype=np.int64
+        )
+        left_points = left_global_from_local.transform_points(
+            left.points_local[left_indices]
+        )
+        right_points = right_global_from_local.transform_points(
+            right.points_local[right_indices]
+        )
+        residuals = left_points - right_points
+        distances = np.linalg.norm(residuals, axis=1)
+        weights = (
+            left.association_probability[left_indices]
+            * right.association_probability[right_indices]
+        )
+        support = float(np.sum(weights))
+        if support <= 0.0:
+            zero_support_pairs += 1
+            continue
+        normalized_squares = np.asarray(
+            [
+                _normalized_square(
+                    residual,
+                    left_covariance=(
+                        None
+                        if left_covariance is None
+                        else left_covariance[left_index]
+                    ),
+                    right_covariance=(
+                        None
+                        if right_covariance is None
+                        else right_covariance[right_index]
+                    ),
+                    config=config,
                 )
+                for residual, left_index, right_index in zip(
+                    residuals, left_indices, right_indices, strict=True
+                )
+            ],
+            dtype=np.float64,
+        )
+        weighted_rms = float(np.sqrt(np.sum(weights * distances**2) / support))
+        normalized_rms = float(
+            np.sqrt(np.sum(weights * normalized_squares) / support)
+        )
+        support_fraction = min(1.0, support / config.minimum_effective_support)
+        score = float(support_fraction * np.exp(-0.5 * normalized_rms**2))
+        if support < config.minimum_effective_support:
+            low_support_pairs += 1
+        candidates.append(
+            CrossWindowAssociationCandidate(
+                left_track_id=left_track_id,
+                right_track_id=right_track_id,
+                shared_frame_indices=shared_frames,
+                effective_support=support,
+                weighted_rms_m=weighted_rms,
+                maximum_distance_m=float(np.max(distances)),
+                normalized_rms=normalized_rms,
+                compatibility_score=score,
+                used_covariance=used_covariance,
             )
+        )
 
     candidate_tuple = tuple(
         sorted(candidates, key=lambda item: (item.left_track_id, item.right_track_id))
@@ -440,7 +536,13 @@ def associate_cross_window_tracklets(
         unmatched_right_track_ids=tuple(
             track_id for track_id in right_tracks if track_id not in linked_right
         ),
-        evaluated_track_pair_count=left.track_count * right.track_count,
+        possible_track_pair_count=left.track_count * right.track_count,
+        spatial_candidate_pair_count=len(pair_candidates),
+        spatially_rejected_pair_count=(
+            left.track_count * right.track_count - len(pair_candidates)
+        ),
+        evaluated_track_pair_count=len(pair_candidates),
+        shared_gate_frame_count=len(shared_gate_frames),
         insufficient_shared_frame_pair_count=insufficient_shared_frames,
         zero_support_pair_count=zero_support_pairs,
         low_support_pair_count=low_support_pairs,
