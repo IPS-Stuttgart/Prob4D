@@ -1,0 +1,14 @@
+{
+  "schema_name": "prob4d.gauge-graph-science-rebuild-attestation",
+  "schema_version": 1,
+  "evidence_source_revision": "79e590157ce2514369f395130e3938dc755628d1",
+  "rebuilt_branch_revision": "8e3d3c29eaa65bfb89f2efcb30e910afbfc96ecd",
+  "evidence_artifact_id": 8882704456,
+  "evidence_artifact_sha256": "890664f63ca872b156fc44b9687924cf577c28d7ecc03064aa2df1316fd903a3",
+  "byte_identical_study_files": {
+    ".github/workflows/gauge-graph-science-replication.yml": "86510258158166cab9d8b7bdfcc6cd00fee32a62",
+    "protocols/gauge-graph-science-replication-v1.json": "c20db148e3d4fcc0e5011528f1a80223fe656669",
+    "src/prob4d/causal_gauge_graph_monte_carlo.py": "6e18b21c1e3d3cfd729af5167b1ecd313a0874c2"
+  },
+  "interpretation": "The retained evidence remains bound to its executing source revision. The rebuilt one-commit branch preserves the named study implementation, frozen replication protocol, and replication workflow byte-for-byte; this attestation does not rewrite the evidence source revision or expand its claim boundary."
+}
