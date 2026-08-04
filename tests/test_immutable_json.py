@@ -83,11 +83,12 @@ def test_frozen_mapping_wraps_non_string_keys_without_losing_the_cause() -> None
 
     with pytest.raises(
         ValueError,
-        match="metadata must be finite JSON data with string object keys",
+        match="metadata must be finite JSON data",
     ) as caught:
         frozen_finite_json_mapping(cast(Mapping[str, Any], payload))
 
     assert isinstance(caught.value.__cause__, TypeError)
+    assert "JSON object keys must be strings" in str(caught.value.__cause__)
 
 
 def test_frozen_mapping_remains_recursively_immutable_and_copyable() -> None:
