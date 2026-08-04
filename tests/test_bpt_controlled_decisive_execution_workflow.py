@@ -67,7 +67,11 @@ def test_decisive_execution_accepts_only_registered_outcomes() -> None:
     assert "registered decision criteria do not recompute" in text
     assert "overall decision does not match registered criteria" in text
     assert "all_rejections_exact_fallback" in text
-    assert "fresh target rows differ from retained deterministic evidence" in text
+    assert "registered decision differs from retained evidence" in text
+    assert "retained discrete aggregate changed" in text
+    assert "retained numerical aggregate changed" in text
+    assert "retained bootstrap interval changed" in text
+    assert "rel_tol=1e-12" in text
     assert "retention-days: 90" in text
 
 
