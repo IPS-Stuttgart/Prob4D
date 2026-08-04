@@ -26,6 +26,11 @@ residuals, intervention outcomes, or post-cutoff observations. Only absolute
 frames present in both tracklets contribute to a candidate. A nonshared causal
 suffix in either window therefore cannot change the score.
 
+Within-window tracklets record whether target-frame deform-mask support was
+required or merely source-frame flow support was used. Cross-window studies must
+freeze and report that policy rather than mixing the two semantics under one
+method label.
+
 ## Bounded spatial candidate generation
 
 Before scoring complete track pairs, the diagnostic applies a spatial gate on
@@ -45,6 +50,18 @@ silently allocating or scoring an effectively exhaustive Cartesian product. Set
 `maximum_shared_frame_distance_m=None` only for an explicitly exhaustive small
 diagnostic; the same candidate-count ceiling still applies. The ceiling can be
 set to `None` only in a separately justified controlled experiment.
+
+The result distinguishes three counts:
+
+- `spatial_candidate_pair_count`: every pair retained by the spatial gate;
+- `evaluated_track_pair_count`: pairs that had sufficient shared support and
+  produced a complete compatibility candidate; and
+- `insufficient_shared_frame_pair_count` plus `zero_support_pair_count`: spatial
+  candidates rejected before a complete score was produced.
+
+Schema version 2 corrects the former accounting in which
+`evaluated_track_pair_count` was set equal to the spatial-candidate count even
+when a pair was rejected before scoring.
 
 ## Candidate score
 
@@ -93,13 +110,31 @@ non-mutual, ambiguous, threshold-rejected, low-support, zero-support, and
 insufficient-overlap counts. Rejected tracks remain explicitly unmatched rather
 than being forced into an identity.
 
+## Fail-closed result contract
+
+Candidates, links, and complete results validate during direct construction, not
+only when produced by the association routine. The contract rejects:
+
+- Boolean or floating aliases for integer IDs and counts;
+- non-finite or out-of-range scores;
+- unsorted or duplicate frame and track-pair identities;
+- weighted RMS values larger than the recorded maximum distance;
+- score margins larger than the selected compatibility score;
+- links without an identical source candidate;
+- non-contiguous track domains or unmatched sets inconsistent with the links; and
+- inconsistent spatial, scoring, mutual-best, or rejection accounting.
+
+This makes a manually constructed result subject to the same invariant boundary
+as an internally generated one.
+
 ## Portable result identity
 
 `CrossWindowAssociationResult.descriptor()` emits the complete semantic result:
 configuration, candidates, accepted links, unmatched tracks, and rejection
-accounting. `result_id` is the SHA-256 digest of the canonical finite-JSON
-encoding of that descriptor. `to_dict()` adds the ID to the descriptor for compact
-result retention.
+accounting. Schema version 2 includes corrected evaluated-pair semantics and the
+strict construction contract. `result_id` is the SHA-256 digest of the canonical
+finite-JSON encoding of that descriptor. `to_dict()` adds the ID to the
+descriptor for compact result retention.
 
 Execution-only tiling is deliberately excluded from the descriptor. Runs using
 different `candidate_chunk_size` values must therefore produce byte-equivalent
