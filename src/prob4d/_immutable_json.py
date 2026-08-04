@@ -130,9 +130,7 @@ def frozen_finite_json_mapping(
             )
         )
     except (TypeError, ValueError) as error:
-        raise ValueError(
-            f"{name} must be finite JSON data with string object keys"
-        ) from error
+        raise ValueError(f"{name} must be finite JSON data") from error
     if not isinstance(normalized, dict):
         raise ValueError(f"{name} must be a JSON object")
     return _freeze_json(normalized)
