@@ -1,4 +1,4 @@
-name: Export frozen BPT decisive payload
+name: Export Prob4D decisive-study PR source
 
 on:
   pull_request:
@@ -16,64 +16,31 @@ concurrency:
 
 jobs:
   export:
-    runs-on: [self-hosted, Linux, X64, nvidia-smi]
-    timeout-minutes: 20
-    env:
-      BPT_SOURCE_REVISION: 76d4aba20dd386e1f8583e501781d702d7937566
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - name: Resolve exact runner-local BayesianPhysTwin source
-        id: bpt
+      - name: Check out exact pull-request source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Export files required for the repair
         shell: bash
         run: |
           set -euo pipefail
-          candidates=(
-            "${RUNNER_WORKSPACE}/../BayesianPhysTwin/BayesianPhysTwin"
-            "${RUNNER_WORKSPACE}/../bayesianphystwin/BayesianPhysTwin"
-            "${RUNNER_WORKSPACE}/../BayesianPhysTwin"
-            "${RUNNER_WORKSPACE}/BayesianPhysTwin/BayesianPhysTwin"
-            "${HOME}/BayesianPhysTwin"
-            "${HOME}/src/BayesianPhysTwin"
-          )
-          while IFS= read -r gitdir; do
-            candidates+=("${gitdir%/.git}")
-          done < <(
-            find "${RUNNER_WORKSPACE}/.." -maxdepth 5 -type d -name .git \
-              -print 2>/dev/null | sort -u
-          )
-          for src in "${candidates[@]}"; do
-            if git -C "${src}" cat-file -e \
-              "${BPT_SOURCE_REVISION}^{commit}" 2>/dev/null; then
-              echo "path=${src}" >> "${GITHUB_OUTPUT}"
-              exit 0
-            fi
-          done
-          echo "Exact BayesianPhysTwin commit is unavailable" >&2
-          exit 1
+          mkdir -p "${RUNNER_TEMP}/prob4d-pr-export"
+          tar -czf "${RUNNER_TEMP}/prob4d-pr-export/source.tar.gz" \
+            .github/workflows/bpt-controlled-decisive-v1.yml \
+            tests/test_bpt_controlled_decisive_execution_workflow.py \
+            docs/bpt-controlled-decisive-execution.md
+          sha256sum "${RUNNER_TEMP}/prob4d-pr-export/source.tar.gz" \
+            > "${RUNNER_TEMP}/prob4d-pr-export/SHA256SUMS"
 
-      - name: Export exact payload files
-        shell: bash
-        env:
-          BPT_PATH: ${{ steps.bpt.outputs.path }}
-        run: |
-          set -euo pipefail
-          mkdir -p "${RUNNER_TEMP}/bpt-payload-export"
-          git -C "${BPT_PATH}" archive \
-            --format=tar.gz \
-            --output="${RUNNER_TEMP}/bpt-payload-export/payload.tar.gz" \
-            "${BPT_SOURCE_REVISION}" \
-            scripts/science/prob4d_bpt_controlled_decisive_payload \
-            scripts/science/prob4d_bpt_controlled_decisive_verifier_payload \
-            scripts/science/run_prob4d_bpt_controlled_decisive_v1.py \
-            scripts/science/verify_prob4d_bpt_controlled_decisive_v1.py \
-            tests/test_prob4d_bpt_controlled_decisive_v1.py \
-            tests/test_prob4d_bpt_controlled_decisive_verifier_v1.py
-          sha256sum "${RUNNER_TEMP}/bpt-payload-export/payload.tar.gz" \
-            > "${RUNNER_TEMP}/bpt-payload-export/SHA256SUMS"
-
-      - name: Upload exact payload export
+      - name: Upload exact pull-request files
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: bpt-controlled-payload-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/bpt-payload-export
+          name: prob4d-decisive-source-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/prob4d-pr-export
           if-no-files-found: error
           retention-days: 1
