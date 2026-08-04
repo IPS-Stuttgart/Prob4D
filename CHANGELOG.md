@@ -84,6 +84,10 @@ All notable changes to Prob4D are documented here.
 
 ### Fixed
 
+- Scientific scalar contracts for robust alignment, cross-fitted disagreement,
+  and uncertainty calibration reports now reject booleans, integral floats,
+  numeric strings, and fractional count truncation. Robust alignment also rejects
+  non-positive iteration, Huber, and convergence controls before numerical work.
 - `FusedSequence` no longer retains mutable aliases to caller-owned arrays or
   leaves apparent dtype normalization local to validation. Active point and flow
   covariance now fail closed on non-finite, asymmetric, or materially indefinite
