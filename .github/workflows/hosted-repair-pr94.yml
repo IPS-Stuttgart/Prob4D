@@ -18,7 +18,7 @@ jobs:
       github.actor != 'github-actions[bot]' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.head.ref == 'agent/harden-tracklet-association-contracts'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 25
     steps:
       - name: Check out branch
@@ -53,6 +53,39 @@ jobs:
           docs_marker = 'replace_once(\n    "docs/causal-tracklets.md",'
           source_and_tests = payload[: payload.index(docs_marker)]
           exec(compile(source_and_tests, str(workflow_path), 'exec'))
+
+          alias_repairs = {
+              'src/prob4d/causal_tracklets.py': (
+                  'from typing import Any\n',
+                  'from typing import Any, TypeAlias\n',
+              ),
+              'src/prob4d/cross_window_tracklets.py': (
+                  'from typing import Any, Literal\n',
+                  'from typing import Any, Literal, TypeAlias\n',
+              ),
+          }
+          for source_path, (old_import, new_import) in alias_repairs.items():
+              source = Path(source_path)
+              source_text = source.read_text(encoding='utf-8')
+              aliases = (
+                  'FloatArray = NDArray[np.floating]\n'
+                  'IntArray = NDArray[np.integer]\n'
+              )
+              typed_aliases = (
+                  'FloatArray: TypeAlias = NDArray[np.floating[Any]]\n'
+                  'IntArray: TypeAlias = NDArray[np.integer[Any]]\n'
+              )
+              for old, new in (
+                  (old_import, new_import),
+                  (aliases, typed_aliases),
+              ):
+                  if source_text.count(old) != 1:
+                      raise SystemExit(
+                          f'expected one typing repair target in {source_path}, '
+                          f'found {source_text.count(old)}'
+                      )
+                  source_text = source_text.replace(old, new)
+              source.write_text(source_text, encoding='utf-8')
 
           docs = Path('docs/causal-tracklets.md')
           text = docs.read_text(encoding='utf-8')
