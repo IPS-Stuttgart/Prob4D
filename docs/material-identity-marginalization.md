@@ -18,12 +18,14 @@ target track:
   reference;
 - zero or more linked source endpoints, each stored as its original
   `(window_id, track_id)` pair;
+- an ordered admitted-window sequence with the target window last;
 - the source association result identity and source score;
 - a source-calibrated log weight;
 - the association-rule, calibration, producer, and implementation identities.
 
-No global point ID, connected component, or provider-v2 observation rewrite is
-created.
+Every linked source endpoint must occur before the target in the bound window
+order. No global point ID, connected component, or provider-v2 observation
+rewrite is created.
 
 ## Exact downstream marginalization
 
