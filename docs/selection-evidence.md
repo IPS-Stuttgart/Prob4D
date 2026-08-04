@@ -26,6 +26,11 @@ A `SelectionEvidenceBundleV2` contains:
 Calibration rows must form a complete rectangular group-by-candidate matrix. Missing,
 duplicate, unknown-candidate, non-finite, or noncanonical rows fail closed.
 
+The schema version must be a canonical JSON integer. The retained claim-boundary text
+is authenticated as part of the portable contract rather than treated as advisory
+metadata, so weakening or replacing it makes loading fail closed. Missing, unreadable,
+non-UTF-8, or malformed evidence files are likewise reported as validation failures.
+
 ## Target-blind selection
 
 Selection uses only `CalibrationMetricRowV1` values. Deployment decisions are stored
