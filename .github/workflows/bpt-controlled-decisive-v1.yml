@@ -170,6 +170,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          rm -rf "${RUNNER_TEMP}/prob4d-bpt-venv"
           python -m venv "${RUNNER_TEMP}/prob4d-bpt-venv"
           echo "VIRTUAL_ENV=${RUNNER_TEMP}/prob4d-bpt-venv" >> "${GITHUB_ENV}"
           echo "${RUNNER_TEMP}/prob4d-bpt-venv/bin" >> "${GITHUB_PATH}"
