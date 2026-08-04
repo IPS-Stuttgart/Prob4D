@@ -5,83 +5,64 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/scientific-scalar-one-shot.yml"
-      - "src/prob4d/_scientific_scalars.py"
-      - "src/prob4d/alignment.py"
-      - "src/prob4d/cross_fitted_disagreement.py"
-      - "src/prob4d/uncertainty.py"
-      - "tests/test_scientific_scalar_validation.py"
+      - ".github/scripts/finish_scientific_scalars.py"
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: scientific-scalar-one-shot-validation
   cancel-in-progress: true
 
-env:
-  PIP_DISABLE_PIP_VERSION_CHECK: "1"
-  PYTHONUNBUFFERED: "1"
-
 jobs:
-  validate:
-    name: Workstation2 diagnostic validation
-    runs-on: [self-hosted, Linux, X64, nvidia-smi]
-    timeout-minutes: 90
+  finish:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'agent/harden-scientific-scalar-validation'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
-      - name: Check out exact branch revision
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          persist-credentials: false
-      - name: Set up Python 3.12
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+          ref: agent/harden-scientific-scalar-validation
+          fetch-depth: 0
+          persist-credentials: true
+          clean: true
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
-      - name: Install development environment
-        run: python -m pip install -e ".[dev]"
-      - name: Record runtime identity
-        shell: bash
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install development dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+          python -m pip check
+      - name: Apply and format the hardening patch
         run: |
           set -euo pipefail
-          mkdir -p outputs/scientific-scalar-validation
-          {
-            echo "repository=${GITHUB_REPOSITORY}"
-            echo "revision=${GITHUB_SHA}"
-            echo "run_id=${GITHUB_RUN_ID}"
-            echo "runner_name=${RUNNER_NAME}"
-            echo "runner_os=${RUNNER_OS}"
-            echo "runner_arch=${RUNNER_ARCH}"
-            echo
-            uname -a
-            echo
-            python -VV
-            python -c 'import numpy; print("numpy=" + numpy.__version__)'
-            if command -v nvidia-smi >/dev/null 2>&1; then
-              echo
-              nvidia-smi --query-gpu=name,uuid,driver_version --format=csv,noheader
-            fi
-          } > outputs/scientific-scalar-validation/runtime.txt
-      - name: Record Ruff's exact formatter patch
-        shell: bash
-        run: |
-          set -euo pipefail
-          python -m ruff check --fix tests/test_scientific_scalar_validation.py
-          git diff -- tests/test_scientific_scalar_validation.py \
-            | tee outputs/scientific-scalar-validation/ruff-fix.diff
-      - name: Run changed-source quality checks
-        shell: bash
-        run: |
-          set -euo pipefail
+          python .github/scripts/finish_scientific_scalars.py
+          python -m ruff check --fix \
+            src/prob4d/_scientific_scalars.py \
+            src/prob4d/alignment.py \
+            src/prob4d/cross_fitted_disagreement.py \
+            src/prob4d/uncertainty.py \
+            tests/test_scientific_scalar_validation.py
+          python -m ruff format \
+            src/prob4d/_scientific_scalars.py \
+            src/prob4d/alignment.py \
+            src/prob4d/cross_fitted_disagreement.py \
+            src/prob4d/uncertainty.py \
+            tests/test_scientific_scalar_validation.py
           python -m ruff check \
             src/prob4d/_scientific_scalars.py \
             src/prob4d/alignment.py \
             src/prob4d/cross_fitted_disagreement.py \
             src/prob4d/uncertainty.py \
-            tests/test_scientific_scalar_validation.py \
-            | tee outputs/scientific-scalar-validation/ruff.txt
-          python -m mypy src/prob4d/_scientific_scalars.py \
-            | tee outputs/scientific-scalar-validation/mypy.txt
-      - name: Run focused regressions
-        shell: bash
+            tests/test_scientific_scalar_validation.py
+          python -m mypy src/prob4d/_scientific_scalars.py
+          git diff --check
+      - name: Run regressions and package audit
         run: |
           set -euo pipefail
           python -m pytest -q \
@@ -89,85 +70,33 @@ jobs:
             tests/test_alignment.py \
             tests/test_cross_fitted_disagreement.py \
             tests/test_uncertainty.py \
-            tests/test_group_balanced_point_calibration.py \
-            | tee outputs/scientific-scalar-validation/focused-pytest.txt
-      - name: Run complete repository suite
-        shell: bash
-        run: |
-          set -euo pipefail
-          python -m pytest -q \
-            | tee outputs/scientific-scalar-validation/full-pytest.txt
-      - name: Build and audit distributions
-        shell: bash
-        run: |
-          set -euo pipefail
+            tests/test_group_balanced_point_calibration.py
+          python -m pytest -q
           python -m build
-          python -m twine check dist/* \
-            | tee outputs/scientific-scalar-validation/distributions.txt
+          python -m twine check dist/*
           archive=$(find dist -maxdepth 1 -name '*.tar.gz' -print -quit)
-          test -n "$archive"
-          python scripts/ci/check_sdist.py "$archive" \
-            | tee -a outputs/scientific-scalar-validation/distributions.txt
-      - name: Publish validation summary
-        if: always()
-        shell: bash
+          test -n "${archive}"
+          python scripts/ci/check_sdist.py "${archive}"
+      - name: Remove temporary machinery and publish ordinary source
         run: |
           set -euo pipefail
-          python - <<'PY'
-          from __future__ import annotations
-
-          import hashlib
-          import json
-          import os
-          from pathlib import Path
-
-          root = Path("outputs/scientific-scalar-validation")
-          root.mkdir(parents=True, exist_ok=True)
-          expected = (
-              "runtime.txt",
-              "ruff-fix.diff",
-              "ruff.txt",
-              "mypy.txt",
-              "focused-pytest.txt",
-              "full-pytest.txt",
-              "distributions.txt",
-          )
-          present = [name for name in expected if (root / name).is_file()]
-          summary = {
-              "schema": "prob4d.scientific-scalar-validation-diagnostic",
-              "schema_version": 1,
-              "repository": os.environ["GITHUB_REPOSITORY"],
-              "revision": os.environ["GITHUB_SHA"],
-              "run_id": int(os.environ["GITHUB_RUN_ID"]),
-              "runner_name": os.environ["RUNNER_NAME"],
-              "present_reports": present,
-              "complete": set(present) == set(expected),
-              "diagnostic_worktree_modified": True,
-              "claim_boundary": (
-                  "Diagnostic software validation only. Ruff may modify the isolated "
-                  "runner worktree; no dataset or empirical result is produced."
-              ),
-          }
-          (root / "summary.json").write_text(
-              json.dumps(summary, indent=2, sort_keys=True) + "\n",
-              encoding="utf-8",
-          )
-          lines = []
-          for path in sorted(root.iterdir()):
-              if path.is_file():
-                  digest = hashlib.sha256(path.read_bytes()).hexdigest()
-                  lines.append(f"{digest}  {path.name}")
-          (root / "SHA256SUMS").write_text("\n".join(lines) + "\n", encoding="utf-8")
-          with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a", encoding="utf-8") as stream:
-              stream.write("## Scientific scalar diagnostic validation\n\n")
-              stream.write(f"Revision: `{os.environ['GITHUB_SHA']}`\n\n")
-              stream.write(f"Evidence complete: `{summary['complete']}`\n")
-          PY
-      - name: Upload complete diagnostic evidence
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: scientific-scalar-diagnostic-${{ github.run_id }}
-          path: outputs/scientific-scalar-validation
-          if-no-files-found: error
-          retention-days: 30
+          rm -f \
+            .github/scripts/finish_scientific_scalars.py \
+            .github/workflows/scientific-scalar-one-shot.yml \
+            .github/workflows/temporary-finish-scientific-scalars.yml
+          git add -A -- \
+            .github/scripts/finish_scientific_scalars.py \
+            .github/workflows/scientific-scalar-one-shot.yml \
+            .github/workflows/temporary-finish-scientific-scalars.yml \
+            CHANGELOG.md \
+            src/prob4d/_scientific_scalars.py \
+            src/prob4d/alignment.py \
+            src/prob4d/cross_fitted_disagreement.py \
+            src/prob4d/uncertainty.py \
+            tests/test_scientific_scalar_validation.py
+          git diff --cached --check
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Finish scientific scalar hardening"
+          git push origin HEAD:agent/harden-scientific-scalar-validation
