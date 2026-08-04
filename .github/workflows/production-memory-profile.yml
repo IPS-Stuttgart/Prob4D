@@ -12,6 +12,14 @@ on:
       - "tests/test_fusion_memory_benchmark.py"
   workflow_dispatch:
     inputs:
+      runner:
+        description: "Runner type"
+        required: true
+        default: github-hosted
+        type: choice
+        options:
+          - github-hosted
+          - self-hosted
       frames:
         description: "Number of full-resolution frames"
         required: true
@@ -82,7 +90,12 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' ||
       github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64, nvidia-smi]
+    runs-on: >-
+      ${{
+        inputs.runner == 'self-hosted' &&
+        fromJSON('["self-hosted","Linux","X64","nvidia-smi"]') ||
+        'ubuntu-latest'
+      }}
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -129,7 +142,11 @@ jobs:
             echo
             free -b
             echo
-            nvidia-smi
+            if command -v nvidia-smi >/dev/null 2>&1; then
+              nvidia-smi
+            else
+              echo "nvidia-smi is unavailable on this CPU runner"
+            fi
             echo
             python -VV
             python -c 'import numpy; print("numpy=" + numpy.__version__)'
