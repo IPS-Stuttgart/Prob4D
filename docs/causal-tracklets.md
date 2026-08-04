@@ -23,6 +23,7 @@ tracklets, report = build_causal_scene_flow_tracklets(
     association_sigma_local=0.02,
     minimum_link_probability=0.05,
     minimum_track_length=3,
+    target_deform_mask_policy="allow",
 )
 ```
 
@@ -47,6 +48,43 @@ maps the window into the metric world frame.
 probabilities. It expresses support that the current row still belongs to the
 same seeded identity. It is not source reliability and must not be replaced by a
 physical residual or downstream posterior responsibility.
+
+## Deform-mask policy
+
+`scene_flow[t]` predicts motion from frame `t` to frame `t + 1`, so the existing
+`deform_mask[t]` contract certifies the **source** row of that transition. The
+compatibility-preserving default is therefore
+`target_deform_mask_policy="allow"`: the next-frame candidate must be valid, while
+its own deform-mask value is not interpreted as a material-membership label.
+
+Set `target_deform_mask_policy="require"` only when the producer or experiment
+explicitly establishes that the target-frame deform mask is also a valid material
+support mask. Seeds and next-frame candidates must then lie in both `valid_mask`
+and `deform_mask`. A valid geometric candidate rejected only by this extra target
+mask is counted in `terminated_target_mask`, rather than being merged into the
+generic no-candidate count.
+
+The selected policy is recorded in both immutable tracklet metadata and
+`CausalTrackletReport`; it must therefore be frozen as part of any experiment
+configuration. This makes the previously implicit target-mask behavior auditable
+without silently changing the established flow-support semantics.
+
+## Strict in-memory contract
+
+Public tracklet construction fails closed before normalization:
+
+- identifiers must already be non-empty strings;
+- scalar counts and indices must already be integers, not Booleans or
+  integer-valued floats;
+- index arrays must have an integer NumPy dtype and cannot be lossily cast from
+  floating-point or Boolean arrays;
+- point, probability, covariance, and reliability arrays must be real and finite;
+- probabilities must lie in their declared ranges; and
+- nested metadata must satisfy the portable finite-JSON contract.
+
+The builder and factor converter apply the same scalar-type boundary to their
+public settings. This prevents manually constructed Python aliases from changing
+validated semantics before the values enter an observation artifact.
 
 ## Unfused factors
 
@@ -88,8 +126,8 @@ default. Before it is promoted into a physical-twin experiment:
 1. calibrate the local link thresholds on source sequences only;
 2. calibrate association quality separately from point uncertainty and source
    reliability;
-3. bind the configuration and exact producer revision into the experiment
-   manifest;
+3. bind the configuration, mask policy, and exact producer revision into the
+   experiment manifest;
 4. compare persistent tracklets with framewise pixel identities under the same
    Bayesian-PhysTwin guard;
 5. retain exact fallback when the persistent observations do not support a
