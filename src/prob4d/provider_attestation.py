@@ -10,7 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, cast
 
 PROVIDER_ATTESTATION_SCHEMA = "prob4d.provider-attestation"
 PROVIDER_ATTESTATION_VERSION = 1
@@ -139,7 +139,7 @@ def compute_provider_manifest_id(manifest: Mapping[str, Any]) -> str:
 
 
 def validate_provider_manifest(
-    manifest: Mapping[str, Any],
+    manifest: Any,
     *,
     expected_revision: str,
 ) -> dict[str, Any]:
@@ -178,27 +178,30 @@ def validate_provider_manifest(
         and len(capabilities) == len(set(capabilities)),
         "provider manifest capabilities must be unique nonempty strings",
     )
+    capability_list = cast(list[Any], capabilities)
     _require(
-        _REQUIRED_CAPABILITIES.issubset(capabilities),
+        _REQUIRED_CAPABILITIES.issubset(capability_list),
         "provider manifest lacks required claim-bearing capabilities",
     )
 
     schemas = normalized.get("artifact_schema_versions")
     _require(isinstance(schemas, Mapping), "provider artifact schemas must be a mapping")
+    schema_mapping = cast(Mapping[str, Any], schemas)
     _require(
-        schemas.get("ObservationBeliefV1") == 1
-        and schemas.get("Prob4DCausalObservationStream") == 2,
+        schema_mapping.get("ObservationBeliefV1") == 1
+        and schema_mapping.get("Prob4DCausalObservationStream") == 2,
         "provider manifest declares unsupported observation schemas",
     )
 
     limitations = normalized.get("limitations")
     _require(isinstance(limitations, Mapping), "provider limitations must be a mapping")
+    limitation_mapping = cast(Mapping[str, Any], limitations)
     _require(
-        limitations.get("uncalibrated_export_is_default") is False,
+        limitation_mapping.get("uncalibrated_export_is_default") is False,
         "provider-v2 manifest must not default to uncalibrated export",
     )
     _require(
-        limitations.get(
+        limitation_mapping.get(
             "deployment_environment_revision_is_independent_vcs_evidence"
         )
         is False,
@@ -207,12 +210,13 @@ def validate_provider_manifest(
 
     metadata = normalized.get("metadata")
     _require(isinstance(metadata, Mapping), "provider metadata must be a mapping")
+    metadata_mapping = cast(Mapping[str, Any], metadata)
     _require(
-        metadata.get("source_repository") == PROVIDER_SOURCE_REPOSITORY,
+        metadata_mapping.get("source_repository") == PROVIDER_SOURCE_REPOSITORY,
         "provider manifest source repository changed",
     )
     _require(
-        metadata.get("python_import_boundary") == PROVIDER_IMPORT_BOUNDARY,
+        metadata_mapping.get("python_import_boundary") == PROVIDER_IMPORT_BOUNDARY,
         "provider manifest import boundary changed",
     )
     return normalized
@@ -256,6 +260,7 @@ def _validate_runtime_revision(
         clean is None or isinstance(clean, bool),
         "runtime clean_checkout must be Boolean or null",
     )
+    clean_value = cast(bool | None, clean)
     matched = runtime.get("matched")
     independent = runtime.get("independently_verified")
     _require(isinstance(matched, bool), "runtime matched must be Boolean")
@@ -263,32 +268,34 @@ def _validate_runtime_revision(
         isinstance(independent, bool),
         "runtime independently_verified must be Boolean",
     )
+    matched_value = cast(bool, matched)
+    independent_value = cast(bool, independent)
     _require(
-        matched is (observed == expected),
+        matched_value is (observed == expected),
         "runtime matched flag disagrees with its revisions",
     )
     expected_independent = bool(
-        matched
+        matched_value
         and source in {"installed_vcs_metadata", "source_checkout"}
-        and clean is not False
+        and clean_value is not False
     )
     _require(
-        independent is expected_independent,
+        independent_value is expected_independent,
         "runtime independent-verification flag disagrees with its evidence",
     )
     if source == "source_checkout":
         _require(
-            isinstance(clean, bool),
+            isinstance(clean_value, bool),
             "source-checkout runtime evidence must declare checkout cleanliness",
         )
     else:
         _require(
-            clean is None,
+            clean_value is None,
             "non-checkout runtime evidence cannot declare checkout cleanliness",
         )
     if claim_bearing:
         _require(
-            matched and independent,
+            matched_value and independent_value,
             "claim-bearing provider attestation requires independently matched runtime code",
         )
     return runtime
@@ -370,8 +377,9 @@ def validate_provider_attestation(
         export_mode in {"calibrated", "exploratory"},
         "provider attestation export mode is unsupported",
     )
-    claim_bearing = normalized.get("claim_bearing")
-    _require(isinstance(claim_bearing, bool), "claim_bearing must be Boolean")
+    claim_bearing_raw = normalized.get("claim_bearing")
+    _require(isinstance(claim_bearing_raw, bool), "claim_bearing must be Boolean")
+    claim_bearing = cast(bool, claim_bearing_raw)
     _require(
         claim_bearing is (export_mode == "calibrated"),
         "provider claim-bearing flag disagrees with export mode",

@@ -87,8 +87,8 @@ def analytic_sim3_compose_jacobians(
     parent_right = so3_right_jacobian(parent_rotation)
     relative_right = so3_right_jacobian(relative_rotation)
 
-    parent_jacobian = np.zeros((7, 7), dtype=np.float64)
-    relative_jacobian = np.zeros((7, 7), dtype=np.float64)
+    parent_jacobian: np.ndarray = np.zeros((7, 7), dtype=np.float64)
+    relative_jacobian: np.ndarray = np.zeros((7, 7), dtype=np.float64)
     parent_jacobian[0, 0] = 1.0
     relative_jacobian[0, 0] = 1.0
     parent_jacobian[1:4, 1:4] = (
