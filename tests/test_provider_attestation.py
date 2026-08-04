@@ -232,3 +232,12 @@ def test_manifest_schema_versions_reject_boolean_integer_aliases() -> None:
 
     with pytest.raises(ValueError, match="ObservationBeliefV1 schema version must be an integer"):
         validate_provider_attestation(attestation, source_revision="a" * 40)
+
+
+def test_require_claim_bearing_argument_requires_boolean() -> None:
+    with pytest.raises(ValueError, match="require_claim_bearing must be Boolean"):
+        validate_provider_attestation(
+            _calibrated_attestation(),
+            source_revision="a" * 40,
+            require_claim_bearing=1,  # type: ignore[arg-type]
+        )
