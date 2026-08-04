@@ -21,8 +21,9 @@ not removed. The explicit public semantics identifier is
 
 The frozen version-1 point and gauge artifact schemas retain the serialized field
 name `trim_quantile` for compatibility. Code should read the `winsor_quantile`
-alias when describing the statistical operation. Existing artifact descriptors and
-IDs remain valid and unchanged.
+alias when describing the statistical operation, but must not serialize that alias
+into a version-1 calibration descriptor. Existing artifact descriptors and IDs
+remain valid and unchanged.
 
 New group-balanced point calibration reports use
 `equal-group-mean-of-within-group-upper-winsorized-ratios-v2`. The loader also
