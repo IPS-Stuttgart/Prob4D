@@ -7,14 +7,29 @@ from collections.abc import Mapping
 from typing import Any
 
 
-def plain_json(value: Any) -> Any:
-    """Return ordinary JSON-compatible containers for a frozen JSON value."""
-
+def _plain_json(value: Any, *, path: str) -> Any:
     if isinstance(value, Mapping):
-        return {str(key): plain_json(item) for key, item in value.items()}
+        result: dict[str, Any] = {}
+        for key, item in value.items():
+            if not isinstance(key, str):
+                raise TypeError(
+                    f"JSON object keys must be strings at {path}; "
+                    f"got {type(key).__name__}"
+                )
+            result[key] = _plain_json(item, path=f"{path}[{key!r}]")
+        return result
     if isinstance(value, (list, tuple)):
-        return [plain_json(item) for item in value]
+        return [
+            _plain_json(item, path=f"{path}[{index}]")
+            for index, item in enumerate(value)
+        ]
     return value
+
+
+def plain_json(value: Any) -> Any:
+    """Return ordinary JSON-compatible containers without coercing object keys."""
+
+    return _plain_json(value, path="$")
 
 
 class FrozenJsonDict(dict[str, Any]):
@@ -93,9 +108,7 @@ class FrozenJsonList(list[Any]):
 
 def _freeze_json(value: Any) -> Any:
     if isinstance(value, dict):
-        return FrozenJsonDict(
-            {str(key): _freeze_json(item) for key, item in value.items()}
-        )
+        return FrozenJsonDict({key: _freeze_json(item) for key, item in value.items()})
     if isinstance(value, list):
         return FrozenJsonList(_freeze_json(item) for item in value)
     return value
