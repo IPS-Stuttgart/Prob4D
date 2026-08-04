@@ -8,38 +8,40 @@ WORKFLOW = (
 )
 
 
-def test_decisive_execution_uses_exact_revisions_and_runner_labels() -> None:
-    text = WORKFLOW.read_text(encoding="utf-8")
+def _workflow_text() -> str:
+    return WORKFLOW.read_text(encoding="utf-8")
 
-    assert (
-        "PROB4D_SOURCE_REVISION: "
-        "aa8ffc6541011d044561e09870569a14ab3f586f"
-    ) in text
-    assert (
-        "BPT_SOURCE_REVISION: "
-        "59256a124c4df1d780b79d1c31d6c1d01e63d10f"
-    ) in text
-    assert (
-        "BPT_BASE_REVISION: "
-        "b2da5df5eddd5437d444b60b11130262d115e264"
-    ) in text
-    assert (
-        "PROTOCOL_SHA256: "
-        "921da8a6f14f9430b3f4861d68326d904f61b922e3aedd2b35882ea97bc63111"
-    ) in text
-    assert (
-        "RUNNER_PAYLOAD_SHA256: "
-        "83af55e5744531110df5744031ab30b570bb5a0b9aa0bbb246961db783e166f5"
-    ) in text
-    assert (
-        "VERIFIER_PAYLOAD_SHA256: "
-        "4a206f1bf15b85e47cbe1f13c3095d7531b17c8d32c9ddb68f26ca0d099778ad"
-    ) in text
+
+def test_decisive_execution_uses_exact_revisions_hashes_and_runner() -> None:
+    text = _workflow_text()
+
+    identities = {
+        "PROB4D_SOURCE_REVISION": "aa8ffc6541011d044561e09870569a14ab3f586f",
+        "BPT_SOURCE_REVISION": "76d4aba20dd386e1f8583e501781d702d7937566",
+        "BPT_BASE_REVISION": "b2da5df5eddd5437d444b60b11130262d115e264",
+        "PROTOCOL_SHA256": (
+            "921da8a6f14f9430b3f4861d68326d904f61b922e3aedd2b35882ea97bc63111"
+        ),
+        "RUNNER_PAYLOAD_SHA256": (
+            "16beddf036d797ad16868a4b45596b11b2f9617ac6f39f609b5a1b9ce6de3a63"
+        ),
+        "VERIFIER_PAYLOAD_SHA256": (
+            "1b07e9b9c0b3f31c1700d1e4f97ae43467ce01a05b9e04108b4b2c434efb5eda"
+        ),
+        "VERIFIER_PART00_SHA256": (
+            "02fa5c69ef566444f91bad415147337ec929a5ed26b980309534ecef1733e937"
+        ),
+        "VERIFIER_PART01_SHA256": (
+            "e37cf46fefe37c6e946775b99b08ab4b2cdc68442f35e27bcd74500fe3d216fc"
+        ),
+    }
+    for name, value in identities.items():
+        assert f"{name}: {value}" in text
     assert "runs-on: [self-hosted, Linux, X64, nvidia-smi]" in text
 
 
 def test_decisive_execution_is_read_only_and_fail_closed() -> None:
-    text = WORKFLOW.read_text(encoding="utf-8")
+    text = _workflow_text()
 
     assert "permissions:\n  contents: read" in text
     assert "contents: write" not in text
@@ -49,33 +51,42 @@ def test_decisive_execution_is_read_only_and_fail_closed() -> None:
     assert "git -C \"${dst}\" cat-file -e" in text
     assert "merge-base --is-ancestor" in text
     assert "status --porcelain=v1" in text
+    assert "base64.b64decode(runner_encoded, validate=True)" in text
     assert "sha256sum --check SHA256SUMS" in text
 
 
+def test_decisive_execution_repairs_only_registered_transport_defect() -> None:
+    text = _workflow_text()
+
+    assert "repair_index = 7570" in text
+    assert 'verifier_encoded[repair_index] != "s"' in text
+    assert "delete_one_extraneous_base64_character" in text
+    assert "frozen verifier transport bytes changed" in text
+    assert "materialized-independent-verifier.py" in text
+    assert "VERIFIER_PAYLOAD_SHA256" in text
+
+
 def test_decisive_execution_accepts_only_registered_outcomes() -> None:
-    text = WORKFLOW.read_text(encoding="utf-8")
+    text = _workflow_text()
 
     assert '"${status}" -ne 0 && "${status}" -ne 3' in text
-    assert "verify_prob4d_bpt_controlled_decisive_v1.py" in text
-    assert "test_prob4d_bpt_controlled_decisive_verifier_v1.py" in text
-    assert 'test -s "${EVIDENCE_ROOT}/result/calibration_trials.csv"' in text
+    assert "calibration_trials.csv" in text
+    assert 'test -s "${EVIDENCE_ROOT}/result/${required}"' in text
+    assert "materialized-independent-verifier.py" in text
     assert "retention-days: 90" in text
 
 
-def test_decisive_execution_resolves_staged_exact_bpt_source() -> None:
-    text = WORKFLOW.read_text(encoding="utf-8")
+def test_decisive_execution_resolves_exact_runner_local_bpt_source() -> None:
+    text = _workflow_text()
 
-    assert (
-        "${RUNNER_WORKSPACE}/../BayesianPhysTwin/BayesianPhysTwin/"
-        "staged-bpt-source"
-    ) in text
+    assert "${RUNNER_WORKSPACE}/../BayesianPhysTwin/BayesianPhysTwin" in text
     assert "resolution=runner_local_shared_object_store" in text
     assert "git clone --shared --no-checkout" in text
     assert "runner_ssh_identity" in text
 
 
 def test_decisive_execution_uses_immutable_action_pins() -> None:
-    text = WORKFLOW.read_text(encoding="utf-8")
+    text = _workflow_text()
 
     assert (
         "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"
