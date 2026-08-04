@@ -59,16 +59,22 @@ groups. Exit code `0` is a registered pass and exit code `3` is a completed
 valid negative result; every other exit code is an infrastructure or contract
 failure.
 
-After execution, a separate inline verifier:
+After execution, a separate verifier:
 
-- checks all generated SHA-256 entries;
+- checks every generated SHA-256 entry;
 - reparses all 2,304 target method rows;
-- recomputes the six registered primary criteria from the report;
-- verifies the decision exit code;
-- verifies exact fallback for rejected updates;
-- requires exact equality between the regenerated deterministic target table
-  and the retained target table; and
-- confirms that neither source checkout was modified.
+- recomputes all six registered decision criteria and the expected exit code;
+- verifies exact physical fallback for every rejected update;
+- requires exact agreement of the registered decision and all discrete safety
+  counts with the retained evidence; and
+- compares the principal method aggregates and paired bootstrap intervals with
+  strict numerical tolerances (`rtol=1e-12`, `atol=1e-15`).
+
+The verifier deliberately does not demand byte-identical CSV serialization.
+Different conforming Python/NumPy environments can serialize equivalent floating
+values differently even when all registered estimands, safety counts, bootstrap
+intervals, and decisions agree. Each generated evidence bundle remains
+independently content-addressed through its own `SHA256SUMS`.
 
 The complete 90-day artifact contains environment and source-resolution records,
 pinned package versions, console output, generated protocol/report/trials,
