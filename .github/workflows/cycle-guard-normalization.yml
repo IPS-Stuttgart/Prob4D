@@ -1,0 +1,186 @@
+name: Uncertainty-normalized cycle guard study
+
+# The experimental configuration is frozen in protocols/cycle-guard-normalization-v1.json.
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/cycle-guard-normalization.yml"
+      - "protocols/cycle-guard-normalization-v1.json"
+      - "src/prob4d/uncertainty_normalized_cycles.py"
+      - "src/prob4d/uncertainty_guarded_causal_gauge_graph.py"
+      - "src/prob4d/cycle_guard_monte_carlo.py"
+      - "src/prob4d/cli.py"
+      - "tests/test_uncertainty_normalized_cycle_guard.py"
+      - "tests/test_cycle_guard_monte_carlo.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cycle-guard-normalization-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  study:
+    name: Calibrate and compare raw and normalized guards
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      SOURCE_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install development environment
+        run: python -m pip install -e ".[dev]"
+      - name: Check focused source quality
+        run: |
+          python -m ruff check \
+            src/prob4d/uncertainty_normalized_cycles.py \
+            src/prob4d/uncertainty_guarded_causal_gauge_graph.py \
+            src/prob4d/cycle_guard_monte_carlo.py \
+            src/prob4d/cli.py \
+            tests/test_uncertainty_normalized_cycle_guard.py \
+            tests/test_cycle_guard_monte_carlo.py
+      - name: Run normalized guard regressions
+        run: >-
+          python -m pytest -q
+          tests/test_causal_gauge_graph.py
+          tests/test_uncertainty_normalized_cycle_guard.py
+          tests/test_cycle_guard_monte_carlo.py
+      - name: Run frozen target study
+        id: experiment
+        shell: bash
+        run: |
+          set +e
+          prob4d diagnostic cycle-guard-monte-carlo \
+            --output-dir outputs/cycle-guard-normalization \
+            --calibration-trials 48 \
+            --target-trials-per-scenario 128 \
+            --calibration-seed 80260804 \
+            --target-seed 271260804 \
+            --threshold-quantile 0.95 \
+            --representative-radius 1.0 \
+            --minimum-uncertainty-scale 1e-12 \
+            --num-frames 28 \
+            --height 4 \
+            --width 6 \
+            --window-size 11 \
+            --overlap 7 \
+            --bootstrap-resamples 2000 \
+            --source-revision "$SOURCE_REVISION"
+          status=$?
+          set -e
+          if [[ "$status" -ne 0 && "$status" -ne 3 ]]; then
+            exit "$status"
+          fi
+          echo "decision_exit_code=$status" >> "$GITHUB_OUTPUT"
+          cp \
+            protocols/cycle-guard-normalization-v1.json \
+            outputs/cycle-guard-normalization/protocol.json
+          (
+            cd outputs/cycle-guard-normalization
+            sha256sum \
+              cycle_guard_monte_carlo_trials.csv \
+              protocol.json >> SHA256SUMS
+            sha256sum --check SHA256SUMS
+          )
+      - name: Verify study matches the frozen protocol
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          protocol = json.loads(
+              Path("protocols/cycle-guard-normalization-v1.json").read_text()
+          )
+          report = json.loads(
+              Path(
+                  "outputs/cycle-guard-normalization/"
+                  "cycle_guard_monte_carlo.json"
+              ).read_text()
+          )
+          configuration = report["configuration"]
+          calibration = protocol["calibration"]
+          target = protocol["target"]
+          geometry = protocol["synthetic_geometry"]
+          bootstrap = protocol["bootstrap"]
+          acceptance = protocol["acceptance_criteria"]
+
+          assert configuration["calibration_trials"] == calibration["trial_count"]
+          assert configuration["calibration_seed"] == calibration["seed_start"]
+          assert configuration["threshold_quantile"] == calibration["threshold_quantile"]
+          assert configuration["target_trials_per_scenario"] == target["trials_per_scenario"]
+          assert configuration["target_seed"] == target["seed_start"]
+          assert configuration["minimum_uncertainty_scale"] == protocol[
+              "primary_candidate"
+          ]["minimum_uncertainty_scale"]
+          assert configuration["representative_radius"] == geometry["representative_radius"]
+          for name in ("num_frames", "height", "width", "window_size", "overlap"):
+              assert configuration[name] == geometry[name]
+          assert configuration["bootstrap_resamples"] == bootstrap["resamples"]
+          assert configuration["scenarios"] == protocol["scenarios"]
+          assert {
+              row["method_id"] for row in report["aggregate"]
+          } == set(protocol["methods"])
+
+          criteria = report["decision"]["criteria"]
+          normalized = report["decision"]["uncertainty_normalized_guard"]
+          raw = report["decision"]["raw_guard"]
+          assert criteria["strong_detection_at_least_0_95"] == (
+              normalized["strong_outlier_detection_rate"]
+              >= acceptance["strong_detection_at_least"]
+          )
+          assert criteria["strong_detection_noninferior_to_raw_by_0_05"] == (
+              normalized["strong_outlier_detection_rate"]
+              >= raw["strong_outlier_detection_rate"]
+              - acceptance["strong_detection_noninferiority_margin_vs_raw"]
+          )
+          assert criteria["mild_detection_at_least_0_90"] == (
+              normalized["mild_outlier_detection_rate"]
+              >= acceptance["mild_detection_at_least"]
+          )
+          assert criteria["mild_detection_noninferior_to_raw_by_0_05"] == (
+              normalized["mild_outlier_detection_rate"]
+              >= raw["mild_outlier_detection_rate"]
+              - acceptance["mild_detection_noninferiority_margin_vs_raw"]
+          )
+          assert criteria["worst_clean_false_fallback_at_most_0_10"] == (
+              normalized["worst_clean_false_fallback_rate"]
+              <= acceptance["worst_clean_false_fallback_at_most"]
+          )
+          assert criteria["worst_clean_false_fallback_halved"] == (
+              normalized["worst_clean_false_fallback_rate"]
+              <= acceptance[
+                  "worst_clean_false_fallback_relative_to_raw_at_most"
+              ] * raw["worst_clean_false_fallback_rate"]
+          )
+          assert report["decision"]["overall_passed"] == all(criteria.values())
+          assert report["claim_boundary"] == protocol["claim_boundary"]
+          PY
+      - name: Publish study summary
+        if: always()
+        run: |
+          summary=outputs/cycle-guard-normalization/cycle_guard_monte_carlo.md
+          if [[ -f "$summary" ]]; then
+            cat "$summary" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo >> "$GITHUB_STEP_SUMMARY"
+          echo "Decision exit code: ${{ steps.experiment.outputs.decision_exit_code }}" \
+            >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload complete evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: cycle-guard-normalization
+          path: outputs/cycle-guard-normalization/
+          if-no-files-found: warn
+          retention-days: 90
