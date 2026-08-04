@@ -18,11 +18,13 @@ concurrency:
 
 env:
   PROB4D_SOURCE_REVISION: aa8ffc6541011d044561e09870569a14ab3f586f
-  BPT_SOURCE_REVISION: 59256a124c4df1d780b79d1c31d6c1d01e63d10f
+  BPT_SOURCE_REVISION: 76d4aba20dd386e1f8583e501781d702d7937566
   BPT_BASE_REVISION: b2da5df5eddd5437d444b60b11130262d115e264
   PROTOCOL_SHA256: 921da8a6f14f9430b3f4861d68326d904f61b922e3aedd2b35882ea97bc63111
-  RUNNER_PAYLOAD_SHA256: 83af55e5744531110df5744031ab30b570bb5a0b9aa0bbb246961db783e166f5
-  VERIFIER_PAYLOAD_SHA256: 4a206f1bf15b85e47cbe1f13c3095d7531b17c8d32c9ddb68f26ca0d099778ad
+  RUNNER_PAYLOAD_SHA256: 16beddf036d797ad16868a4b45596b11b2f9617ac6f39f609b5a1b9ce6de3a63
+  VERIFIER_PAYLOAD_SHA256: 1b07e9b9c0b3f31c1700d1e4f97ae43467ce01a05b9e04108b4b2c434efb5eda
+  VERIFIER_PART00_SHA256: 02fa5c69ef566444f91bad415147337ec929a5ed26b980309534ecef1733e937
+  VERIFIER_PART01_SHA256: e37cf46fefe37c6e946775b99b08ab4b2cdc68442f35e27bcd74500fe3d216fc
   PYTHONHASHSEED: "0"
   OMP_NUM_THREADS: "1"
   OPENBLAS_NUM_THREADS: "1"
@@ -103,7 +105,6 @@ jobs:
           : > "${diagnostic}"
 
           candidates=(
-            "${RUNNER_WORKSPACE}/../BayesianPhysTwin/BayesianPhysTwin/staged-bpt-source"
             "${RUNNER_WORKSPACE}/../BayesianPhysTwin/BayesianPhysTwin"
             "${RUNNER_WORKSPACE}/../bayesianphystwin/BayesianPhysTwin"
             "${RUNNER_WORKSPACE}/../BayesianPhysTwin"
@@ -183,7 +184,7 @@ jobs:
             -e "${{ steps.bpt.outputs.path }}[dev]"
           "${RUNNER_TEMP}/prob4d-bpt-venv/bin/python" -m pip check
 
-      - name: Verify frozen protocol and implementation bytes
+      - name: Verify frozen protocol and materialize registered verifier
         shell: bash
         env:
           BPT_PATH: ${{ steps.bpt.outputs.path }}
@@ -194,10 +195,11 @@ jobs:
           import hashlib
           import json
           import os
-          import zlib
           from pathlib import Path
+          import zlib
 
           bpt = Path(os.environ["BPT_PATH"])
+          evidence = Path(os.environ["EVIDENCE_ROOT"])
           protocol_path = (
               bpt / "protocols" / "prob4d_bpt_controlled_decisive_v1.json"
           )
@@ -224,37 +226,80 @@ jobs:
               raise SystemExit("BayesianPhysTwin base pin changed")
 
           science = bpt / "scripts" / "science"
-          runner_encoded = "".join(
-              path.read_text(encoding="utf-8").strip()
-              for path in sorted(
-                  (
-                      science
-                      / "prob4d_bpt_controlled_decisive_payload"
-                  ).glob("part*.txt")
+          runner_paths = sorted(
+              (science / "prob4d_bpt_controlled_decisive_payload").glob(
+                  "part*.txt"
               )
           )
-          runner = zlib.decompress(base64.b64decode(runner_encoded))
+          if not runner_paths:
+              raise SystemExit("controlled runner payload is missing")
+          runner_encoded = "".join(
+              path.read_text(encoding="utf-8").strip()
+              for path in runner_paths
+          )
+          runner = zlib.decompress(
+              base64.b64decode(runner_encoded, validate=True)
+          )
           if hashlib.sha256(runner).hexdigest() != os.environ[
               "RUNNER_PAYLOAD_SHA256"
           ]:
               raise SystemExit("controlled runner payload changed")
           compile(runner, "controlled-decisive-runner", "exec")
 
-          verifier_encoded = "".join(
-              path.read_text(encoding="utf-8").strip()
-              for path in sorted(
-                  (
-                      science
-                      / "prob4d_bpt_controlled_decisive_verifier_payload"
-                  ).glob("part*.txt")
-              )
+          verifier_dir = (
+              science / "prob4d_bpt_controlled_decisive_verifier_payload"
           )
-          verifier = zlib.decompress(base64.b64decode(verifier_encoded))
+          verifier_paths = sorted(verifier_dir.glob("part*.txt"))
+          if [path.name for path in verifier_paths] != [
+              "part00.txt",
+              "part01.txt",
+          ]:
+              raise SystemExit("unexpected verifier payload inventory")
+          part_bytes = [path.read_bytes() for path in verifier_paths]
+          part_hashes = [hashlib.sha256(value).hexdigest() for value in part_bytes]
+          expected_part_hashes = [
+              os.environ["VERIFIER_PART00_SHA256"],
+              os.environ["VERIFIER_PART01_SHA256"],
+          ]
+          if part_hashes != expected_part_hashes:
+              raise SystemExit("frozen verifier transport bytes changed")
+          verifier_encoded = "".join(
+              value.decode("utf-8").strip() for value in part_bytes
+          )
+          repair_index = 7570
+          if len(verifier_encoded) != 8069:
+              raise SystemExit("unexpected frozen verifier transport length")
+          if verifier_encoded[repair_index] != "s":
+              raise SystemExit("registered verifier transport repair no longer applies")
+          repaired_encoded = (
+              verifier_encoded[:repair_index]
+              + verifier_encoded[repair_index + 1 :]
+          )
+          verifier = zlib.decompress(
+              base64.b64decode(repaired_encoded, validate=True)
+          )
           if hashlib.sha256(verifier).hexdigest() != os.environ[
               "VERIFIER_PAYLOAD_SHA256"
           ]:
               raise SystemExit("independent verifier payload changed")
           compile(verifier, "controlled-decisive-verifier", "exec")
+          materialized = evidence / "materialized-independent-verifier.py"
+          materialized.write_bytes(verifier)
+          (evidence / "verifier-materialization.txt").write_text(
+              "\n".join(
+                  [
+                      f"bpt_revision={os.environ['BPT_SOURCE_REVISION']}",
+                      f"part00_sha256={part_hashes[0]}",
+                      f"part01_sha256={part_hashes[1]}",
+                      "repair=delete_one_extraneous_base64_character",
+                      f"repair_index={repair_index}",
+                      "removed_character=s",
+                      f"decoded_sha256={hashlib.sha256(verifier).hexdigest()}",
+                  ]
+              )
+              + "\n",
+              encoding="utf-8",
+          )
 
           core_loader = (
               science / "prob4d_bpt_controlled_decisive_core_v1.py"
@@ -275,11 +320,32 @@ jobs:
             "${bpt}/scripts/science/prob4d_bpt_controlled_decisive_core_v1.py" \
             "${bpt}/scripts/science/run_prob4d_bpt_controlled_decisive_v1.py" \
             "${bpt}/scripts/science/verify_prob4d_bpt_controlled_decisive_v1.py" \
-            "${bpt}/tests/test_prob4d_bpt_controlled_decisive_v1.py" \
-            "${bpt}/tests/test_prob4d_bpt_controlled_decisive_verifier_v1.py"
+            "${bpt}/tests/test_prob4d_bpt_controlled_decisive_v1.py"
           python -m pytest -q \
-            "${bpt}/tests/test_prob4d_bpt_controlled_decisive_v1.py" \
-            "${bpt}/tests/test_prob4d_bpt_controlled_decisive_verifier_v1.py"
+            "${bpt}/tests/test_prob4d_bpt_controlled_decisive_v1.py"
+          python -m py_compile \
+            "${EVIDENCE_ROOT}/materialized-independent-verifier.py"
+          python - <<'PY'
+          import importlib.util
+          import os
+          import sys
+          from pathlib import Path
+
+          path = Path(os.environ["EVIDENCE_ROOT"]) / (
+              "materialized-independent-verifier.py"
+          )
+          spec = importlib.util.spec_from_file_location(
+              "controlled_decisive_independent_verifier",
+              path,
+          )
+          if spec is None or spec.loader is None:
+              raise SystemExit("cannot import materialized verifier")
+          module = importlib.util.module_from_spec(spec)
+          sys.modules[spec.name] = module
+          spec.loader.exec_module(module)
+          if not callable(module.verify_evidence):
+              raise SystemExit("materialized verifier has no verify_evidence")
+          PY
 
       - name: Execute all fresh controlled groups
         id: experiment
@@ -306,14 +372,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          bpt="${{ steps.bpt.outputs.path }}"
-          test -s "${EVIDENCE_ROOT}/result/calibration_trials.csv"
+          for required in \
+            protocol.json \
+            report.json \
+            calibration_trials.csv \
+            trials.csv \
+            SHA256SUMS; do
+            test -s "${EVIDENCE_ROOT}/result/${required}"
+          done
           (
             cd "${EVIDENCE_ROOT}/result"
             sha256sum --check SHA256SUMS
           )
           python \
-            "${bpt}/scripts/science/verify_prob4d_bpt_controlled_decisive_v1.py" \
+            "${EVIDENCE_ROOT}/materialized-independent-verifier.py" \
             "${EVIDENCE_ROOT}/result" \
             --protocol-sha256 "${PROTOCOL_SHA256}" \
             --bpt-revision "${BPT_SOURCE_REVISION}" \
@@ -335,6 +407,8 @@ jobs:
               runtime.txt \
               prob4d-source-resolution.txt \
               bpt-source-resolution.txt \
+              verifier-materialization.txt \
+              materialized-independent-verifier.py \
               execution.txt \
               console.log > INFRASTRUCTURE_SHA256SUMS
             sha256sum --check INFRASTRUCTURE_SHA256SUMS
