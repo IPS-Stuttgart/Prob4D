@@ -63,8 +63,9 @@ def _checkout_credential_errors(text: str, *, source: str) -> list[str]:
     return errors
 
 
-
 def _piped_run_block_errors(text: str, *, source: str) -> list[str]:
+    """Reject diagnostic pipelines that can hide a failing producer behind tee."""
+
     block_run = re.compile(r"^(?P<indent>\s*)run:\s*(?:[|>][-+]?)\s*$")
     inline_run = re.compile(r"^\s*run:\s*(?P<command>.+)$")
     lines = text.splitlines()
@@ -129,7 +130,6 @@ def test_checkout_actions_disable_persisted_credentials() -> None:
             )
         )
     assert not errors, "\n".join(errors)
-
 
 
 def test_piped_workflow_commands_enable_pipefail() -> None:
