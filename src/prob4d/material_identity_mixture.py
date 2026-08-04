@@ -58,6 +58,7 @@ _MIXTURE_FIELDS = frozenset(
         "schema_version",
         "mixture_id",
         "target_endpoint",
+        "window_order",
         "causal_frame_stop",
         "association_rule_id",
         "calibration_id",
@@ -333,6 +334,7 @@ class MaterialIdentityMixtureV1:
     """A calibrated discrete identity mixture for one target-local track."""
 
     target_endpoint: LocalTrackEndpoint
+    window_order: tuple[str, ...]
     causal_frame_stop: int
     association_rule_id: str
     calibration_id: str
@@ -351,6 +353,17 @@ class MaterialIdentityMixtureV1:
     def __post_init__(self) -> None:
         if not isinstance(self.target_endpoint, LocalTrackEndpoint):
             raise ValueError("target_endpoint must be LocalTrackEndpoint")
+        if type(self.window_order) is not tuple or not self.window_order:
+            raise ValueError("window_order must be a non-empty tuple")
+        window_order = tuple(
+            _string(window_id, name=f"window_order[{index}]")
+            for index, window_id in enumerate(self.window_order)
+        )
+        if len(set(window_order)) != len(window_order):
+            raise ValueError("window_order must contain unique window IDs")
+        if window_order[-1] != self.target_endpoint.window_id:
+            raise ValueError("target_endpoint window must be last in window_order")
+        source_windows = frozenset(window_order[:-1])
         causal_frame_stop = _integer(
             self.causal_frame_stop,
             name="causal_frame_stop",
@@ -374,16 +387,16 @@ class MaterialIdentityMixtureV1:
         ]
         if len(set(linked_endpoints)) != len(linked_endpoints):
             raise ValueError("linked source endpoints must be unique")
-        if any(
-            endpoint.window_id == self.target_endpoint.window_id
-            for endpoint in linked_endpoints
-        ):
-            raise ValueError("linked source endpoints must come from prior windows")
+        if any(endpoint.window_id not in source_windows for endpoint in linked_endpoints):
+            raise ValueError(
+                "linked source endpoint windows must precede the target in window_order"
+            )
         if self.weight_semantics != WEIGHT_SEMANTICS:
             raise ValueError("unsupported weight_semantics")
         if self.null_hypothesis_semantics != NULL_HYPOTHESIS_SEMANTICS:
             raise ValueError("unsupported null_hypothesis_semantics")
 
+        object.__setattr__(self, "window_order", window_order)
         object.__setattr__(self, "causal_frame_stop", causal_frame_stop)
         object.__setattr__(
             self,
@@ -463,6 +476,7 @@ class MaterialIdentityMixtureV1:
             "schema": MATERIAL_IDENTITY_MIXTURE_SCHEMA,
             "schema_version": MATERIAL_IDENTITY_MIXTURE_VERSION,
             "target_endpoint": self.target_endpoint.to_dict(),
+            "window_order": list(self.window_order),
             "causal_frame_stop": self.causal_frame_stop,
             "association_rule_id": self.association_rule_id,
             "calibration_id": self.calibration_id,
@@ -835,8 +849,16 @@ def load_material_identity_mixture(path: str | Path) -> MaterialIdentityMixtureV
             )
         )
         supplied_ids.append(_sha256(raw_candidate["candidate_id"], name=f"{name}.candidate_id"))
+    raw_window_order = payload["window_order"]
+    if type(raw_window_order) is not list or not raw_window_order:
+        raise ValueError("window_order must be a non-empty JSON array")
+    window_order = tuple(
+        _string(window_id, name=f"window_order[{index}]")
+        for index, window_id in enumerate(raw_window_order)
+    )
     mixture = MaterialIdentityMixtureV1(
         target_endpoint=target,
+        window_order=window_order,
         causal_frame_stop=payload["causal_frame_stop"],
         association_rule_id=payload["association_rule_id"],
         calibration_id=payload["calibration_id"],
