@@ -1,0 +1,201 @@
+name: Group-robust cycle guard study
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/cycle-guard-group-robust.yml"
+      - "protocols/cycle-guard-group-robust-v1.json"
+      - "src/prob4d/cycle_guard_group_robust.py"
+      - "src/prob4d/cycle_guard_group_robust_monte_carlo.py"
+      - "src/prob4d/cli.py"
+      - "tests/test_cycle_guard_group_robust.py"
+      - "tests/test_cycle_guard_group_robust_monte_carlo.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cycle-guard-group-robust-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  study:
+    name: Freeze strata and run fresh target study
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      SOURCE_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install development environment
+        run: python -m pip install -e ".[dev]"
+      - name: Check focused source quality
+        run: |
+          python -m ruff check \
+            src/prob4d/cycle_guard_group_robust.py \
+            src/prob4d/cycle_guard_group_robust_monte_carlo.py \
+            src/prob4d/cli.py \
+            tests/test_cycle_guard_group_robust.py \
+            tests/test_cycle_guard_group_robust_monte_carlo.py
+      - name: Run group-robust regressions
+        run: >-
+          python -m pytest -q
+          tests/test_causal_gauge_graph.py
+          tests/test_uncertainty_normalized_cycle_guard.py
+          tests/test_cycle_guard_group_robust.py
+          tests/test_cycle_guard_group_robust_monte_carlo.py
+      - name: Run frozen development, calibration, and target study
+        id: experiment
+        shell: bash
+        run: |
+          set +e
+          prob4d diagnostic cycle-guard-group-robust \
+            --output-dir outputs/cycle-guard-group-robust \
+            --development-trials 96 \
+            --calibration-trials 192 \
+            --target-trials-per-scenario 128 \
+            --development-seed 380260804 \
+            --calibration-seed 480260804 \
+            --target-seed 571260804 \
+            --conformal-alpha 0.05 \
+            --minimum-calibration-per-stratum 20 \
+            --empirical-quantile 0.95 \
+            --representative-radius 1.0 \
+            --minimum-uncertainty-scale 1e-12 \
+            --num-frames 28 \
+            --height 4 \
+            --width 6 \
+            --window-size 11 \
+            --overlap 7 \
+            --bootstrap-resamples 2000 \
+            --source-revision "$SOURCE_REVISION"
+          status=$?
+          set -e
+          if [[ "$status" -ne 0 && "$status" -ne 3 ]]; then
+            exit "$status"
+          fi
+          echo "decision_exit_code=$status" >> "$GITHUB_OUTPUT"
+          cp protocols/cycle-guard-group-robust-v1.json \
+            outputs/cycle-guard-group-robust/protocol.json
+          (
+            cd outputs/cycle-guard-group-robust
+            sha256sum protocol.json >> SHA256SUMS
+            sha256sum --check SHA256SUMS
+          )
+      - name: Verify exact frozen protocol and decision
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          protocol = json.loads(
+              Path("protocols/cycle-guard-group-robust-v1.json").read_text()
+          )
+          report = json.loads(
+              Path(
+                  "outputs/cycle-guard-group-robust/"
+                  "cycle_guard_group_robust.json"
+              ).read_text()
+          )
+          configuration = report["configuration"]
+          development = protocol["development"]
+          calibration = protocol["calibration"]
+          target = protocol["target"]
+          geometry = protocol["synthetic_geometry"]
+          acceptance = protocol["acceptance_criteria"]
+
+          assert configuration["development_trials"] == development["trial_count"]
+          assert configuration["calibration_trials"] == calibration["trial_count"]
+          assert configuration["target_trials_per_scenario"] == target[
+              "trials_per_scenario"
+          ]
+          assert configuration["development_seed"] == development["seed_start"]
+          assert configuration["calibration_seed"] == calibration["seed_start"]
+          assert configuration["target_seed"] == target["seed_start"]
+          assert configuration["conformal_alpha"] == calibration["conformal_alpha"]
+          assert configuration["minimum_calibration_per_stratum"] == calibration[
+              "minimum_cases_per_observable_stratum"
+          ]
+          assert configuration["empirical_quantile"] == 0.95
+          assert configuration["representative_radius"] == geometry[
+              "representative_radius"
+          ]
+          assert configuration["minimum_uncertainty_scale"] == geometry[
+              "minimum_uncertainty_scale"
+          ]
+          for name in ("num_frames", "height", "width", "window_size", "overlap"):
+              assert configuration[name] == geometry[name]
+          assert configuration["scenarios"] == protocol["scenarios"]
+          assert configuration["method_order"] == protocol["methods"]
+          assert configuration["primary_method"] == protocol["primary_method"]
+          assert report["development"]["uses_hidden_correlation_in_method"] is False
+
+          decision = report["decision"]
+          primary = decision["guard_summaries"][protocol["primary_method"]]
+          criteria = decision["criteria"]
+          assert criteria["strong_detection_at_least_0_95"] == (
+              primary["strong_outlier_detection_rate"]
+              >= acceptance["strong_detection_at_least"]
+          )
+          assert criteria[
+              "strong_detection_noninferior_to_previous_by_0_05"
+          ] == (
+              primary["strong_outlier_detection_rate"]
+              >= acceptance["previous_normalized_strong_detection"]
+              - acceptance["strong_detection_noninferiority_margin"]
+          )
+          assert criteria["mild_detection_at_least_0_90"] == (
+              primary["mild_outlier_detection_rate"]
+              >= acceptance["mild_detection_at_least"]
+          )
+          assert criteria[
+              "mild_detection_noninferior_to_previous_by_0_05"
+          ] == (
+              primary["mild_outlier_detection_rate"]
+              >= acceptance["previous_normalized_mild_detection"]
+              - acceptance["mild_detection_noninferiority_margin"]
+          )
+          assert criteria["worst_clean_false_fallback_at_most_0_10"] == (
+              primary["worst_clean_false_fallback_rate"]
+              <= acceptance["worst_clean_false_fallback_at_most"]
+          )
+          assert criteria["exact_tree_fallback_verified"] == (
+              primary["exact_tree_fallback_verified"]
+              is acceptance["exact_tree_fallback_required"]
+          )
+          assert decision["overall_passed"] == all(criteria.values())
+          assert report["claim_boundary"] == protocol["claim_boundary"]
+
+          checksums = Path(
+              "outputs/cycle-guard-group-robust/SHA256SUMS"
+          ).read_text()
+          assert "cycle_guard_group_robust_trials.csv" in checksums
+          PY
+      - name: Publish study summary
+        if: always()
+        run: |
+          summary=outputs/cycle-guard-group-robust/cycle_guard_group_robust.md
+          if [[ -f "$summary" ]]; then
+            cat "$summary" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo >> "$GITHUB_STEP_SUMMARY"
+          echo "Decision exit code: ${{ steps.experiment.outputs.decision_exit_code }}" \
+            >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload complete evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: cycle-guard-group-robust
+          path: outputs/cycle-guard-group-robust/
+          if-no-files-found: warn
+          retention-days: 90
