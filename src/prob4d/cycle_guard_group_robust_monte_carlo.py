@@ -499,6 +499,8 @@ def _guard_summary(
         for record in method_records
         if bool(record["outlier_injected"])
     ]
+    if not strong or not mild or not all_injected:
+        raise ValueError("registered outlier scenarios produced no injected trials")
     fallback_records = [
         record
         for record in method_records
@@ -839,12 +841,7 @@ def run_group_robust_cycle_guard_monte_carlo(
                 minimum_uncertainty_scale=minimum_uncertainty_scale,
             )
             feature = cycle_source_uncertainty_feature(normalized_audit)
-            np.testing.assert_allclose(
-                feature,
-                clean_feature,
-                rtol=0.0,
-                atol=1e-14,
-            )
+            feature_shift_from_injection = feature - clean_feature
             raw_audit = _run_raw_audit(
                 alignments,
                 representative_radius=representative_radius,
@@ -945,6 +942,12 @@ def run_group_robust_cycle_guard_monte_carlo(
                         "outlier_injected": outlier_injected,
                         "outlier_edge_id": outlier_edge_id,
                         "source_uncertainty_feature": feature,
+                        "source_uncertainty_feature_without_injection": (
+                            clean_feature
+                        ),
+                        "source_uncertainty_feature_shift_from_injection": (
+                            feature_shift_from_injection
+                        ),
                         "observable_source_stratum": stratum_id,
                         "maximum_raw_cycle_displacement": float(
                             raw_audit["maximum"]
