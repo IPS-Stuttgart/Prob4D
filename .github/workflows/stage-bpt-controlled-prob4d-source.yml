@@ -1,0 +1,70 @@
+name: Stage exact Prob4D source for controlled BPT study
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/stage-bpt-controlled-prob4d-source.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stage-bpt-controlled-prob4d-source-workstation2
+  cancel-in-progress: true
+
+env:
+  PROB4D_SOURCE_REVISION: aa8ffc6541011d044561e09870569a14ab3f586f
+
+jobs:
+  stage:
+    name: Persist exact Prob4D controlled-study source
+    runs-on: [self-hosted, Linux, X64, nvidia-smi]
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact Prob4D producer
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.PROB4D_SOURCE_REVISION }}
+          path: exact-prob4d-source
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+
+      - name: Persist source outside the Actions workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C exact-prob4d-source rev-parse HEAD)" = \
+            "${PROB4D_SOURCE_REVISION}"
+          test -z "$(git -C exact-prob4d-source status --porcelain=v1)"
+          git -C exact-prob4d-source fsck --no-dangling
+
+          persistent="${HOME}/src/Prob4D"
+          marker="${persistent}/.git/prob4d-bpt-controlled-decisive-cache"
+          if [[ -e "${persistent}" ]]; then
+            if [[ ! -f "${marker}" ]]; then
+              echo "Refusing to replace an unowned Prob4D checkout" >&2
+              exit 1
+            fi
+            rm -rf "${persistent}"
+          fi
+          mkdir -p "$(dirname "${persistent}")"
+          git clone --no-local --no-checkout --quiet \
+            exact-prob4d-source "${persistent}"
+          git -C "${persistent}" checkout --quiet --detach \
+            "${PROB4D_SOURCE_REVISION}"
+          touch "${persistent}/.git/prob4d-bpt-controlled-decisive-cache"
+          test "$(git -C "${persistent}" rev-parse HEAD)" = \
+            "${PROB4D_SOURCE_REVISION}"
+          test -z "$(git -C "${persistent}" status --porcelain=v1)"
+          git -C "${persistent}" fsck --no-dangling
+
+          {
+            echo "### Exact Prob4D source staged"
+            echo
+            echo "Revision: \`${PROB4D_SOURCE_REVISION}\`"
+            echo
+            echo "Persistent path: \`${persistent}\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
