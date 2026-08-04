@@ -1,0 +1,107 @@
+{
+  "schema_name": "prob4d.gauge-graph-science-protocol",
+  "schema_version": 1,
+  "protocol_id": "prob4d-gauge-graph-science-pilot-v1",
+  "status": "target-frozen-controlled-pilot",
+  "scientific_questions": [
+    "Do all prefix-valid overlap edges reduce endpoint gauge drift when edge errors are predominantly independent?",
+    "Does full-joint covariance intersection retain useful calibration under shared-frame and shared-model correlation?",
+    "Does a source-only cycle threshold calibrated on clean seeds detect overconfident inconsistent skip edges while preserving exact production-tree fallback?"
+  ],
+  "calibration": {
+    "trial_count": 12,
+    "seed_start": 20260804,
+    "source_conditions": "clean scenarios only, balanced across registered clean correlation levels",
+    "statistic": "maximum direct-versus-two-edge representative displacement per trial",
+    "threshold_quantile": 0.95,
+    "quantile_method": "higher"
+  },
+  "target": {
+    "trials_per_scenario": 16,
+    "seed_start": 91260804,
+    "uses_calibration_seeds": false,
+    "uses_target_truth_for_guard": false
+  },
+  "synthetic_geometry": {
+    "num_frames": 28,
+    "height": 4,
+    "width": 6,
+    "window_size": 11,
+    "overlap": 7,
+    "representative_radius": 1.0
+  },
+  "scenarios": [
+    {
+      "scenario_id": "independent_clean",
+      "correlation": 0.0,
+      "outlier_probability": 0.0,
+      "outlier_translation": 0.0
+    },
+    {
+      "scenario_id": "correlated_clean",
+      "correlation": 0.75,
+      "outlier_probability": 0.0,
+      "outlier_translation": 0.0
+    },
+    {
+      "scenario_id": "highly_correlated_clean",
+      "correlation": 0.95,
+      "outlier_probability": 0.0,
+      "outlier_translation": 0.0
+    },
+    {
+      "scenario_id": "correlated_mild_outliers",
+      "correlation": 0.75,
+      "outlier_probability": 0.25,
+      "outlier_translation": 0.1
+    },
+    {
+      "scenario_id": "correlated_strong_outliers",
+      "correlation": 0.75,
+      "outlier_probability": 0.25,
+      "outlier_translation": 0.3
+    },
+    {
+      "scenario_id": "highly_correlated_strong_outliers",
+      "correlation": 0.95,
+      "outlier_probability": 0.25,
+      "outlier_translation": 0.3
+    }
+  ],
+  "estimators": [
+    "tree",
+    "marginal_ci",
+    "full_joint_graph",
+    "guarded_graph"
+  ],
+  "primary_endpoint": {
+    "metric": "endpoint_displacement_rmse",
+    "paired_reference": "tree",
+    "direction": "lower"
+  },
+  "secondary_endpoints": [
+    "mean_window_displacement_rmse",
+    "p90_window_displacement_rmse",
+    "drift_slope",
+    "coverage_95",
+    "mean_normalized_nees",
+    "mean_normalized_covariance_trace",
+    "endpoint_win_rate_vs_tree",
+    "endpoint_harm_rate_vs_tree",
+    "outlier_detection_rate",
+    "clean_false_fallback_rate"
+  ],
+  "bootstrap": {
+    "resamples": 500,
+    "unit": "independent target trial",
+    "paired_within_trial": true,
+    "interval": 0.95
+  },
+  "outlier_semantics": {
+    "edge_type": "direct skip edge with an available directed two-edge path",
+    "reported_covariance_changed": false,
+    "reported_overlap_residual_changed": false,
+    "purpose": "test source-cycle detection of an overconfident inconsistent edge"
+  },
+  "claim_boundary": "Controlled synthetic estimator mechanics only; no held-out physical-object provider, BayesianPhysTwin, harmful-update, or Causal4D benefit claim."
+}

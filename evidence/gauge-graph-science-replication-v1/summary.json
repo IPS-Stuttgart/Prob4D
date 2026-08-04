@@ -1,0 +1,279 @@
+{
+  "artifact": {
+    "artifact_id": 8882704456,
+    "expires_on": "2026-11-02",
+    "sha256": "890664f63ca872b156fc44b9687924cf577c28d7ecc03064aa2df1316fd903a3"
+  },
+  "calibration": {
+    "cycle_threshold": 0.02011976247247262,
+    "threshold_quantile": 0.95,
+    "trial_count": 48
+  },
+  "claim_boundary": "Controlled synthetic estimator mechanics only; no held-out physical-object, BayesianPhysTwin, harmful-update, or Causal4D benefit claim.",
+  "guard_diagnostics": {
+    "detected_injected_edges": 99,
+    "independent_clean_false_fallbacks": 41,
+    "independent_clean_trials": 128,
+    "injected_edges": 99,
+    "other_clean_false_fallbacks": 0,
+    "other_clean_trials": 256
+  },
+  "primary_results": {
+    "correlated_clean": {
+      "full_joint_graph": {
+        "coverage_95": 0.99609375,
+        "endpoint_displacement_rmse": 0.00993050586185316,
+        "fallback_rate": null,
+        "mean_normalized_nees": 0.5594883265125683,
+        "paired_ci95_lower": -0.000600714802835453,
+        "paired_ci95_upper": -3.667907514591988e-05,
+        "paired_delta_vs_tree": -0.00031967995181912115
+      },
+      "guarded_graph": {
+        "coverage_95": 0.99609375,
+        "endpoint_displacement_rmse": 0.00993050586185316,
+        "fallback_rate": 0.0,
+        "mean_normalized_nees": 0.5594883265125683,
+        "paired_ci95_lower": -0.0006066145435286063,
+        "paired_ci95_upper": -3.1093507600828885e-05,
+        "paired_delta_vs_tree": -0.00031967995181912115
+      },
+      "marginal_ci": {
+        "coverage_95": 0.9973958333333333,
+        "endpoint_displacement_rmse": 0.010543451952410826,
+        "fallback_rate": null,
+        "mean_normalized_nees": 0.5790557354202993,
+        "paired_ci95_lower": -0.0005316789745992541,
+        "paired_ci95_upper": 0.001134826559981427,
+        "paired_delta_vs_tree": 0.00029326613873854705
+      },
+      "tree": {
+        "coverage_95": 0.99609375,
+        "endpoint_displacement_rmse": 0.01025018581367228,
+        "fallback_rate": null,
+        "mean_normalized_nees": 0.5565762735478372,
+        "paired_ci95_lower": 0.0,
+        "paired_ci95_upper": 0.0,
+        "paired_delta_vs_tree": 0.0
+      }
+    },
+    "correlated_mild_outliers": {
+      "full_joint_graph": {
+        "coverage_95": 0.9270833333333334,
+        "endpoint_displacement_rmse": 0.013736737203371789,
+        "fallback_rate": null,
+        "mean_normalized_nees": 2.873446912136426,
+        "paired_ci95_lower": 0.0006775574469277496,
+        "paired_ci95_upper": 0.005560672341966499,
+        "paired_delta_vs_tree": 0.0026555720905374707
+      },
+      "guarded_graph": {
+        "coverage_95": 1.0,
+        "endpoint_displacement_rmse": 0.010905202176386773,
+        "fallback_rate": 0.2109375,
+        "mean_normalized_nees": 0.5555664360492079,
+        "paired_ci95_lower": -0.00046134937555349034,
+        "paired_ci95_upper": 0.00012093209596554116,
+        "paired_delta_vs_tree": -0.00017596293644754524
+      },
+      "marginal_ci": {
+        "coverage_95": 0.8958333333333334,
+        "endpoint_displacement_rmse": 0.017461083766285163,
+        "fallback_rate": null,
+        "mean_normalized_nees": 23.171900866159116,
+        "paired_ci95_lower": 0.0026933272085124426,
+        "paired_ci95_upper": 0.010350813784027943,
+        "paired_delta_vs_tree": 0.0063799186534508445
+      },
+      "tree": {
+        "coverage_95": 1.0,
+        "endpoint_displacement_rmse": 0.011081165112834318,
+        "fallback_rate": null,
+        "mean_normalized_nees": 0.5563649449979298,
+        "paired_ci95_lower": 0.0,
+        "paired_ci95_upper": 0.0,
+        "paired_delta_vs_tree": 0.0
+      }
+    },
+    "correlated_strong_outliers": {
+      "full_joint_graph": {
+        "coverage_95": 0.8216145833333334,
+        "endpoint_displacement_rmse": 0.0416236985526736,
+        "fallback_rate": null,
+        "mean_normalized_nees": 69.08192404750652,
+        "paired_ci95_lower": 0.017313589578525254,
+        "paired_ci95_upper": 0.04784793018321014,
+        "paired_delta_vs_tree": 0.03151576652696188
+      },
+      "guarded_graph": {
+        "coverage_95": 1.0,
+        "endpoint_displacement_rmse": 0.01029245131715608,
+        "fallback_rate": 0.2734375,
+        "mean_normalized_nees": 0.5361947460981383,
+        "paired_ci95_lower": -9.785727153869216e-05,
+        "paired_ci95_upper": 0.000470512727591039,
+        "paired_delta_vs_tree": 0.00018447328790836018
+      },
+      "marginal_ci": {
+        "coverage_95": 0.88671875,
+        "endpoint_displacement_rmse": 0.03917696305319167,
+        "fallback_rate": null,
+        "mean_normalized_nees": 186.9999045222654,
+        "paired_ci95_lower": 0.014404977050774187,
+        "paired_ci95_upper": 0.045694660965206904,
+        "paired_delta_vs_tree": 0.029069030841979947
+      },
+      "tree": {
+        "coverage_95": 1.0,
+        "endpoint_displacement_rmse": 0.01010797802924772,
+        "fallback_rate": null,
+        "mean_normalized_nees": 0.5317702868716974,
+        "paired_ci95_lower": 0.0,
+        "paired_ci95_upper": 0.0,
+        "paired_delta_vs_tree": 0.0
+      }
+    },
+    "highly_correlated_clean": {
+      "full_joint_graph": {
+        "coverage_95": 1.0,
+        "endpoint_displacement_rmse": 0.004502609167915218,
+        "fallback_rate": null,
+        "mean_normalized_nees": 0.43639559697378436,
+        "paired_ci95_lower": -0.0003234204643744584,
+        "paired_ci95_upper": -5.725201960360707e-05,
+        "paired_delta_vs_tree": -0.00019175603594783744
+      },
+      "guarded_graph": {
+        "coverage_95": 1.0,
+        "endpoint_displacement_rmse": 0.004502609167915218,
+        "fallback_rate": 0.0,
+        "mean_normalized_nees": 0.43639559697378436,
+        "paired_ci95_lower": -0.0003251879703772275,
+        "paired_ci95_upper": -6.499361706602941e-05,
+        "paired_delta_vs_tree": -0.00019175603594783744
+      },
+      "marginal_ci": {
+        "coverage_95": 0.9986979166666666,
+        "endpoint_displacement_rmse": 0.005007121645047375,
+        "fallback_rate": null,
+        "mean_normalized_nees": 0.4763875143269573,
+        "paired_ci95_lower": -3.5239161530158244e-05,
+        "paired_ci95_upper": 0.0006704564013865052,
+        "paired_delta_vs_tree": 0.000312756441184318
+      },
+      "tree": {
+        "coverage_95": 1.0,
+        "endpoint_displacement_rmse": 0.004694365203863056,
+        "fallback_rate": null,
+        "mean_normalized_nees": 0.42969687664551175,
+        "paired_ci95_lower": 0.0,
+        "paired_ci95_upper": 0.0,
+        "paired_delta_vs_tree": 0.0
+      }
+    },
+    "highly_correlated_strong_outliers": {
+      "full_joint_graph": {
+        "coverage_95": 0.7955729166666667,
+        "endpoint_displacement_rmse": 0.036354932032469846,
+        "fallback_rate": null,
+        "mean_normalized_nees": 284.3949621482058,
+        "paired_ci95_lower": 0.017232253585101235,
+        "paired_ci95_upper": 0.048280977691286336,
+        "paired_delta_vs_tree": 0.03171938948057941
+      },
+      "guarded_graph": {
+        "coverage_95": 0.9986979166666666,
+        "endpoint_displacement_rmse": 0.004563762629005058,
+        "fallback_rate": 0.2890625,
+        "mean_normalized_nees": 0.4109446074650343,
+        "paired_ci95_lower": -0.00019171827105029295,
+        "paired_ci95_upper": 5.512923151338397e-05,
+        "paired_delta_vs_tree": -7.180255828697804e-05
+      },
+      "marginal_ci": {
+        "coverage_95": 0.8606770833333334,
+        "endpoint_displacement_rmse": 0.03426770191228573,
+        "fallback_rate": null,
+        "mean_normalized_nees": 292.1131284240757,
+        "paired_ci95_lower": 0.01493059428376612,
+        "paired_ci95_upper": 0.04645956691005894,
+        "paired_delta_vs_tree": 0.0296321593603953
+      },
+      "tree": {
+        "coverage_95": 0.9986979166666666,
+        "endpoint_displacement_rmse": 0.004635565187292036,
+        "fallback_rate": null,
+        "mean_normalized_nees": 0.4070134445157628,
+        "paired_ci95_lower": 0.0,
+        "paired_ci95_upper": 0.0,
+        "paired_delta_vs_tree": 0.0
+      }
+    },
+    "independent_clean": {
+      "full_joint_graph": {
+        "coverage_95": 0.984375,
+        "endpoint_displacement_rmse": 0.021183395462879406,
+        "fallback_rate": null,
+        "mean_normalized_nees": 0.7646147709674566,
+        "paired_ci95_lower": -0.0010664982572520152,
+        "paired_ci95_upper": 0.0002139581053504118,
+        "paired_delta_vs_tree": -0.00043780953939875336
+      },
+      "guarded_graph": {
+        "coverage_95": 0.984375,
+        "endpoint_displacement_rmse": 0.02131724057310347,
+        "fallback_rate": 0.3203125,
+        "mean_normalized_nees": 0.7621345452276533,
+        "paired_ci95_lower": -0.0008064395410419958,
+        "paired_ci95_upper": 0.00017652232701114695,
+        "paired_delta_vs_tree": -0.0003039644291746873
+      },
+      "marginal_ci": {
+        "coverage_95": 0.9778645833333334,
+        "endpoint_displacement_rmse": 0.02289735674393187,
+        "fallback_rate": null,
+        "mean_normalized_nees": 0.7758013236733674,
+        "paired_ci95_lower": -0.0002601708096876493,
+        "paired_ci95_upper": 0.002847458197281887,
+        "paired_delta_vs_tree": 0.0012761517416537142
+      },
+      "tree": {
+        "coverage_95": 0.9856770833333333,
+        "endpoint_displacement_rmse": 0.021621205002278158,
+        "fallback_rate": null,
+        "mean_normalized_nees": 0.7644970997121847,
+        "paired_ci95_lower": 0.0,
+        "paired_ci95_upper": 0.0,
+        "paired_delta_vs_tree": 0.0
+      }
+    }
+  },
+  "protocol_id": "prob4d-gauge-graph-science-replication-v1",
+  "provisional_method_decision": {
+    "do_not_promote": [
+      "marginal_ci"
+    ],
+    "experimental_only": [
+      "full_joint_graph",
+      "guarded_graph"
+    ],
+    "next_method_question": "source-side uncertainty-normalized cycle consistency",
+    "production_default": "tree"
+  },
+  "report_id": "a4c9a5294dbb0f6c12040494900c14f39f4c8e42a7499fc2fc5db12f4d789460",
+  "result_id": "prob4d-gauge-graph-science-replication-v1",
+  "runtime": {
+    "numpy": "2.5.1",
+    "platform": "Linux-6.17.0-1020-azure-x86_64-with-glibc2.39",
+    "python": "3.12.13"
+  },
+  "schema_name": "prob4d.gauge-graph-science-results",
+  "schema_version": 1,
+  "source_revision": "79e590157ce2514369f395130e3938dc755628d1",
+  "target": {
+    "scenario_count": 6,
+    "total_trials": 768,
+    "trials_per_scenario": 128
+  },
+  "workflow_run_id": 30884528569
+}

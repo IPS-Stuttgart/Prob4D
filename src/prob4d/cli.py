@@ -24,6 +24,11 @@ _ROUTES: Final[dict[Route, tuple[str, str, str]]] = {
         "main",
         "compare causal gauge-tree, graph, guarded fallback, and fixed-lag modes",
     ),
+    ("diagnostic", "gauge-graph-monte-carlo"): (
+        "prob4d.causal_gauge_graph_monte_carlo",
+        "main",
+        "run calibration-separated correlated gauge-graph Monte Carlo study",
+    ),
     ("evaluate", "provider"): (
         "prob4d.provider_evaluation",
         "main",
