@@ -1,0 +1,1 @@
+Trigger the one-shot restoration of exact frozen-protocol claim-boundary equality.
