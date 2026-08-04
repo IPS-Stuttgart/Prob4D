@@ -1,0 +1,363 @@
+name: Execute BPT controlled decisive study
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/bpt-controlled-decisive-v1.yml"
+      - "tests/test_bpt_controlled_decisive_execution_workflow.py"
+      - "docs/bpt-controlled-decisive-execution.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bpt-controlled-decisive-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PROB4D_SOURCE_REVISION: aa8ffc6541011d044561e09870569a14ab3f586f
+  BPT_SOURCE_REVISION: 76d4aba20dd386e1f8583e501781d702d7937566
+  BPT_BASE_REVISION: b2da5df5eddd5437d444b60b11130262d115e264
+  PROTOCOL_SHA256: 921da8a6f14f9430b3f4861d68326d904f61b922e3aedd2b35882ea97bc63111
+  RUNNER_PAYLOAD_SHA256: 16beddf036d797ad16868a4b45596b11b2f9617ac6f39f609b5a1b9ce6de3a63
+  VERIFIER_PAYLOAD_SHA256: 1b07e9b9c0b3f31c1700d1e4f97ae43467ce01a05b9e04108b4b2c434efb5eda
+  PYTHONHASHSEED: "0"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  decisive-study:
+    name: Exact Prob4D + runner-local BPT on workstation2
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Linux, X64, nvidia-smi]
+    timeout-minutes: 360
+    steps:
+      - name: Check out exact frozen Prob4D producer
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.PROB4D_SOURCE_REVISION }}
+          path: prob4d-source
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Initialize infrastructure evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${RUNNER_TEMP}/prob4d-bpt-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          rm -rf "${root}"
+          mkdir -p "${root}/evidence"
+          echo "EVIDENCE_ROOT=${root}/evidence" >> "${GITHUB_ENV}"
+          {
+            echo "runner_name=${RUNNER_NAME}"
+            echo "runner_os=${RUNNER_OS}"
+            echo "runner_arch=${RUNNER_ARCH}"
+            echo "workflow_repository=${GITHUB_REPOSITORY}"
+            echo "workflow_revision=${GITHUB_SHA}"
+            echo "prob4d_revision=${PROB4D_SOURCE_REVISION}"
+            echo "bpt_revision=${BPT_SOURCE_REVISION}"
+            echo "bpt_base_revision=${BPT_BASE_REVISION}"
+            echo "protocol_sha256=${PROTOCOL_SHA256}"
+            echo "runner_payload_sha256=${RUNNER_PAYLOAD_SHA256}"
+            echo "verifier_payload_sha256=${VERIFIER_PAYLOAD_SHA256}"
+            echo "runner_workspace=${RUNNER_WORKSPACE}"
+            uname -a
+            python -VV
+          } > "${root}/evidence/runtime.txt"
+
+      - name: Verify exact Prob4D checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C prob4d-source rev-parse HEAD)" = \
+            "${PROB4D_SOURCE_REVISION}"
+          test -z "$(git -C prob4d-source status --porcelain=v1)"
+          git -C prob4d-source fsck --no-dangling
+          {
+            echo "resolution=current_repository_token"
+            echo "path=$(realpath prob4d-source)"
+            echo "revision=$(git -C prob4d-source rev-parse HEAD)"
+          } > "${EVIDENCE_ROOT}/prob4d-source-resolution.txt"
+
+      - name: Resolve exact runner-local BayesianPhysTwin source
+        id: bpt
+        shell: bash
+        run: |
+          set -euo pipefail
+          dst="${RUNNER_TEMP}/bpt-controlled-decisive-source"
+          diagnostic="${EVIDENCE_ROOT}/bpt-source-resolution.txt"
+          rm -rf "${dst}"
+          : > "${diagnostic}"
+
+          candidates=(
+            "${RUNNER_WORKSPACE}/../BayesianPhysTwin/BayesianPhysTwin"
+            "${RUNNER_WORKSPACE}/../bayesianphystwin/BayesianPhysTwin"
+            "${RUNNER_WORKSPACE}/../BayesianPhysTwin"
+            "${RUNNER_WORKSPACE}/BayesianPhysTwin/BayesianPhysTwin"
+            "${HOME}/BayesianPhysTwin"
+            "${HOME}/src/BayesianPhysTwin"
+          )
+          while IFS= read -r gitdir; do
+            candidates+=("${gitdir%/.git}")
+          done < <(
+            find "${RUNNER_WORKSPACE}/.." -maxdepth 5 -type d -name .git \
+              -print 2>/dev/null | sort -u
+          )
+
+          for src in "${candidates[@]}"; do
+            echo "candidate=${src}" >> "${diagnostic}"
+            if ! git -C "${src}" rev-parse --git-dir >/dev/null 2>&1; then
+              echo "candidate_status=not_a_checkout" >> "${diagnostic}"
+              continue
+            fi
+            if ! git -C "${src}" cat-file -e \
+              "${BPT_SOURCE_REVISION}^{commit}" 2>/dev/null; then
+              echo "candidate_status=exact_commit_missing" >> "${diagnostic}"
+              continue
+            fi
+            git clone --shared --no-checkout --quiet "${src}" "${dst}"
+            echo "resolution=runner_local_shared_object_store" >> "${diagnostic}"
+            echo "source=${src}" >> "${diagnostic}"
+            break
+          done
+
+          if [[ ! -d "${dst}/.git" ]]; then
+            mkdir -p "${HOME}/.ssh"
+            chmod 700 "${HOME}/.ssh"
+            if GIT_SSH_COMMAND="ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new" \
+              git clone --filter=blob:none --no-checkout --quiet \
+              git@github.com:IPS-Stuttgart/BayesianPhysTwin.git "${dst}"; then
+              echo "resolution=runner_ssh_identity" >> "${diagnostic}"
+            else
+              rm -rf "${dst}"
+              echo "ssh_resolution=failed" >> "${diagnostic}"
+            fi
+          fi
+
+          if [[ ! -d "${dst}/.git" ]]; then
+            echo "resolution=unavailable" >> "${diagnostic}"
+            echo "Exact private BayesianPhysTwin source is unavailable" >&2
+            exit 1
+          fi
+
+          git -C "${dst}" cat-file -e "${BPT_SOURCE_REVISION}^{commit}"
+          git -C "${dst}" checkout --quiet --detach "${BPT_SOURCE_REVISION}"
+          test "$(git -C "${dst}" rev-parse HEAD)" = "${BPT_SOURCE_REVISION}"
+          git -C "${dst}" merge-base --is-ancestor \
+            "${BPT_BASE_REVISION}" "${BPT_SOURCE_REVISION}"
+          test -z "$(git -C "${dst}" status --porcelain=v1)"
+          git -C "${dst}" fsck --no-dangling
+          {
+            echo "path=${dst}"
+            echo "revision=$(git -C "${dst}" rev-parse HEAD)"
+          } >> "${diagnostic}"
+          echo "path=${dst}" >> "${GITHUB_OUTPUT}"
+
+      - name: Install exact source snapshots
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m venv "${RUNNER_TEMP}/prob4d-bpt-venv"
+          echo "VIRTUAL_ENV=${RUNNER_TEMP}/prob4d-bpt-venv" >> "${GITHUB_ENV}"
+          echo "${RUNNER_TEMP}/prob4d-bpt-venv/bin" >> "${GITHUB_PATH}"
+          "${RUNNER_TEMP}/prob4d-bpt-venv/bin/python" -m pip install \
+            --upgrade pip
+          "${RUNNER_TEMP}/prob4d-bpt-venv/bin/python" -m pip install \
+            -e "./prob4d-source[dev]"
+          "${RUNNER_TEMP}/prob4d-bpt-venv/bin/python" -m pip install \
+            -e "${{ steps.bpt.outputs.path }}[dev]"
+          "${RUNNER_TEMP}/prob4d-bpt-venv/bin/python" -m pip check
+
+      - name: Verify frozen protocol and implementation bytes
+        shell: bash
+        env:
+          BPT_PATH: ${{ steps.bpt.outputs.path }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import zlib
+
+          bpt = Path(os.environ["BPT_PATH"])
+          protocol_path = (
+              bpt / "protocols" / "prob4d_bpt_controlled_decisive_v1.json"
+          )
+          protocol = json.loads(protocol_path.read_text(encoding="utf-8"))
+          actual_protocol = hashlib.sha256(
+              json.dumps(
+                  protocol,
+                  sort_keys=True,
+                  separators=(",", ":"),
+                  allow_nan=False,
+              ).encode("utf-8")
+          ).hexdigest()
+          if actual_protocol != os.environ["PROTOCOL_SHA256"]:
+              raise SystemExit(f"protocol changed: {actual_protocol}")
+          if (
+              protocol["repository_pins"]["prob4d"]
+              != os.environ["PROB4D_SOURCE_REVISION"]
+          ):
+              raise SystemExit("Prob4D protocol pin changed")
+          if (
+              protocol["repository_pins"]["bayesian_phystwin_base"]
+              != os.environ["BPT_BASE_REVISION"]
+          ):
+              raise SystemExit("BayesianPhysTwin base pin changed")
+
+          science = bpt / "scripts" / "science"
+          runner_encoded = "".join(
+              path.read_text(encoding="utf-8").strip()
+              for path in sorted(
+                  (
+                      science
+                      / "prob4d_bpt_controlled_decisive_payload"
+                  ).glob("part*.txt")
+              )
+          )
+          runner = zlib.decompress(base64.b64decode(runner_encoded))
+          if hashlib.sha256(runner).hexdigest() != os.environ[
+              "RUNNER_PAYLOAD_SHA256"
+          ]:
+              raise SystemExit("controlled runner payload changed")
+          compile(runner, "controlled-decisive-runner", "exec")
+
+          verifier_encoded = "".join(
+              path.read_text(encoding="utf-8").strip()
+              for path in sorted(
+                  (
+                      science
+                      / "prob4d_bpt_controlled_decisive_verifier_payload"
+                  ).glob("part*.txt")
+              )
+          )
+          verifier = zlib.decompress(base64.b64decode(verifier_encoded))
+          if hashlib.sha256(verifier).hexdigest() != os.environ[
+              "VERIFIER_PAYLOAD_SHA256"
+          ]:
+              raise SystemExit("independent verifier payload changed")
+          compile(verifier, "controlled-decisive-verifier", "exec")
+
+          core_loader = (
+              science / "prob4d_bpt_controlled_decisive_core_v1.py"
+          )
+          compile(
+              core_loader.read_text(encoding="utf-8"),
+              str(core_loader),
+              "exec",
+          )
+          PY
+
+      - name: Run focused cross-repository regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          bpt="${{ steps.bpt.outputs.path }}"
+          python -m ruff check \
+            "${bpt}/scripts/science/prob4d_bpt_controlled_decisive_core_v1.py" \
+            "${bpt}/scripts/science/run_prob4d_bpt_controlled_decisive_v1.py" \
+            "${bpt}/scripts/science/verify_prob4d_bpt_controlled_decisive_v1.py" \
+            "${bpt}/tests/test_prob4d_bpt_controlled_decisive_v1.py" \
+            "${bpt}/tests/test_prob4d_bpt_controlled_decisive_verifier_v1.py"
+          python -m pytest -q \
+            "${bpt}/tests/test_prob4d_bpt_controlled_decisive_v1.py" \
+            "${bpt}/tests/test_prob4d_bpt_controlled_decisive_verifier_v1.py"
+
+      - name: Execute all fresh controlled groups
+        id: experiment
+        shell: bash
+        run: |
+          set +e
+          bpt="${{ steps.bpt.outputs.path }}"
+          python \
+            "${bpt}/scripts/science/run_prob4d_bpt_controlled_decisive_v1.py" \
+            --protocol \
+            "${bpt}/protocols/prob4d_bpt_controlled_decisive_v1.json" \
+            --output-dir "${EVIDENCE_ROOT}/result" \
+            --repository-revision "${BPT_SOURCE_REVISION}" \
+            --prob4d-revision "${PROB4D_SOURCE_REVISION}" \
+            --force 2>&1 | tee "${EVIDENCE_ROOT}/console.log"
+          status=${PIPESTATUS[0]}
+          set -e
+          if [[ "${status}" -ne 0 && "${status}" -ne 3 ]]; then
+            exit "${status}"
+          fi
+          echo "decision_exit_code=${status}" >> "${GITHUB_OUTPUT}"
+
+      - name: Independently verify evidence and decision
+        shell: bash
+        run: |
+          set -euo pipefail
+          bpt="${{ steps.bpt.outputs.path }}"
+          (
+            cd "${EVIDENCE_ROOT}/result"
+            sha256sum --check SHA256SUMS
+          )
+          python \
+            "${bpt}/scripts/science/verify_prob4d_bpt_controlled_decisive_v1.py" \
+            "${EVIDENCE_ROOT}/result" \
+            --protocol-sha256 "${PROTOCOL_SHA256}" \
+            --bpt-revision "${BPT_SOURCE_REVISION}" \
+            --prob4d-revision "${PROB4D_SOURCE_REVISION}" \
+            --decision-exit-code \
+            "${{ steps.experiment.outputs.decision_exit_code }}"
+          test -z "$(git -C prob4d-source status --porcelain=v1)"
+          test -z "$(
+            git -C "${{ steps.bpt.outputs.path }}" status --porcelain=v1
+          )"
+          {
+            echo "decision_exit_code=${{ steps.experiment.outputs.decision_exit_code }}"
+            echo "prob4d_revision=${PROB4D_SOURCE_REVISION}"
+            echo "bpt_revision=${BPT_SOURCE_REVISION}"
+          } > "${EVIDENCE_ROOT}/execution.txt"
+          (
+            cd "${EVIDENCE_ROOT}"
+            sha256sum \
+              runtime.txt \
+              prob4d-source-resolution.txt \
+              bpt-source-resolution.txt \
+              execution.txt \
+              console.log > INFRASTRUCTURE_SHA256SUMS
+            sha256sum --check INFRASTRUCTURE_SHA256SUMS
+          )
+
+      - name: Publish scientific summary
+        if: always()
+        shell: bash
+        run: |
+          summary="${EVIDENCE_ROOT}/result/summary.md"
+          if [[ -f "${summary}" ]]; then
+            cat "${summary}" >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          {
+            echo
+            echo "Decision exit code: \`${{ steps.experiment.outputs.decision_exit_code }}\`"
+            echo
+            echo "Prob4D revision: \`${PROB4D_SOURCE_REVISION}\`"
+            echo "BayesianPhysTwin revision: \`${BPT_SOURCE_REVISION}\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload complete evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: prob4d-bpt-controlled-decisive-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.EVIDENCE_ROOT }}
+          if-no-files-found: error
+          retention-days: 90
