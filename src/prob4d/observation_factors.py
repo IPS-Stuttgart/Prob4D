@@ -19,14 +19,14 @@ from ._observation_factor_bundle import (
     sim3_point_jacobian,
     stack_observation_factors,
 )
-from ._observation_factor_io import (
-    load_observation_factor_bundle,
-    write_observation_factor_bundle,
-)
 from ._observation_factor_types import (
     LinearizedObservationFactor,
     ObservationFactor,
     StackedObservationFactors,
+)
+from ._strict_observation_factor_io import (
+    load_observation_factor_bundle,
+    write_observation_factor_bundle,
 )
 
 __all__ = [
