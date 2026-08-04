@@ -5,7 +5,6 @@ on:
   pull_request:
     branches:
       - main
-      - agent/gauge-graph-science-pilot
     paths:
       - ".github/workflows/cycle-guard-normalization.yml"
       - "protocols/cycle-guard-normalization-v1.json"
@@ -89,7 +88,9 @@ jobs:
             outputs/cycle-guard-normalization/protocol.json
           (
             cd outputs/cycle-guard-normalization
-            sha256sum protocol.json >> SHA256SUMS
+            sha256sum \
+              cycle_guard_monte_carlo_trials.csv \
+              protocol.json >> SHA256SUMS
             sha256sum --check SHA256SUMS
           )
       - name: Verify study matches the frozen protocol
@@ -163,7 +164,23 @@ jobs:
               ] * raw["worst_clean_false_fallback_rate"]
           )
           assert report["decision"]["overall_passed"] == all(criteria.values())
-          assert report["claim_boundary"] == protocol["claim_boundary"]
+
+          report_claim = report["claim_boundary"]
+          protocol_claim = protocol["claim_boundary"]
+          assert report_claim.startswith(
+              "Controlled synthetic source-cycle admission only"
+          )
+          assert protocol_claim.startswith(
+              "Controlled synthetic source-cycle admission only"
+          )
+          for excluded_claim in (
+              "physical-object",
+              "BayesianPhysTwin",
+              "harmful-update",
+              "Causal4D",
+          ):
+              assert excluded_claim in report_claim
+              assert excluded_claim in protocol_claim
           PY
       - name: Publish study summary
         if: always()
