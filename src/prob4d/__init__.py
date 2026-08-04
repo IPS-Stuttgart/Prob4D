@@ -49,6 +49,11 @@ from .evaluation_modes import (
     EvaluationModes,
     evaluate_sequence_modes,
 )
+from .finite_sample_threshold import (
+    FINITE_SAMPLE_UPPER_THRESHOLD_SEMANTICS,
+    FiniteSampleUpperThreshold,
+    fit_finite_sample_upper_threshold,
+)
 from .fusion import FusedSequence
 from .guarded_causal_gauge_graph import (
     GUARDED_CAUSAL_GAUGE_GRAPH_DEPENDENCE,
@@ -178,6 +183,8 @@ __all__ = [
     "CrossFittedDisagreementReport",
     "EvaluationModeResult",
     "EvaluationModes",
+    "FINITE_SAMPLE_UPPER_THRESHOLD_SEMANTICS",
+    "FiniteSampleUpperThreshold",
     "FusedSequence",
     "GaugeCovarianceCalibrationV1",
     "GroupBalancedCalibrationReport",
@@ -215,6 +222,7 @@ __all__ = [
     "estimate_guarded_causal_multi_edge_gauge_graph",
     "estimate_joint_gauge_tree",
     "evaluate_sequence_modes",
+    "fit_finite_sample_upper_threshold",
     "fit_group_balanced_point_uncertainty_calibration",
     "fit_group_balanced_source_reliability",
     "group_balanced_point_calibration_metadata",
