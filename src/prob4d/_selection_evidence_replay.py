@@ -9,13 +9,13 @@ from typing import Any
 
 from ._immutable_json import frozen_finite_json_mapping, plain_json
 from ._selection_evidence_common import (
+    _SHA256,
+    SELECTION_REPLAY_SCHEMA,
     Aggregation,
     Direction,
     MetricConstraintV1,
     MetricOrderV1,
-    SELECTION_REPLAY_SCHEMA,
     SelectionRuleV1,
-    _SHA256,
     _sha256_json,
     _strict_digest,
     _strict_integer,
@@ -23,7 +23,7 @@ from ._selection_evidence_common import (
     _strict_mapping,
     _strict_string,
 )
-from ._selection_evidence_records import CandidateSpecV1, CalibrationMetricRowV1
+from ._selection_evidence_records import CalibrationMetricRowV1, CandidateSpecV1
 
 
 def _aggregate(values: Sequence[float], aggregation: Aggregation) -> float:
@@ -105,9 +105,10 @@ def _candidate_replay_summaries(
             aggregation: Aggregation,
             *,
             candidate_id: str = candidate.candidate_id,
+            cache: dict[tuple[str, Aggregation], float] = aggregate_cache,
         ) -> float:
             key = (metric_name, aggregation)
-            if key not in aggregate_cache:
+            if key not in cache:
                 values: list[float] = []
                 for group_id in groups:
                     row = by_key[(group_id, candidate_id)]
@@ -117,8 +118,8 @@ def _candidate_replay_summaries(
                             f"required metric {metric_name!r}"
                         )
                     values.append(float(row.metrics[metric_name]))
-                aggregate_cache[key] = _aggregate(values, aggregation)
-            return aggregate_cache[key]
+                cache[key] = _aggregate(values, aggregation)
+            return cache[key]
 
         for metric_name in required_metrics:
             matching_aggregations = {
