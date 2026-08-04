@@ -3,6 +3,8 @@ name: Apply validated fail-closed quality patch
 on:
   push:
     branches: [agent/fail-closed-quality-final]
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: write
