@@ -27,8 +27,10 @@ The repaired workflow uses complete Git sources:
    fallback. Missing source, a dirty tree, a revision mismatch, or an ancestry
    mismatch fails closed.
 
-Both repositories are installed into a fresh Python 3.12 virtual environment.
-The BayesianPhysTwin execution revision must descend from preregistered base
+The orchestration has read-only repository permissions and contains no branch
+mutation or result-publication step. Both repositories are installed into a
+fresh Python 3.12 virtual environment. The BayesianPhysTwin execution revision
+must descend from preregistered base
 `b2da5df5eddd5437d444b60b11130262d115e264`.
 
 ## Frozen identities
