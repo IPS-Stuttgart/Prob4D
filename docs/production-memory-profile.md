@@ -1,9 +1,8 @@
 # Production memory profiling
 
-Prob4D provides an opt-in self-hosted workflow for reproducible, fresh-process
-memory measurements at the production `25 x 320 x 640` window shape. It is an
-engineering evidence surface for issue #50, not a reconstruction or downstream
-physics experiment.
+Prob4D provides a workflow for reproducible, fresh-process memory measurements
+at the production `25 x 320 x 640` window shape. It is an engineering evidence
+surface for issue #50, not a reconstruction or downstream physics experiment.
 
 ## Covered phases
 
@@ -23,7 +22,8 @@ process RSS, retained-array accounting, and a deterministic output digest.
 
 ## Runner and invocation
 
-The checked-in workflow targets the IPS self-hosted labels:
+The checked-in workflow uses `ubuntu-latest` by default. Manual dispatches can
+select `self-hosted` to target the IPS runner labels:
 
 ```text
 self-hosted, Linux, X64, nvidia-smi
@@ -44,16 +44,18 @@ include flow: true
 ```
 
 The optional `prediction_manifest` and `prediction_store` inputs are absolute
-paths on the self-hosted runner. When supplied, the workflow additionally runs
-the verified eager and mmap loading benchmarks in fresh processes. These paths
-are never uploaded; only their content-addressed identities and measurements are
-included in the JSON evidence.
+paths already present on the selected runner. They are primarily useful with
+the self-hosted option because GitHub-hosted runners are ephemeral. When
+supplied, the workflow additionally runs the verified eager and mmap loading
+benchmarks in fresh processes. These paths are never uploaded; only their
+content-addressed identities and measurements are included in the JSON evidence.
 
 ## Evidence artifact
 
 Each run uploads one `production-memory-profile-<run-id>` artifact containing:
 
-- `host.txt`, including CPU, RAM, GPU, driver, Python, and NumPy identity;
+- `host.txt`, including CPU, RAM, Python, NumPy, and any available GPU/driver
+  identity;
 - one JSON and captured stdout file per executed phase;
 - `summary.json`, binding the phase reports to the workflow revision and runner;
 - `SHA256SUMS` for every evidence file.
