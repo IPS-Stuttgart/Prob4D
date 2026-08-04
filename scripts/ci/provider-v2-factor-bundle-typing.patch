@@ -1,7 +1,6 @@
-diff --git a/src/prob4d/provider_v2_factor_bundle.py b/src/prob4d/provider_v2_factor_bundle.py
 --- a/src/prob4d/provider_v2_factor_bundle.py
 +++ b/src/prob4d/provider_v2_factor_bundle.py
-@@ -136,9 +136,16 @@ def _require_revision(value: object, *, name: str) -> str:
+@@ -136,10 +136,17 @@
      return revision
  
  
@@ -21,7 +20,7 @@ diff --git a/src/prob4d/provider_v2_factor_bundle.py b/src/prob4d/provider_v2_fa
  
  
  def _safe_relative_path(value: object, *, name: str) -> str:
-@@ -247,19 +254,21 @@ def _validate_causal_source_lineage(
+@@ -245,19 +252,18 @@
          if window_id in selected_ids:
              raise ValueError("selected source window IDs must be unique")
          selected_ids.add(window_id)
