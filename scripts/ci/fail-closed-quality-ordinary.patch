@@ -1,0 +1,501 @@
+diff --git a/scripts/ci/check_sdist.py b/scripts/ci/check_sdist.py
+index 876dc74..22ac647 100644
+--- a/scripts/ci/check_sdist.py
++++ b/scripts/ci/check_sdist.py
+@@ -11,7 +11,6 @@ import tarfile
+ import tempfile
+ from pathlib import Path, PurePosixPath
+ 
+-
+ REQUIRED_PATHS = frozenset(
+     {
+         ".github/CODEOWNERS",
+diff --git a/src/prob4d/_calibration_common.py b/src/prob4d/_calibration_common.py
+index f320d14..78a8d56 100644
+--- a/src/prob4d/_calibration_common.py
++++ b/src/prob4d/_calibration_common.py
+@@ -8,8 +8,6 @@ from collections.abc import Mapping, Sequence
+ from types import MappingProxyType
+ from typing import Any
+ 
+-import numpy as np
+-
+ GAUGE_COVARIANCE_CALIBRATION_SCHEMA = "prob4d.gauge_covariance_calibration"
+ GAUGE_COVARIANCE_CALIBRATION_VERSION = 1
+ POINT_UNCERTAINTY_CALIBRATION_SCHEMA = "prob4d.point_uncertainty_calibration"
+diff --git a/src/prob4d/calibration_compatibility.py b/src/prob4d/calibration_compatibility.py
+index 6683690..52a3e95 100644
+--- a/src/prob4d/calibration_compatibility.py
++++ b/src/prob4d/calibration_compatibility.py
+@@ -26,7 +26,7 @@ MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA_V1 = MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA
+ MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA_V2 = "prob4d.motioncrafter-model.v2"
+ POINT_UNCERTAINTY_COVARIANCE_METHOD = "depth_disagreement_anisotropic_v1"
+ 
+-_MODEL_CONFIG_KEYS_V1 = (
++_MODEL_CONFIG_KEYS_V1: tuple[str, ...] = (
+     "model_type",
+     "unet_path",
+     "vae_path",
+@@ -37,7 +37,7 @@ _MODEL_CONFIG_KEYS_V1 = (
+     "seed",
+     "frame_stride",
+ )
+-_MODEL_CONFIG_KEYS_V2 = (*_MODEL_CONFIG_KEYS_V1, "seed_policy")
++_MODEL_CONFIG_KEYS_V2: tuple[str, ...] = (*_MODEL_CONFIG_KEYS_V1, "seed_policy")
+ 
+ 
+ class CalibrationCompatibilityError(ValueError):
+@@ -101,6 +101,7 @@ def motioncrafter_model_identifier(manifest: Mapping[str, Any]) -> str:
+     seed_policy = str(
+         config.get("seed_policy", MOTIONCRAFTER_SEED_POLICY_LEGACY_COMMON)
+     )
++    config_keys: tuple[str, ...]
+     if seed_policy == MOTIONCRAFTER_SEED_POLICY_LEGACY_COMMON:
+         schema = MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA_V1
+         config_keys = _MODEL_CONFIG_KEYS_V1
+diff --git a/src/prob4d/composition_jacobian.py b/src/prob4d/composition_jacobian.py
+index f68fafb..4111a46 100644
+--- a/src/prob4d/composition_jacobian.py
++++ b/src/prob4d/composition_jacobian.py
+@@ -3,6 +3,8 @@
+ Provider v1 retains the historical central-finite-difference implementation.
+ Provider v2 selects the analytic implementation through a task-local context,
+ so importing the new provider cannot silently reinterpret frozen v1 artifacts.
++Explicit array annotations also keep the Python-3.10-targeted static check stable
++across supported NumPy stub generations.
+ """
+ 
+ from __future__ import annotations
+@@ -87,8 +89,8 @@ def analytic_sim3_compose_jacobians(
+     parent_right = so3_right_jacobian(parent_rotation)
+     relative_right = so3_right_jacobian(relative_rotation)
+ 
+-    parent_jacobian = np.zeros((7, 7), dtype=np.float64)
+-    relative_jacobian = np.zeros((7, 7), dtype=np.float64)
++    parent_jacobian: np.ndarray = np.zeros((7, 7), dtype=np.float64)
++    relative_jacobian: np.ndarray = np.zeros((7, 7), dtype=np.float64)
+     parent_jacobian[0, 0] = 1.0
+     relative_jacobian[0, 0] = 1.0
+     parent_jacobian[1:4, 1:4] = (
+diff --git a/src/prob4d/covariance_root.py b/src/prob4d/covariance_root.py
+index e6d3810..8035ed1 100644
+--- a/src/prob4d/covariance_root.py
++++ b/src/prob4d/covariance_root.py
+@@ -162,7 +162,7 @@ def canonical_covariance_root(
+     eigenvalues, eigenvectors = np.linalg.eigh(normalized)
+     spectral_scale = max(
+         float(np.max(np.abs(eigenvalues), initial=0.0)),
+-        np.finfo(np.float64).tiny,
++        float(np.finfo(np.float64).tiny),
+     )
+     if float(np.min(eigenvalues, initial=0.0)) < -(
+         1e-14 + 1e-10 * spectral_scale
+diff --git a/src/prob4d/observation_contract_bundle.py b/src/prob4d/observation_contract_bundle.py
+index 0988452..fb0e364 100644
+--- a/src/prob4d/observation_contract_bundle.py
++++ b/src/prob4d/observation_contract_bundle.py
+@@ -13,9 +13,10 @@ import argparse
+ import copy
+ import hashlib
+ import json
++from collections.abc import Mapping
+ from dataclasses import dataclass
+ from importlib import resources
+-from typing import Any, Mapping
++from typing import Any
+ 
+ import numpy as np
+ 
+diff --git a/src/prob4d/prediction_store.py b/src/prob4d/prediction_store.py
+index 4137d61..5e48241 100644
+--- a/src/prob4d/prediction_store.py
++++ b/src/prob4d/prediction_store.py
+@@ -15,7 +15,7 @@ import json
+ import os
+ import shutil
+ import tempfile
+-from collections.abc import Mapping, Sequence
++from collections.abc import Mapping
+ from pathlib import Path, PurePosixPath
+ from typing import Any, Final, cast
+ 
+diff --git a/src/prob4d/provider_attestation.py b/src/prob4d/provider_attestation.py
+index 740b7c5..b3a8ea8 100644
+--- a/src/prob4d/provider_attestation.py
++++ b/src/prob4d/provider_attestation.py
+@@ -10,7 +10,7 @@ from __future__ import annotations
+ import hashlib
+ import json
+ from collections.abc import Mapping
+-from typing import Any
++from typing import Any, cast
+ 
+ PROVIDER_ATTESTATION_SCHEMA = "prob4d.provider-attestation"
+ PROVIDER_ATTESTATION_VERSION = 1
+@@ -139,7 +139,7 @@ def compute_provider_manifest_id(manifest: Mapping[str, Any]) -> str:
+ 
+ 
+ def validate_provider_manifest(
+-    manifest: Mapping[str, Any],
++    manifest: Any,
+     *,
+     expected_revision: str,
+ ) -> dict[str, Any]:
+@@ -178,27 +178,30 @@ def validate_provider_manifest(
+         and len(capabilities) == len(set(capabilities)),
+         "provider manifest capabilities must be unique nonempty strings",
+     )
++    capability_list = cast(list[Any], capabilities)
+     _require(
+-        _REQUIRED_CAPABILITIES.issubset(capabilities),
++        _REQUIRED_CAPABILITIES.issubset(capability_list),
+         "provider manifest lacks required claim-bearing capabilities",
+     )
+ 
+     schemas = normalized.get("artifact_schema_versions")
+     _require(isinstance(schemas, Mapping), "provider artifact schemas must be a mapping")
++    schema_mapping = cast(Mapping[str, Any], schemas)
+     _require(
+-        schemas.get("ObservationBeliefV1") == 1
+-        and schemas.get("Prob4DCausalObservationStream") == 2,
++        schema_mapping.get("ObservationBeliefV1") == 1
++        and schema_mapping.get("Prob4DCausalObservationStream") == 2,
+         "provider manifest declares unsupported observation schemas",
+     )
+ 
+     limitations = normalized.get("limitations")
+     _require(isinstance(limitations, Mapping), "provider limitations must be a mapping")
++    limitation_mapping = cast(Mapping[str, Any], limitations)
+     _require(
+-        limitations.get("uncalibrated_export_is_default") is False,
++        limitation_mapping.get("uncalibrated_export_is_default") is False,
+         "provider-v2 manifest must not default to uncalibrated export",
+     )
+     _require(
+-        limitations.get(
++        limitation_mapping.get(
+             "deployment_environment_revision_is_independent_vcs_evidence"
+         )
+         is False,
+@@ -207,12 +210,13 @@ def validate_provider_manifest(
+ 
+     metadata = normalized.get("metadata")
+     _require(isinstance(metadata, Mapping), "provider metadata must be a mapping")
++    metadata_mapping = cast(Mapping[str, Any], metadata)
+     _require(
+-        metadata.get("source_repository") == PROVIDER_SOURCE_REPOSITORY,
++        metadata_mapping.get("source_repository") == PROVIDER_SOURCE_REPOSITORY,
+         "provider manifest source repository changed",
+     )
+     _require(
+-        metadata.get("python_import_boundary") == PROVIDER_IMPORT_BOUNDARY,
++        metadata_mapping.get("python_import_boundary") == PROVIDER_IMPORT_BOUNDARY,
+         "provider manifest import boundary changed",
+     )
+     return normalized
+@@ -256,6 +260,7 @@ def _validate_runtime_revision(
+         clean is None or isinstance(clean, bool),
+         "runtime clean_checkout must be Boolean or null",
+     )
++    clean_value = cast(bool | None, clean)
+     matched = runtime.get("matched")
+     independent = runtime.get("independently_verified")
+     _require(isinstance(matched, bool), "runtime matched must be Boolean")
+@@ -263,32 +268,34 @@ def _validate_runtime_revision(
+         isinstance(independent, bool),
+         "runtime independently_verified must be Boolean",
+     )
++    matched_value = cast(bool, matched)
++    independent_value = cast(bool, independent)
+     _require(
+-        matched is (observed == expected),
++        matched_value is (observed == expected),
+         "runtime matched flag disagrees with its revisions",
+     )
+     expected_independent = bool(
+-        matched
++        matched_value
+         and source in {"installed_vcs_metadata", "source_checkout"}
+-        and clean is not False
++        and clean_value is not False
+     )
+     _require(
+-        independent is expected_independent,
++        independent_value is expected_independent,
+         "runtime independent-verification flag disagrees with its evidence",
+     )
+     if source == "source_checkout":
+         _require(
+-            isinstance(clean, bool),
++            isinstance(clean_value, bool),
+             "source-checkout runtime evidence must declare checkout cleanliness",
+         )
+     else:
+         _require(
+-            clean is None,
++            clean_value is None,
+             "non-checkout runtime evidence cannot declare checkout cleanliness",
+         )
+     if claim_bearing:
+         _require(
+-            matched and independent,
++            matched_value and independent_value,
+             "claim-bearing provider attestation requires independently matched runtime code",
+         )
+     return runtime
+@@ -370,8 +377,9 @@ def validate_provider_attestation(
+         export_mode in {"calibrated", "exploratory"},
+         "provider attestation export mode is unsupported",
+     )
+-    claim_bearing = normalized.get("claim_bearing")
+-    _require(isinstance(claim_bearing, bool), "claim_bearing must be Boolean")
++    claim_bearing_raw = normalized.get("claim_bearing")
++    _require(isinstance(claim_bearing_raw, bool), "claim_bearing must be Boolean")
++    claim_bearing = cast(bool, claim_bearing_raw)
+     _require(
+         claim_bearing is (export_mode == "calibrated"),
+         "provider claim-bearing flag disagrees with export mode",
+diff --git a/src/prob4d/provider_manifest_cli.py b/src/prob4d/provider_manifest_cli.py
+index ec4724b..3176faa 100644
+--- a/src/prob4d/provider_manifest_cli.py
++++ b/src/prob4d/provider_manifest_cli.py
+@@ -4,9 +4,8 @@ from __future__ import annotations
+ 
+ import argparse
+ import json
+-from collections.abc import Sequence
++from collections.abc import Callable, Sequence
+ from pathlib import Path
+-from typing import Callable
+ 
+ ManifestFactory = Callable[..., dict[str, object]]
+ 
+diff --git a/src/prob4d/provider_v2_gauge_ablation.py b/src/prob4d/provider_v2_gauge_ablation.py
+index 89a4a20..c398135 100644
+--- a/src/prob4d/provider_v2_gauge_ablation.py
++++ b/src/prob4d/provider_v2_gauge_ablation.py
+@@ -32,9 +32,11 @@ from .gauge import FixedLagGaugeSmoother, GaugeEstimate, RelativeGaugeConstraint
+ from .io import load_prediction_bundle, load_truth
+ from .observation_export import (
+     JointGaugePosterior,
+-    _build_alignments as _build_provider_alignments,
+     estimate_joint_gauge_tree,
+ )
++from .observation_export import (
++    _build_alignments as _build_provider_alignments,
++)
+ from .sim3 import Sim3
+ from .uncertainty import CalibrationReport, DepthDisagreementModel
+ 
+diff --git a/src/prob4d/source_diagnostics.py b/src/prob4d/source_diagnostics.py
+index 3c3a709..90a9029 100644
+--- a/src/prob4d/source_diagnostics.py
++++ b/src/prob4d/source_diagnostics.py
+@@ -15,7 +15,7 @@ from __future__ import annotations
+ 
+ from collections.abc import Mapping, Sequence
+ from dataclasses import asdict, dataclass, field
+-from typing import Any
++from typing import Any, TypeAlias
+ 
+ import numpy as np
+ from numpy.typing import NDArray
+@@ -24,8 +24,8 @@ from ._immutable_json import frozen_finite_json_mapping, plain_json
+ from .data import PredictionWindow
+ from .source_reliability import SourceReliabilityFeatures
+ 
+-FloatArray = NDArray[np.floating]
+-BoolArray = NDArray[np.bool_]
++FloatArray: TypeAlias = NDArray[np.floating[Any]]
++BoolArray: TypeAlias = NDArray[np.bool_]
+ 
+ 
+ def _readonly(value: np.ndarray, *, dtype: Any) -> np.ndarray:
+diff --git a/tests/test_benchmark_safe.py b/tests/test_benchmark_safe.py
+index abd2214..e4d2cb8 100644
+--- a/tests/test_benchmark_safe.py
++++ b/tests/test_benchmark_safe.py
+@@ -12,6 +12,8 @@ from prob4d.benchmark import _write_fused_prediction, fuse_prediction_bundle_met
+ from prob4d.benchmark_safe import (
+     _sha256_file,
+     _validate_existing_outputs,
++)
++from prob4d.benchmark_safe import (
+     main as benchmark_main,
+ )
+ from prob4d.io import load_prediction_bundle
+diff --git a/tests/test_calibration_contract.py b/tests/test_calibration_contract.py
+index a8e1cd2..6eb4149 100644
+--- a/tests/test_calibration_contract.py
++++ b/tests/test_calibration_contract.py
+@@ -17,7 +17,6 @@ from prob4d.calibration import (
+ from prob4d.data import PredictionWindow
+ from prob4d.uncertainty import DepthDisagreementModel
+ 
+-
+ PROVENANCE = {
+     "calibration_case_ids": ("scene-a", "scene-b"),
+     "source_repository": "FlorianPfaff/Prob4D",
+diff --git a/tests/test_github_action_pins.py b/tests/test_github_action_pins.py
+index fa6b9cf..308877d 100644
+--- a/tests/test_github_action_pins.py
++++ b/tests/test_github_action_pins.py
+@@ -3,7 +3,6 @@ from __future__ import annotations
+ import re
+ from pathlib import Path
+ 
+-
+ ROOT = Path(__file__).resolve().parents[1]
+ WORKFLOW_ROOT = ROOT / ".github" / "workflows"
+ _USES_LINE = re.compile(
+@@ -64,6 +63,43 @@ def _checkout_credential_errors(text: str, *, source: str) -> list[str]:
+     return errors
+ 
+ 
++
++def _piped_run_block_errors(text: str, *, source: str) -> list[str]:
++    block_run = re.compile(r"^(?P<indent>\s*)run:\s*(?:[|>][-+]?)\s*$")
++    inline_run = re.compile(r"^\s*run:\s*(?P<command>.+)$")
++    lines = text.splitlines()
++    errors: list[str] = []
++    for index, line in enumerate(lines):
++        block_match = block_run.match(line)
++        if block_match is not None:
++            indentation = len(block_match.group("indent"))
++            block: list[str] = []
++            for candidate in lines[index + 1 :]:
++                if not candidate.strip():
++                    block.append(candidate)
++                    continue
++                candidate_stripped = candidate.lstrip()
++                candidate_indentation = len(candidate) - len(candidate_stripped)
++                if candidate_indentation <= indentation:
++                    break
++                block.append(candidate)
++            command = "\n".join(block)
++        else:
++            inline_match = inline_run.match(line)
++            if inline_match is None:
++                continue
++            command = inline_match.group("command")
++        if "| tee" not in command:
++            continue
++        if "set -o pipefail" in command or "set -euo pipefail" in command:
++            continue
++        errors.append(
++            f"{source}:{index + 1}: a command piped through tee must enable "
++            "pipefail so diagnostics cannot mask a failing producer"
++        )
++    return errors
++
++
+ def test_every_external_github_action_is_immutably_pinned() -> None:
+     workflow_files = sorted(WORKFLOW_ROOT.glob("*.yml")) + sorted(
+         WORKFLOW_ROOT.glob("*.yaml")
+@@ -95,6 +131,43 @@ def test_checkout_actions_disable_persisted_credentials() -> None:
+     assert not errors, "\n".join(errors)
+ 
+ 
++
++def test_piped_workflow_commands_enable_pipefail() -> None:
++    errors: list[str] = []
++    for path in sorted(WORKFLOW_ROOT.glob("*.yml")) + sorted(
++        WORKFLOW_ROOT.glob("*.yaml")
++    ):
++        errors.extend(
++            _piped_run_block_errors(
++                path.read_text(encoding="utf-8"),
++                source=path.relative_to(ROOT).as_posix(),
++            )
++        )
++    assert not errors, "\n".join(errors)
++
++
++def test_pipefail_policy_rejects_masked_diagnostic_pipelines() -> None:
++    unsafe_inline = "run: command 2>&1 | tee diagnostics.txt\n"
++    safe_inline = (
++        "run: set -o pipefail; command 2>&1 | tee diagnostics.txt\n"
++    )
++    unsafe_block = "run: |\n  command 2>&1 | tee diagnostics.txt\n"
++    safe_block = (
++        "run: |\n"
++        "  set -o pipefail\n"
++        "  command 2>&1 | tee diagnostics.txt\n"
++    )
++
++    assert len(
++        _piped_run_block_errors(unsafe_inline, source="fixture.yml")
++    ) == 1
++    assert _piped_run_block_errors(safe_inline, source="fixture.yml") == []
++    assert len(
++        _piped_run_block_errors(unsafe_block, source="fixture.yml")
++    ) == 1
++    assert _piped_run_block_errors(safe_block, source="fixture.yml") == []
++
++
+ def test_pin_policy_rejects_tags_branches_and_short_shas() -> None:
+     text = "\n".join(
+         (
+diff --git a/tests/test_observation_contract.py b/tests/test_observation_contract.py
+index 33ad620..fc303d8 100644
+--- a/tests/test_observation_contract.py
++++ b/tests/test_observation_contract.py
+@@ -7,8 +7,8 @@ from prob4d.observation_contract import (
+     ObservationBeliefExportV1,
+     save_observation_belief_export,
+ )
++from prob4d.observation_validation import load_observation_belief_export
+ from prob4d.observation_validation import (
+-    load_observation_belief_export,
+     main as validate_main,
+ )
+ 
+diff --git a/tests/test_observation_contract_bundle.py b/tests/test_observation_contract_bundle.py
+index b584813..105529c 100644
+--- a/tests/test_observation_contract_bundle.py
++++ b/tests/test_observation_contract_bundle.py
+@@ -11,7 +11,6 @@ from prob4d.observation_contract import (
+     array_sha256,
+     save_observation_belief_export,
+ )
+-from prob4d.observation_validation import load_observation_belief_export
+ from prob4d.observation_contract_bundle import (
+     OBSERVATION_BELIEF_CONTRACT_BUNDLE_SHA256,
+     invalid_observation_contract_vector,
+@@ -22,6 +21,7 @@ from prob4d.observation_contract_bundle import (
+     observation_contract_schema,
+     observation_contract_vector,
+ )
++from prob4d.observation_validation import load_observation_belief_export
+ 
+ 
+ def _construct(descriptor, arrays) -> ObservationBeliefExportV1:
+@@ -79,7 +79,7 @@ def test_valid_vectors_match_reference_hash_and_round_trip(
+     belief = _construct(vector.descriptor, vector.arrays)
+ 
+     assert belief.artifact_id == vector.expected_artifact_id
+-    for name, values in belief.arrays().items():
++    for _name, values in belief.arrays().items():
+         assert array_sha256(values) == observation_contract_array_sha256(values)
+ 
+     path = tmp_path / f"{vector_name}.npz"
+diff --git a/tests/test_release_metadata.py b/tests/test_release_metadata.py
+index d4ecc11..8d9fe69 100644
+--- a/tests/test_release_metadata.py
++++ b/tests/test_release_metadata.py
+@@ -4,13 +4,13 @@ import re
+ from importlib.metadata import PackageNotFoundError, version
+ from pathlib import Path
+ 
++import prob4d
++
+ try:
+     import tomllib
+ except ModuleNotFoundError:  # Python 3.10.
+     import tomli as tomllib
+ 
+-import prob4d
+-
+ 
+ ROOT = Path(__file__).resolve().parents[1]
+ EXPECTED_VERSION = "0.3.1"
