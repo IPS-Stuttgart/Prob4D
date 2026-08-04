@@ -16,9 +16,6 @@ from typing import Any
 import numpy as np
 
 from .causal_gauge_graph import estimate_causal_multi_edge_gauge_graph
-from .guarded_causal_gauge_graph import (
-    estimate_guarded_causal_multi_edge_gauge_graph,
-)
 from .experiments import (
     AblationRow,
     _dataset_calibration,
@@ -32,6 +29,9 @@ from .gauge import (
     FixedLagGaugeSmoother,
     RelativeGaugeConstraint,
     SequentialGaugeEstimator,
+)
+from .guarded_causal_gauge_graph import (
+    estimate_guarded_causal_multi_edge_gauge_graph,
 )
 from .io import load_prediction_bundle, load_truth
 from .observation_export import _build_alignments
