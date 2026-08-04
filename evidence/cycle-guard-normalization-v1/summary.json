@@ -1,0 +1,377 @@
+{
+  "artifact": {
+    "archive_sha256": "8d8015e1bfb8aedca3f3609f5a8c2ba7674d2adaaf4d29cba400d97845430e1c",
+    "artifact_id": 8883841829,
+    "members_sha256": {
+      "SHA256SUMS": "3197e0094fd0740adf7aad74ea8858b3b4a48abc9ef9491e93d4d59f81b25d07",
+      "cycle_guard_monte_carlo.csv": "73f0dee558cfe5ce673a108bed5ceb30d35128f5d2dcef526da109783cc8dc51",
+      "cycle_guard_monte_carlo.json": "af20d77f94c1d243986fbdc42d7b19ac9f3f175ef83b05a8131488acce90b3d2",
+      "cycle_guard_monte_carlo.md": "9b59ec01b6949a238674d6808efb4683c89a820bcf9e2b3a06ab69802823ea3d",
+      "cycle_guard_monte_carlo_trials.csv": "c1684a801cae7d37729b9d1b80f2689f9d1c0ef89bddd765ecc45218dfdd7c65",
+      "protocol.json": "8da995c4a0215908b67443da8110f6de239189ab3eabffc6af2fb713f9f3513e"
+    }
+  },
+  "calibration": {
+    "raw_cycle_threshold": 0.020558842225246163,
+    "trial_count": 48,
+    "uncertainty_normalized_cycle_threshold": 0.7605970627575223
+  },
+  "claim_boundary": "Controlled synthetic source-cycle admission only; no held-out physical-object, BayesianPhysTwin, harmful-update, or Causal4D benefit claim.",
+  "decision": {
+    "criteria": {
+      "mild_detection_at_least_0_90": true,
+      "mild_detection_noninferior_to_raw_by_0_05": true,
+      "strong_detection_at_least_0_95": true,
+      "strong_detection_noninferior_to_raw_by_0_05": true,
+      "worst_clean_false_fallback_at_most_0_10": false,
+      "worst_clean_false_fallback_halved": true
+    },
+    "overall_passed": false,
+    "raw_guard": {
+      "all_injected_count": 89,
+      "all_outlier_detection_rate": 1.0,
+      "clean_false_fallback_rates": {
+        "correlated_clean": 0.0,
+        "highly_correlated_clean": 0.0,
+        "independent_clean": 0.296875
+      },
+      "mild_injected_count": 34,
+      "mild_outlier_detection_rate": 1.0,
+      "strong_injected_count": 55,
+      "strong_outlier_detection_rate": 1.0,
+      "worst_clean_false_fallback_rate": 0.296875
+    },
+    "registered_primary_endpoints": [
+      "strong_outlier_detection_rate",
+      "mild_outlier_detection_rate",
+      "worst_clean_false_fallback_rate"
+    ],
+    "uncertainty_normalized_guard": {
+      "all_injected_count": 89,
+      "all_outlier_detection_rate": 1.0,
+      "clean_false_fallback_rates": {
+        "correlated_clean": 0.1328125,
+        "highly_correlated_clean": 0.078125,
+        "independent_clean": 0.09375
+      },
+      "mild_injected_count": 34,
+      "mild_outlier_detection_rate": 1.0,
+      "strong_injected_count": 55,
+      "strong_outlier_detection_rate": 1.0,
+      "worst_clean_false_fallback_rate": 0.1328125
+    }
+  },
+  "interpretation": {
+    "findings": [
+      "The uncertainty-normalized guard retained 100% detection of all 89 injected precise-looking biased edges.",
+      "Worst clean false fallback fell from 0.296875 to 0.1328125, a 55.3% relative reduction.",
+      "The registered worst-clean false-fallback <= 0.10 criterion failed, so the candidate did not pass the preregistered gate.",
+      "Exact production-tree equality on every fallback is enforced by runtime assertions and regression tests."
+    ],
+    "next_hypothesis": "Use source-only finite-sample group-robust or conformal threshold calibration, possibly over predeclared source-uncertainty strata, to control worst-clean false fallback without reducing outlier detection.",
+    "promote_to_production": false,
+    "result": "partial_negative"
+  },
+  "protocol_id": "prob4d-cycle-guard-normalization-v1",
+  "report_id": "d51e4cd30115d774cd59f09fff03fe920f56ff4ecf4cacfee974822a5a88d162",
+  "result_id": "prob4d-cycle-guard-normalization-v1",
+  "runtime": {
+    "numpy": "2.5.1",
+    "platform": "Linux-6.17.0-1020-azure-x86_64-with-glibc2.39",
+    "python": "3.12.13"
+  },
+  "schema_name": "prob4d.cycle-guard-normalization-results",
+  "schema_version": 1,
+  "secondary_results": {
+    "correlated_clean": {
+      "full_joint_graph": {
+        "coverage_95": 0.9973958333333334,
+        "endpoint_displacement_rmse": 0.009834657078456842,
+        "mean_normalized_nees": 0.5748538651833198,
+        "paired_endpoint_delta_vs_tree": {
+          "ci95_lower": -0.000317426149340683,
+          "ci95_upper": 0.0002907537342305188,
+          "mean": -0.000018184843483643254
+        }
+      },
+      "raw_guarded_graph": {
+        "clean_false_fallback_rate": 0.0,
+        "coverage_95": 0.9973958333333334,
+        "endpoint_displacement_rmse": 0.009834657078456842,
+        "fallback_rate": 0.0,
+        "mean_normalized_nees": 0.5748538651833198,
+        "paired_endpoint_delta_vs_tree": {
+          "ci95_lower": -0.0003074242877978326,
+          "ci95_upper": 0.00030280796853501355,
+          "mean": -0.000018184843483643254
+        }
+      },
+      "tree": {
+        "coverage_95": 0.9973958333333334,
+        "endpoint_displacement_rmse": 0.009852841921940485,
+        "mean_normalized_nees": 0.570082711004818,
+        "paired_endpoint_delta_vs_tree": {
+          "ci95_lower": 0.0,
+          "ci95_upper": 0.0,
+          "mean": 0.0
+        }
+      },
+      "uncertainty_guarded_graph": {
+        "clean_false_fallback_rate": 0.1328125,
+        "coverage_95": 0.9973958333333334,
+        "endpoint_displacement_rmse": 0.009867121219162038,
+        "fallback_rate": 0.1328125,
+        "mean_normalized_nees": 0.5757466963901337,
+        "paired_endpoint_delta_vs_tree": {
+          "ci95_lower": -0.0002639404099760236,
+          "ci95_upper": 0.0003095432161656238,
+          "mean": 0.000014279297221553061
+        }
+      }
+    },
+    "correlated_mild_outliers": {
+      "full_joint_graph": {
+        "coverage_95": 0.8893229166666666,
+        "endpoint_displacement_rmse": 0.015000551822682227,
+        "mean_normalized_nees": 4.063658773157517,
+        "paired_endpoint_delta_vs_tree": {
+          "ci95_lower": 0.002059427594938571,
+          "ci95_upper": 0.009325262628560436,
+          "mean": 0.005202767348443108
+        }
+      },
+      "raw_guarded_graph": {
+        "clean_false_fallback_rate": 0.0,
+        "coverage_95": 1.0,
+        "endpoint_displacement_rmse": 0.009948396406245572,
+        "fallback_rate": 0.265625,
+        "mean_normalized_nees": 0.5583125981721311,
+        "outlier_detection_rate": 1.0,
+        "paired_endpoint_delta_vs_tree": {
+          "ci95_lower": -0.00008776870679524243,
+          "ci95_upper": 0.0004028867317126332,
+          "mean": 0.00015061193100645316
+        }
+      },
+      "tree": {
+        "coverage_95": 1.0,
+        "endpoint_displacement_rmse": 0.00979778447523912,
+        "mean_normalized_nees": 0.5562534938696138,
+        "paired_endpoint_delta_vs_tree": {
+          "ci95_lower": 0.0,
+          "ci95_upper": 0.0,
+          "mean": 0.0
+        }
+      },
+      "uncertainty_guarded_graph": {
+        "clean_false_fallback_rate": 0.13829787234042554,
+        "coverage_95": 1.0,
+        "endpoint_displacement_rmse": 0.009967799638910747,
+        "fallback_rate": 0.3671875,
+        "mean_normalized_nees": 0.5595279928848619,
+        "outlier_detection_rate": 1.0,
+        "paired_endpoint_delta_vs_tree": {
+          "ci95_lower": -0.00006183773116922214,
+          "ci95_upper": 0.00040596273655584305,
+          "mean": 0.00017001516367162748
+        }
+      }
+    },
+    "correlated_strong_outliers": {
+      "full_joint_graph": {
+        "coverage_95": 0.8658854166666666,
+        "endpoint_displacement_rmse": 0.03552236652241712,
+        "mean_normalized_nees": 45.31425376800743,
+        "paired_endpoint_delta_vs_tree": {
+          "ci95_lower": 0.01054640716949716,
+          "ci95_upper": 0.04328030499991775,
+          "mean": 0.025126717656449074
+        }
+      },
+      "raw_guarded_graph": {
+        "clean_false_fallback_rate": 0.0,
+        "coverage_95": 0.9986979166666666,
+        "endpoint_displacement_rmse": 0.010219425252001438,
+        "fallback_rate": 0.203125,
+        "mean_normalized_nees": 0.5822303781292431,
+        "outlier_detection_rate": 1.0,
+        "paired_endpoint_delta_vs_tree": {
+          "ci95_lower": -0.0004637487099975661,
+          "ci95_upper": 0.00010642769001494737,
+          "mean": -0.00017687956431309288
+        }
+      },
+      "tree": {
+        "coverage_95": 1.0,
+        "endpoint_displacement_rmse": 0.01039630481631453,
+        "mean_normalized_nees": 0.5768981128927105,
+        "paired_endpoint_delta_vs_tree": {
+          "ci95_lower": 0.0,
+          "ci95_upper": 0.0,
+          "mean": 0.0
+        }
+      },
+      "uncertainty_guarded_graph": {
+        "clean_false_fallback_rate": 0.13725490196078433,
+        "coverage_95": 0.9986979166666666,
+        "endpoint_displacement_rmse": 0.010202234800429989,
+        "fallback_rate": 0.3125,
+        "mean_normalized_nees": 0.5808514644508564,
+        "outlier_detection_rate": 1.0,
+        "paired_endpoint_delta_vs_tree": {
+          "ci95_lower": -0.00048579263332470246,
+          "ci95_upper": 0.00008598477973510991,
+          "mean": -0.0001940700158845432
+        }
+      }
+    },
+    "highly_correlated_clean": {
+      "full_joint_graph": {
+        "coverage_95": 1.0,
+        "endpoint_displacement_rmse": 0.004643205455264326,
+        "mean_normalized_nees": 0.40418137323595083,
+        "paired_endpoint_delta_vs_tree": {
+          "ci95_lower": -0.0001292869697444075,
+          "ci95_upper": 0.00013743049690458955,
+          "mean": 2.326079130710262e-7
+        }
+      },
+      "raw_guarded_graph": {
+        "clean_false_fallback_rate": 0.0,
+        "coverage_95": 1.0,
+        "endpoint_displacement_rmse": 0.004643205455264326,
+        "fallback_rate": 0.0,
+        "mean_normalized_nees": 0.40418137323595083,
+        "paired_endpoint_delta_vs_tree": {
+          "ci95_lower": -0.00012734533811948105,
+          "ci95_upper": 0.00013760966233391765,
+          "mean": 2.326079130710262e-7
+        }
+      },
+      "tree": {
+        "coverage_95": 1.0,
+        "endpoint_displacement_rmse": 0.004642972847351255,
+        "mean_normalized_nees": 0.3964856872565825,
+        "paired_endpoint_delta_vs_tree": {
+          "ci95_lower": 0.0,
+          "ci95_upper": 0.0,
+          "mean": 0.0
+        }
+      },
+      "uncertainty_guarded_graph": {
+        "clean_false_fallback_rate": 0.078125,
+        "coverage_95": 1.0,
+        "endpoint_displacement_rmse": 0.004645450683452465,
+        "fallback_rate": 0.078125,
+        "mean_normalized_nees": 0.40461301015718047,
+        "paired_endpoint_delta_vs_tree": {
+          "ci95_lower": -0.00012160717767404941,
+          "ci95_upper": 0.00012349164344405288,
+          "mean": 2.477836101209531e-6
+        }
+      }
+    },
+    "highly_correlated_strong_outliers": {
+      "full_joint_graph": {
+        "coverage_95": 0.8268229166666666,
+        "endpoint_displacement_rmse": 0.025594044879491384,
+        "mean_normalized_nees": 160.32519559195716,
+        "paired_endpoint_delta_vs_tree": {
+          "ci95_lower": 0.010896535354996925,
+          "ci95_upper": 0.03267777360901206,
+          "mean": 0.020534920014433717
+        }
+      },
+      "raw_guarded_graph": {
+        "clean_false_fallback_rate": 0.0,
+        "coverage_95": 0.9986979166666666,
+        "endpoint_displacement_rmse": 0.004927045461172934,
+        "fallback_rate": 0.2265625,
+        "mean_normalized_nees": 0.4349733163888992,
+        "outlier_detection_rate": 1.0,
+        "paired_endpoint_delta_vs_tree": {
+          "ci95_lower": -0.00024706650126145047,
+          "ci95_upper": -0.000011262414830930937,
+          "mean": -0.0001321413016887392
+        }
+      },
+      "tree": {
+        "coverage_95": 0.9986979166666666,
+        "endpoint_displacement_rmse": 0.005059186762861673,
+        "mean_normalized_nees": 0.43270856979337097,
+        "paired_endpoint_delta_vs_tree": {
+          "ci95_lower": 0.0,
+          "ci95_upper": 0.0,
+          "mean": 0.0
+        }
+      },
+      "uncertainty_guarded_graph": {
+        "clean_false_fallback_rate": 0.12121212121212122,
+        "coverage_95": 0.9986979166666666,
+        "endpoint_displacement_rmse": 0.004914212369389178,
+        "fallback_rate": 0.3203125,
+        "mean_normalized_nees": 0.43301825832490313,
+        "outlier_detection_rate": 1.0,
+        "paired_endpoint_delta_vs_tree": {
+          "ci95_lower": -0.0002668584915390474,
+          "ci95_upper": -0.00002335899345862755,
+          "mean": -0.00014497439347249513
+        }
+      }
+    },
+    "independent_clean": {
+      "full_joint_graph": {
+        "coverage_95": 0.9921875,
+        "endpoint_displacement_rmse": 0.02090070810638948,
+        "mean_normalized_nees": 0.7159571841057289,
+        "paired_endpoint_delta_vs_tree": {
+          "ci95_lower": -0.0005558428793318059,
+          "ci95_upper": 0.0006431323629630605,
+          "mean": 0.000015166524414545625
+        }
+      },
+      "raw_guarded_graph": {
+        "clean_false_fallback_rate": 0.296875,
+        "coverage_95": 0.9921875,
+        "endpoint_displacement_rmse": 0.020940774304697194,
+        "fallback_rate": 0.296875,
+        "mean_normalized_nees": 0.715468296727122,
+        "paired_endpoint_delta_vs_tree": {
+          "ci95_lower": -0.00039053695934499495,
+          "ci95_upper": 0.0005078350534986708,
+          "mean": 0.00005523272272225755
+        }
+      },
+      "tree": {
+        "coverage_95": 0.9947916666666666,
+        "endpoint_displacement_rmse": 0.020885541581974934,
+        "mean_normalized_nees": 0.7076677797833917,
+        "paired_endpoint_delta_vs_tree": {
+          "ci95_lower": 0.0,
+          "ci95_upper": 0.0,
+          "mean": 0.0
+        }
+      },
+      "uncertainty_guarded_graph": {
+        "clean_false_fallback_rate": 0.09375,
+        "coverage_95": 0.9921875,
+        "endpoint_displacement_rmse": 0.020969992274208106,
+        "fallback_rate": 0.09375,
+        "mean_normalized_nees": 0.7164353066813794,
+        "paired_endpoint_delta_vs_tree": {
+          "ci95_lower": -0.0004712240105584954,
+          "ci95_upper": 0.0006140084781432758,
+          "mean": 0.00008445069223316935
+        }
+      }
+    }
+  },
+  "source_revision": "0b6e67757ce141711036103fcefda8273ef5d981",
+  "target": {
+    "injected_edges": 89,
+    "scenario_count": 6,
+    "total_trials": 768,
+    "trials_per_scenario": 128
+  },
+  "workflow_run_id": 30887486572
+}
