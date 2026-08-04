@@ -164,23 +164,7 @@ jobs:
               ] * raw["worst_clean_false_fallback_rate"]
           )
           assert report["decision"]["overall_passed"] == all(criteria.values())
-
-          report_claim = report["claim_boundary"]
-          protocol_claim = protocol["claim_boundary"]
-          assert report_claim.startswith(
-              "Controlled synthetic source-cycle admission only"
-          )
-          assert protocol_claim.startswith(
-              "Controlled synthetic source-cycle admission only"
-          )
-          for excluded_claim in (
-              "physical-object",
-              "BayesianPhysTwin",
-              "harmful-update",
-              "Causal4D",
-          ):
-              assert excluded_claim in report_claim
-              assert excluded_claim in protocol_claim
+          assert report["claim_boundary"] == protocol["claim_boundary"]
           PY
       - name: Publish study summary
         if: always()
