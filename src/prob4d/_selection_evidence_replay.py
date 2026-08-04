@@ -100,15 +100,20 @@ def _candidate_replay_summaries(
     for candidate in candidates:
         aggregate_cache: dict[tuple[str, Aggregation], float] = {}
 
-        def aggregate(metric_name: str, aggregation: Aggregation) -> float:
+        def aggregate(
+            metric_name: str,
+            aggregation: Aggregation,
+            *,
+            candidate_id: str = candidate.candidate_id,
+        ) -> float:
             key = (metric_name, aggregation)
             if key not in aggregate_cache:
                 values: list[float] = []
                 for group_id in groups:
-                    row = by_key[(group_id, candidate.candidate_id)]
+                    row = by_key[(group_id, candidate_id)]
                     if metric_name not in row.metrics:
                         raise ValueError(
-                            f"row {(group_id, candidate.candidate_id)!r} lacks "
+                            f"row {(group_id, candidate_id)!r} lacks "
                             f"required metric {metric_name!r}"
                         )
                     values.append(float(row.metrics[metric_name]))
@@ -191,7 +196,7 @@ def replay_candidate_order(
         aggregates = _strict_mapping(summary["aggregates"], name="aggregates")
         return float(aggregates[f"{order.metric_name}:{order.aggregation}"])
 
-    def feasible_key(candidate_id: str) -> tuple[object, ...]:
+    def feasible_key(candidate_id: str) -> tuple[Any, ...]:
         summary = summary_by_id[candidate_id]
         candidate = candidate_by_id[candidate_id]
         return (
@@ -208,7 +213,7 @@ def replay_candidate_order(
             candidate.candidate_id,
         )
 
-    def infeasible_key(candidate_id: str) -> tuple[object, ...]:
+    def infeasible_key(candidate_id: str) -> tuple[Any, ...]:
         summary = summary_by_id[candidate_id]
         constraints = _strict_list(summary["constraints"], name="constraints")
         failed_count = sum(
