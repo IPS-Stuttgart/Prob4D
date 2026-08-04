@@ -11,7 +11,6 @@ from prob4d.observation_contract import (
     array_sha256,
     save_observation_belief_export,
 )
-from prob4d.observation_validation import load_observation_belief_export
 from prob4d.observation_contract_bundle import (
     OBSERVATION_BELIEF_CONTRACT_BUNDLE_SHA256,
     invalid_observation_contract_vector,
@@ -22,6 +21,7 @@ from prob4d.observation_contract_bundle import (
     observation_contract_schema,
     observation_contract_vector,
 )
+from prob4d.observation_validation import load_observation_belief_export
 
 
 def _construct(descriptor, arrays) -> ObservationBeliefExportV1:
@@ -79,7 +79,7 @@ def test_valid_vectors_match_reference_hash_and_round_trip(
     belief = _construct(vector.descriptor, vector.arrays)
 
     assert belief.artifact_id == vector.expected_artifact_id
-    for name, values in belief.arrays().items():
+    for _name, values in belief.arrays().items():
         assert array_sha256(values) == observation_contract_array_sha256(values)
 
     path = tmp_path / f"{vector_name}.npz"

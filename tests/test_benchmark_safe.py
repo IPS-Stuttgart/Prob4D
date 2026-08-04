@@ -12,6 +12,8 @@ from prob4d.benchmark import _write_fused_prediction, fuse_prediction_bundle_met
 from prob4d.benchmark_safe import (
     _sha256_file,
     _validate_existing_outputs,
+)
+from prob4d.benchmark_safe import (
     main as benchmark_main,
 )
 from prob4d.io import load_prediction_bundle

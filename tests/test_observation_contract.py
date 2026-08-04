@@ -7,8 +7,8 @@ from prob4d.observation_contract import (
     ObservationBeliefExportV1,
     save_observation_belief_export,
 )
+from prob4d.observation_validation import load_observation_belief_export
 from prob4d.observation_validation import (
-    load_observation_belief_export,
     main as validate_main,
 )
 

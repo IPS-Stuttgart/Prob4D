@@ -8,8 +8,6 @@ from collections.abc import Mapping, Sequence
 from types import MappingProxyType
 from typing import Any
 
-import numpy as np
-
 GAUGE_COVARIANCE_CALIBRATION_SCHEMA = "prob4d.gauge_covariance_calibration"
 GAUGE_COVARIANCE_CALIBRATION_VERSION = 1
 POINT_UNCERTAINTY_CALIBRATION_SCHEMA = "prob4d.point_uncertainty_calibration"

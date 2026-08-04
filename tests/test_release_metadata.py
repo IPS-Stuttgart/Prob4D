@@ -4,12 +4,12 @@ import re
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
+import prob4d
+
 try:
     import tomllib
 except ModuleNotFoundError:  # Python 3.10.
     import tomli as tomllib
-
-import prob4d
 
 
 ROOT = Path(__file__).resolve().parents[1]

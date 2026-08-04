@@ -32,8 +32,10 @@ from .gauge import FixedLagGaugeSmoother, GaugeEstimate, RelativeGaugeConstraint
 from .io import load_prediction_bundle, load_truth
 from .observation_export import (
     JointGaugePosterior,
-    _build_alignments as _build_provider_alignments,
     estimate_joint_gauge_tree,
+)
+from .observation_export import (
+    _build_alignments as _build_provider_alignments,
 )
 from .sim3 import Sim3
 from .uncertainty import CalibrationReport, DepthDisagreementModel

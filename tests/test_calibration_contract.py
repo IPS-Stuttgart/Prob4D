@@ -17,7 +17,6 @@ from prob4d.calibration import (
 from prob4d.data import PredictionWindow
 from prob4d.uncertainty import DepthDisagreementModel
 
-
 PROVENANCE = {
     "calibration_case_ids": ("scene-a", "scene-b"),
     "source_repository": "FlorianPfaff/Prob4D",

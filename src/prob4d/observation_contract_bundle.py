@@ -13,9 +13,10 @@ import argparse
 import copy
 import hashlib
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass
 from importlib import resources
-from typing import Any, Mapping
+from typing import Any
 
 import numpy as np
 

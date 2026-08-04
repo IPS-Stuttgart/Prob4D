@@ -11,7 +11,6 @@ import tarfile
 import tempfile
 from pathlib import Path, PurePosixPath
 
-
 REQUIRED_PATHS = frozenset(
     {
         ".github/CODEOWNERS",
