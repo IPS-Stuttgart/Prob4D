@@ -31,7 +31,8 @@ jobs:
           python-version: "3.12"
       - name: Apply validated ordinary-file patch
         run: |
-          gzip -dc scripts/ci/fail-closed-quality-ordinary.patch.gz | git apply --index -
+          gzip -dc scripts/ci/fail-closed-quality-ordinary.patch.gz | \
+            git apply --index --exclude=CHANGELOG.md -
           git diff --cached --check
       - name: Install validation environment
         run: |
