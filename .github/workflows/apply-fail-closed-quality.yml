@@ -49,35 +49,70 @@ jobs:
           workflow_path = Path(".github/workflows/tests.yml")
           workflow = workflow_path.read_text(encoding="utf-8")
 
-          old_install = '''      - name: Install development tools
-                run: python -m pip install -e ".[dev]"
-          '''
-          new_install = '''      - name: Install development tools
-                run: |
-                  python -m pip install -e ".[dev]"
-                  python -m pip install "numpy>=1.24,<2.3"
-          '''
+          old_install = '        run: python -m pip install -e ".[dev]"\n'
+          new_install = (
+              "        run: |\n"
+              "          python -m pip install -e \".[dev]\"\n"
+              "          python -m pip install \"numpy>=1.24,<2.3\"\n"
+          )
           if workflow.count(old_install) != 1:
-              raise RuntimeError("unexpected development-install step")
+              raise RuntimeError("unexpected development-install command")
           workflow = workflow.replace(old_install, new_install, 1)
 
-          old_ruff = '''      - name: Run Ruff
-                id: ruff
-                continue-on-error: true
-                run: python -m ruff check src tests scripts/ci 2>&1 | tee ruff-output.txt
-          '''
-          new_ruff = '''      - name: Run Ruff
-                id: ruff
-                continue-on-error: true
-                shell: bash
-                run: |
-                  set -o pipefail
-                  python -m ruff check src tests scripts/ci 2>&1 | tee ruff-output.txt
-          '''
+          old_ruff = (
+              "      - name: Run Ruff\n"
+              "        id: ruff\n"
+              "        continue-on-error: true\n"
+              "        run: python -m ruff check src tests scripts/ci "
+              "2>&1 | tee ruff-output.txt\n"
+          )
+          new_ruff = (
+              "      - name: Run Ruff\n"
+              "        id: ruff\n"
+              "        continue-on-error: true\n"
+              "        shell: bash\n"
+              "        run: |\n"
+              "          set -o pipefail\n"
+              "          python -m ruff check src tests scripts/ci "
+              "2>&1 | tee ruff-output.txt\n"
+          )
           if workflow.count(old_ruff) != 1:
               raise RuntimeError("unexpected Ruff step")
           workflow = workflow.replace(old_ruff, new_ruff, 1)
 
+          mypy_files = (
+              "src/prob4d/cli.py",
+              "src/prob4d/calibration_compatibility.py",
+              "src/prob4d/composition_jacobian.py",
+              "src/prob4d/covariance_root.py",
+              "src/prob4d/observation_factor_stream.py",
+              "src/prob4d/prediction_store.py",
+              "src/prob4d/prediction_store_benchmark.py",
+              "src/prob4d/prediction_store_cli.py",
+              "src/prob4d/project_identity.py",
+              "src/prob4d/provider_attestation.py",
+              "src/prob4d/provider_manifest.py",
+              "src/prob4d/provider_manifest_cli.py",
+              "src/prob4d/provider_v1.py",
+              "src/prob4d/provider_v2.py",
+              "src/prob4d/provider_v2_cli.py",
+              "src/prob4d/provider_v2_factor_bundle.py",
+              "src/prob4d/provider_v2_loading.py",
+              "src/prob4d/runtime_revision.py",
+              "src/prob4d/source_diagnostics.py",
+          )
+          mypy_lines = [
+              "      - name: Type-check stable provider interfaces",
+              "        id: mypy",
+              "        continue-on-error: true",
+              "        shell: bash",
+              "        run: |",
+              "          set -o pipefail",
+              "          python -m mypy \\",
+          ]
+          mypy_lines.extend(f"            {path} \\" for path in mypy_files)
+          mypy_lines.append("            2>&1 | tee mypy-output.txt")
+          new_mypy = "\n".join(mypy_lines) + "\n"
           mypy_start = workflow.index(
               "      - name: Type-check stable provider interfaces\n"
           )
@@ -85,34 +120,6 @@ jobs:
               "      - name: Upload mypy diagnostics\n",
               mypy_start,
           )
-          new_mypy = '''      - name: Type-check stable provider interfaces
-                id: mypy
-                continue-on-error: true
-                shell: bash
-                run: |
-                  set -o pipefail
-                  python -m mypy \\
-                    src/prob4d/cli.py \\
-                    src/prob4d/calibration_compatibility.py \\
-                    src/prob4d/composition_jacobian.py \\
-                    src/prob4d/covariance_root.py \\
-                    src/prob4d/observation_factor_stream.py \\
-                    src/prob4d/prediction_store.py \\
-                    src/prob4d/prediction_store_benchmark.py \\
-                    src/prob4d/prediction_store_cli.py \\
-                    src/prob4d/project_identity.py \\
-                    src/prob4d/provider_attestation.py \\
-                    src/prob4d/provider_manifest.py \\
-                    src/prob4d/provider_manifest_cli.py \\
-                    src/prob4d/provider_v1.py \\
-                    src/prob4d/provider_v2.py \\
-                    src/prob4d/provider_v2_cli.py \\
-                    src/prob4d/provider_v2_factor_bundle.py \\
-                    src/prob4d/provider_v2_loading.py \\
-                    src/prob4d/runtime_revision.py \\
-                    src/prob4d/source_diagnostics.py \\
-                    2>&1 | tee mypy-output.txt
-          '''
           workflow = workflow[:mypy_start] + new_mypy + workflow[mypy_end:]
 
           import_anchor = (
@@ -135,25 +142,30 @@ jobs:
           helper = '''
 
           def _piped_run_block_errors(text: str, *, source: str) -> list[str]:
-              run_block = re.compile(r"^(?P<indent>\\s*)run:\\s*(?:[|>][-+]?)\\s*$")
+              block_run = re.compile(r"^(?P<indent>\\s*)run:\\s*(?:[|>][-+]?)\\s*$")
+              inline_run = re.compile(r"^\\s*run:\\s*(?P<command>.+)$")
               lines = text.splitlines()
               errors: list[str] = []
               for index, line in enumerate(lines):
-                  match = run_block.match(line)
-                  if match is None:
-                      continue
-                  indentation = len(match.group("indent"))
-                  block: list[str] = []
-                  for candidate in lines[index + 1 :]:
-                      if not candidate.strip():
+                  block_match = block_run.match(line)
+                  if block_match is not None:
+                      indentation = len(block_match.group("indent"))
+                      block: list[str] = []
+                      for candidate in lines[index + 1 :]:
+                          if not candidate.strip():
+                              block.append(candidate)
+                              continue
+                          candidate_stripped = candidate.lstrip()
+                          candidate_indentation = len(candidate) - len(candidate_stripped)
+                          if candidate_indentation <= indentation:
+                              break
                           block.append(candidate)
+                      command = "\\n".join(block)
+                  else:
+                      inline_match = inline_run.match(line)
+                      if inline_match is None:
                           continue
-                      candidate_stripped = candidate.lstrip()
-                      candidate_indentation = len(candidate) - len(candidate_stripped)
-                      if candidate_indentation <= indentation:
-                          break
-                      block.append(candidate)
-                  command = "\\n".join(block)
+                      command = inline_match.group("command")
                   if "| tee" not in command:
                       continue
                   if "set -o pipefail" in command or "set -euo pipefail" in command:
@@ -185,16 +197,26 @@ jobs:
               assert not errors, "\\n".join(errors)
 
 
-          def test_pipefail_policy_rejects_a_masked_diagnostic_pipeline() -> None:
-              unsafe = "run: |\\n  command 2>&1 | tee diagnostics.txt\\n"
-              safe = (
+          def test_pipefail_policy_rejects_masked_diagnostic_pipelines() -> None:
+              unsafe_inline = "run: command 2>&1 | tee diagnostics.txt\\n"
+              safe_inline = (
+                  "run: set -o pipefail; command 2>&1 | tee diagnostics.txt\\n"
+              )
+              unsafe_block = "run: |\\n  command 2>&1 | tee diagnostics.txt\\n"
+              safe_block = (
                   "run: |\\n"
                   "  set -o pipefail\\n"
                   "  command 2>&1 | tee diagnostics.txt\\n"
               )
 
-              assert len(_piped_run_block_errors(unsafe, source="fixture.yml")) == 1
-              assert _piped_run_block_errors(safe, source="fixture.yml") == []
+              assert len(
+                  _piped_run_block_errors(unsafe_inline, source="fixture.yml")
+              ) == 1
+              assert _piped_run_block_errors(safe_inline, source="fixture.yml") == []
+              assert len(
+                  _piped_run_block_errors(unsafe_block, source="fixture.yml")
+              ) == 1
+              assert _piped_run_block_errors(safe_block, source="fixture.yml") == []
           '''
           if policy.count(test_marker) != 1:
               raise RuntimeError("unexpected workflow-policy test location")
