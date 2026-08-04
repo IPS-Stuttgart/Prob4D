@@ -57,7 +57,10 @@ def require_exact_integer(
 def require_json_number(value: Any, *, name: str) -> float:
     if not isinstance(value, (int, float)) or isinstance(value, bool):
         raise ValueError(f"{name} must be a JSON number")
-    normalized = float(value)
+    try:
+        normalized = float(value)
+    except (OverflowError, ValueError) as error:
+        raise ValueError(f"{name} must be finite") from error
     if not math.isfinite(normalized):
         raise ValueError(f"{name} must be finite")
     return normalized
