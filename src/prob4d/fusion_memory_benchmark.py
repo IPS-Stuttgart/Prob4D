@@ -53,6 +53,7 @@ def _digest_arrays(*arrays: np.ndarray) -> str:
 
 def _build_inputs(
     *,
+    frames: int,
     height: int,
     width: int,
     contributor_count: int,
@@ -64,9 +65,10 @@ def _build_inputs(
     dict[str, np.ndarray],
 ]:
     generator = np.random.default_rng(seed)
-    base = generator.normal(size=(1, height, width, 3)).astype(np.float32)
+    base = generator.normal(size=(frames, height, width, 3)).astype(np.float32)
     base[..., 2] += np.float32(4.0)
-    mask = np.ones((1, height, width), dtype=bool)
+    mask = np.ones((frames, height, width), dtype=bool)
+    frame_indices = np.arange(frames, dtype=np.int64)
     windows: list[PredictionWindow] = []
     gauges: dict[str, Sim3] = {}
     uncertainties: dict[str, StructuredCovariance] = {}
@@ -78,7 +80,7 @@ def _build_inputs(
         window_id = f"window-{index:02d}"
         window = PredictionWindow(
             window_id=window_id,
-            frame_indices=np.asarray([0]),
+            frame_indices=frame_indices,
             point_map=values,
             valid_mask=mask,
             dense_storage_dtype="float32",
@@ -100,6 +102,8 @@ def _build_inputs(
 
 
 def run_benchmark(arguments: argparse.Namespace) -> dict[str, Any]:
+    if arguments.frames < 1:
+        raise ValueError("frames must be positive")
     if arguments.height < 1 or arguments.width < 1:
         raise ValueError("height and width must be positive")
     if arguments.contributors < 1:
@@ -109,6 +113,7 @@ def run_benchmark(arguments: argparse.Namespace) -> dict[str, Any]:
 
     construction_started = time.perf_counter()
     windows, gauges, uncertainties, gauge_covariances = _build_inputs(
+        frames=arguments.frames,
         height=arguments.height,
         width=arguments.width,
         contributor_count=arguments.contributors,
@@ -155,7 +160,7 @@ def run_benchmark(arguments: argparse.Namespace) -> dict[str, Any]:
         "configuration": {
             "height": arguments.height,
             "width": arguments.width,
-            "frames": 1,
+            "frames": arguments.frames,
             "contributors": arguments.contributors,
             "seed": arguments.seed,
             "method": arguments.method,
@@ -196,6 +201,7 @@ def run_benchmark(arguments: argparse.Namespace) -> dict[str, Any]:
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--frames", type=int, default=1)
     parser.add_argument("--height", type=int, default=320)
     parser.add_argument("--width", type=int, default=640)
     parser.add_argument("--contributors", type=int, default=3)

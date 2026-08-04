@@ -349,3 +349,9 @@ fitted transforms during accumulation instead of materializing complete
 transformed sequences. The provider report records the selected chunk size, and
 a deterministic process benchmark measures peak RSS and numerical agreement. See
 [bounded-memory provider evaluation](docs/streaming-evaluation.md).
+
+A separate opt-in workflow runs the fusion and evaluation benchmarks at the full
+`25 x 320 x 640` shape on the IPS self-hosted `nvidia-smi` runner. It captures
+CPU, RAM, GPU, software, revision, timing, RSS, retained-storage, and output-digest
+evidence, with optional eager-versus-mmap loading for runner-local prediction
+bundles. See [production memory profiling](docs/production-memory-profile.md).
