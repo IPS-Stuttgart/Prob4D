@@ -125,6 +125,7 @@ def test_cross_window_association_uses_global_covariance_when_supplied() -> None
     loose = np.repeat((0.1 * np.eye(3))[None], 2, axis=0)
     config = CrossWindowAssociationConfig(
         maximum_weighted_rms_m=0.2,
+        maximum_shared_frame_distance_m=0.2,
         minimum_compatibility_score=0.0,
         minimum_score_margin=0.0,
     )
@@ -234,3 +235,39 @@ def test_cross_window_configuration_rejects_boolean_numeric_aliases() -> None:
         CrossWindowAssociationConfig(minimum_shared_frames=True)
     with pytest.raises(ValueError, match="minimum_score_margin"):
         CrossWindowAssociationConfig(minimum_score_margin=False)
+
+
+def test_spatial_gate_avoids_exhaustive_distractor_pairs() -> None:
+    left = make_tracklets(
+        "left",
+        [
+            np.array([[0.0, 0.0, 1.0], [0.0, 0.0, 1.0]]),
+            np.array([[10.0, 0.0, 1.0], [10.0, 0.0, 1.0]]),
+        ],
+    )
+    right = make_tracklets(
+        "right",
+        [
+            np.array([[0.01, 0.0, 1.0], [0.01, 0.0, 1.0]]),
+            np.array([[10.01, 0.0, 1.0], [10.01, 0.0, 1.0]]),
+            np.array([[100.0, 0.0, 1.0], [100.0, 0.0, 1.0]]),
+        ],
+    )
+
+    result = associate_cross_window_tracklets(
+        left,
+        right,
+        left_global_from_local=Sim3.identity(),
+        right_global_from_local=Sim3.identity(),
+        configuration=CrossWindowAssociationConfig(
+            maximum_shared_frame_distance_m=0.1,
+            maximum_weighted_rms_m=0.05,
+        ),
+        candidate_chunk_size=1,
+    )
+
+    assert result.possible_track_pair_count == 6
+    assert result.spatial_candidate_pair_count == 2
+    assert result.spatially_rejected_pair_count == 4
+    assert result.evaluated_track_pair_count == 2
+    assert result.accepted_pairs == ((0, 0), (1, 1))
