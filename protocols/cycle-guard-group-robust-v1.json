@@ -156,7 +156,9 @@
     "edge_type": "direct skip edge with an available directed two-edge path",
     "reported_covariance_changed": false,
     "reported_overlap_residual_changed": false,
-    "observable_source_feature_changed_by_translation_injection": false
+    "observable_source_feature_may_change_under_translation_injection": true,
+    "primary_threshold_depends_on_target_stratum_assignment": false,
+    "secondary_stratum_specific_control_depends_on_target_stratum_assignment": true
   },
   "promotion_boundary": "A passing result remains experimental and only permits a separately sealed held-out physical-object/session evaluation.",
   "claim_boundary": "Controlled synthetic source-cycle admission only; no held-out physical-object provider, BayesianPhysTwin, harmful-update, or Causal4D benefit claim."
