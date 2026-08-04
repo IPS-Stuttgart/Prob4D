@@ -3,6 +3,8 @@
 Provider v1 retains the historical central-finite-difference implementation.
 Provider v2 selects the analytic implementation through a task-local context,
 so importing the new provider cannot silently reinterpret frozen v1 artifacts.
+Explicit array annotations also keep the Python-3.10-targeted static check stable
+across supported NumPy stub generations.
 """
 
 from __future__ import annotations
