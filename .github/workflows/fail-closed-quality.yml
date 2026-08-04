@@ -17,6 +17,8 @@ concurrency:
 env:
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
   PYTHONUNBUFFERED: "1"
+  QUALITY_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
+  QUALITY_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
 jobs:
   authoritative-quality:
@@ -27,6 +29,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
       - name: Set up Python 3.12
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -38,11 +41,33 @@ jobs:
         run: |
           python -m pip install -e ".[dev]"
           python -m pip install "numpy>=1.24,<2.3"
+      - name: Select changed Python files
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="${QUALITY_BASE_SHA}"
+          if [[ -z "${base}" || "${base}" =~ ^0+$ ]] || \
+             ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            if git rev-parse --verify "${QUALITY_HEAD_SHA}^" >/dev/null 2>&1; then
+              base="${QUALITY_HEAD_SHA}^"
+            else
+              base="${QUALITY_HEAD_SHA}"
+            fi
+          fi
+          git diff --name-only --diff-filter=ACMR \
+            "${base}" "${QUALITY_HEAD_SHA}" -- '*.py' \
+            | LC_ALL=C sort -u > changed-python.txt
+          cat changed-python.txt
       - name: Run Ruff with fail-closed diagnostics
         shell: bash
         run: |
           set -o pipefail
-          python -m ruff check src tests scripts/ci 2>&1 | tee ruff-output.txt
+          mapfile -t files < changed-python.txt
+          if (( ${#files[@]} )); then
+            python -m ruff check -- "${files[@]}" 2>&1 | tee ruff-output.txt
+          else
+            echo "No changed Python files require Ruff." | tee ruff-output.txt
+          fi
       - name: Run stable-interface mypy with fail-closed diagnostics
         if: always()
         shell: bash
@@ -77,6 +102,7 @@ jobs:
         with:
           name: fail-closed-quality-diagnostics
           path: |
+            changed-python.txt
             ruff-output.txt
             mypy-output.txt
           if-no-files-found: warn
