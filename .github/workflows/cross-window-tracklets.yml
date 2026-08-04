@@ -1,10 +1,11 @@
-name: Cross-window tracklet association
+name: Tracklet and cross-window association contracts
 
 on:
   pull_request:
     branches: [main]
     paths:
       - ".github/workflows/cross-window-tracklets.yml"
+      - "docs/causal-tracklets.md"
       - "docs/cross-window-tracklet-association.md"
       - "src/prob4d/cross_window_tracklets.py"
       - "src/prob4d/causal_tracklets.py"
@@ -26,7 +27,7 @@ env:
 
 jobs:
   focused-contract:
-    name: Source-only association contract
+    name: Source-only tracklet and association contract
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -45,15 +46,19 @@ jobs:
       - name: Check focused source quality
         run: |
           python -m ruff check \
+            src/prob4d/causal_tracklets.py \
             src/prob4d/cross_window_tracklets.py \
+            tests/test_causal_tracklets.py \
             tests/test_cross_window_tracklets.py
-          python -m mypy src/prob4d/cross_window_tracklets.py
+          python -m mypy \
+            src/prob4d/causal_tracklets.py \
+            src/prob4d/cross_window_tracklets.py
       - name: Run association and producer regressions
         run: >-
           python -m pytest -q
           tests/test_cross_window_tracklets.py
           tests/test_causal_tracklets.py
-      - name: Verify portable result identity from installed package
+      - name: Verify portable configuration identity from installed package
         run: |
           python - <<'PY'
           import json
