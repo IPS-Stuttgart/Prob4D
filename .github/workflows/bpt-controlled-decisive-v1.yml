@@ -291,6 +291,7 @@ jobs:
           python - <<'PY'
           import csv
           import json
+          import math
           import os
           from pathlib import Path
 
@@ -298,6 +299,12 @@ jobs:
           bpt = Path(os.environ["BPT_PATH"])
           protocol = json.loads((result / "protocol.json").read_text())
           report = json.loads((result / "report.json").read_text())
+          retained = json.loads(
+              (
+                  bpt
+                  / "results/diagnostics/prob4d_bpt_controlled_decisive_v1/report.json"
+              ).read_text()
+          )
           if report["protocol_sha256"] != os.environ["PROTOCOL_SHA256"]:
               raise SystemExit("result protocol identity changed")
           if report["repository_revision"] != os.environ["BPT_SOURCE_REVISION"]:
@@ -367,12 +374,53 @@ jobs:
                   f"decision exit changed: expected {expected_exit}, got {actual_exit}"
               )
 
-          retained_trials = (
-              bpt
-              / "results/diagnostics/prob4d_bpt_controlled_decisive_v1/trials.csv"
-          ).read_bytes()
-          if (result / "trials.csv").read_bytes() != retained_trials:
-              raise SystemExit("fresh target rows differ from retained deterministic evidence")
+          exact_fields = (
+              "group_count",
+              "accepted_group_count",
+              "harmful_accepted_count",
+              "all_rejections_exact_fallback",
+          )
+          numeric_fields = (
+              "baseline_mean_rmse_m",
+              "raw_mean_rmse_m",
+              "deployed_mean_rmse_m",
+              "deployed_improvement_fraction",
+              "harmful_accepted_rate",
+          )
+          if report["decision"] != retained["decision"]:
+              raise SystemExit("registered decision differs from retained evidence")
+          for method_id in protocol["methods"]:
+              current = report["aggregate"][method_id]
+              reference = retained["aggregate"][method_id]
+              for name in exact_fields:
+                  if current[name] != reference[name]:
+                      raise SystemExit(
+                          f"{method_id} retained discrete aggregate changed: {name}"
+                      )
+              for name in numeric_fields:
+                  if not math.isclose(
+                      float(current[name]),
+                      float(reference[name]),
+                      rel_tol=1e-12,
+                      abs_tol=1e-15,
+                  ):
+                      raise SystemExit(
+                          f"{method_id} retained numerical aggregate changed: {name}"
+                      )
+              for current_value, reference_value in zip(
+                  current["paired_deployed_minus_baseline_95_m"],
+                  reference["paired_deployed_minus_baseline_95_m"],
+                  strict=True,
+              ):
+                  if not math.isclose(
+                      float(current_value),
+                      float(reference_value),
+                      rel_tol=1e-12,
+                      abs_tol=1e-15,
+                  ):
+                      raise SystemExit(
+                          f"{method_id} retained bootstrap interval changed"
+                      )
           print(json.dumps(report["decision"], indent=2, sort_keys=True))
           PY
           test -z "$(git -C prob4d-source status --porcelain=v1)"
