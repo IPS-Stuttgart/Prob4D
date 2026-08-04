@@ -28,8 +28,15 @@ suffix in either window therefore cannot change the score.
 
 ## Candidate score
 
-For each pair of window-local tracks with enough shared frames, the diagnostic
-transforms both point sequences into the common global frame. It reports:
+Before scoring complete track pairs, the diagnostic applies a bounded spatial
+gate on every shared absolute frame. The default gate admits a pair only when its
+global points come within `maximum_shared_frame_distance_m` on at least one
+shared frame. Distance matrices are evaluated in bounded chunks;
+`candidate_chunk_size` changes temporary memory only, not the selected pairs. Set
+the distance gate to `None` only for an explicitly exhaustive small diagnostic.
+
+For each spatial candidate with enough shared frames, the diagnostic transforms
+both point sequences into the common global frame. It reports:
 
 - shared absolute frame IDs;
 - association-probability-weighted RMS and maximum displacement;
@@ -43,7 +50,8 @@ Without covariance input, the normalized residual uses the frozen isotropic
 residual uses the sum of the two global point covariances plus an explicit
 positive floor. The covariance may already include local point uncertainty,
 gauge uncertainty, or both; the diagnostic never silently adds or removes a
-gauge term.
+gauge term. Cross-window covariance is not inferred: callers with shared source
+errors must supply an appropriately conservative marginal scale.
 
 The compatibility score is a source-side ranking statistic, not a calibrated
 posterior probability. It combines the Gaussian-shaped normalized residual score
@@ -61,10 +69,10 @@ A candidate becomes a link only when all of the following hold:
 5. weighted RMS passes its maximum; and
 6. the compatibility score passes its minimum.
 
-The output remains one-to-one on both sides and records non-mutual, ambiguous,
-threshold-rejected, low-support, zero-support, and insufficient-overlap counts.
-Rejected tracks remain explicitly unmatched rather than being forced into an
-identity.
+The output remains one-to-one on both sides and records spatially rejected,
+non-mutual, ambiguous, threshold-rejected, low-support, zero-support, and
+insufficient-overlap counts. Rejected tracks remain explicitly unmatched rather
+than being forced into an identity.
 
 ## Example
 
@@ -83,11 +91,13 @@ result = associate_cross_window_tracklets(
         minimum_shared_frames=3,
         minimum_effective_support=1.5,
         maximum_weighted_rms_m=0.025,
+        maximum_shared_frame_distance_m=0.075,
         minimum_compatibility_score=0.20,
         minimum_score_margin=0.10,
     ),
     left_global_covariance_m2=left_covariance,
     right_global_covariance_m2=right_covariance,
+    candidate_chunk_size=256,
 )
 
 for link in result.links:
