@@ -6,6 +6,10 @@ All notable changes to Prob4D are documented here.
 
 ### Added
 
+- An optional source-only directed-cycle gate for the experimental full-joint
+  gauge graph, with a preregistered displacement threshold,
+  per-multi-edge-child cycle support, complete audit reporting, and exact analytic
+  provider-v2 tree fallback.
 - Explicit MotionCrafter `legacy-common` and `derived-per-call` stochastic seed
   policies, with a versioned source-bound call schedule recorded in every new
   prediction manifest.
