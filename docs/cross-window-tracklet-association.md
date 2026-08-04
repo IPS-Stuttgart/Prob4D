@@ -9,7 +9,7 @@ that tracks from different windows represent the same material point.
 The diagnostic does **not** rewrite observation-factor point IDs and is not part
 of the claim-bearing provider-v2 export path. It produces auditable candidate
 scores and admits only unambiguous mutual-best links. Downstream experiments can
-therefore measure whether cross-window identity has useful oracle headroom before
+therefore measure whether cross-window identity has useful headroom before
 introducing it into a Bayesian update.
 
 ## Information boundary
@@ -26,14 +26,27 @@ residuals, intervention outcomes, or post-cutoff observations. Only absolute
 frames present in both tracklets contribute to a candidate. A nonshared causal
 suffix in either window therefore cannot change the score.
 
-## Candidate score
+## Bounded spatial candidate generation
 
-Before scoring complete track pairs, the diagnostic applies a bounded spatial
-gate on every shared absolute frame. The default gate admits a pair only when its
-global points come within `maximum_shared_frame_distance_m` on at least one
-shared frame. Distance matrices are evaluated in bounded chunks;
-`candidate_chunk_size` changes temporary memory only, not the selected pairs. Set
-the distance gate to `None` only for an explicitly exhaustive small diagnostic.
+Before scoring complete track pairs, the diagnostic applies a spatial gate on
+every shared absolute frame. The default gate admits a pair only when its global
+points come within `maximum_shared_frame_distance_m` on at least one shared
+frame.
+
+Distance matrices are tiled on **both** track axes. The largest temporary distance
+block is therefore proportional to `candidate_chunk_size ** 2`, rather than to
+one chunk times every track in the other window. Changing the chunk size changes
+only temporary memory and not the sorted candidate set, result descriptor, or
+`result_id`.
+
+The retained pair set is separately bounded by
+`maximum_spatial_candidate_pairs`. Exceeding that limit fails closed rather than
+silently allocating or scoring an effectively exhaustive Cartesian product. Set
+`maximum_shared_frame_distance_m=None` only for an explicitly exhaustive small
+diagnostic; the same candidate-count ceiling still applies. The ceiling can be
+set to `None` only in a separately justified controlled experiment.
+
+## Candidate score
 
 For each spatial candidate with enough shared frames, the diagnostic transforms
 both point sequences into the common global frame. It reports:
@@ -46,12 +59,18 @@ both point sequences into the common global frame. It reports:
 - a bounded compatibility score.
 
 Without covariance input, the normalized residual uses the frozen isotropic
-`isotropic_distance_scale_m`. When covariance is supplied for both windows, each
-residual uses the sum of the two global point covariances plus an explicit
-positive floor. The covariance may already include local point uncertainty,
-gauge uncertainty, or both; the diagnostic never silently adds or removes a
-gauge term. Cross-window covariance is not inferred: callers with shared source
-errors must supply an appropriately conservative marginal scale.
+three-dimensional RMS scale `isotropic_distance_scale_m`. When covariance is
+supplied for both windows, each residual uses the sum of the two global point
+covariances plus an explicit positive floor. The reported normalized square is
+the Mahalanobis square divided by the three residual dimensions. Consequently,
+a correctly calibrated three-dimensional Gaussian residual has an expected
+normalized square of one rather than three.
+
+The covariance may already include local point uncertainty, gauge uncertainty,
+or both; the diagnostic never silently adds or removes a gauge term.
+Cross-window covariance is not inferred: callers with shared source errors must
+supply an appropriately conservative marginal scale or keep the covariance-free
+control.
 
 The compatibility score is a source-side ranking statistic, not a calibrated
 posterior probability. It combines the Gaussian-shaped normalized residual score
@@ -74,6 +93,19 @@ non-mutual, ambiguous, threshold-rejected, low-support, zero-support, and
 insufficient-overlap counts. Rejected tracks remain explicitly unmatched rather
 than being forced into an identity.
 
+## Portable result identity
+
+`CrossWindowAssociationResult.descriptor()` emits the complete semantic result:
+configuration, candidates, accepted links, unmatched tracks, and rejection
+accounting. `result_id` is the SHA-256 digest of the canonical finite-JSON
+encoding of that descriptor. `to_dict()` adds the ID to the descriptor for compact
+result retention.
+
+Execution-only tiling is deliberately excluded from the descriptor. Runs using
+different `candidate_chunk_size` values must therefore produce byte-equivalent
+semantic dictionaries and the same result identity; a focused regression checks
+this invariant.
+
 ## Example
 
 ```python
@@ -92,6 +124,7 @@ result = associate_cross_window_tracklets(
         minimum_effective_support=1.5,
         maximum_weighted_rms_m=0.025,
         maximum_shared_frame_distance_m=0.075,
+        maximum_spatial_candidate_pairs=250_000,
         minimum_compatibility_score=0.20,
         minimum_score_margin=0.10,
     ),
@@ -100,6 +133,7 @@ result = associate_cross_window_tracklets(
     candidate_chunk_size=256,
 )
 
+print(result.result_id)
 for link in result.links:
     print(link.left_track_id, link.right_track_id, link.compatibility_score)
 ```
