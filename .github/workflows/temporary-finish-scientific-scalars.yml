@@ -7,6 +7,11 @@ on:
     paths:
       - ".github/workflows/temporary-finish-scientific-scalars.yml"
       - ".github/scripts/finish_scientific_scalars.py"
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/temporary-finish-scientific-scalars.yml"
+      - ".github/scripts/finish_scientific_scalars.py"
 
 permissions:
   contents: write
