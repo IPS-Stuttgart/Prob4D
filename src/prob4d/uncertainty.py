@@ -7,6 +7,7 @@ from dataclasses import dataclass, replace
 import numpy as np
 from numpy.typing import NDArray
 
+from ._scientific_scalars import require_finite_real, require_genuine_integer
 from .alignment import WindowAlignment
 from .calibration_aggregation import (
     GROUP_BALANCED_UPPER_WINSORIZED_RATIOS_V2,
@@ -111,27 +112,50 @@ class CalibrationReport:
     lateral_normalized_mse: float
 
     def __post_init__(self) -> None:
-        count = int(self.count)
-        values = np.asarray(
-            [
-                self.parallel_scale_update,
-                self.lateral_scale_update,
-                self.parallel_normalized_mse,
-                self.lateral_normalized_mse,
-            ],
-            dtype=np.float64,
+        count = require_genuine_integer(
+            self.count,
+            name="count",
+            minimum=1,
         )
-        if count < 1:
-            raise ValueError("calibration report count must be positive")
-        if not np.all(np.isfinite(values)) or np.any(values < 0.0):
-            raise ValueError("calibration report values must be finite and non-negative")
-        if values[0] <= 0.0 or values[1] <= 0.0:
-            raise ValueError("calibration scale updates must be strictly positive")
+        parallel_scale_update = require_finite_real(
+            self.parallel_scale_update,
+            name="parallel_scale_update",
+            minimum=0.0,
+            minimum_inclusive=False,
+        )
+        lateral_scale_update = require_finite_real(
+            self.lateral_scale_update,
+            name="lateral_scale_update",
+            minimum=0.0,
+            minimum_inclusive=False,
+        )
+        parallel_normalized_mse = require_finite_real(
+            self.parallel_normalized_mse,
+            name="parallel_normalized_mse",
+            minimum=0.0,
+        )
+        lateral_normalized_mse = require_finite_real(
+            self.lateral_normalized_mse,
+            name="lateral_normalized_mse",
+            minimum=0.0,
+        )
         object.__setattr__(self, "count", count)
-        object.__setattr__(self, "parallel_scale_update", float(values[0]))
-        object.__setattr__(self, "lateral_scale_update", float(values[1]))
-        object.__setattr__(self, "parallel_normalized_mse", float(values[2]))
-        object.__setattr__(self, "lateral_normalized_mse", float(values[3]))
+        object.__setattr__(
+            self,
+            "parallel_scale_update",
+            parallel_scale_update,
+        )
+        object.__setattr__(self, "lateral_scale_update", lateral_scale_update)
+        object.__setattr__(
+            self,
+            "parallel_normalized_mse",
+            parallel_normalized_mse,
+        )
+        object.__setattr__(
+            self,
+            "lateral_normalized_mse",
+            lateral_normalized_mse,
+        )
 
 
 @dataclass(frozen=True)
@@ -152,18 +176,60 @@ class GroupBalancedCalibrationReport:
     group_lateral_normalized_mse: tuple[float, ...]
 
     def __post_init__(self) -> None:
-        count = int(self.count)
-        trim_quantile = float(self.trim_quantile)
+        count = require_genuine_integer(
+            self.count,
+            name="count",
+            minimum=1,
+        )
+        trim_quantile = require_finite_real(
+            self.trim_quantile,
+            name="trim_quantile",
+            minimum=0.0,
+            maximum=1.0,
+            minimum_inclusive=False,
+        )
         group_ids = tuple(map(str, self.group_ids))
-        group_counts = tuple(map(int, self.group_counts))
-        group_values = tuple(
-            tuple(map(float, values))
-            for values in (
-                self.group_parallel_scale_updates,
-                self.group_lateral_scale_updates,
-                self.group_parallel_normalized_mse,
-                self.group_lateral_normalized_mse,
+        group_counts = tuple(
+            require_genuine_integer(
+                value,
+                name=f"group_counts[{index}]",
+                minimum=1,
             )
+            for index, value in enumerate(self.group_counts)
+        )
+        raw_group_values = (
+            (
+                "group_parallel_scale_updates",
+                self.group_parallel_scale_updates,
+                True,
+            ),
+            (
+                "group_lateral_scale_updates",
+                self.group_lateral_scale_updates,
+                True,
+            ),
+            (
+                "group_parallel_normalized_mse",
+                self.group_parallel_normalized_mse,
+                False,
+            ),
+            (
+                "group_lateral_normalized_mse",
+                self.group_lateral_normalized_mse,
+                False,
+            ),
+        )
+        group_values = tuple(
+            tuple(
+                require_finite_real(
+                    value,
+                    name=f"{name}[{index}]",
+                    minimum=0.0,
+                    minimum_inclusive=not strictly_positive,
+                )
+                for index, value in enumerate(values)
+            )
+            for name, values, strictly_positive in raw_group_values
         )
         lengths = {
             len(group_ids),
@@ -176,35 +242,38 @@ class GroupBalancedCalibrationReport:
             raise ValueError("group calibration IDs must be non-empty and unique")
         if group_ids != tuple(sorted(group_ids)):
             raise ValueError("group calibration IDs must use canonical sorted order")
-        if any(value < 1 for value in group_counts) or sum(group_counts) != count:
+        if sum(group_counts) != count:
             raise ValueError("group calibration counts must be positive and sum to count")
-        if not 0.0 < trim_quantile <= 1.0:
-            raise ValueError("trim_quantile must lie in (0, 1]")
-        aggregate = np.asarray(
-            [
+        aggregate = (
+            require_finite_real(
                 self.parallel_scale_update,
+                name="parallel_scale_update",
+                minimum=0.0,
+                minimum_inclusive=False,
+            ),
+            require_finite_real(
                 self.lateral_scale_update,
+                name="lateral_scale_update",
+                minimum=0.0,
+                minimum_inclusive=False,
+            ),
+            require_finite_real(
                 self.parallel_normalized_mse,
+                name="parallel_normalized_mse",
+                minimum=0.0,
+            ),
+            require_finite_real(
                 self.lateral_normalized_mse,
-            ],
-            dtype=np.float64,
+                name="lateral_normalized_mse",
+                minimum=0.0,
+            ),
         )
-        if not np.all(np.isfinite(aggregate)) or np.any(aggregate < 0.0):
-            raise ValueError("group calibration aggregates must be finite and non-negative")
-        if aggregate[0] <= 0.0 or aggregate[1] <= 0.0:
-            raise ValueError("group calibration scale updates must be strictly positive")
-        for index, values in enumerate(group_values):
-            array = np.asarray(values, dtype=np.float64)
-            if not np.all(np.isfinite(array)) or np.any(array < 0.0):
-                raise ValueError("per-group calibration values must be finite and non-negative")
-            if index < 2 and np.any(array <= 0.0):
-                raise ValueError("per-group calibration scale updates must be positive")
         object.__setattr__(self, "count", count)
         object.__setattr__(self, "trim_quantile", trim_quantile)
-        object.__setattr__(self, "parallel_scale_update", float(aggregate[0]))
-        object.__setattr__(self, "lateral_scale_update", float(aggregate[1]))
-        object.__setattr__(self, "parallel_normalized_mse", float(aggregate[2]))
-        object.__setattr__(self, "lateral_normalized_mse", float(aggregate[3]))
+        object.__setattr__(self, "parallel_scale_update", aggregate[0])
+        object.__setattr__(self, "lateral_scale_update", aggregate[1])
+        object.__setattr__(self, "parallel_normalized_mse", aggregate[2])
+        object.__setattr__(self, "lateral_normalized_mse", aggregate[3])
         object.__setattr__(self, "group_ids", group_ids)
         object.__setattr__(self, "group_counts", group_counts)
         object.__setattr__(self, "group_parallel_scale_updates", group_values[0])
