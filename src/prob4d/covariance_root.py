@@ -162,7 +162,7 @@ def canonical_covariance_root(
     eigenvalues, eigenvectors = np.linalg.eigh(normalized)
     spectral_scale = max(
         float(np.max(np.abs(eigenvalues), initial=0.0)),
-        np.finfo(np.float64).tiny,
+        float(np.finfo(np.float64).tiny),
     )
     if float(np.min(eigenvalues, initial=0.0)) < -(
         1e-14 + 1e-10 * spectral_scale

@@ -136,10 +136,17 @@ def _require_revision(value: object, *, name: str) -> str:
     return revision
 
 
-def _require_positive_integer(value: object, *, name: str) -> int:
-    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
-        raise ValueError(f"{name} must be a positive integer")
+def _require_integer(value: object, *, name: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"{name} must be an integer")
     return value
+
+
+def _require_positive_integer(value: object, *, name: str) -> int:
+    result = _require_integer(value, name=name)
+    if result < 1:
+        raise ValueError(f"{name} must be a positive integer")
+    return result
 
 
 def _safe_relative_path(value: object, *, name: str) -> str:
@@ -245,19 +252,18 @@ def _validated_lineage(
         if window_id in selected_ids:
             raise ValueError("selected source window IDs must be unique")
         selected_ids.add(window_id)
-        start = raw_window.get("source_frame_start")
-        stop = raw_window.get("source_frame_stop_exclusive")
-        maximum = raw_window.get("source_frame_max")
-        for name, frame in (
-            ("source_frame_start", start),
-            ("source_frame_stop_exclusive", stop),
-            ("source_frame_max", maximum),
-        ):
-            if isinstance(frame, bool) or not isinstance(frame, int):
-                raise ValueError(f"selected source-window {name} must be an integer")
-        start = int(start)
-        stop = int(stop)
-        maximum = int(maximum)
+        start = _require_integer(
+            raw_window.get("source_frame_start"),
+            name="selected source-window source_frame_start",
+        )
+        stop = _require_integer(
+            raw_window.get("source_frame_stop_exclusive"),
+            name="selected source-window source_frame_stop_exclusive",
+        )
+        maximum = _require_integer(
+            raw_window.get("source_frame_max"),
+            name="selected source-window source_frame_max",
+        )
         if start < 0 or stop <= start or maximum < start or maximum >= stop:
             raise ValueError("selected source-window frame bounds are inconsistent")
         if maximum >= causal_frame_stop:

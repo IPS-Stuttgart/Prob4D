@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field
-from typing import Any
+from typing import Any, TypeAlias
 
 import numpy as np
 from numpy.typing import NDArray
@@ -24,8 +24,8 @@ from ._immutable_json import frozen_finite_json_mapping, plain_json
 from .data import PredictionWindow
 from .source_reliability import SourceReliabilityFeatures
 
-FloatArray = NDArray[np.floating]
-BoolArray = NDArray[np.bool_]
+FloatArray: TypeAlias = NDArray[np.floating[Any]]
+BoolArray: TypeAlias = NDArray[np.bool_]
 
 
 def _readonly(value: np.ndarray, *, dtype: Any) -> np.ndarray:
