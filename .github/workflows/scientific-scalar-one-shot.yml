@@ -24,7 +24,7 @@ env:
 
 jobs:
   validate:
-    name: Workstation2 full validation
+    name: Workstation2 diagnostic validation
     runs-on: [self-hosted, Linux, X64, nvidia-smi]
     timeout-minutes: 90
     steps:
@@ -60,6 +60,13 @@ jobs:
               nvidia-smi --query-gpu=name,uuid,driver_version --format=csv,noheader
             fi
           } > outputs/scientific-scalar-validation/runtime.txt
+      - name: Record Ruff's exact formatter patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m ruff check --fix tests/test_scientific_scalar_validation.py
+          git diff -- tests/test_scientific_scalar_validation.py \
+            | tee outputs/scientific-scalar-validation/ruff-fix.diff
       - name: Run changed-source quality checks
         shell: bash
         run: |
@@ -118,6 +125,7 @@ jobs:
           root.mkdir(parents=True, exist_ok=True)
           expected = (
               "runtime.txt",
+              "ruff-fix.diff",
               "ruff.txt",
               "mypy.txt",
               "focused-pytest.txt",
@@ -126,7 +134,7 @@ jobs:
           )
           present = [name for name in expected if (root / name).is_file()]
           summary = {
-              "schema": "prob4d.scientific-scalar-validation",
+              "schema": "prob4d.scientific-scalar-validation-diagnostic",
               "schema_version": 1,
               "repository": os.environ["GITHUB_REPOSITORY"],
               "revision": os.environ["GITHUB_SHA"],
@@ -134,9 +142,10 @@ jobs:
               "runner_name": os.environ["RUNNER_NAME"],
               "present_reports": present,
               "complete": set(present) == set(expected),
+              "diagnostic_worktree_modified": True,
               "claim_boundary": (
-                  "Software validation only; no dataset, estimator result, "
-                  "calibration claim, or physical-prediction claim is produced."
+                  "Diagnostic software validation only. Ruff may modify the isolated "
+                  "runner worktree; no dataset or empirical result is produced."
               ),
           }
           (root / "summary.json").write_text(
@@ -150,15 +159,15 @@ jobs:
                   lines.append(f"{digest}  {path.name}")
           (root / "SHA256SUMS").write_text("\n".join(lines) + "\n", encoding="utf-8")
           with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a", encoding="utf-8") as stream:
-              stream.write("## Scientific scalar validation\n\n")
+              stream.write("## Scientific scalar diagnostic validation\n\n")
               stream.write(f"Revision: `{os.environ['GITHUB_SHA']}`\n\n")
               stream.write(f"Evidence complete: `{summary['complete']}`\n")
           PY
-      - name: Upload complete validation evidence
+      - name: Upload complete diagnostic evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: scientific-scalar-validation-${{ github.run_id }}
+          name: scientific-scalar-diagnostic-${{ github.run_id }}
           path: outputs/scientific-scalar-validation
           if-no-files-found: error
           retention-days: 30
