@@ -19,6 +19,11 @@ _ROUTES: Final[dict[Route, tuple[str, str, str]]] = {
         "main",
         "run the pinned recursive-fusion benchmark",
     ),
+    ("diagnostic", "cycle-guard-monte-carlo"): (
+        "prob4d.cycle_guard_monte_carlo",
+        "main",
+        "compare raw and uncertainty-normalized source cycle guards",
+    ),
     ("diagnostic", "gauge-graph"): (
         "prob4d.causal_gauge_graph_ablation",
         "main",
