@@ -8,6 +8,8 @@ experimental until its gates are calibrated on independent data.
 
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -19,6 +21,8 @@ from .sim3 import Sim3
 
 FloatArray = NDArray[np.floating]
 IntArray = NDArray[np.integer]
+
+_RESIDUAL_DIMENSION = 3
 
 
 def _integer(value: Any, *, name: str, minimum: int = 0) -> int:
@@ -65,6 +69,7 @@ class CrossWindowAssociationConfig:
     covariance_floor_m2: float = 1e-10
     maximum_weighted_rms_m: float = 0.05
     maximum_shared_frame_distance_m: float | None = 0.10
+    maximum_spatial_candidate_pairs: int | None = 1_000_000
     minimum_compatibility_score: float = 0.05
     minimum_score_margin: float = 0.05
 
@@ -107,12 +112,35 @@ class CrossWindowAssociationConfig:
                 "maximum_shared_frame_distance_m",
                 maximum_shared_distance,
             )
+        if self.maximum_spatial_candidate_pairs is not None:
+            object.__setattr__(
+                self,
+                "maximum_spatial_candidate_pairs",
+                _integer(
+                    self.maximum_spatial_candidate_pairs,
+                    name="maximum_spatial_candidate_pairs",
+                    minimum=1,
+                ),
+            )
         for name in ("minimum_compatibility_score", "minimum_score_margin"):
             object.__setattr__(
                 self,
                 name,
                 _real(getattr(self, name), name=name, minimum=0.0, maximum=1.0),
             )
+
+    def to_dict(self) -> dict[str, int | float | None]:
+        return {
+            "minimum_shared_frames": self.minimum_shared_frames,
+            "minimum_effective_support": self.minimum_effective_support,
+            "isotropic_distance_scale_m": self.isotropic_distance_scale_m,
+            "covariance_floor_m2": self.covariance_floor_m2,
+            "maximum_weighted_rms_m": self.maximum_weighted_rms_m,
+            "maximum_shared_frame_distance_m": self.maximum_shared_frame_distance_m,
+            "maximum_spatial_candidate_pairs": self.maximum_spatial_candidate_pairs,
+            "minimum_compatibility_score": self.minimum_compatibility_score,
+            "minimum_score_margin": self.minimum_score_margin,
+        }
 
 
 @dataclass(frozen=True)
@@ -129,6 +157,19 @@ class CrossWindowAssociationCandidate:
     compatibility_score: float
     used_covariance: bool
 
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "left_track_id": self.left_track_id,
+            "right_track_id": self.right_track_id,
+            "shared_frame_indices": list(self.shared_frame_indices),
+            "effective_support": self.effective_support,
+            "weighted_rms_m": self.weighted_rms_m,
+            "maximum_distance_m": self.maximum_distance_m,
+            "normalized_rms": self.normalized_rms,
+            "compatibility_score": self.compatibility_score,
+            "used_covariance": self.used_covariance,
+        }
+
 
 @dataclass(frozen=True)
 class CrossWindowAssociationLink:
@@ -140,6 +181,16 @@ class CrossWindowAssociationLink:
     compatibility_score: float
     left_score_margin: float
     right_score_margin: float
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "left_track_id": self.left_track_id,
+            "right_track_id": self.right_track_id,
+            "shared_frame_indices": list(self.shared_frame_indices),
+            "compatibility_score": self.compatibility_score,
+            "left_score_margin": self.left_score_margin,
+            "right_score_margin": self.right_score_margin,
+        }
 
 
 @dataclass(frozen=True)
@@ -170,6 +221,54 @@ class CrossWindowAssociationResult:
     def accepted_pairs(self) -> tuple[tuple[int, int], ...]:
         return tuple((link.left_track_id, link.right_track_id) for link in self.links)
 
+    def descriptor(self) -> dict[str, object]:
+        """Return the complete portable result descriptor without its self-ID."""
+
+        return {
+            "schema_name": "prob4d.cross-window-tracklet-association",
+            "schema_version": 1,
+            "left_window_id": self.left_window_id,
+            "right_window_id": self.right_window_id,
+            "causal_frame_stop": self.causal_frame_stop,
+            "configuration": self.configuration.to_dict(),
+            "candidates": [candidate.to_dict() for candidate in self.candidates],
+            "links": [link.to_dict() for link in self.links],
+            "unmatched_left_track_ids": list(self.unmatched_left_track_ids),
+            "unmatched_right_track_ids": list(self.unmatched_right_track_ids),
+            "possible_track_pair_count": self.possible_track_pair_count,
+            "spatial_candidate_pair_count": self.spatial_candidate_pair_count,
+            "spatially_rejected_pair_count": self.spatially_rejected_pair_count,
+            "evaluated_track_pair_count": self.evaluated_track_pair_count,
+            "shared_gate_frame_count": self.shared_gate_frame_count,
+            "insufficient_shared_frame_pair_count": (
+                self.insufficient_shared_frame_pair_count
+            ),
+            "zero_support_pair_count": self.zero_support_pair_count,
+            "low_support_pair_count": self.low_support_pair_count,
+            "non_mutual_best_count": self.non_mutual_best_count,
+            "ambiguous_mutual_best_count": self.ambiguous_mutual_best_count,
+            "threshold_rejected_mutual_best_count": (
+                self.threshold_rejected_mutual_best_count
+            ),
+        }
+
+    @property
+    def result_id(self) -> str:
+        """Return a deterministic SHA-256 identity for the semantic result."""
+
+        encoded = json.dumps(
+            self.descriptor(),
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+        return hashlib.sha256(encoded).hexdigest()
+
+    def to_dict(self) -> dict[str, object]:
+        result = self.descriptor()
+        result["result_id"] = self.result_id
+        return result
+
 
 def _global_covariances(
     value: FloatArray,
@@ -181,7 +280,7 @@ def _global_covariances(
     if raw.dtype.kind not in {"i", "u", "f"}:
         raise ValueError(f"{name} must contain real numeric values")
     covariance = np.asarray(raw, dtype=np.float64).copy()
-    expected = (observation_count, 3, 3)
+    expected = (observation_count, _RESIDUAL_DIMENSION, _RESIDUAL_DIMENSION)
     if covariance.shape != expected:
         raise ValueError(f"{name} must have shape {expected}")
     if not np.all(np.isfinite(covariance)):
@@ -215,6 +314,7 @@ def _spatial_candidate_pairs(
     left_global_from_local: Sim3,
     right_global_from_local: Sim3,
     maximum_distance_m: float | None,
+    maximum_candidate_pairs: int | None,
     chunk_size: int,
 ) -> tuple[tuple[int, ...], tuple[tuple[int, int], ...]]:
     shared_frames = tuple(
@@ -225,7 +325,17 @@ def _spatial_candidate_pairs(
     )
     if not shared_frames:
         return (), ()
+
+    possible_pairs = left.track_count * right.track_count
     if maximum_distance_m is None:
+        if (
+            maximum_candidate_pairs is not None
+            and possible_pairs > maximum_candidate_pairs
+        ):
+            raise ValueError(
+                "exhaustive spatial candidate count exceeds "
+                "maximum_spatial_candidate_pairs"
+            )
         return shared_frames, tuple(
             (left_track_id, right_track_id)
             for left_track_id in range(left.track_count)
@@ -243,23 +353,35 @@ def _spatial_candidate_pairs(
         right_points = right_global_from_local.transform_points(
             right.points_local[right_rows]
         )
+        left_track_ids = left.track_ids[left_rows]
         right_track_ids = right.track_ids[right_rows]
-        for start in range(0, len(left_rows), chunk_size):
-            stop = min(start + chunk_size, len(left_rows))
-            differences = (
-                left_points[start:stop, None, :] - right_points[None, :, :]
-            )
-            squared = np.einsum("...i,...i->...", differences, differences)
-            local_left, local_right = np.nonzero(squared <= maximum_square)
-            for left_offset, right_offset in zip(
-                local_left, local_right, strict=True
-            ):
-                pairs.add(
-                    (
-                        int(left.track_ids[left_rows[start + int(left_offset)]]),
-                        int(right_track_ids[int(right_offset)]),
-                    )
+        for left_start in range(0, len(left_rows), chunk_size):
+            left_stop = min(left_start + chunk_size, len(left_rows))
+            for right_start in range(0, len(right_rows), chunk_size):
+                right_stop = min(right_start + chunk_size, len(right_rows))
+                differences = (
+                    left_points[left_start:left_stop, None, :]
+                    - right_points[None, right_start:right_stop, :]
                 )
+                squared = np.einsum("...i,...i->...", differences, differences)
+                local_left, local_right = np.nonzero(squared <= maximum_square)
+                for left_offset, right_offset in zip(
+                    local_left, local_right, strict=True
+                ):
+                    pairs.add(
+                        (
+                            int(left_track_ids[left_start + int(left_offset)]),
+                            int(right_track_ids[right_start + int(right_offset)]),
+                        )
+                    )
+                if (
+                    maximum_candidate_pairs is not None
+                    and len(pairs) > maximum_candidate_pairs
+                ):
+                    raise ValueError(
+                        "spatial candidate count exceeds "
+                        "maximum_spatial_candidate_pairs"
+                    )
     return shared_frames, tuple(sorted(pairs))
 
 
@@ -275,12 +397,13 @@ def _normalized_square(
     covariance = (
         left_covariance
         + right_covariance
-        + config.covariance_floor_m2 * np.eye(3)
+        + config.covariance_floor_m2 * np.eye(_RESIDUAL_DIMENSION)
     )
     eigenvalues, eigenvectors = np.linalg.eigh(covariance)
     eigenvalues = np.maximum(eigenvalues, config.covariance_floor_m2)
     coordinates = eigenvectors.T @ residual
-    return float(np.sum(coordinates**2 / eigenvalues))
+    mahalanobis_square = float(np.sum(coordinates**2 / eigenvalues))
+    return mahalanobis_square / _RESIDUAL_DIMENSION
 
 
 def _candidate_rank(
@@ -396,6 +519,7 @@ def associate_cross_window_tracklets(
         left_global_from_local=left_global_from_local,
         right_global_from_local=right_global_from_local,
         maximum_distance_m=config.maximum_shared_frame_distance_m,
+        maximum_candidate_pairs=config.maximum_spatial_candidate_pairs,
         chunk_size=chunk_size,
     )
 
@@ -523,6 +647,7 @@ def associate_cross_window_tracklets(
     link_tuple = tuple(links)
     linked_left = {link.left_track_id for link in link_tuple}
     linked_right = {link.right_track_id for link in link_tuple}
+    possible_pairs = left.track_count * right.track_count
     return CrossWindowAssociationResult(
         left_window_id=left.window_id,
         right_window_id=right.window_id,
@@ -536,11 +661,9 @@ def associate_cross_window_tracklets(
         unmatched_right_track_ids=tuple(
             track_id for track_id in right_tracks if track_id not in linked_right
         ),
-        possible_track_pair_count=left.track_count * right.track_count,
+        possible_track_pair_count=possible_pairs,
         spatial_candidate_pair_count=len(pair_candidates),
-        spatially_rejected_pair_count=(
-            left.track_count * right.track_count - len(pair_candidates)
-        ),
+        spatially_rejected_pair_count=possible_pairs - len(pair_candidates),
         evaluated_track_pair_count=len(pair_candidates),
         shared_gate_frame_count=len(shared_gate_frames),
         insufficient_shared_frame_pair_count=insufficient_shared_frames,
