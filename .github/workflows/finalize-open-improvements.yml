@@ -23,6 +23,10 @@ env:
 jobs:
   finalize:
     name: Validate and publish focused branches
+    if: >-
+      github.event_name == 'push' ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+       github.head_ref == 'ci/self-hosted-finalize-improvements')
     runs-on: [self-hosted, Linux, X64, nvidia-smi]
     timeout-minutes: 90
     steps:
