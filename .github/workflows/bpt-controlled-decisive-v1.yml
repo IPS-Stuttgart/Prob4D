@@ -18,11 +18,11 @@ concurrency:
 
 env:
   PROB4D_SOURCE_REVISION: aa8ffc6541011d044561e09870569a14ab3f586f
-  BPT_SOURCE_REVISION: 76d4aba20dd386e1f8583e501781d702d7937566
+  BPT_SOURCE_REVISION: 59256a124c4df1d780b79d1c31d6c1d01e63d10f
   BPT_BASE_REVISION: b2da5df5eddd5437d444b60b11130262d115e264
   PROTOCOL_SHA256: 921da8a6f14f9430b3f4861d68326d904f61b922e3aedd2b35882ea97bc63111
-  RUNNER_PAYLOAD_SHA256: 16beddf036d797ad16868a4b45596b11b2f9617ac6f39f609b5a1b9ce6de3a63
-  VERIFIER_PAYLOAD_SHA256: 1b07e9b9c0b3f31c1700d1e4f97ae43467ce01a05b9e04108b4b2c434efb5eda
+  RUNNER_PAYLOAD_SHA256: 83af55e5744531110df5744031ab30b570bb5a0b9aa0bbb246961db783e166f5
+  VERIFIER_PAYLOAD_SHA256: 4a206f1bf15b85e47cbe1f13c3095d7531b17c8d32c9ddb68f26ca0d099778ad
   PYTHONHASHSEED: "0"
   OMP_NUM_THREADS: "1"
   OPENBLAS_NUM_THREADS: "1"
@@ -103,6 +103,7 @@ jobs:
           : > "${diagnostic}"
 
           candidates=(
+            "${RUNNER_WORKSPACE}/../BayesianPhysTwin/BayesianPhysTwin/staged-bpt-source"
             "${RUNNER_WORKSPACE}/../BayesianPhysTwin/BayesianPhysTwin"
             "${RUNNER_WORKSPACE}/../bayesianphystwin/BayesianPhysTwin"
             "${RUNNER_WORKSPACE}/../BayesianPhysTwin"
@@ -193,8 +194,8 @@ jobs:
           import hashlib
           import json
           import os
-          from pathlib import Path
           import zlib
+          from pathlib import Path
 
           bpt = Path(os.environ["BPT_PATH"])
           protocol_path = (
@@ -306,6 +307,7 @@ jobs:
         run: |
           set -euo pipefail
           bpt="${{ steps.bpt.outputs.path }}"
+          test -s "${EVIDENCE_ROOT}/result/calibration_trials.csv"
           (
             cd "${EVIDENCE_ROOT}/result"
             sha256sum --check SHA256SUMS
