@@ -1,6 +1,10 @@
 name: Apply fail-closed quality checks
 
 on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/apply-fail-closed-quality.yml"
   push:
     branches:
       - agent/make-quality-checks-fail-closed
