@@ -12,6 +12,7 @@ from typing import Literal, Protocol
 import numpy as np
 from numpy.typing import NDArray
 
+from ._scientific_scalars import require_finite_real, require_genuine_integer
 from .data import PredictionWindow
 from .sim3 import Sim3, skew, so3_log, so3_right_jacobian
 
@@ -102,23 +103,6 @@ def alignment_covariance_context(
         _ALIGNMENT_COVARIANCE_CONTEXT.reset(token)
 
 
-def _validated_integer(
-    value: int,
-    *,
-    name: str,
-    minimum: int = 0,
-    maximum: int | None = None,
-) -> int:
-    normalized = int(value)
-    if normalized != value:
-        raise ValueError(f"{name} must be an integer")
-    if normalized < minimum or (maximum is not None and normalized > maximum):
-        if maximum is None:
-            raise ValueError(f"{name} must be at least {minimum}")
-        raise ValueError(f"{name} must lie in [{minimum}, {maximum}]")
-    return normalized
-
-
 @dataclass(frozen=True)
 class AlignmentResult:
     """A robust estimate mapping source points into target coordinates."""
@@ -146,30 +130,41 @@ class AlignmentResult:
             raise ValueError("alignment covariance must be symmetric")
         if np.min(np.linalg.eigvalsh(symmetric)) < -1e-10:
             raise ValueError("alignment covariance must be positive semidefinite")
-        residual_rms = float(self.residual_rms)
-        inlier_fraction = float(self.inlier_fraction)
-        information_condition = float(self.information_condition)
-        if not np.isfinite(residual_rms) or residual_rms < 0.0:
-            raise ValueError("residual_rms must be finite and non-negative")
-        if not np.isfinite(inlier_fraction) or not 0.0 <= inlier_fraction <= 1.0:
-            raise ValueError("inlier_fraction must lie in [0, 1]")
-        num_correspondences = _validated_integer(
+        residual_rms = require_finite_real(
+            self.residual_rms,
+            name="residual_rms",
+            minimum=0.0,
+        )
+        inlier_fraction = require_finite_real(
+            self.inlier_fraction,
+            name="inlier_fraction",
+            minimum=0.0,
+            maximum=1.0,
+        )
+        information_condition = require_finite_real(
+            self.information_condition,
+            name="information_condition",
+            minimum=0.0,
+            minimum_inclusive=False,
+        )
+        num_correspondences = require_genuine_integer(
             self.num_correspondences,
             name="num_correspondences",
+            minimum=0,
         )
         if not self.covariance_method:
             raise ValueError("covariance_method must be nonempty")
-        num_covariance_clusters = _validated_integer(
+        num_covariance_clusters = require_genuine_integer(
             self.num_covariance_clusters,
             name="num_covariance_clusters",
+            minimum=0,
         )
-        information_rank = _validated_integer(
+        information_rank = require_genuine_integer(
             self.information_rank,
             name="information_rank",
+            minimum=0,
             maximum=7,
         )
-        if not np.isfinite(information_condition) or information_condition <= 0.0:
-            raise ValueError("information_condition must be finite and positive")
         calibration_id = self.covariance_calibration_id
         if calibration_id is not None and (
             len(calibration_id) != 64
@@ -389,6 +384,23 @@ def estimate_sim3_robust(
     default.
     """
 
+    iteration_count = require_genuine_integer(
+        max_iterations,
+        name="max_iterations",
+        minimum=1,
+    )
+    robust_multiplier = require_finite_real(
+        huber_multiplier,
+        name="huber_multiplier",
+        minimum=0.0,
+        minimum_inclusive=False,
+    )
+    convergence_tolerance = require_finite_real(
+        tolerance,
+        name="tolerance",
+        minimum=0.0,
+        minimum_inclusive=False,
+    )
     source = np.asarray(source, dtype=np.float64)
     target = np.asarray(target, dtype=np.float64)
     if source.shape != target.shape or source.ndim != 2 or source.shape[1] != 3:
@@ -422,19 +434,22 @@ def estimate_sim3_robust(
     previous_vector: FloatArray | None = None
     cutoff = np.inf
     transform = Sim3.identity()
-    for _ in range(max_iterations):
+    for _ in range(iteration_count):
         transform = _weighted_umeyama(source, target, robust_weights)
         residual_norms = np.linalg.norm(target - transform.transform_points(source), axis=1)
         median = float(np.median(residual_norms))
         mad = float(np.median(np.abs(residual_norms - median)))
         robust_scale = max(1.4826 * mad, np.finfo(np.float64).eps)
-        cutoff = max(median + huber_multiplier * robust_scale, np.finfo(np.float64).eps)
+        cutoff = max(
+            median + robust_multiplier * robust_scale,
+            np.finfo(np.float64).eps,
+        )
         huber_weights = np.minimum(1.0, cutoff / np.maximum(residual_norms, cutoff))
         robust_weights = base_weights * huber_weights
         current_vector = transform.as_vector()
         if (
             previous_vector is not None
-            and np.linalg.norm(current_vector - previous_vector) < tolerance
+            and np.linalg.norm(current_vector - previous_vector) < convergence_tolerance
         ):
             break
         previous_vector = current_vector
@@ -497,10 +512,19 @@ def _overlapping_correspondence_data(
 ]:
     if reference.shape[1:] != moving.shape[1:]:
         raise ValueError("overlapping windows must use the same spatial resolution")
-    if max_correspondences < 4:
-        raise ValueError("max_correspondences must be at least four")
-    if covariance_cluster_size is not None and covariance_cluster_size <= 0:
-        raise ValueError("covariance_cluster_size must be positive or None")
+    maximum = require_genuine_integer(
+        max_correspondences,
+        name="max_correspondences",
+        minimum=4,
+    )
+    normalized_seed = require_genuine_integer(seed, name="seed", minimum=0)
+    cluster_size = None
+    if covariance_cluster_size is not None:
+        cluster_size = require_genuine_integer(
+            covariance_cluster_size,
+            name="covariance_cluster_size",
+            minimum=1,
+        )
     if fallback_policy not in {"error", "pointwise"}:
         raise ValueError("fallback_policy must be 'error' or 'pointwise'")
     common_frames = reference.common_frames(moving)
@@ -518,13 +542,10 @@ def _overlapping_correspondence_data(
         mask = reference.valid_mask[reference_index] & moving.valid_mask[moving_index]
         source_parts.append(moving.point_map[moving_index][mask])
         target_parts.append(reference.point_map[reference_index][mask])
-        if covariance_cluster_size is not None:
+        if cluster_size is not None:
             rows, columns = np.nonzero(mask)
-            tile_columns = int(np.ceil(width / covariance_cluster_size))
-            tile_ids = (
-                rows // covariance_cluster_size * tile_columns
-                + columns // covariance_cluster_size
-            )
+            tile_columns = int(np.ceil(width / cluster_size))
+            tile_ids = rows // cluster_size * tile_columns + columns // cluster_size
             _, compact_ids = np.unique(tile_ids, return_inverse=True)
             cluster_parts.append(compact_ids.astype(np.int64) + cluster_offset)
             cluster_offset += int(np.max(compact_ids) + 1) if compact_ids.size else 0
@@ -535,7 +556,7 @@ def _overlapping_correspondence_data(
         raise ValueError("overlap has fewer than four valid point correspondences")
     clusters: IntArray | None = None
     covariance_fallback: str | None = None
-    if covariance_cluster_size is not None:
+    if cluster_size is not None:
         clusters = np.concatenate(cluster_parts)
         if np.unique(clusters).size <= 7:
             clusters, covariance_fallback = _fallback_clusters(
@@ -544,10 +565,10 @@ def _overlapping_correspondence_data(
                 fallback=POINTWISE_COVARIANCE_FALLBACK,
             )
 
-    if source.shape[0] > max_correspondences:
-        generator = np.random.default_rng(seed)
+    if source.shape[0] > maximum:
+        generator = np.random.default_rng(normalized_seed)
         selection = np.sort(
-            generator.choice(source.shape[0], size=max_correspondences, replace=False)
+            generator.choice(source.shape[0], size=maximum, replace=False)
         )
         source = source[selection]
         target = target[selection]
