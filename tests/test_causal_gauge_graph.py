@@ -10,11 +10,11 @@ from prob4d.causal_gauge_graph import (
     CAUSAL_GAUGE_GRAPH_MODE,
     estimate_causal_multi_edge_gauge_graph,
 )
+from prob4d.composition_jacobian import composition_jacobian_mode
 from prob4d.guarded_causal_gauge_graph import (
     GUARDED_CAUSAL_GAUGE_GRAPH_MODE,
     estimate_guarded_causal_multi_edge_gauge_graph,
 )
-from prob4d.composition_jacobian import composition_jacobian_mode
 from prob4d.observation_export import _build_alignments, estimate_joint_gauge_tree
 from prob4d.sim3 import Sim3
 from prob4d.synthetic import make_synthetic_problem
