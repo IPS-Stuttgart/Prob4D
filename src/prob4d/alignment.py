@@ -211,9 +211,7 @@ class WindowAlignment:
             or np.any(frames < 0)
             or np.any(np.diff(frames) <= 0)
         ):
-            raise ValueError(
-                "common_frames must be nonempty, nonnegative, and strictly increasing"
-            )
+            raise ValueError("common_frames must be nonempty, nonnegative, and strictly increasing")
         frames.setflags(write=False)
         object.__setattr__(self, "reference_id", reference_id)
         object.__setattr__(self, "moving_id", moving_id)
@@ -262,9 +260,7 @@ def _parameter_jacobian(
     scaled_rotated = transform.scale * (transform.rotation @ point)
     jacobian = np.empty((3, 7), dtype=np.float64)
     jacobian[:, 0] = scaled_rotated
-    jacobian[:, 1:4] = (
-        -transform.scale * transform.rotation @ skew(point) @ rotation_jacobian
-    )
+    jacobian[:, 1:4] = -transform.scale * transform.rotation @ skew(point) @ rotation_jacobian
     jacobian[:, 4:7] = np.eye(3)
     return jacobian
 
@@ -294,16 +290,12 @@ def _alignment_covariance_estimate(
         _, compact = np.unique(clusters[active_mask], return_inverse=True)
         num_clusters = int(np.max(compact) + 1) if compact.size else 0
         if num_clusters <= 7:
-            raise ValueError(
-                "cluster-robust covariance requires at least eight active clusters"
-            )
+            raise ValueError("cluster-robust covariance requires at least eight active clusters")
         cluster_inverse = np.full(source.shape[0], -1, dtype=np.int64)
         cluster_inverse[active_mask] = compact
         cluster_scores = np.zeros((num_clusters, 7), dtype=np.float64)
 
-    for index, (point, residual, weight) in enumerate(
-        zip(source, residuals, weights, strict=True)
-    ):
+    for index, (point, residual, weight) in enumerate(zip(source, residuals, weights, strict=True)):
         jacobian = _parameter_jacobian(point, transform, rotation_jacobian)
         information += float(weight) * jacobian.T @ jacobian
         if cluster_scores is not None and active_mask[index]:
@@ -330,12 +322,7 @@ def _alignment_covariance_estimate(
         finite_sample_correction = (num_clusters / (num_clusters - 1)) * (
             (active - 1) / max(active - 7, 1)
         )
-        covariance = (
-            finite_sample_correction
-            * inverse_information
-            @ meat
-            @ inverse_information
-        )
+        covariance = finite_sample_correction * inverse_information @ meat @ inverse_information
         method = DENSE_ALIGNMENT_COVARIANCE_METHOD
 
     floor = np.diag([1e-10, 1e-10, 1e-10, 1e-10, 1e-12, 1e-12, 1e-12])
@@ -567,9 +554,7 @@ def _overlapping_correspondence_data(
 
     if source.shape[0] > maximum:
         generator = np.random.default_rng(normalized_seed)
-        selection = np.sort(
-            generator.choice(source.shape[0], size=maximum, replace=False)
-        )
+        selection = np.sort(generator.choice(source.shape[0], size=maximum, replace=False))
         source = source[selection]
         target = target[selection]
         if clusters is not None:
@@ -618,15 +603,13 @@ def align_windows(
     resolved_fallback_policy = (
         context.fallback_policy if fallback_policy is None else fallback_policy
     )
-    source, target, common_frames, clusters, covariance_fallback = (
-        _overlapping_correspondence_data(
-            reference,
-            moving,
-            max_correspondences=max_correspondences,
-            seed=seed,
-            covariance_cluster_size=covariance_cluster_size,
-            fallback_policy=resolved_fallback_policy,
-        )
+    source, target, common_frames, clusters, covariance_fallback = _overlapping_correspondence_data(
+        reference,
+        moving,
+        max_correspondences=max_correspondences,
+        seed=seed,
+        covariance_cluster_size=covariance_cluster_size,
+        fallback_policy=resolved_fallback_policy,
     )
     result = estimate_sim3_robust(
         source,

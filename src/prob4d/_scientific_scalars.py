@@ -14,9 +14,7 @@ def require_genuine_integer(
 ) -> int:
     """Return one genuine integer while rejecting coercible scalar aliases."""
 
-    if isinstance(value, (bool, np.bool_)) or not isinstance(
-        value, (int, np.integer)
-    ):
+    if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, np.integer)):
         raise TypeError(f"{name} must be a genuine integer")
     normalized = int(value)
     if minimum is not None and normalized < minimum:

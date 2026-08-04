@@ -188,7 +188,11 @@ class GroupBalancedCalibrationReport:
             maximum=1.0,
             minimum_inclusive=False,
         )
-        group_ids = tuple(map(str, self.group_ids))
+        if not isinstance(self.group_ids, tuple) or any(
+            type(value) is not str for value in self.group_ids
+        ):
+            raise TypeError("group_ids must be a canonical tuple of strings")
+        group_ids = self.group_ids
         group_counts = tuple(
             require_genuine_integer(
                 value,
@@ -439,12 +443,8 @@ class DepthDisagreementModel:
         parallel_ratio = parallel_error[active] ** 2 / covariance.parallel_variance[active]
         lateral_ratio = lateral_squared[active] / (2.0 * covariance.lateral_variance[active])
 
-        parallel_update = upper_winsorized_mean(
-            parallel_ratio, quantile=trim_quantile
-        )
-        lateral_update = upper_winsorized_mean(
-            lateral_ratio, quantile=trim_quantile
-        )
+        parallel_update = upper_winsorized_mean(parallel_ratio, quantile=trim_quantile)
+        lateral_update = upper_winsorized_mean(lateral_ratio, quantile=trim_quantile)
         calibrated = replace(
             self,
             parallel_scale=self.parallel_scale * parallel_update,
@@ -495,8 +495,7 @@ class DepthDisagreementModel:
             raise ValueError("calibration set has no valid residuals")
 
         active_groups = tuple(
-            "" if value is None else str(value).strip()
-            for value in groups[active].reshape(-1)
+            "" if value is None else str(value).strip() for value in groups[active].reshape(-1)
         )
         if any(not value for value in active_groups):
             raise ValueError("active group IDs must be non-empty")

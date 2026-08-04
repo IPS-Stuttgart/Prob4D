@@ -54,9 +54,7 @@ class CrossFittedDisagreementReport:
             "overlap_points": self.overlap_points,
             "evaluated_points": self.evaluated_points,
             "cluster_size": self.cluster_size,
-            "maximum_training_correspondences": (
-                self.maximum_training_correspondences
-            ),
+            "maximum_training_correspondences": (self.maximum_training_correspondences),
             "seed": self.seed,
         }
         minimums = {
@@ -98,9 +96,7 @@ class CrossFittedDisagreementReport:
             "evaluated_points": self.evaluated_points,
             "evaluated_fraction": self.evaluated_fraction,
             "cluster_size": self.cluster_size,
-            "maximum_training_correspondences": (
-                self.maximum_training_correspondences
-            ),
+            "maximum_training_correspondences": (self.maximum_training_correspondences),
             "seed": self.seed,
         }
 
@@ -133,10 +129,7 @@ def _clustered_overlap_rows(
     for frame in alignment.common_frames:
         reference_index = reference.local_index(int(frame))
         moving_index = moving.local_index(int(frame))
-        mask = (
-            reference.valid_mask[reference_index]
-            & moving.valid_mask[moving_index]
-        )
+        mask = reference.valid_mask[reference_index] & moving.valid_mask[moving_index]
         rows, columns = np.nonzero(mask)
         if not rows.size:
             continue
@@ -320,8 +313,7 @@ def accumulate_cross_fitted_disagreement(
         raise KeyError(f"alignment windows are missing: {sorted(missing)}")
 
     evidence = {
-        window_id: DisagreementEvidence.empty(window.shape)
-        for window_id, window in windows.items()
+        window_id: DisagreementEvidence.empty(window.shape) for window_id, window in windows.items()
     }
     candidate_folds = 0
     fitted_folds = 0
@@ -362,9 +354,7 @@ def accumulate_cross_fitted_disagreement(
                 held_out_fold=held_out_fold,
             )
             if source.shape[0] > maximum:
-                generator = np.random.default_rng(
-                    alignment_seed + 97_409 * held_out_fold
-                )
+                generator = np.random.default_rng(alignment_seed + 97_409 * held_out_fold)
                 selected = np.sort(
                     generator.choice(
                         source.shape[0],

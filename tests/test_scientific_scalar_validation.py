@@ -13,7 +13,6 @@ from prob4d.uncertainty import (
     GroupBalancedCalibrationReport,
 )
 
-
 _INTEGER_ALIASES: tuple[object, ...] = (
     True,
     np.bool_(True),
@@ -125,6 +124,22 @@ def test_calibration_report_rejects_coercible_counts(value: object) -> None:
 def test_group_report_rejects_fractional_group_count_without_truncation() -> None:
     with pytest.raises(TypeError, match=r"group_counts\[0\].*genuine integer"):
         _group_report(group_counts=(1.5, 1))
+
+
+@pytest.mark.parametrize(
+    "group_ids",
+    (
+        (1, "b"),
+        ["a", "b"],
+        {"a", "b"},
+        "ab",
+    ),
+)
+def test_group_report_rejects_noncanonical_group_ids(
+    group_ids: object,
+) -> None:
+    with pytest.raises(TypeError, match="canonical tuple of strings"):
+        _group_report(group_ids=group_ids)
 
 
 @pytest.mark.parametrize("value", (True, np.bool_(True), "1.0"))
