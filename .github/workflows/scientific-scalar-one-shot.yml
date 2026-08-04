@@ -1,6 +1,15 @@
 name: Scientific scalar one-shot validation
 
 on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/scientific-scalar-one-shot.yml"
+      - "src/prob4d/_scientific_scalars.py"
+      - "src/prob4d/alignment.py"
+      - "src/prob4d/cross_fitted_disagreement.py"
+      - "src/prob4d/uncertainty.py"
+      - "tests/test_scientific_scalar_validation.py"
   push:
     branches:
       - agent/harden-scientific-scalar-validation
