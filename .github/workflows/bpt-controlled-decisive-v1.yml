@@ -18,21 +18,21 @@ concurrency:
 
 env:
   PROB4D_SOURCE_REVISION: aa8ffc6541011d044561e09870569a14ab3f586f
-  BPT_SOURCE_REVISION: 59256a124c4df1d780b79d1c31d6c1d01e63d10f
+  BPT_SOURCE_REVISION: db0f0119a3a4220f5489566829846681e844627d
   BPT_BASE_REVISION: b2da5df5eddd5437d444b60b11130262d115e264
   PROTOCOL_SHA256: 921da8a6f14f9430b3f4861d68326d904f61b922e3aedd2b35882ea97bc63111
-  RUNNER_PAYLOAD_SHA256: 83af55e5744531110df5744031ab30b570bb5a0b9aa0bbb246961db783e166f5
-  VERIFIER_PAYLOAD_SHA256: 4a206f1bf15b85e47cbe1f13c3095d7531b17c8d32c9ddb68f26ca0d099778ad
+  REFERENCE_REPORT_ID: c592807d62e9f5121acf85747432574601264160de67b15e9a1c8e48a12cc040
   PYTHONHASHSEED: "0"
   OMP_NUM_THREADS: "1"
   OPENBLAS_NUM_THREADS: "1"
   MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
   PYTHONUNBUFFERED: "1"
 
 jobs:
   decisive-study:
-    name: Exact Prob4D + runner-local BPT on workstation2
+    name: Exact Prob4D + complete BPT source on workstation2
     if: >-
       github.event_name != 'pull_request' ||
       github.event.pull_request.head.repo.full_name == github.repository
@@ -71,9 +71,7 @@ jobs:
             echo "bpt_revision=${BPT_SOURCE_REVISION}"
             echo "bpt_base_revision=${BPT_BASE_REVISION}"
             echo "protocol_sha256=${PROTOCOL_SHA256}"
-            echo "runner_payload_sha256=${RUNNER_PAYLOAD_SHA256}"
-            echo "verifier_payload_sha256=${VERIFIER_PAYLOAD_SHA256}"
-            echo "runner_workspace=${RUNNER_WORKSPACE}"
+            echo "reference_report_id=${REFERENCE_REPORT_ID}"
             uname -a
             python -VV
           } > "${root}/evidence/runtime.txt"
@@ -103,13 +101,11 @@ jobs:
           : > "${diagnostic}"
 
           candidates=(
-            "${RUNNER_WORKSPACE}/../BayesianPhysTwin/BayesianPhysTwin/staged-bpt-source"
+            "${HOME}/src/BayesianPhysTwin"
             "${RUNNER_WORKSPACE}/../BayesianPhysTwin/BayesianPhysTwin"
             "${RUNNER_WORKSPACE}/../bayesianphystwin/BayesianPhysTwin"
             "${RUNNER_WORKSPACE}/../BayesianPhysTwin"
-            "${RUNNER_WORKSPACE}/BayesianPhysTwin/BayesianPhysTwin"
             "${HOME}/BayesianPhysTwin"
-            "${HOME}/src/BayesianPhysTwin"
           )
           while IFS= read -r gitdir; do
             candidates+=("${gitdir%/.git}")
@@ -129,8 +125,8 @@ jobs:
               echo "candidate_status=exact_commit_missing" >> "${diagnostic}"
               continue
             fi
-            git clone --shared --no-checkout --quiet "${src}" "${dst}"
-            echo "resolution=runner_local_shared_object_store" >> "${diagnostic}"
+            git clone --no-local --no-checkout --quiet "${src}" "${dst}"
+            echo "resolution=runner_local_complete_clone" >> "${diagnostic}"
             echo "source=${src}" >> "${diagnostic}"
             break
           done
@@ -182,19 +178,19 @@ jobs:
           "${RUNNER_TEMP}/prob4d-bpt-venv/bin/python" -m pip install \
             -e "${{ steps.bpt.outputs.path }}[dev]"
           "${RUNNER_TEMP}/prob4d-bpt-venv/bin/python" -m pip check
+          "${RUNNER_TEMP}/prob4d-bpt-venv/bin/python" -m pip freeze --all \
+            > "${EVIDENCE_ROOT}/pip-freeze.txt"
 
-      - name: Verify frozen protocol and implementation bytes
+      - name: Verify frozen protocol and complete implementation
         shell: bash
         env:
           BPT_PATH: ${{ steps.bpt.outputs.path }}
         run: |
           set -euo pipefail
           python - <<'PY'
-          import base64
           import hashlib
           import json
           import os
-          import zlib
           from pathlib import Path
 
           bpt = Path(os.environ["BPT_PATH"])
@@ -202,7 +198,7 @@ jobs:
               bpt / "protocols" / "prob4d_bpt_controlled_decisive_v1.json"
           )
           protocol = json.loads(protocol_path.read_text(encoding="utf-8"))
-          actual_protocol = hashlib.sha256(
+          actual = hashlib.sha256(
               json.dumps(
                   protocol,
                   sort_keys=True,
@@ -210,60 +206,38 @@ jobs:
                   allow_nan=False,
               ).encode("utf-8")
           ).hexdigest()
-          if actual_protocol != os.environ["PROTOCOL_SHA256"]:
-              raise SystemExit(f"protocol changed: {actual_protocol}")
-          if (
-              protocol["repository_pins"]["prob4d"]
-              != os.environ["PROB4D_SOURCE_REVISION"]
-          ):
+          if actual != os.environ["PROTOCOL_SHA256"]:
+              raise SystemExit(f"protocol changed: {actual}")
+          pins = protocol["repository_pins"]
+          if pins["prob4d"] != os.environ["PROB4D_SOURCE_REVISION"]:
               raise SystemExit("Prob4D protocol pin changed")
-          if (
-              protocol["repository_pins"]["bayesian_phystwin_base"]
-              != os.environ["BPT_BASE_REVISION"]
-          ):
-              raise SystemExit("BayesianPhysTwin base pin changed")
+          if pins["bayesian_phystwin_base"] != os.environ["BPT_BASE_REVISION"]:
+              raise SystemExit("BayesianPhysTwin protocol base changed")
 
-          science = bpt / "scripts" / "science"
-          runner_encoded = "".join(
-              path.read_text(encoding="utf-8").strip()
-              for path in sorted(
-                  (
-                      science
-                      / "prob4d_bpt_controlled_decisive_payload"
-                  ).glob("part*.txt")
-              )
+          required = (
+              "scripts/science/prob4d_bpt_controlled_decisive_core_v1.py",
+              "scripts/science/run_prob4d_bpt_controlled_decisive_v1.py",
+              "tests/test_prob4d_bpt_controlled_decisive_v1.py",
+              "results/diagnostics/prob4d_bpt_controlled_decisive_v1/report.json",
+              "results/diagnostics/prob4d_bpt_controlled_decisive_v1/trials.csv",
           )
-          runner = zlib.decompress(base64.b64decode(runner_encoded))
-          if hashlib.sha256(runner).hexdigest() != os.environ[
-              "RUNNER_PAYLOAD_SHA256"
-          ]:
-              raise SystemExit("controlled runner payload changed")
-          compile(runner, "controlled-decisive-runner", "exec")
+          for relative in required:
+              path = bpt / relative
+              if not path.is_file() or path.stat().st_size == 0:
+                  raise SystemExit(f"missing complete controlled-study file: {relative}")
+          for relative in required[:3]:
+              compile((bpt / relative).read_bytes(), relative, "exec")
 
-          verifier_encoded = "".join(
-              path.read_text(encoding="utf-8").strip()
-              for path in sorted(
-                  (
-                      science
-                      / "prob4d_bpt_controlled_decisive_verifier_payload"
-                  ).glob("part*.txt")
-              )
+          retained = json.loads(
+              (
+                  bpt
+                  / "results/diagnostics/prob4d_bpt_controlled_decisive_v1/report.json"
+              ).read_text(encoding="utf-8")
           )
-          verifier = zlib.decompress(base64.b64decode(verifier_encoded))
-          if hashlib.sha256(verifier).hexdigest() != os.environ[
-              "VERIFIER_PAYLOAD_SHA256"
-          ]:
-              raise SystemExit("independent verifier payload changed")
-          compile(verifier, "controlled-decisive-verifier", "exec")
-
-          core_loader = (
-              science / "prob4d_bpt_controlled_decisive_core_v1.py"
-          )
-          compile(
-              core_loader.read_text(encoding="utf-8"),
-              str(core_loader),
-              "exec",
-          )
+          if retained["report_id"] != os.environ["REFERENCE_REPORT_ID"]:
+              raise SystemExit("retained controlled-study report identity changed")
+          if retained["decision"]["overall_passed"] is not True:
+              raise SystemExit("retained registered decision is not a pass")
           PY
 
       - name: Run focused cross-repository regressions
@@ -274,14 +248,15 @@ jobs:
           python -m ruff check \
             "${bpt}/scripts/science/prob4d_bpt_controlled_decisive_core_v1.py" \
             "${bpt}/scripts/science/run_prob4d_bpt_controlled_decisive_v1.py" \
-            "${bpt}/scripts/science/verify_prob4d_bpt_controlled_decisive_v1.py" \
-            "${bpt}/tests/test_prob4d_bpt_controlled_decisive_v1.py" \
-            "${bpt}/tests/test_prob4d_bpt_controlled_decisive_verifier_v1.py"
+            "${bpt}/tests/test_prob4d_bpt_controlled_decisive_v1.py"
+          python -m ruff format --check \
+            "${bpt}/scripts/science/prob4d_bpt_controlled_decisive_core_v1.py" \
+            "${bpt}/scripts/science/run_prob4d_bpt_controlled_decisive_v1.py" \
+            "${bpt}/tests/test_prob4d_bpt_controlled_decisive_v1.py"
           python -m pytest -q \
-            "${bpt}/tests/test_prob4d_bpt_controlled_decisive_v1.py" \
-            "${bpt}/tests/test_prob4d_bpt_controlled_decisive_verifier_v1.py"
+            "${bpt}/tests/test_prob4d_bpt_controlled_decisive_v1.py"
 
-      - name: Execute all fresh controlled groups
+      - name: Execute all registered controlled groups
         id: experiment
         shell: bash
         run: |
@@ -302,28 +277,105 @@ jobs:
           fi
           echo "decision_exit_code=${status}" >> "${GITHUB_OUTPUT}"
 
-      - name: Independently verify evidence and decision
+      - name: Independently verify evidence and registered decision
         shell: bash
+        env:
+          BPT_PATH: ${{ steps.bpt.outputs.path }}
         run: |
           set -euo pipefail
-          bpt="${{ steps.bpt.outputs.path }}"
-          test -s "${EVIDENCE_ROOT}/result/calibration_trials.csv"
           (
             cd "${EVIDENCE_ROOT}/result"
             sha256sum --check SHA256SUMS
           )
-          python \
-            "${bpt}/scripts/science/verify_prob4d_bpt_controlled_decisive_v1.py" \
-            "${EVIDENCE_ROOT}/result" \
-            --protocol-sha256 "${PROTOCOL_SHA256}" \
-            --bpt-revision "${BPT_SOURCE_REVISION}" \
-            --prob4d-revision "${PROB4D_SOURCE_REVISION}" \
-            --decision-exit-code \
-            "${{ steps.experiment.outputs.decision_exit_code }}"
+          python - <<'PY'
+          import csv
+          import json
+          import os
+          from pathlib import Path
+
+          result = Path(os.environ["EVIDENCE_ROOT"]) / "result"
+          bpt = Path(os.environ["BPT_PATH"])
+          protocol = json.loads((result / "protocol.json").read_text())
+          report = json.loads((result / "report.json").read_text())
+          if report["protocol_sha256"] != os.environ["PROTOCOL_SHA256"]:
+              raise SystemExit("result protocol identity changed")
+          if report["repository_revision"] != os.environ["BPT_SOURCE_REVISION"]:
+              raise SystemExit("result BayesianPhysTwin revision changed")
+          if report["prob4d_revision"] != os.environ["PROB4D_SOURCE_REVISION"]:
+              raise SystemExit("result Prob4D revision changed")
+
+          with (result / "trials.csv").open(newline="", encoding="utf-8") as handle:
+              rows = list(csv.DictReader(handle))
+          expected = (
+              len(protocol["methods"])
+              * len(protocol["scenarios"])
+              * protocol["target"]["groups_per_scenario"]
+          )
+          if len(rows) != expected:
+              raise SystemExit(
+                  f"target trial row count changed: expected {expected}, got {len(rows)}"
+              )
+
+          primary = report["aggregate"][protocol["primary_method"]]
+          marginal = report["aggregate"]["P1_marginal_gauge_persistent"]
+          limits = protocol["acceptance_criteria"]
+          worst_regression = max(
+              0.0,
+              max(
+                  -float(value["deployed_improvement_fraction"])
+                  for value in primary["by_scenario"].values()
+              ),
+          )
+          recomputed = {
+              "mean_improvement_at_least_registered": (
+                  primary["deployed_improvement_fraction"]
+                  >= limits["mean_improvement_fraction_at_least"]
+              ),
+              "paired_upper_bound_below_zero": (
+                  primary["paired_deployed_minus_baseline_95_m"][1] < 0.0
+              ),
+              "harmful_accepted_rate_at_most_registered": (
+                  primary["harmful_accepted_rate"]
+                  <= limits["harmful_accepted_rate_at_most"]
+              ),
+              "worst_scenario_regression_at_most_registered": (
+                  worst_regression
+                  <= limits["worst_scenario_regression_fraction_at_most"]
+              ),
+              "all_rejections_exact_fallback": (
+                  primary["all_rejections_exact_fallback"] is True
+              ),
+              "explicit_persistent_noninferior_to_marginal": (
+                  primary["deployed_mean_rmse_m"]
+                  <= (
+                      1.0
+                      + limits["explicit_vs_marginal_noninferiority_fraction"]
+                  )
+                  * marginal["deployed_mean_rmse_m"]
+              ),
+          }
+          if recomputed != report["decision"]["criteria"]:
+              raise SystemExit("registered decision criteria do not recompute")
+          if report["decision"]["overall_passed"] != all(recomputed.values()):
+              raise SystemExit("overall decision does not match registered criteria")
+
+          expected_exit = 0 if all(recomputed.values()) else 3
+          actual_exit = int(os.environ["DECISION_EXIT_CODE"])
+          if actual_exit != expected_exit:
+              raise SystemExit(
+                  f"decision exit changed: expected {expected_exit}, got {actual_exit}"
+              )
+
+          retained_trials = (
+              bpt
+              / "results/diagnostics/prob4d_bpt_controlled_decisive_v1/trials.csv"
+          ).read_bytes()
+          if (result / "trials.csv").read_bytes() != retained_trials:
+              raise SystemExit("fresh target rows differ from retained deterministic evidence")
+          print(json.dumps(report["decision"], indent=2, sort_keys=True))
+          PY
           test -z "$(git -C prob4d-source status --porcelain=v1)"
-          test -z "$(
-            git -C "${{ steps.bpt.outputs.path }}" status --porcelain=v1
-          )"
+          test -z "$(git -C "${{ steps.bpt.outputs.path }}" status --porcelain=v1)"
           {
             echo "decision_exit_code=${{ steps.experiment.outputs.decision_exit_code }}"
             echo "prob4d_revision=${PROB4D_SOURCE_REVISION}"
@@ -339,18 +391,19 @@ jobs:
               console.log > INFRASTRUCTURE_SHA256SUMS
             sha256sum --check INFRASTRUCTURE_SHA256SUMS
           )
+        env:
+          DECISION_EXIT_CODE: ${{ steps.experiment.outputs.decision_exit_code }}
 
       - name: Publish scientific summary
         if: always()
         shell: bash
         run: |
-          summary="${EVIDENCE_ROOT}/result/summary.md"
-          if [[ -f "${summary}" ]]; then
-            cat "${summary}" >> "${GITHUB_STEP_SUMMARY}"
+          if [[ -f "${EVIDENCE_ROOT}/result/summary.md" ]]; then
+            cat "${EVIDENCE_ROOT}/result/summary.md" >> "${GITHUB_STEP_SUMMARY}"
           fi
           {
             echo
-            echo "Decision exit code: \`${{ steps.experiment.outputs.decision_exit_code }}\`"
+            echo "Decision exit code: ${{ steps.experiment.outputs.decision_exit_code }}"
             echo
             echo "Prob4D revision: \`${PROB4D_SOURCE_REVISION}\`"
             echo "BayesianPhysTwin revision: \`${BPT_SOURCE_REVISION}\`"
