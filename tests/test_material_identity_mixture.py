@@ -54,6 +54,7 @@ def make_mixture(
         candidates.reverse()
     return MaterialIdentityMixtureV1(
         target_endpoint=LocalTrackEndpoint("window-2", 5),
+        window_order=("window-0", "window-1", "window-2"),
         causal_frame_stop=42,
         association_rule_id=SHA_A,
         calibration_id=SHA_B,
@@ -79,6 +80,7 @@ def test_candidate_order_is_canonical_and_content_addressed() -> None:
 def test_null_only_mixture_reproduces_exact_likelihood_and_moments() -> None:
     mixture = MaterialIdentityMixtureV1(
         target_endpoint=LocalTrackEndpoint("newest", 0),
+        window_order=("newest",),
         causal_frame_stop=10,
         association_rule_id=SHA_A,
         calibration_id=SHA_B,
@@ -207,6 +209,7 @@ def test_duplicate_source_endpoint_and_missing_null_are_rejected() -> None:
     )
     settings = {
         "target_endpoint": LocalTrackEndpoint("target", 2),
+        "window_order": ("source", "target"),
         "causal_frame_stop": 5,
         "association_rule_id": SHA_A,
         "calibration_id": SHA_B,
@@ -229,8 +232,21 @@ def test_duplicate_source_endpoint_and_missing_null_are_rejected() -> None:
         source_score=0.4,
         calibrated_log_weight=0.0,
     )
-    with pytest.raises(ValueError, match="prior windows"):
+    with pytest.raises(ValueError, match="precede the target"):
         MaterialIdentityMixtureV1(candidates=(null, same_window), **settings)
+    future = MaterialIdentityCandidateV1(
+        source_endpoint=LocalTrackEndpoint("future", 9),
+        association_result_id=RESULT_F,
+        source_score=0.4,
+        calibrated_log_weight=0.0,
+    )
+    with pytest.raises(ValueError, match="precede the target"):
+        MaterialIdentityMixtureV1(candidates=(null, future), **settings)
+    with pytest.raises(ValueError, match="last in window_order"):
+        MaterialIdentityMixtureV1(
+            candidates=(null, linked),
+            **{**settings, "window_order": ("target", "source")},
+        )
 
 
 def test_metadata_is_recursively_immutable() -> None:
