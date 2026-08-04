@@ -3,9 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-WORKFLOW = (
-    ROOT / ".github" / "workflows" / "bpt-controlled-decisive-v1.yml"
-)
+WORKFLOW = ROOT / ".github" / "workflows" / "bpt-controlled-decisive-v1.yml"
 
 
 def test_decisive_execution_uses_exact_revisions_and_runner_labels() -> None:
@@ -17,7 +15,7 @@ def test_decisive_execution_uses_exact_revisions_and_runner_labels() -> None:
     ) in text
     assert (
         "BPT_SOURCE_REVISION: "
-        "59256a124c4df1d780b79d1c31d6c1d01e63d10f"
+        "db0f0119a3a4220f5489566829846681e844627d"
     ) in text
     assert (
         "BPT_BASE_REVISION: "
@@ -28,12 +26,8 @@ def test_decisive_execution_uses_exact_revisions_and_runner_labels() -> None:
         "921da8a6f14f9430b3f4861d68326d904f61b922e3aedd2b35882ea97bc63111"
     ) in text
     assert (
-        "RUNNER_PAYLOAD_SHA256: "
-        "83af55e5744531110df5744031ab30b570bb5a0b9aa0bbb246961db783e166f5"
-    ) in text
-    assert (
-        "VERIFIER_PAYLOAD_SHA256: "
-        "4a206f1bf15b85e47cbe1f13c3095d7531b17c8d32c9ddb68f26ca0d099778ad"
+        "REFERENCE_REPORT_ID: "
+        "c592807d62e9f5121acf85747432574601264160de67b15e9a1c8e48a12cc040"
     ) in text
     assert "runs-on: [self-hosted, Linux, X64, nvidia-smi]" in text
 
@@ -50,28 +44,31 @@ def test_decisive_execution_is_read_only_and_fail_closed() -> None:
     assert "merge-base --is-ancestor" in text
     assert "status --porcelain=v1" in text
     assert "sha256sum --check SHA256SUMS" in text
+    assert "runner_local_complete_clone" in text
+    assert "git clone --no-local --no-checkout" in text
+
+
+def test_decisive_execution_uses_complete_source_not_encoded_payloads() -> None:
+    text = WORKFLOW.read_text(encoding="utf-8")
+
+    assert "RUNNER_PAYLOAD_SHA256" not in text
+    assert "VERIFIER_PAYLOAD_SHA256" not in text
+    assert "base64.b64decode" not in text
+    assert "zlib.decompress" not in text
+    assert "prob4d_bpt_controlled_decisive_core_v1.py" in text
+    assert "run_prob4d_bpt_controlled_decisive_v1.py" in text
+    assert "test_prob4d_bpt_controlled_decisive_v1.py" in text
 
 
 def test_decisive_execution_accepts_only_registered_outcomes() -> None:
     text = WORKFLOW.read_text(encoding="utf-8")
 
     assert '"${status}" -ne 0 && "${status}" -ne 3' in text
-    assert "verify_prob4d_bpt_controlled_decisive_v1.py" in text
-    assert "test_prob4d_bpt_controlled_decisive_verifier_v1.py" in text
-    assert 'test -s "${EVIDENCE_ROOT}/result/calibration_trials.csv"' in text
+    assert "registered decision criteria do not recompute" in text
+    assert "overall decision does not match registered criteria" in text
+    assert "all_rejections_exact_fallback" in text
+    assert "fresh target rows differ from retained deterministic evidence" in text
     assert "retention-days: 90" in text
-
-
-def test_decisive_execution_resolves_staged_exact_bpt_source() -> None:
-    text = WORKFLOW.read_text(encoding="utf-8")
-
-    assert (
-        "${RUNNER_WORKSPACE}/../BayesianPhysTwin/BayesianPhysTwin/"
-        "staged-bpt-source"
-    ) in text
-    assert "resolution=runner_local_shared_object_store" in text
-    assert "git clone --shared --no-checkout" in text
-    assert "runner_ssh_identity" in text
 
 
 def test_decisive_execution_uses_immutable_action_pins() -> None:
