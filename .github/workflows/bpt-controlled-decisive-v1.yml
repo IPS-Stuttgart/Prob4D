@@ -281,6 +281,7 @@ jobs:
         shell: bash
         env:
           BPT_PATH: ${{ steps.bpt.outputs.path }}
+          DECISION_EXIT_CODE: ${{ steps.experiment.outputs.decision_exit_code }}
         run: |
           set -euo pipefail
           (
@@ -391,8 +392,6 @@ jobs:
               console.log > INFRASTRUCTURE_SHA256SUMS
             sha256sum --check INFRASTRUCTURE_SHA256SUMS
           )
-        env:
-          DECISION_EXIT_CODE: ${{ steps.experiment.outputs.decision_exit_code }}
 
       - name: Publish scientific summary
         if: always()
