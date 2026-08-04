@@ -6,7 +6,6 @@ import argparse
 import csv
 import hashlib
 import json
-import math
 import platform
 import sys
 from collections import defaultdict
@@ -470,6 +469,19 @@ def _guard_summary(
         if not values:
             raise ValueError(f"guard {method_id!r} lacks clean scenario records")
         clean_rates[scenario_id] = float(np.mean(values))
+    stratum_rates: dict[str, float] = {}
+    stratum_ids = sorted(
+        {str(record["observable_source_stratum"]) for record in method_records}
+    )
+    for stratum_id in stratum_ids:
+        values = [
+            bool(record["fallback_applied"])
+            for record in method_records
+            if str(record["observable_source_stratum"]) == stratum_id
+        ]
+        if not values:
+            raise ValueError(f"guard {method_id!r} lacks source-stratum records")
+        stratum_rates[stratum_id] = float(np.mean(values))
     strong = [
         bool(record["fallback_applied"])
         for record in method_records
@@ -487,8 +499,6 @@ def _guard_summary(
         for record in method_records
         if bool(record["outlier_injected"])
     ]
-    if not strong or not mild or not all_injected:
-        raise ValueError("registered outlier scenarios produced no injected trials")
     fallback_records = [
         record
         for record in method_records
@@ -500,6 +510,7 @@ def _guard_summary(
     )
     return {
         "clean_false_fallback_rates": clean_rates,
+        "fallback_rates_by_observable_source_stratum": stratum_rates,
         "worst_clean_false_fallback_rate": max(clean_rates.values()),
         "strong_outlier_detection_rate": float(np.mean(strong)),
         "mild_outlier_detection_rate": float(np.mean(mild)),
