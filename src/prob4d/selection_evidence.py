@@ -47,6 +47,12 @@ from ._selection_evidence_replay import (
     replay_candidate_order,
 )
 
+SELECTION_CLAIM_BOUNDARY = (
+    "Selection uses retained calibration groups only. Deployment decisions "
+    "record guard outputs and exact fallback identities but are not selection "
+    "inputs. Physical benefit requires a separately frozen target analysis."
+)
+
 
 @dataclass(frozen=True, slots=True)
 class SelectionEvidenceBundleV2:
@@ -154,11 +160,7 @@ class SelectionEvidenceBundleV2:
                 decision.to_dict() for decision in self.deployment_decisions
             ],
             "metadata": plain_json(self.metadata),
-            "claim_boundary": (
-                "Selection uses retained calibration groups only. Deployment decisions "
-                "record guard outputs and exact fallback identities but are not selection "
-                "inputs. Physical benefit requires a separately frozen target analysis."
-            ),
+            "claim_boundary": SELECTION_CLAIM_BOUNDARY,
         }
 
     @property
@@ -266,10 +268,13 @@ def selection_evidence_from_dict(value: Any) -> SelectionEvidenceBundleV2:
     )
     if mapping["schema_name"] != SELECTION_EVIDENCE_SCHEMA:
         raise ValueError("unsupported selection evidence schema")
-    if mapping["schema_version"] != SELECTION_EVIDENCE_VERSION:
+    if (
+        type(mapping["schema_version"]) is not int
+        or mapping["schema_version"] != SELECTION_EVIDENCE_VERSION
+    ):
         raise ValueError("unsupported selection evidence version")
-    if type(mapping["claim_boundary"]) is not str:
-        raise ValueError("claim_boundary must be a string")
+    if mapping["claim_boundary"] != SELECTION_CLAIM_BOUNDARY:
+        raise ValueError("selection evidence claim_boundary mismatch")
     candidate_values = _strict_list(mapping["candidates"], name="candidates")
     row_values = _strict_list(mapping["calibration_rows"], name="calibration_rows")
     decision_values = _strict_list(
@@ -336,8 +341,8 @@ def load_selection_evidence(
             Path(path).read_text(encoding="utf-8"),
             object_pairs_hook=_reject_duplicate_keys,
         )
-    except json.JSONDecodeError as error:
-        raise ValueError("selection evidence is not valid JSON") from error
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise ValueError("selection evidence is unreadable or invalid JSON") from error
     return selection_evidence_from_dict(value)
 
 
@@ -373,6 +378,7 @@ __all__ = [
     "FINAL_TIE_BREAK",
     "MetricConstraintV1",
     "MetricOrderV1",
+    "SELECTION_CLAIM_BOUNDARY",
     "SELECTION_EVIDENCE_SCHEMA",
     "SELECTION_EVIDENCE_VERSION",
     "SELECTION_REPLAY_SCHEMA",
