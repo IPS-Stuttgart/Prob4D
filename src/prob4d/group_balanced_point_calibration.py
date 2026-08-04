@@ -8,6 +8,10 @@ from typing import Any
 import numpy as np
 
 from ._point_calibration import PointUncertaintyCalibrationV1
+from .calibration_aggregation import (
+    GROUP_BALANCED_UPPER_WINSORIZED_RATIOS_V2,
+    LEGACY_GROUP_BALANCED_TRIMMED_RATIOS_V1,
+)
 from .uncertainty import (
     CalibrationReport,
     DepthDisagreementModel,
@@ -112,10 +116,33 @@ def group_balanced_point_calibration_metadata(
         raise ValueError("group-balanced metadata has no group definition")
     if not isinstance(report, Mapping):
         raise ValueError("group-balanced metadata has no calibration report")
-    if report.get("aggregation") != (
-        "equal-group-mean-of-within-group-trimmed-ratios-v1"
-    ):
+    aggregation = report.get("aggregation")
+    if aggregation not in {
+        GROUP_BALANCED_UPPER_WINSORIZED_RATIOS_V2,
+        LEGACY_GROUP_BALANCED_TRIMMED_RATIOS_V1,
+    }:
         raise ValueError("group-balanced metadata changed aggregation semantics")
+    trim_quantile = report.get("trim_quantile")
+    if isinstance(trim_quantile, bool) or not isinstance(trim_quantile, (int, float)):
+        raise ValueError("group-balanced metadata trim_quantile must be numeric")
+    normalized_quantile = float(trim_quantile)
+    if not np.isfinite(normalized_quantile) or not 0.0 < normalized_quantile <= 1.0:
+        raise ValueError("group-balanced metadata trim_quantile is invalid")
+    winsor_quantile = report.get("winsor_quantile")
+    if aggregation == GROUP_BALANCED_UPPER_WINSORIZED_RATIOS_V2:
+        if isinstance(winsor_quantile, bool) or not isinstance(
+            winsor_quantile, (int, float)
+        ):
+            raise ValueError("winsorized group metadata has no winsor_quantile")
+        if float(winsor_quantile) != normalized_quantile:
+            raise ValueError("group-balanced winsor and legacy quantiles differ")
+    elif winsor_quantile is not None:
+        if isinstance(winsor_quantile, bool) or not isinstance(
+            winsor_quantile, (int, float)
+        ):
+            raise ValueError("legacy winsor_quantile must be numeric when present")
+        if float(winsor_quantile) != normalized_quantile:
+            raise ValueError("legacy group-balanced quantile aliases differ")
     groups = report.get("groups")
     if not isinstance(groups, (list, tuple)) or not groups:
         raise ValueError("group-balanced metadata has no group diagnostics")

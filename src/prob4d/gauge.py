@@ -9,6 +9,10 @@ from numpy.typing import NDArray
 
 from ._gauge_ci import fuse_sim3_covariance_intersection
 from .alignment import WindowAlignment
+from .calibration_aggregation import (
+    UPPER_WINSORIZED_MEAN_V1,
+    upper_winsorized_mean,
+)
 from .covariance import (
     covariance_eigendecomposition,
     regularized_inverse_psd,
@@ -134,6 +138,16 @@ class GaugeCovarianceCalibration:
         object.__setattr__(self, "count", count)
 
     @property
+    def winsor_quantile(self) -> float:
+        """Explicit alias for the legacy serialized ``trim_quantile`` field."""
+
+        return self.trim_quantile
+
+    @property
+    def aggregation_semantics(self) -> str:
+        return UPPER_WINSORIZED_MEAN_V1
+
+    @property
     def scaling_matrix(self) -> FloatArray:
         factors = np.asarray(
             [self.scale] + [self.rotation] * 3 + [self.translation] * 3,
@@ -198,17 +212,17 @@ class GaugeCovarianceCalibration:
                 values[index] = (error @ information @ error) / error.size
             return values
 
-        def trimmed_mean(values: FloatArray) -> float:
-            upper = float(np.quantile(values, trim_quantile))
-            return max(float(np.mean(np.minimum(values, upper))), 1e-6)
-
         scale_ratios = errors[:, 0] ** 2 / np.maximum(covariances[:, 0, 0], 1e-12)
         rotation_ratios = normalized_quadratic(errors[:, 1:4], covariances[:, 1:4, 1:4])
         translation_ratios = normalized_quadratic(errors[:, 4:7], covariances[:, 4:7, 4:7])
         return cls(
-            scale=trimmed_mean(scale_ratios),
-            rotation=trimmed_mean(rotation_ratios),
-            translation=trimmed_mean(translation_ratios),
+            scale=upper_winsorized_mean(scale_ratios, quantile=trim_quantile),
+            rotation=upper_winsorized_mean(
+                rotation_ratios, quantile=trim_quantile
+            ),
+            translation=upper_winsorized_mean(
+                translation_ratios, quantile=trim_quantile
+            ),
             trim_quantile=trim_quantile,
             count=errors.shape[0],
         )

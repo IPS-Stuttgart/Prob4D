@@ -19,8 +19,10 @@ calibrated, report = model.calibrate_group_balanced(
 ```
 
 For every declared group, Prob4D independently computes the along-ray and
-per-lateral-axis normalized squared errors, trims those ratios at the requested
+per-lateral-axis normalized squared errors, clips ratios above the requested
 within-group quantile, and obtains one parallel and one lateral scale update.
+Rows above the quantile remain in the sample at the cap value; this operation is
+upper winsorization, not trimming.
 The final update is the arithmetic mean of the per-group updates. Thus each
 sequence contributes one calibration unit regardless of how many sampled rows
 it contains.
@@ -28,13 +30,20 @@ it contains.
 The returned `GroupBalancedCalibrationReport` records:
 
 - the total valid row count and number of groups;
-- the common trim quantile;
+- the common winsor quantile, exposed as `winsor_quantile`;
 - equal-group aggregate scale updates and normalized MSE;
 - canonical sorted group IDs;
 - every group's row count, scale update, and untrimmed normalized MSE.
 
 `report.to_dict()` emits the explicit semantics identifier
-`equal-group-mean-of-within-group-trimmed-ratios-v1`.
+`equal-group-mean-of-within-group-upper-winsorized-ratios-v2`.
+
+The public argument and the frozen point-calibration schema retain the field name
+`trim_quantile` for compatibility. New reports also emit `winsor_quantile` with
+the same value. Existing artifacts carrying the historical, statistically
+misnamed `equal-group-mean-of-within-group-trimmed-ratios-v1` identifier remain
+admissible and are interpreted as the same upper-winsorized calculation; their
+content and artifact IDs are not rewritten.
 
 ## Content-addressed provider artifact
 

@@ -41,6 +41,8 @@ All notable changes to Prob4D are documented here.
   and provider evaluation in fresh processes, optionally profiles verified eager
   and mmap prediction loading, binds host and revision identity, and uploads
   checksummed machine-readable evidence.
+- Explicit upper-winsorized calibration aggregation identifiers, public quantile
+  aliases, and a shared validated aggregation primitive for point and gauge scales.
 
 ### Changed
 
@@ -72,6 +74,9 @@ All notable changes to Prob4D are documented here.
 - Provider reports record `evaluation_chunk_size`; changing it affects resource
   use and floating-point summation order, not registered support or metric
   semantics.
+- New group-balanced point calibration metadata names its actual upper-winsorized
+  operation; the frozen `trim_quantile` field and legacy misnamed aggregation ID
+  remain readable without rewriting historical artifact identities.
 
 ### Fixed
 

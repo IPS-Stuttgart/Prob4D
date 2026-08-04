@@ -103,7 +103,7 @@ def test_group_balanced_calibration_assigns_equal_mass_to_sequences() -> None:
     assert report.group_counts == (400, 4)
     assert report.group_count == 2
     assert report.to_dict()["aggregation"] == (
-        "equal-group-mean-of-within-group-trimmed-ratios-v1"
+        "equal-group-mean-of-within-group-upper-winsorized-ratios-v2"
     )
 
 

@@ -10,7 +10,6 @@ from prob4d.calibration import (
 )
 from prob4d.uncertainty import DepthDisagreementModel, StructuredCovariance
 
-
 PROVENANCE = {
     "calibration_case_ids": ("large", "small"),
     "source_repository": "FlorianPfaff/Prob4D",
@@ -68,7 +67,7 @@ def test_group_balanced_fit_is_bound_into_content_addressed_artifact() -> None:
     assert record is not None
     assert record["group_definition"] == "sequence"
     assert record["report"]["aggregation"] == (
-        "equal-group-mean-of-within-group-trimmed-ratios-v1"
+        "equal-group-mean-of-within-group-upper-winsorized-ratios-v2"
     )
     assert artifact.metadata["split"] == "source-family-held-out"
     assert len(artifact.artifact_id) == 64

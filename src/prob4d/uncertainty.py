@@ -8,6 +8,11 @@ import numpy as np
 from numpy.typing import NDArray
 
 from .alignment import WindowAlignment
+from .calibration_aggregation import (
+    GROUP_BALANCED_UPPER_WINSORIZED_RATIOS_V2,
+    UPPER_WINSORIZED_MEAN_V1,
+    upper_winsorized_mean,
+)
 from .data import PredictionWindow
 from .sim3 import Sim3
 
@@ -211,12 +216,23 @@ class GroupBalancedCalibrationReport:
     def group_count(self) -> int:
         return len(self.group_ids)
 
+    @property
+    def winsor_quantile(self) -> float:
+        """Explicit alias for the legacy serialized ``trim_quantile`` field."""
+
+        return self.trim_quantile
+
+    @property
+    def aggregation_semantics(self) -> str:
+        return GROUP_BALANCED_UPPER_WINSORIZED_RATIOS_V2
+
     def to_dict(self) -> dict[str, object]:
         return {
-            "aggregation": "equal-group-mean-of-within-group-trimmed-ratios-v1",
+            "aggregation": self.aggregation_semantics,
             "count": self.count,
             "group_count": self.group_count,
             "trim_quantile": self.trim_quantile,
+            "winsor_quantile": self.winsor_quantile,
             "parallel_scale_update": self.parallel_scale_update,
             "lateral_scale_update": self.lateral_scale_update,
             "parallel_normalized_mse": self.parallel_normalized_mse,
@@ -313,6 +329,12 @@ class DepthDisagreementModel:
             lateral_variance=np.maximum(lateral, np.finfo(np.float64).eps),
         )
 
+    @property
+    def calibration_aggregation_semantics(self) -> str:
+        """Aggregation used by pooled and per-group residual scale updates."""
+
+        return UPPER_WINSORIZED_MEAN_V1
+
     def calibrate(
         self,
         errors: FloatArray,
@@ -321,7 +343,11 @@ class DepthDisagreementModel:
         mask: NDArray[np.bool_] | None = None,
         trim_quantile: float = 0.99,
     ) -> tuple[DepthDisagreementModel, CalibrationReport]:
-        """Scale variances using held-out prediction residuals."""
+        """Scale variances using upper-winsorized held-out residual ratios.
+
+        ``trim_quantile`` is retained as a serialized compatibility name; rows
+        above that quantile are clipped rather than removed.
+        """
 
         errors = np.asarray(errors, dtype=np.float64)
         if errors.shape != covariance.ray_directions.shape:
@@ -344,12 +370,12 @@ class DepthDisagreementModel:
         parallel_ratio = parallel_error[active] ** 2 / covariance.parallel_variance[active]
         lateral_ratio = lateral_squared[active] / (2.0 * covariance.lateral_variance[active])
 
-        def trimmed_mean(values: FloatArray) -> float:
-            upper = float(np.quantile(values, trim_quantile))
-            return max(float(np.mean(np.minimum(values, upper))), 1e-6)
-
-        parallel_update = trimmed_mean(parallel_ratio)
-        lateral_update = trimmed_mean(lateral_ratio)
+        parallel_update = upper_winsorized_mean(
+            parallel_ratio, quantile=trim_quantile
+        )
+        lateral_update = upper_winsorized_mean(
+            lateral_ratio, quantile=trim_quantile
+        )
         calibrated = replace(
             self,
             parallel_scale=self.parallel_scale * parallel_update,
@@ -374,8 +400,9 @@ class DepthDisagreementModel:
     ) -> tuple[DepthDisagreementModel, GroupBalancedCalibrationReport]:
         """Scale variances while assigning equal mass to each declared group.
 
-        Ratios are trimmed independently inside every group. The final parallel
-        and lateral updates are arithmetic means of those per-group values, so a
+        Ratios are upper-winsorized independently inside every group. Values above
+        the selected quantile are clipped, not removed. The final parallel and
+        lateral updates are arithmetic means of those per-group values, so a
         long or densely sampled sequence cannot dominate merely by contributing
         more rows. Group IDs are canonicalized to sorted strings, and rows with
         invalid errors or a false mask value contribute to no group.
@@ -421,11 +448,6 @@ class DepthDisagreementModel:
         def ordered_mean(values: np.ndarray) -> float:
             return float(np.mean(np.sort(np.asarray(values, dtype=np.float64))))
 
-        def trimmed_mean(values: np.ndarray) -> float:
-            ordered = np.sort(np.asarray(values, dtype=np.float64))
-            upper = float(np.quantile(ordered, trim_quantile))
-            return max(float(np.mean(np.minimum(ordered, upper))), 1e-6)
-
         counts: list[int] = []
         parallel_updates: list[float] = []
         lateral_updates: list[float] = []
@@ -434,8 +456,20 @@ class DepthDisagreementModel:
         for group_id in canonical_group_ids:
             selected = group_array == group_id
             counts.append(int(np.count_nonzero(selected)))
-            parallel_updates.append(trimmed_mean(parallel_ratio[selected]))
-            lateral_updates.append(trimmed_mean(lateral_ratio[selected]))
+            parallel_updates.append(
+                upper_winsorized_mean(
+                    parallel_ratio[selected],
+                    quantile=trim_quantile,
+                    canonicalize=True,
+                )
+            )
+            lateral_updates.append(
+                upper_winsorized_mean(
+                    lateral_ratio[selected],
+                    quantile=trim_quantile,
+                    canonicalize=True,
+                )
+            )
             parallel_mse.append(ordered_mean(parallel_ratio[selected]))
             lateral_mse.append(ordered_mean(lateral_ratio[selected]))
 
