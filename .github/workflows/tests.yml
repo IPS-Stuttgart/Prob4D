@@ -33,11 +33,16 @@ jobs:
           cache: pip
           cache-dependency-path: pyproject.toml
       - name: Install development tools
-        run: python -m pip install -e ".[dev]"
+        run: |
+          python -m pip install -e ".[dev]"
+          python -m pip install "numpy>=1.24,<2.3"
       - name: Run Ruff
         id: ruff
         continue-on-error: true
-        run: python -m ruff check src tests scripts/ci 2>&1 | tee ruff-output.txt
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m ruff check src tests scripts/ci 2>&1 | tee ruff-output.txt
       - name: Upload Ruff diagnostics
         if: steps.ruff.outcome == 'failure'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -52,27 +57,30 @@ jobs:
       - name: Type-check stable provider interfaces
         id: mypy
         continue-on-error: true
-        run: >-
-          python -m mypy
-          src/prob4d/cli.py
-          src/prob4d/calibration_compatibility.py
-          src/prob4d/composition_jacobian.py
-          src/prob4d/covariance_root.py
-          src/prob4d/observation_factor_stream.py
-          src/prob4d/prediction_store.py
-          src/prob4d/prediction_store_benchmark.py
-          src/prob4d/prediction_store_cli.py
-          src/prob4d/project_identity.py
-          src/prob4d/provider_attestation.py
-          src/prob4d/provider_manifest.py
-          src/prob4d/provider_manifest_cli.py
-          src/prob4d/provider_v1.py
-          src/prob4d/provider_v2.py
-          src/prob4d/provider_v2_cli.py
-          src/prob4d/provider_v2_loading.py
-          src/prob4d/runtime_revision.py
-          src/prob4d/source_diagnostics.py
-          2>&1 | tee mypy-output.txt
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m mypy \
+            src/prob4d/cli.py \
+            src/prob4d/calibration_compatibility.py \
+            src/prob4d/composition_jacobian.py \
+            src/prob4d/covariance_root.py \
+            src/prob4d/observation_factor_stream.py \
+            src/prob4d/prediction_store.py \
+            src/prob4d/prediction_store_benchmark.py \
+            src/prob4d/prediction_store_cli.py \
+            src/prob4d/project_identity.py \
+            src/prob4d/provider_attestation.py \
+            src/prob4d/provider_manifest.py \
+            src/prob4d/provider_manifest_cli.py \
+            src/prob4d/provider_v1.py \
+            src/prob4d/provider_v2.py \
+            src/prob4d/provider_v2_cli.py \
+            src/prob4d/provider_v2_factor_bundle.py \
+            src/prob4d/provider_v2_loading.py \
+            src/prob4d/runtime_revision.py \
+            src/prob4d/source_diagnostics.py \
+            2>&1 | tee mypy-output.txt
       - name: Upload mypy diagnostics
         if: steps.mypy.outcome == 'failure'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -159,6 +167,7 @@ jobs:
           import prob4d.provider_v1
           import prob4d.provider_v2
           import prob4d.provider_v2_cli
+          import prob4d.provider_v2_factor_bundle
           import prob4d.provider_v2_loading
           import prob4d.runtime_revision
           import prob4d.source_diagnostics
