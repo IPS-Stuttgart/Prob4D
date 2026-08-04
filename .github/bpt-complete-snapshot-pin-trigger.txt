@@ -1,0 +1,1 @@
+Transport-only trigger: replace the incomplete BPT payload snapshot pin with its one-commit completion. No scientific protocol, method, group, seed, endpoint, guard, or decision threshold changes.
