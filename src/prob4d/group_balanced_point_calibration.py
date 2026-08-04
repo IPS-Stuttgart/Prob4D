@@ -7,7 +7,7 @@ from typing import Any
 
 import numpy as np
 
-from ._point_calibration import PointUncertaintyCalibrationV1
+from ._strict_calibration import PointUncertaintyCalibrationV1
 from .calibration_aggregation import (
     GROUP_BALANCED_UPPER_WINSORIZED_RATIOS_V2,
     LEGACY_GROUP_BALANCED_TRIMMED_RATIOS_V1,
@@ -53,10 +53,15 @@ def fit_group_balanced_point_uncertainty_calibration(
     group-balanced.
     """
 
-    group_definition = str(group_definition).strip()
-    if not group_definition:
-        raise ValueError("group_definition must be non-empty")
-    supplied_metadata = dict(metadata or {})
+    if not isinstance(group_definition, str) or not group_definition.strip():
+        raise ValueError("group_definition must be a non-empty string")
+    normalized_group_definition = group_definition.strip()
+    if metadata is None:
+        supplied_metadata: dict[str, Any] = {}
+    elif not isinstance(metadata, Mapping):
+        raise ValueError("metadata must be a mapping")
+    else:
+        supplied_metadata = dict(metadata)
     if _GROUP_BALANCED_METADATA_KEY in supplied_metadata:
         raise ValueError(
             f"metadata key {_GROUP_BALANCED_METADATA_KEY!r} is reserved"
@@ -77,7 +82,7 @@ def fit_group_balanced_point_uncertainty_calibration(
         lateral_normalized_mse=group_report.lateral_normalized_mse,
     )
     supplied_metadata[_GROUP_BALANCED_METADATA_KEY] = {
-        "group_definition": group_definition,
+        "group_definition": normalized_group_definition,
         "report": group_report.to_dict(),
     }
     artifact = PointUncertaintyCalibrationV1.from_model(
