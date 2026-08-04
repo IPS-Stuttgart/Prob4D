@@ -1,0 +1,100 @@
+{
+  "schema_name": "prob4d.cycle-guard-conformal-protocol",
+  "schema_version": 1,
+  "protocol_id": "prob4d-cycle-guard-conformal-v1",
+  "status": "target-frozen prospective follow-up",
+  "prior_result_boundary": {
+    "source_protocol": "prob4d-cycle-guard-normalization-v1",
+    "source_report_id": "48b31580c3274a197fcf6977f7907b4aad2de109d0ec86073ffdf1f05cb3cfa7",
+    "use_of_prior_target": "The prior target result motivated this new calibration family but is not reused for fitting, thresholding, or evaluation."
+  },
+  "scientific_hypothesis": "A finite-sample split-conformal upper threshold for the same source-only uncertainty-normalized cycle score can retain injected-edge detection while reducing worst-clean false fallback below 0.10 on fresh independently seeded targets.",
+  "calibration": {
+    "trial_count": 96,
+    "seed_start": 408260804,
+    "clean_correlation_schedule": [0.0, 0.75, 0.95],
+    "empirical_threshold_quantile": 0.95,
+    "conformal_miscoverage": 0.05,
+    "finite_sample_method": "split-conformal-upper-order-statistic-v1"
+  },
+  "target": {
+    "trials_per_scenario": 128,
+    "seed_start": 731260804,
+    "total_trial_count": 768
+  },
+  "synthetic_geometry": {
+    "num_frames": 28,
+    "height": 4,
+    "width": 6,
+    "window_size": 11,
+    "overlap": 7,
+    "representative_radius": 1.0,
+    "minimum_uncertainty_scale": 1e-12,
+    "minimum_edge_weight": 0.0
+  },
+  "bootstrap": {
+    "resamples": 2000,
+    "unit": "target trial",
+    "interval": "percentile 95%"
+  },
+  "methods": [
+    "tree",
+    "full_joint_graph",
+    "raw_guarded_graph",
+    "empirical_normalized_guard",
+    "conformal_normalized_guard"
+  ],
+  "scenarios": [
+    {
+      "scenario_id": "independent_clean",
+      "correlation": 0.0,
+      "outlier_probability": 0.0,
+      "outlier_translation": 0.0
+    },
+    {
+      "scenario_id": "correlated_clean",
+      "correlation": 0.75,
+      "outlier_probability": 0.0,
+      "outlier_translation": 0.0
+    },
+    {
+      "scenario_id": "highly_correlated_clean",
+      "correlation": 0.95,
+      "outlier_probability": 0.0,
+      "outlier_translation": 0.0
+    },
+    {
+      "scenario_id": "correlated_mild_outliers",
+      "correlation": 0.75,
+      "outlier_probability": 0.25,
+      "outlier_translation": 0.1
+    },
+    {
+      "scenario_id": "correlated_strong_outliers",
+      "correlation": 0.75,
+      "outlier_probability": 0.25,
+      "outlier_translation": 0.3
+    },
+    {
+      "scenario_id": "highly_correlated_strong_outliers",
+      "correlation": 0.95,
+      "outlier_probability": 0.25,
+      "outlier_translation": 0.3
+    }
+  ],
+  "acceptance_criteria": {
+    "strong_detection_at_least": 0.95,
+    "strong_detection_noninferiority_margin_vs_empirical": 0.05,
+    "mild_detection_at_least": 0.9,
+    "mild_detection_noninferiority_margin_vs_empirical": 0.05,
+    "worst_clean_false_fallback_at_most": 0.1,
+    "worst_clean_false_fallback_not_worse_than_empirical": true,
+    "endpoint_noninferiority_margin": 0.001,
+    "minimum_clean_coverage": 0.9,
+    "maximum_clean_covariance_trace_ratio": 1.25,
+    "finite_sample_bound_must_not_exceed_requested_miscoverage": true,
+    "all_registered_criteria_must_pass": true
+  },
+  "information_boundary": "Calibration and admission consume only source predictions, overlap alignments, declared marginal edge covariances, analytic Sim(3) composition semantics, and frozen source-side constants. Target truth is used only after estimation for evaluation.",
+  "claim_boundary": "Controlled synthetic finite-sample source-cycle calibration only; no held-out physical-object provider, BayesianPhysTwin, harmful-update, or Causal4D benefit claim."
+}

@@ -6,7 +6,9 @@ include SECURITY.md
 include pyproject.toml
 graft .github
 graft docs
+graft evidence
 graft environments
+graft protocols
 graft requirements
 graft scripts
 graft tests
