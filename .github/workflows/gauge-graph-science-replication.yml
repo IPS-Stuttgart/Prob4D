@@ -1,0 +1,138 @@
+name: Gauge graph science replication
+
+on:
+  pull_request:
+    branches:
+      - main
+      - agent/guard-causal-gauge-graph
+    paths:
+      - ".github/workflows/gauge-graph-science-replication.yml"
+      - "protocols/gauge-graph-science-replication-v1.json"
+      - "src/prob4d/causal_gauge_graph_monte_carlo.py"
+      - "src/prob4d/causal_gauge_graph.py"
+      - "src/prob4d/guarded_causal_gauge_graph.py"
+      - "src/prob4d/synthetic.py"
+      - "tests/test_causal_gauge_graph.py"
+      - "tests/test_causal_gauge_graph_monte_carlo.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gauge-graph-replication-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  replicate:
+    name: Run independently seeded confirmatory replication
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      SOURCE_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install development environment
+        run: python -m pip install -e ".[dev]"
+      - name: Check study implementation
+        run: |
+          python -m ruff check \
+            src/prob4d/causal_gauge_graph_monte_carlo.py \
+            tests/test_causal_gauge_graph_monte_carlo.py
+          python -m pytest -q \
+            tests/test_causal_gauge_graph.py \
+            tests/test_causal_gauge_graph_monte_carlo.py
+      - name: Run frozen replication
+        run: |
+          prob4d diagnostic gauge-graph-monte-carlo \
+            --output-dir outputs/gauge-graph-science-replication \
+            --calibration-trials 48 \
+            --target-trials-per-scenario 128 \
+            --calibration-seed 60260804 \
+            --target-seed 171260804 \
+            --threshold-quantile 0.95 \
+            --representative-radius 1.0 \
+            --num-frames 28 \
+            --height 4 \
+            --width 6 \
+            --window-size 11 \
+            --overlap 7 \
+            --bootstrap-resamples 2000 \
+            --source-revision "$SOURCE_REVISION"
+          cp \
+            protocols/gauge-graph-science-replication-v1.json \
+            outputs/gauge-graph-science-replication/protocol.json
+          (
+            cd outputs/gauge-graph-science-replication
+            sha256sum \
+              gauge_graph_monte_carlo_trials.csv \
+              protocol.json >> SHA256SUMS
+            sha256sum --check SHA256SUMS
+          )
+      - name: Verify scientific configuration matches the replication protocol
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          protocol = json.loads(
+              Path("protocols/gauge-graph-science-replication-v1.json").read_text()
+          )
+          report = json.loads(
+              Path(
+                  "outputs/gauge-graph-science-replication/"
+                  "gauge_graph_monte_carlo.json"
+              ).read_text()
+          )
+          configuration = report["configuration"]
+          calibration = protocol["calibration"]
+          target = protocol["target"]
+          geometry = protocol["synthetic_geometry"]
+          bootstrap = protocol["bootstrap"]
+
+          assert configuration["calibration_trials"] == calibration["trial_count"]
+          assert configuration["calibration_seed"] == calibration["seed_start"]
+          assert configuration["threshold_quantile"] == calibration["threshold_quantile"]
+          assert configuration["target_trials_per_scenario"] == target["trials_per_scenario"]
+          assert configuration["target_seed"] == target["seed_start"]
+          assert configuration["representative_radius"] == geometry["representative_radius"]
+          for name in ("num_frames", "height", "width", "window_size", "overlap"):
+              assert configuration[name] == geometry[name]
+          assert configuration["bootstrap_resamples"] == bootstrap["resamples"]
+          assert configuration["scenarios"] == protocol["scenarios"]
+          assert {
+              row["method_id"] for row in report["aggregate"]
+          } == set(protocol["estimators"])
+          report_claim = report["claim_boundary"]
+          protocol_claim = protocol["claim_boundary"]
+          for excluded_claim in (
+              "physical-object",
+              "BayesianPhysTwin",
+              "harmful-update",
+              "Causal4D",
+          ):
+              assert excluded_claim in report_claim
+              assert excluded_claim in protocol_claim
+          PY
+      - name: Publish replication summary
+        if: always()
+        run: |
+          summary=outputs/gauge-graph-science-replication/gauge_graph_monte_carlo.md
+          if [[ -f "$summary" ]]; then
+            cat "$summary" >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload replication evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: gauge-graph-science-replication
+          path: outputs/gauge-graph-science-replication/
+          if-no-files-found: warn
+          retention-days: 90
