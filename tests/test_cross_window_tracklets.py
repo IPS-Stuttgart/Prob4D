@@ -1,3 +1,5 @@
+import json
+
 import numpy as np
 import pytest
 
@@ -157,6 +159,35 @@ def test_cross_window_association_uses_global_covariance_when_supplied() -> None
     assert loose_candidate.normalized_rms < tight_candidate.normalized_rms
 
 
+def test_covariance_score_uses_reduced_mahalanobis_rms() -> None:
+    left = make_tracklets(
+        "left",
+        [np.array([[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]])],
+    )
+    right = make_tracklets(
+        "right",
+        [np.array([[1.0, 1.0, 1.0], [1.0, 1.0, 1.0]])],
+    )
+    half_identity = np.repeat((0.5 * np.eye(3))[None], 2, axis=0)
+    result = associate_cross_window_tracklets(
+        left,
+        right,
+        left_global_from_local=Sim3.identity(),
+        right_global_from_local=Sim3.identity(),
+        configuration=CrossWindowAssociationConfig(
+            covariance_floor_m2=1e-15,
+            maximum_weighted_rms_m=2.0,
+            maximum_shared_frame_distance_m=2.0,
+            minimum_compatibility_score=0.0,
+            minimum_score_margin=0.0,
+        ),
+        left_global_covariance_m2=half_identity,
+        right_global_covariance_m2=half_identity,
+    )
+
+    assert result.candidates[0].normalized_rms == pytest.approx(1.0)
+
+
 def test_nonshared_causal_suffix_does_not_change_association() -> None:
     left_short = make_tracklets(
         "left-short",
@@ -235,6 +266,8 @@ def test_cross_window_configuration_rejects_boolean_numeric_aliases() -> None:
         CrossWindowAssociationConfig(minimum_shared_frames=True)
     with pytest.raises(ValueError, match="minimum_score_margin"):
         CrossWindowAssociationConfig(minimum_score_margin=False)
+    with pytest.raises(ValueError, match="maximum_spatial_candidate_pairs"):
+        CrossWindowAssociationConfig(maximum_spatial_candidate_pairs=True)
 
 
 def test_spatial_gate_avoids_exhaustive_distractor_pairs() -> None:
@@ -271,3 +304,108 @@ def test_spatial_gate_avoids_exhaustive_distractor_pairs() -> None:
     assert result.spatially_rejected_pair_count == 4
     assert result.evaluated_track_pair_count == 2
     assert result.accepted_pairs == ((0, 0), (1, 1))
+
+
+def test_two_axis_chunking_is_result_and_identity_invariant() -> None:
+    left = make_tracklets(
+        "left",
+        [
+            np.array([[0.0, 0.0, 1.0], [0.0, 0.0, 1.0]]),
+            np.array([[1.0, 0.0, 1.0], [1.0, 0.0, 1.0]]),
+            np.array([[2.0, 0.0, 1.0], [2.0, 0.0, 1.0]]),
+        ],
+    )
+    right = make_tracklets(
+        "right",
+        [
+            np.array([[2.01, 0.0, 1.0], [2.01, 0.0, 1.0]]),
+            np.array([[0.01, 0.0, 1.0], [0.01, 0.0, 1.0]]),
+            np.array([[1.01, 0.0, 1.0], [1.01, 0.0, 1.0]]),
+        ],
+    )
+    settings = {
+        "left_global_from_local": Sim3.identity(),
+        "right_global_from_local": Sim3.identity(),
+        "configuration": CrossWindowAssociationConfig(
+            maximum_shared_frame_distance_m=0.1,
+            maximum_weighted_rms_m=0.05,
+        ),
+    }
+
+    small = associate_cross_window_tracklets(
+        left,
+        right,
+        candidate_chunk_size=1,
+        **settings,
+    )
+    large = associate_cross_window_tracklets(
+        left,
+        right,
+        candidate_chunk_size=128,
+        **settings,
+    )
+
+    assert small.accepted_pairs == ((0, 1), (1, 2), (2, 0))
+    assert small.to_dict() == large.to_dict()
+    assert small.result_id == large.result_id
+    assert json.loads(json.dumps(small.to_dict()))["result_id"] == small.result_id
+
+
+def test_spatial_candidate_cap_fails_closed() -> None:
+    left = make_tracklets(
+        "left",
+        [
+            np.array([[0.0, 0.0, 1.0], [0.0, 0.0, 1.0]]),
+            np.array([[0.01, 0.0, 1.0], [0.01, 0.0, 1.0]]),
+        ],
+    )
+    right = make_tracklets(
+        "right",
+        [
+            np.array([[0.0, 0.0, 1.0], [0.0, 0.0, 1.0]]),
+            np.array([[0.01, 0.0, 1.0], [0.01, 0.0, 1.0]]),
+        ],
+    )
+
+    with pytest.raises(ValueError, match="maximum_spatial_candidate_pairs"):
+        associate_cross_window_tracklets(
+            left,
+            right,
+            left_global_from_local=Sim3.identity(),
+            right_global_from_local=Sim3.identity(),
+            configuration=CrossWindowAssociationConfig(
+                maximum_shared_frame_distance_m=0.1,
+                maximum_weighted_rms_m=0.05,
+                maximum_spatial_candidate_pairs=3,
+            ),
+            candidate_chunk_size=1,
+        )
+
+
+def test_exhaustive_candidate_mode_is_also_capped() -> None:
+    left = make_tracklets(
+        "left",
+        [
+            np.array([[0.0, 0.0, 1.0], [0.0, 0.0, 1.0]]),
+            np.array([[1.0, 0.0, 1.0], [1.0, 0.0, 1.0]]),
+        ],
+    )
+    right = make_tracklets(
+        "right",
+        [
+            np.array([[0.0, 0.0, 1.0], [0.0, 0.0, 1.0]]),
+            np.array([[1.0, 0.0, 1.0], [1.0, 0.0, 1.0]]),
+        ],
+    )
+
+    with pytest.raises(ValueError, match="maximum_spatial_candidate_pairs"):
+        associate_cross_window_tracklets(
+            left,
+            right,
+            left_global_from_local=Sim3.identity(),
+            right_global_from_local=Sim3.identity(),
+            configuration=CrossWindowAssociationConfig(
+                maximum_shared_frame_distance_m=None,
+                maximum_spatial_candidate_pairs=3,
+            ),
+        )
