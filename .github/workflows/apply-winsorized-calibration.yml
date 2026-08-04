@@ -1,6 +1,11 @@
 name: Apply winsorized calibration semantics
 
 on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/apply-winsorized-calibration.yml"
+      - ".github/patches/winsorized-calibration.patch.gz.b64"
   push:
     branches:
       - agent/name-winsorized-calibration-semantics
@@ -21,6 +26,7 @@ jobs:
       - name: Check out branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: agent/name-winsorized-calibration-semantics
           fetch-depth: 0
           persist-credentials: false
 
