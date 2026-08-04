@@ -8,7 +8,10 @@ import pytest
 from prob4d.alignment import AlignmentResult, estimate_sim3_robust
 from prob4d.cross_fitted_disagreement import CrossFittedDisagreementReport
 from prob4d.sim3 import Sim3
-from prob4d.uncertainty import CalibrationReport, GroupBalancedCalibrationReport
+from prob4d.uncertainty import (
+    CalibrationReport,
+    GroupBalancedCalibrationReport,
+)
 
 
 _INTEGER_ALIASES: tuple[object, ...] = (
