@@ -14,11 +14,15 @@ from prob4d.provider_attestation import (
 )
 
 
-def _runtime(*, source: str = "source_checkout") -> dict[str, object]:
+def _runtime(
+    *,
+    revision: str = "a" * 40,
+    source: str = "source_checkout",
+) -> dict[str, object]:
     if source == "source_checkout":
         return {
-            "expected_revision": "a" * 40,
-            "observed_revision": "a" * 40,
+            "expected_revision": revision,
+            "observed_revision": revision,
             "source": source,
             "clean_checkout": True,
             "matched": True,
@@ -26,15 +30,15 @@ def _runtime(*, source: str = "source_checkout") -> dict[str, object]:
         }
     if source == "deployment_environment":
         return {
-            "expected_revision": "a" * 40,
-            "observed_revision": "a" * 40,
+            "expected_revision": revision,
+            "observed_revision": revision,
             "source": source,
             "clean_checkout": None,
             "matched": True,
             "independently_verified": False,
         }
     return {
-        "expected_revision": "a" * 40,
+        "expected_revision": revision,
         "observed_revision": None,
         "source": "unavailable",
         "clean_checkout": None,
@@ -43,12 +47,15 @@ def _runtime(*, source: str = "source_checkout") -> dict[str, object]:
     }
 
 
-def _calibrated_attestation() -> dict[str, object]:
+def _calibrated_attestation(
+    *,
+    revision: str = "a" * 40,
+) -> dict[str, object]:
     return build_provider_attestation(
         provider_manifest=provider.prob4d_provider_manifest(
-            provider_revision="a" * 40
+            provider_revision=revision
         ),
-        provider_revision="a" * 40,
+        provider_revision=revision,
         export_mode="calibrated",
         calibration_compatibility_validated=True,
         calibration_artifact_ids={
@@ -57,7 +64,7 @@ def _calibrated_attestation() -> dict[str, object]:
         },
         covariance_root_mode="canonical_eigenspaces",
         composition_jacobian_mode="analytic",
-        runtime_revision=_runtime(),
+        runtime_revision=_runtime(revision=revision),
     )
 
 
@@ -158,4 +165,70 @@ def test_attestation_schema_rejects_undeclared_fields() -> None:
     attestation["unexpected"] = True
 
     with pytest.raises(ValueError, match="fields changed"):
+        validate_provider_attestation(attestation, source_revision="a" * 40)
+
+
+def test_calibration_digest_is_not_coerced_from_an_integer() -> None:
+    attestation = _calibrated_attestation()
+    attestation["calibration_artifact_ids"]["gauge_artifact_id"] = int("1" * 64)
+
+    with pytest.raises(ValueError, match="calibration gauge_artifact_id must be a string"):
+        validate_provider_attestation(attestation, source_revision="a" * 40)
+
+
+def test_runtime_revision_is_not_coerced_from_an_integer() -> None:
+    revision = "1" * 40
+    attestation = _calibrated_attestation(revision=revision)
+    attestation["runtime_revision"]["observed_revision"] = int(revision)
+
+    with pytest.raises(ValueError, match="runtime observed revision must be a string"):
+        validate_provider_attestation(attestation, source_revision=revision)
+
+
+def test_builder_rejects_truthy_non_boolean_compatibility_flag() -> None:
+    with pytest.raises(ValueError, match="calibration compatibility flag must be Boolean"):
+        build_provider_attestation(
+            provider_manifest=provider.prob4d_provider_manifest(
+                provider_revision="a" * 40
+            ),
+            provider_revision="a" * 40,
+            export_mode="calibrated",
+            calibration_compatibility_validated="false",  # type: ignore[arg-type]
+            calibration_artifact_ids={
+                "gauge_artifact_id": "1" * 64,
+                "point_artifact_id": "2" * 64,
+            },
+            covariance_root_mode="canonical_eigenspaces",
+            composition_jacobian_mode="analytic",
+            runtime_revision=_runtime(),
+        )
+
+
+def test_manifest_hashing_rejects_nested_non_string_mapping_keys() -> None:
+    with pytest.raises(ValueError, match="object keys must be strings"):
+        compute_provider_manifest_id(
+            {
+                "metadata": {
+                    1: "must not be normalized into a string key",
+                },
+            }
+        )
+
+
+def test_attestation_schema_version_requires_an_exact_integer() -> None:
+    attestation = _calibrated_attestation()
+    attestation["schema_version"] = 1.0
+
+    with pytest.raises(ValueError, match="schema version must be an integer"):
+        validate_provider_attestation(attestation, source_revision="a" * 40)
+
+
+def test_manifest_schema_versions_reject_boolean_integer_aliases() -> None:
+    attestation = _calibrated_attestation()
+    manifest = attestation["provider_manifest"]
+    manifest["artifact_schema_versions"]["ObservationBeliefV1"] = True
+    manifest["manifest_id"] = compute_provider_manifest_id(manifest)
+    attestation["provider_manifest_id"] = manifest["manifest_id"]
+
+    with pytest.raises(ValueError, match="ObservationBeliefV1 schema version must be an integer"):
         validate_provider_attestation(attestation, source_revision="a" * 40)
