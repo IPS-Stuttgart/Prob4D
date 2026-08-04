@@ -19,6 +19,11 @@ _ROUTES: Final[dict[Route, tuple[str, str, str]]] = {
         "main",
         "run the pinned recursive-fusion benchmark",
     ),
+    ("diagnostic", "cycle-guard-group-robust"): (
+        "prob4d.cycle_guard_group_robust_monte_carlo",
+        "main",
+        "evaluate finite-sample worst-group source cycle calibration",
+    ),
     ("diagnostic", "cycle-guard-monte-carlo"): (
         "prob4d.cycle_guard_monte_carlo",
         "main",
