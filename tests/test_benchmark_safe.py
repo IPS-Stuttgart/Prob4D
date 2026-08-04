@@ -9,11 +9,8 @@ import pytest
 from test_io import write_problem_bundle
 
 from prob4d.benchmark import _write_fused_prediction, fuse_prediction_bundle_methods
-from prob4d.benchmark_safe import (
-    _sha256_file,
-    _validate_existing_outputs,
-    main as benchmark_main,
-)
+from prob4d.benchmark_safe import _sha256_file, _validate_existing_outputs
+from prob4d.benchmark_safe import main as benchmark_main
 from prob4d.io import load_prediction_bundle
 from prob4d.synthetic import make_synthetic_problem
 

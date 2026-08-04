@@ -3,6 +3,8 @@
 Provider v1 retains the historical central-finite-difference implementation.
 Provider v2 selects the analytic implementation through a task-local context,
 so importing the new provider cannot silently reinterpret frozen v1 artifacts.
+Explicit array annotations also keep the Python-3.10-targeted static check stable
+across supported NumPy stub generations.
 """
 
 from __future__ import annotations
@@ -87,8 +89,8 @@ def analytic_sim3_compose_jacobians(
     parent_right = so3_right_jacobian(parent_rotation)
     relative_right = so3_right_jacobian(relative_rotation)
 
-    parent_jacobian = np.zeros((7, 7), dtype=np.float64)
-    relative_jacobian = np.zeros((7, 7), dtype=np.float64)
+    parent_jacobian: np.ndarray = np.zeros((7, 7), dtype=np.float64)
+    relative_jacobian: np.ndarray = np.zeros((7, 7), dtype=np.float64)
     parent_jacobian[0, 0] = 1.0
     relative_jacobian[0, 0] = 1.0
     parent_jacobian[1:4, 1:4] = (

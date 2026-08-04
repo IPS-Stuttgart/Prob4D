@@ -26,7 +26,7 @@ MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA_V1 = MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA
 MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA_V2 = "prob4d.motioncrafter-model.v2"
 POINT_UNCERTAINTY_COVARIANCE_METHOD = "depth_disagreement_anisotropic_v1"
 
-_MODEL_CONFIG_KEYS_V1 = (
+_MODEL_CONFIG_KEYS_V1: tuple[str, ...] = (
     "model_type",
     "unet_path",
     "vae_path",
@@ -37,7 +37,7 @@ _MODEL_CONFIG_KEYS_V1 = (
     "seed",
     "frame_stride",
 )
-_MODEL_CONFIG_KEYS_V2 = (*_MODEL_CONFIG_KEYS_V1, "seed_policy")
+_MODEL_CONFIG_KEYS_V2: tuple[str, ...] = (*_MODEL_CONFIG_KEYS_V1, "seed_policy")
 
 
 class CalibrationCompatibilityError(ValueError):
@@ -101,6 +101,7 @@ def motioncrafter_model_identifier(manifest: Mapping[str, Any]) -> str:
     seed_policy = str(
         config.get("seed_policy", MOTIONCRAFTER_SEED_POLICY_LEGACY_COMMON)
     )
+    config_keys: tuple[str, ...]
     if seed_policy == MOTIONCRAFTER_SEED_POLICY_LEGACY_COMMON:
         schema = MOTIONCRAFTER_MODEL_IDENTIFIER_SCHEMA_V1
         config_keys = _MODEL_CONFIG_KEYS_V1

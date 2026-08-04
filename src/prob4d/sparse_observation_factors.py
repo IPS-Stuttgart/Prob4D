@@ -11,15 +11,15 @@ statistics while reducing Jacobian storage from ``O(MK)`` to ``O(M)``.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, TypeAlias
 
 import numpy as np
 from numpy.typing import NDArray
 
 from .observation_factors import ObservationFactorBundle
 
-FloatArray = NDArray[np.floating]
-IntArray = NDArray[np.integer]
+FloatArray: TypeAlias = NDArray[np.floating[Any]]
+IntArray: TypeAlias = NDArray[np.integer[Any]]
 
 
 def _readonly(value: np.ndarray, *, dtype: Any | None = None) -> np.ndarray:
@@ -221,7 +221,7 @@ class SparseStackedObservationFactors:
     def dense_gauge_jacobian(self) -> FloatArray:
         """Materialize the historical dense design as a mutable compatibility copy."""
 
-        result = np.zeros(
+        result: FloatArray = np.zeros(
             (self.observation_count, 3, self.dense_gauge_dimension),
             dtype=np.float64,
         )
@@ -235,6 +235,7 @@ class SparseStackedObservationFactors:
         """Apply one stacked or block-shaped gauge perturbation to every row."""
 
         delta = np.asarray(gauge_delta, dtype=np.float64)
+        blocks: FloatArray
         if delta.shape == (self.dense_gauge_dimension,):
             blocks = delta.reshape(self.gauge_count, 7)
         elif delta.shape == (self.gauge_count, 7):
@@ -256,7 +257,9 @@ class SparseStackedObservationFactors:
     def gauge_marginal_covariance_m2(self) -> FloatArray:
         """Return each row's ``J Sigma_gg J^T`` contribution."""
 
-        blocks = np.empty((self.observation_count, 7, 7), dtype=np.float64)
+        blocks: FloatArray = np.empty(
+            (self.observation_count, 7, 7), dtype=np.float64
+        )
         for gauge_index in range(self.gauge_count):
             selected = self.gauge_indices == gauge_index
             start = 7 * gauge_index
@@ -264,7 +267,7 @@ class SparseStackedObservationFactors:
                 start : start + 7,
                 start : start + 7,
             ]
-        result = np.einsum(
+        result: FloatArray = np.einsum(
             "nia,nab,njb->nij",
             self.local_gauge_jacobian,
             blocks,
@@ -322,9 +325,7 @@ def stack_sparse_observation_factors(
         )
         marginal_covariances.append(linearized.marginal_world_covariance_m2[selected])
         local_jacobians.append(linearized.gauge_jacobian[selected])
-        gauge_indices.append(
-            np.full(selected_count, gauge_index, dtype=np.int64)
-        )
+        gauge_indices.append(np.full(selected_count, gauge_index, dtype=np.int64))
         association_probabilities.append(factor.association_probability[selected])
         prior_reliabilities.append(factor.prior_reliability[selected])
         prior_nominal_probabilities.append(
