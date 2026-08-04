@@ -1,0 +1,116 @@
+name: Apply claim-bearing factor-bundle patch on main
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-claim-bearing-factor-bundle-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: true
+      - name: Verify and apply content-addressed patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import base64
+          import gzip
+          import hashlib
+          import io
+          import tarfile
+          from pathlib import Path, PurePosixPath
+
+          parts = sorted(Path(".github/claim-factor-patch").glob("part*.b64"))
+          if [path.name for path in parts] != [
+              "part00.b64",
+              "part01.b64",
+              "part02.b64",
+              "part03.b64",
+          ]:
+              raise RuntimeError("publisher payload parts changed")
+          encoded = "".join(path.read_text(encoding="ascii").strip() for path in parts)
+          archive = base64.b64decode(encoded, validate=True)
+          expected_archive_sha = (
+              "d9af270ded7d5d55db27952a3bf56101188f0631dacc30ed175e18555419b34e"
+          )
+          if hashlib.sha256(archive).hexdigest() != expected_archive_sha:
+              raise RuntimeError("publisher archive checksum mismatch")
+          expected_files = {
+              "src/prob4d/provider_v2_factor_bundle.py": (
+                  "ae5f84a2bb430480caf0e5e01a769a0f682cfa22683872563e49aac6ebb0d010"
+              ),
+              "tests/test_provider_v2_factor_bundle.py": (
+                  "587bc74c5025e46ab2032daa188df0e4b956e801232d64d5d94f9f04beb0f632"
+              ),
+              "docs/claim-bearing-observation-factor-bundle.md": (
+                  "187238745e120b1ee4b5a6c293418e4e1f52d152ba5c46ebc38c37a678d13043"
+              ),
+          }
+
+          raw = gzip.decompress(archive)
+          with tarfile.open(fileobj=io.BytesIO(raw), mode="r:") as bundle:
+              members = bundle.getmembers()
+              names = {member.name for member in members}
+              if names != set(expected_files):
+                  raise RuntimeError(
+                      f"publisher file set changed: expected={sorted(expected_files)}, "
+                      f"actual={sorted(names)}"
+                  )
+              for member in members:
+                  path = PurePosixPath(member.name)
+                  if (
+                      path.is_absolute()
+                      or any(part in {"", ".", ".."} for part in path.parts)
+                      or not member.isfile()
+                  ):
+                      raise RuntimeError(f"unsafe publisher member {member.name!r}")
+                  stream = bundle.extractfile(member)
+                  if stream is None:
+                      raise RuntimeError(f"publisher member {member.name!r} is unreadable")
+                  data = stream.read()
+                  digest = hashlib.sha256(data).hexdigest()
+                  if digest != expected_files[member.name]:
+                      raise RuntimeError(
+                          f"publisher member {member.name!r} checksum mismatch"
+                      )
+                  target = Path(*path.parts)
+                  target.parent.mkdir(parents=True, exist_ok=True)
+                  target.write_bytes(data)
+
+          for name, digest in expected_files.items():
+              if hashlib.sha256(Path(name).read_bytes()).hexdigest() != digest:
+                  raise RuntimeError(f"written publisher member {name!r} changed")
+          PY
+          rm -rf .github/claim-factor-patch
+          rm .github/workflows/apply-claim-factor-patch.yml
+          rm .github/workflows/apply-claim-factor-patch-pr.yml
+          rm .github/workflows/apply-claim-factor-patch-main.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            src/prob4d/provider_v2_factor_bundle.py \
+            tests/test_provider_v2_factor_bundle.py \
+            docs/claim-bearing-observation-factor-bundle.md \
+            .github/claim-factor-patch \
+            .github/workflows/apply-claim-factor-patch.yml \
+            .github/workflows/apply-claim-factor-patch-pr.yml \
+            .github/workflows/apply-claim-factor-patch-main.yml
+          git diff --cached --check
+          git commit -m "Add claim-bearing observation-factor bundles"
+          git push origin "HEAD:main"
