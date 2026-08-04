@@ -10,15 +10,12 @@ on:
       - "src/prob4d/cross_fitted_disagreement.py"
       - "src/prob4d/uncertainty.py"
       - "tests/test_scientific_scalar_validation.py"
-  push:
-    branches:
-      - agent/harden-scientific-scalar-validation
 
 permissions:
   contents: read
 
 concurrency:
-  group: scientific-scalar-one-shot-${{ github.ref }}
+  group: scientific-scalar-one-shot-validation
   cancel-in-progress: true
 
 env:
