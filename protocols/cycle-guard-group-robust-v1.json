@@ -1,0 +1,163 @@
+{
+  "schema_name": "prob4d.group-robust-cycle-guard-protocol",
+  "schema_version": 1,
+  "protocol_id": "prob4d-group-robust-cycle-guard-v1",
+  "status": "target-frozen-controlled-synthetic-experiment",
+  "parent_result_id": "prob4d-cycle-guard-normalization-v1",
+  "issue": 82,
+  "scientific_hypothesis": "A finite-sample threshold equal to the maximum of source-stratum split-conformal thresholds can reduce worst registered clean false fallback to at most 0.10 while retaining detection of precise biased edges.",
+  "information_boundary": {
+    "allowed": [
+      "alignment transforms",
+      "source-side covariance",
+      "overlap correspondence and residual diagnostics",
+      "predeclared development and calibration seeds"
+    ],
+    "forbidden": [
+      "target truth",
+      "target estimator error",
+      "hidden synthetic correlation as a method input",
+      "BayesianPhysTwin innovation",
+      "association probability",
+      "downstream physical residual"
+    ]
+  },
+  "observable_source_feature": {
+    "name": "median_cycle_minkowski_uncertainty_scale",
+    "definition": "Median across directed source cycles of the representative-point Minkowski root uncertainty scale already used by the uncertainty-normalized cycle statistic.",
+    "uses_hidden_correlation": false
+  },
+  "development": {
+    "trial_count": 96,
+    "seed_start": 380260804,
+    "purpose": "Freeze tertile boundaries of the observable source uncertainty feature only.",
+    "simulation_balance": "Round-robin across the three registered clean generator conditions; condition labels are retained for audit but never passed to the stratum map or guard."
+  },
+  "calibration": {
+    "trial_count": 192,
+    "seed_start": 480260804,
+    "conformal_alpha": 0.05,
+    "tie_policy": "nonrandomized",
+    "order_statistic": "ceil((n+1)*(1-alpha))",
+    "minimum_cases_per_observable_stratum": 20,
+    "primary_threshold": "maximum of the low, medium, and high observable-stratum conformal thresholds",
+    "controls": [
+      "raw pooled empirical higher 0.95 quantile",
+      "normalized pooled empirical higher 0.95 quantile",
+      "normalized pooled split-conformal threshold",
+      "normalized observable-stratum-specific split-conformal threshold"
+    ],
+    "sample_size_sensitivity": [
+      48,
+      96,
+      192
+    ]
+  },
+  "target": {
+    "trials_per_scenario": 128,
+    "seed_start": 571260804,
+    "uses_prior_study_seeds": false,
+    "uses_development_or_calibration_seeds": false,
+    "uses_target_truth_for_threshold_or_method_selection": false
+  },
+  "synthetic_geometry": {
+    "num_frames": 28,
+    "height": 4,
+    "width": 6,
+    "window_size": 11,
+    "overlap": 7,
+    "representative_radius": 1.0,
+    "minimum_uncertainty_scale": 1e-12
+  },
+  "scenarios": [
+    {
+      "scenario_id": "independent_clean",
+      "correlation": 0.0,
+      "outlier_probability": 0.0,
+      "outlier_translation": 0.0
+    },
+    {
+      "scenario_id": "correlated_clean",
+      "correlation": 0.75,
+      "outlier_probability": 0.0,
+      "outlier_translation": 0.0
+    },
+    {
+      "scenario_id": "highly_correlated_clean",
+      "correlation": 0.95,
+      "outlier_probability": 0.0,
+      "outlier_translation": 0.0
+    },
+    {
+      "scenario_id": "correlated_mild_outliers",
+      "correlation": 0.75,
+      "outlier_probability": 0.25,
+      "outlier_translation": 0.1
+    },
+    {
+      "scenario_id": "correlated_strong_outliers",
+      "correlation": 0.75,
+      "outlier_probability": 0.25,
+      "outlier_translation": 0.3
+    },
+    {
+      "scenario_id": "highly_correlated_strong_outliers",
+      "correlation": 0.95,
+      "outlier_probability": 0.25,
+      "outlier_translation": 0.3
+    }
+  ],
+  "methods": [
+    "tree",
+    "full_joint_graph",
+    "raw_guarded_graph",
+    "pooled_empirical_normalized_guard",
+    "pooled_conformal_normalized_guard",
+    "stratum_conformal_normalized_guard",
+    "worst_group_conformal_normalized_guard"
+  ],
+  "primary_method": "worst_group_conformal_normalized_guard",
+  "registered_primary_endpoints": [
+    "strong_outlier_detection_rate",
+    "mild_outlier_detection_rate",
+    "worst_clean_false_fallback_rate",
+    "exact_tree_fallback_verified"
+  ],
+  "acceptance_criteria": {
+    "strong_detection_at_least": 0.95,
+    "previous_normalized_strong_detection": 1.0,
+    "strong_detection_noninferiority_margin": 0.05,
+    "mild_detection_at_least": 0.9,
+    "previous_normalized_mild_detection": 1.0,
+    "mild_detection_noninferiority_margin": 0.05,
+    "worst_clean_false_fallback_at_most": 0.1,
+    "exact_tree_fallback_required": true,
+    "all_criteria_required": true
+  },
+  "secondary_endpoints": [
+    "endpoint_displacement_rmse",
+    "mean_window_displacement_rmse",
+    "p90_window_displacement_rmse",
+    "drift_slope",
+    "coverage_95",
+    "mean_normalized_nees",
+    "mean_normalized_covariance_trace",
+    "paired_endpoint_delta_vs_tree",
+    "fallback_by_observable_source_stratum",
+    "calibration_sample_size_sensitivity"
+  ],
+  "bootstrap": {
+    "resamples": 2000,
+    "unit": "independent target trial",
+    "paired_within_trial": true,
+    "interval": 0.95
+  },
+  "outlier_semantics": {
+    "edge_type": "direct skip edge with an available directed two-edge path",
+    "reported_covariance_changed": false,
+    "reported_overlap_residual_changed": false,
+    "observable_source_feature_changed_by_translation_injection": false
+  },
+  "promotion_boundary": "A passing result remains experimental and only permits a separately sealed held-out physical-object/session evaluation.",
+  "claim_boundary": "Controlled synthetic source-cycle admission only; no held-out physical-object provider, BayesianPhysTwin, harmful-update, or Causal4D benefit claim."
+}
