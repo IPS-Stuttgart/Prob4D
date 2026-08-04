@@ -1,0 +1,188 @@
+name: Fix PR 96 claim-boundary authentication
+
+on:
+  pull_request:
+    branches: [main]
+    paths: [.github/workflows/fix-pr96-claim-boundary.yml]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fix-pr96-claim-boundary
+  cancel-in-progress: true
+
+jobs:
+  repair:
+    if: >-
+      github.actor != 'github-actions[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'agent/replayable-selection-evidence'
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 20
+    steps:
+      - name: Check out writable branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: agent/replayable-selection-evidence
+          fetch-depth: 0
+          persist-credentials: true
+          clean: true
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Authenticate the claim boundary and canonical schema version
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              target = Path(path)
+              text = target.read_text(encoding='utf-8')
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(
+                      f'expected exactly one repair target in {path}, found {count}'
+                  )
+              target.write_text(text.replace(old, new), encoding='utf-8')
+
+          replace_once(
+              'src/prob4d/_selection_evidence_common.py',
+              '''SELECTION_REPLAY_SCHEMA = "prob4d.selection-replay"
+          FINAL_TIE_BREAK = "complexity-rank-then-candidate-id"
+          ''',
+              '''SELECTION_REPLAY_SCHEMA = "prob4d.selection-replay"
+          SELECTION_CLAIM_BOUNDARY = (
+              "Selection uses retained calibration groups only. Deployment decisions "
+              "record guard outputs and exact fallback identities but are not selection "
+              "inputs. Physical benefit requires a separately frozen target analysis."
+          )
+          FINAL_TIE_BREAK = "complexity-rank-then-candidate-id"
+          ''',
+          )
+          replace_once(
+              'src/prob4d/selection_evidence.py',
+              '''    FINAL_TIE_BREAK,
+              SELECTION_EVIDENCE_SCHEMA,
+          ''',
+              '''    FINAL_TIE_BREAK,
+              SELECTION_CLAIM_BOUNDARY,
+              SELECTION_EVIDENCE_SCHEMA,
+          ''',
+          )
+          replace_once(
+              'src/prob4d/selection_evidence.py',
+              '''            "claim_boundary": (
+                          "Selection uses retained calibration groups only. Deployment decisions "
+                          "record guard outputs and exact fallback identities but are not selection "
+                          "inputs. Physical benefit requires a separately frozen target analysis."
+                      ),
+          ''',
+              '''            "claim_boundary": SELECTION_CLAIM_BOUNDARY,
+          ''',
+          )
+          replace_once(
+              'src/prob4d/selection_evidence.py',
+              '''    if mapping["schema_version"] != SELECTION_EVIDENCE_VERSION:
+                  raise ValueError("unsupported selection evidence version")
+              if type(mapping["claim_boundary"]) is not str:
+                  raise ValueError("claim_boundary must be a string")
+          ''',
+              '''    if (
+                  type(mapping["schema_version"]) is not int
+                  or mapping["schema_version"] != SELECTION_EVIDENCE_VERSION
+              ):
+                  raise ValueError("unsupported selection evidence version")
+              if mapping["claim_boundary"] != SELECTION_CLAIM_BOUNDARY:
+                  raise ValueError("selection evidence claim_boundary mismatch")
+          ''',
+          )
+          replace_once(
+              'src/prob4d/selection_evidence.py',
+              '''    except json.JSONDecodeError as error:
+                  raise ValueError("selection evidence is not valid JSON") from error
+          ''',
+              '''    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+                  raise ValueError("selection evidence is unreadable or invalid JSON") from error
+          ''',
+          )
+          replace_once(
+              'src/prob4d/selection_evidence.py',
+              '''    "FINAL_TIE_BREAK",
+              "MetricConstraintV1",
+          ''',
+              '''    "FINAL_TIE_BREAK",
+              "SELECTION_CLAIM_BOUNDARY",
+              "MetricConstraintV1",
+          ''',
+          )
+          replace_once(
+              'tests/test_selection_evidence.py',
+              '''def test_incomplete_calibration_matrix_is_rejected() -> None:
+          ''',
+              '''def test_tampered_claim_boundary_is_rejected() -> None:
+              payload = copy.deepcopy(bundle().to_dict())
+              payload["claim_boundary"] = "weakened claim boundary"
+
+              with pytest.raises(ValueError, match="claim_boundary mismatch"):
+                  selection_evidence_from_dict(payload)
+
+
+          def test_non_integer_schema_version_is_rejected() -> None:
+              payload = copy.deepcopy(bundle().to_dict())
+              payload["schema_version"] = 2.0
+
+              with pytest.raises(ValueError, match="unsupported selection evidence version"):
+                  selection_evidence_from_dict(payload)
+
+
+          def test_incomplete_calibration_matrix_is_rejected() -> None:
+          ''',
+          )
+          PY
+      - name: Validate tamper and replay contracts
+        run: |
+          python -m pip install -e '.[dev]'
+          python -m ruff check --fix \
+            src/prob4d/_selection_evidence_common.py \
+            src/prob4d/_selection_evidence_replay.py \
+            src/prob4d/selection_evidence.py \
+            tests/test_selection_evidence.py
+          python -m ruff format \
+            src/prob4d/_selection_evidence_common.py \
+            src/prob4d/_selection_evidence_replay.py \
+            src/prob4d/selection_evidence.py \
+            tests/test_selection_evidence.py
+          python -m ruff check \
+            src/prob4d/_selection_evidence_common.py \
+            src/prob4d/_selection_evidence_records.py \
+            src/prob4d/_selection_evidence_replay.py \
+            src/prob4d/selection_evidence.py \
+            tests/test_selection_evidence.py
+          python -m mypy \
+            src/prob4d/_selection_evidence_common.py \
+            src/prob4d/_selection_evidence_records.py \
+            src/prob4d/_selection_evidence_replay.py \
+            src/prob4d/selection_evidence.py
+          python -m pytest -q tests/test_selection_evidence.py
+          git diff --check
+      - name: Publish ordinary source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/fix-pr96-claim-boundary.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            src/prob4d/_selection_evidence_common.py \
+            src/prob4d/_selection_evidence_replay.py \
+            src/prob4d/selection_evidence.py \
+            tests/test_selection_evidence.py
+          git diff --cached --check
+          git commit -m 'Authenticate replayable selection claim boundaries'
+          git push origin HEAD:agent/replayable-selection-evidence
