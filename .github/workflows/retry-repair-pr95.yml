@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: retry-repair-pr95
+  group: repair-pr95
   cancel-in-progress: true
 
 jobs:
@@ -22,7 +22,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Check out writable branch
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: agent/material-identity-hypothesis-stream
           fetch-depth: 0
@@ -37,7 +37,7 @@ jobs:
           git fetch origin main
           git merge --no-edit origin/main
       - name: Set up Python 3.12
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
           cache: pip
@@ -75,7 +75,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git rm .github/workflows/retry-repair-pr95.yml
+          git rm \
+            .github/workflows/hosted-repair-pr95.yml \
+            .github/workflows/retry-repair-pr95.yml
           git add -u
           git diff --cached --check
           git commit -m 'Harden material-identity provenance and validation'
