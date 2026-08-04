@@ -1,0 +1,71 @@
+name: Cross-window tracklet association
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/cross-window-tracklets.yml"
+      - "docs/cross-window-tracklet-association.md"
+      - "src/prob4d/cross_window_tracklets.py"
+      - "src/prob4d/causal_tracklets.py"
+      - "src/prob4d/sim3.py"
+      - "tests/test_cross_window_tracklets.py"
+      - "tests/test_causal_tracklets.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cross-window-tracklets-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  focused-contract:
+    name: Source-only association contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install development environment
+        run: python -m pip install -e ".[dev]"
+      - name: Check focused source quality
+        run: |
+          python -m ruff check \
+            src/prob4d/cross_window_tracklets.py \
+            tests/test_cross_window_tracklets.py
+          python -m mypy src/prob4d/cross_window_tracklets.py
+      - name: Run association and producer regressions
+        run: >-
+          python -m pytest -q
+          tests/test_cross_window_tracklets.py
+          tests/test_causal_tracklets.py
+      - name: Verify portable result identity from installed package
+        run: |
+          python - <<'PY'
+          import json
+
+          from prob4d.cross_window_tracklets import CrossWindowAssociationConfig
+
+          configuration = CrossWindowAssociationConfig()
+          encoded = json.dumps(
+              configuration.to_dict(),
+              sort_keys=True,
+              separators=(",", ":"),
+              allow_nan=False,
+          )
+          assert "maximum_spatial_candidate_pairs" in encoded
+          PY
