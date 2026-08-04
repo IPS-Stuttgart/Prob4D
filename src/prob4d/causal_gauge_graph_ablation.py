@@ -30,6 +30,9 @@ from .gauge import (
     RelativeGaugeConstraint,
     SequentialGaugeEstimator,
 )
+from .guarded_causal_gauge_graph import (
+    estimate_guarded_causal_multi_edge_gauge_graph,
+)
 from .io import load_prediction_bundle, load_truth
 from .observation_export import _build_alignments
 from .provider_v2_gauge_ablation import (
@@ -61,11 +64,20 @@ def run_causal_gauge_graph_ablation(
     calibration_truth_path: str | Path,
     fixed_lag: int = 4,
     minimum_edge_weight: float = 0.0,
+    maximum_cycle_displacement: float | None = None,
+    cycle_representative_radius: float = 1.0,
+    minimum_cycles_per_multi_edge_child: int = 1,
 ) -> tuple[list[AblationRow], CalibrationReport, dict[str, Any]]:
-    """Compare four gauge estimators with paired CI dense fusion."""
+    """Compare gauge estimators with paired CI dense fusion."""
 
     if fixed_lag < 2:
         raise ValueError("fixed_lag must be at least two")
+    guard_enabled = maximum_cycle_displacement is not None
+    if not guard_enabled and (
+        cycle_representative_radius != 1.0
+        or minimum_cycles_per_multi_edge_child != 1
+    ):
+        raise ValueError("cycle guard settings require maximum_cycle_displacement")
     test_bundle = load_prediction_bundle(predictions)
     truth = load_truth(truth_path)
     calibration_bundle = load_prediction_bundle(calibration_predictions)
@@ -104,6 +116,24 @@ def run_causal_gauge_graph_ablation(
         minimum_edge_weight=minimum_edge_weight,
     )
     graph = marginal_gauge_estimates(graph_posterior)
+    guarded_graph = None
+    guarded_graph_report = None
+    if maximum_cycle_displacement is not None:
+        guarded_posterior, guarded_graph_report = (
+            estimate_guarded_causal_multi_edge_gauge_graph(
+                windows,
+                alignments,
+                initial_transform=Sim3.identity(),
+                initial_covariance=anchor_covariance,
+                maximum_cycle_displacement=maximum_cycle_displacement,
+                representative_radius=cycle_representative_radius,
+                minimum_cycles_per_multi_edge_child=(
+                    minimum_cycles_per_multi_edge_child
+                ),
+                minimum_edge_weight=minimum_edge_weight,
+            )
+        )
+        guarded_graph = marginal_gauge_estimates(guarded_posterior)
     fixed_lag_estimates = FixedLagGaugeSmoother(lag=fixed_lag).smooth(
         ordered_ids,
         marginal_ci,
@@ -115,8 +145,10 @@ def run_causal_gauge_graph_ablation(
         "tree_ci": tree,
         "sequential_multi_parent_ci": marginal_ci,
         "causal_graph_ci": graph,
-        "fixed_lag_ci": fixed_lag_estimates,
     }
+    if guarded_graph is not None:
+        estimators["guarded_causal_graph_ci"] = guarded_graph
+    estimators["fixed_lag_ci"] = fixed_lag_estimates
     sequences = {}
     for key, estimates in estimators.items():
         transforms, gauge_covariances = _transform_and_covariance_maps(estimates)
@@ -137,8 +169,12 @@ def run_causal_gauge_graph_ablation(
         "tree_ci": "Causal single-parent spanning tree + CI",
         "sequential_multi_parent_ci": "Marginal multi-parent gauge CI + dense CI",
         "causal_graph_ci": "Full-joint causal multi-edge graph CI + dense CI",
-        "fixed_lag_ci": "Fixed-lag gauge reconstruction control + dense CI",
     }
+    if guarded_graph is not None:
+        labels["guarded_causal_graph_ci"] = (
+            "Source-cycle-guarded causal graph CI + exact tree fallback"
+        )
+    labels["fixed_lag_ci"] = "Fixed-lag gauge reconstruction control + dense CI"
     rows = [
         _evaluate(
             key,
@@ -176,6 +212,21 @@ def run_causal_gauge_graph_ablation(
             "harmful-update regression"
         ),
     }
+    if maximum_cycle_displacement is not None:
+        if guarded_graph_report is None:
+            raise RuntimeError("enabled cycle guard did not produce an audit report")
+        metadata.update(
+            {
+                "benchmark": "prob4d_causal_gauge_graph_ablation_v2",
+                "cycle_guard_enabled": True,
+                "maximum_cycle_displacement": maximum_cycle_displacement,
+                "cycle_representative_radius": cycle_representative_radius,
+                "minimum_cycles_per_multi_edge_child": (
+                    minimum_cycles_per_multi_edge_child
+                ),
+                "guarded_graph": guarded_graph_report.to_dict(),
+            }
+        )
     return rows, report, metadata
 
 
@@ -188,6 +239,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--fixed-lag", type=int, default=4)
     parser.add_argument("--minimum-edge-weight", type=float, default=0.0)
+    parser.add_argument(
+        "--maximum-cycle-displacement",
+        type=float,
+        help=(
+            "source/calibration-frozen representative displacement threshold; "
+            "a failed cycle gate returns the exact provider-v2 tree"
+        ),
+    )
+    parser.add_argument(
+        "--cycle-representative-radius",
+        type=float,
+        default=1.0,
+    )
+    parser.add_argument("--minimum-cycles-per-multi-edge-child", type=int, default=1)
     arguments = parser.parse_args(argv)
     try:
         rows, calibration, metadata = run_causal_gauge_graph_ablation(
@@ -197,6 +262,11 @@ def main(argv: list[str] | None = None) -> int:
             calibration_truth_path=arguments.calibration_truth,
             fixed_lag=arguments.fixed_lag,
             minimum_edge_weight=arguments.minimum_edge_weight,
+            maximum_cycle_displacement=arguments.maximum_cycle_displacement,
+            cycle_representative_radius=arguments.cycle_representative_radius,
+            minimum_cycles_per_multi_edge_child=(
+                arguments.minimum_cycles_per_multi_edge_child
+            ),
         )
     except ValueError as error:
         parser.error(str(error))

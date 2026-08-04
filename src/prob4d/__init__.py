@@ -46,6 +46,12 @@ from .evaluation_modes import (
     evaluate_sequence_modes,
 )
 from .fusion import FusedSequence
+from .guarded_causal_gauge_graph import (
+    GUARDED_CAUSAL_GAUGE_GRAPH_DEPENDENCE,
+    GUARDED_CAUSAL_GAUGE_GRAPH_MODE,
+    GuardedCausalGaugeGraphReport,
+    estimate_guarded_causal_multi_edge_gauge_graph,
+)
 from .observation_contract import (
     OBSERVATION_BELIEF_SCHEMA,
     OBSERVATION_BELIEF_VERSION,
@@ -133,6 +139,8 @@ except PackageNotFoundError:  # Source tree without installed distribution metad
 __all__ = [
     "CAUSAL_GAUGE_GRAPH_DEPENDENCE",
     "CAUSAL_GAUGE_GRAPH_MODE",
+    "GUARDED_CAUSAL_GAUGE_GRAPH_DEPENDENCE",
+    "GUARDED_CAUSAL_GAUGE_GRAPH_MODE",
     "GAUGE_COVARIANCE_CALIBRATION_SCHEMA",
     "GAUGE_COVARIANCE_CALIBRATION_VERSION",
     "OBSERVATION_BELIEF_SCHEMA",
@@ -156,6 +164,7 @@ __all__ = [
     "AlignmentCycleResidual",
     "CausalGaugeGraphReport",
     "CausalGaugeGraphStep",
+    "GuardedCausalGaugeGraphReport",
     "CausalTrackletReport",
     "CausalTrackletSet",
     "CommonModeFailureAudit",
@@ -196,6 +205,7 @@ __all__ = [
     "canonical_prob4d_repository",
     "deterministic_covariance_root",
     "estimate_causal_multi_edge_gauge_graph",
+    "estimate_guarded_causal_multi_edge_gauge_graph",
     "estimate_joint_gauge_tree",
     "evaluate_sequence_modes",
     "fit_group_balanced_point_uncertainty_calibration",
