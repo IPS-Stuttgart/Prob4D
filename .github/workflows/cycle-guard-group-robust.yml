@@ -24,7 +24,7 @@ concurrency:
 jobs:
   study:
     name: Freeze strata and run fresh target study
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, nvidia-smi]
     timeout-minutes: 60
     env:
       SOURCE_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
