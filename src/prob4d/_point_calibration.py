@@ -19,6 +19,7 @@ from ._calibration_common import (
 )
 from .uncertainty import CalibrationReport, DepthDisagreementModel, StructuredCovariance
 
+
 @dataclass(frozen=True)
 class PointUncertaintyCalibrationV1:
     """Content-addressed held-out calibration of the dense point variance model."""
@@ -141,6 +142,12 @@ class PointUncertaintyCalibrationV1:
         object.__setattr__(self, "covariance_cluster_size", cluster_size)
         object.__setattr__(self, "input_artifact_sha256", digests)
         object.__setattr__(self, "metadata", metadata)
+
+    @property
+    def winsor_quantile(self) -> float:
+        """Explicit alias for the legacy serialized ``trim_quantile`` field."""
+
+        return self.trim_quantile
 
     @property
     def model(self) -> DepthDisagreementModel:

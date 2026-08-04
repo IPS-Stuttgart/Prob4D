@@ -17,7 +17,9 @@ from ._calibration_common import (
     _common_descriptor,
     _validate_common_provenance,
 )
+from .calibration_aggregation import UPPER_WINSORIZED_MEAN_V1
 from .gauge import GaugeCovarianceCalibration
+
 
 @dataclass(frozen=True)
 class GaugeCovarianceCalibrationV1:
@@ -96,6 +98,16 @@ class GaugeCovarianceCalibrationV1:
         object.__setattr__(self, "covariance_cluster_size", cluster_size)
         object.__setattr__(self, "input_artifact_sha256", digests)
         object.__setattr__(self, "metadata", metadata)
+
+    @property
+    def winsor_quantile(self) -> float:
+        """Explicit alias for the legacy serialized ``trim_quantile`` field."""
+
+        return self.trim_quantile
+
+    @property
+    def aggregation_semantics(self) -> str:
+        return UPPER_WINSORIZED_MEAN_V1
 
     @property
     def runtime_calibration(self) -> GaugeCovarianceCalibration:

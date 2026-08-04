@@ -12,6 +12,26 @@ Prob4D and MotionCrafter revisions, model and covariance settings, source
 artifact digests, and finite JSON metadata. The loaders recompute and verify the
 artifact identifier, so edited calibration files fail validation.
 
+## Robust scale aggregation semantics
+
+Point and gauge scale fitting cap normalized residual ratios at an upper empirical
+quantile and then average all rows. This is **upper winsorization**: tail rows are
+not removed. The explicit public semantics identifier is
+`upper-quantile-winsorized-mean-v1`.
+
+The frozen version-1 point and gauge artifact schemas retain the serialized field
+name `trim_quantile` for compatibility. Code should read the `winsor_quantile`
+alias when describing the statistical operation, but must not serialize that alias
+into a version-1 calibration descriptor. Existing artifact descriptors and IDs
+remain valid and unchanged.
+
+New group-balanced point calibration reports use
+`equal-group-mean-of-within-group-upper-winsorized-ratios-v2`. The loader also
+accepts the historical identifier
+`equal-group-mean-of-within-group-trimmed-ratios-v1`, because those legacy bytes
+already implemented winsorization despite the name. New artifacts are never
+silently relabelled as legacy artifacts.
+
 ## Claim-bearing export
 
 New claim-bearing experiments should use `prob4d.provider_v2`:

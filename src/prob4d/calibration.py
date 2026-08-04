@@ -16,12 +16,21 @@ from ._point_calibration import (
     load_point_uncertainty_calibration,
     save_point_uncertainty_calibration,
 )
+from .calibration_aggregation import (
+    GROUP_BALANCED_UPPER_WINSORIZED_RATIOS_V2,
+    LEGACY_GROUP_BALANCED_TRIMMED_RATIOS_V1,
+    UPPER_WINSORIZED_MEAN_V1,
+    upper_winsorized_mean,
+)
 from .group_balanced_point_calibration import (
     fit_group_balanced_point_uncertainty_calibration,
     group_balanced_point_calibration_metadata,
 )
 
 __all__ = [
+    "GROUP_BALANCED_UPPER_WINSORIZED_RATIOS_V2",
+    "LEGACY_GROUP_BALANCED_TRIMMED_RATIOS_V1",
+    "UPPER_WINSORIZED_MEAN_V1",
     "GAUGE_COVARIANCE_CALIBRATION_SCHEMA",
     "GAUGE_COVARIANCE_CALIBRATION_VERSION",
     "POINT_UNCERTAINTY_CALIBRATION_SCHEMA",
@@ -34,4 +43,5 @@ __all__ = [
     "load_point_uncertainty_calibration",
     "save_gauge_covariance_calibration",
     "save_point_uncertainty_calibration",
+    "upper_winsorized_mean",
 ]
