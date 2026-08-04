@@ -3,6 +3,11 @@ name: Finalize open Prob4D improvements
 on:
   push:
     branches: [ci/self-hosted-finalize-improvements]
+  pull_request:
+    branches: [ci/finalizer-base]
+    paths:
+      - ".github/workflows/finalize-open-improvements.yml"
+      - "scripts/ci/finalize_open_improvements.py"
 
 permissions:
   contents: write
