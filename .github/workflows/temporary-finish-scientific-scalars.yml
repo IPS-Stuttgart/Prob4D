@@ -69,7 +69,16 @@ jobs:
             tests/test_scientific_scalar_validation.py
           python -m mypy src/prob4d/_scientific_scalars.py
           git diff --check
-      - name: Run regressions and package audit
+      - name: Remove temporary validation machinery from the candidate tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f \
+            .github/scripts/finish_scientific_scalars.py \
+            .github/workflows/scientific-scalar-one-shot.yml \
+            .github/workflows/temporary-finish-scientific-scalars.yml
+          git diff --check
+      - name: Run regressions and package audit on the final source tree
         shell: bash
         run: |
           set -euo pipefail
@@ -85,14 +94,10 @@ jobs:
           archive=$(find dist -maxdepth 1 -name '*.tar.gz' -print -quit)
           test -n "${archive}"
           python scripts/ci/check_sdist.py "${archive}"
-      - name: Remove temporary validation machinery and publish
+      - name: Publish the validated ordinary source
         shell: bash
         run: |
           set -euo pipefail
-          rm -f \
-            .github/scripts/finish_scientific_scalars.py \
-            .github/workflows/scientific-scalar-one-shot.yml \
-            .github/workflows/temporary-finish-scientific-scalars.yml
           git add -A -- \
             .github/scripts/finish_scientific_scalars.py \
             .github/workflows/scientific-scalar-one-shot.yml \
