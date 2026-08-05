@@ -7,7 +7,7 @@ import hashlib
 import json
 import math
 import os
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -124,7 +124,8 @@ def evaluate_joint_gaussian_group(
             full_matrices=False,
         )
         leading = float(singular_values[0]) if singular_values.size else 0.0
-        threshold = tolerance * max(leading, np.finfo(np.float64).tiny)
+        tiny = float(np.finfo(np.float64).tiny)
+        threshold = tolerance * max(leading, tiny)
         effective_rank = int(np.count_nonzero(singular_values > threshold))
     else:
         basis = np.empty((dimension, 0), dtype=np.float64)
@@ -192,7 +193,7 @@ def _json_group_id(value: object) -> int | str:
     return str(value)
 
 
-def _mean_present(groups: list[Mapping[str, Any]], field: str) -> float | None:
+def _mean_present(groups: Sequence[Mapping[str, Any]], field: str) -> float | None:
     values = [float(group[field]) for group in groups if group[field] is not None]
     return None if not values else float(np.mean(values))
 
