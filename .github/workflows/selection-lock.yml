@@ -1,0 +1,86 @@
+name: Pre-target selection lock
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/selection-lock.yml"
+      - "docs/selection-lock.md"
+      - "src/prob4d/selection_lock.py"
+      - "src/prob4d/deployment_ledger.py"
+      - "src/prob4d/_selection_evidence_common.py"
+      - "src/prob4d/_selection_evidence_records.py"
+      - "src/prob4d/_selection_evidence_replay.py"
+      - "tests/test_selection_lock.py"
+      - "tests/test_selection_evidence.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: selection-lock-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  focused-contract:
+    name: Target-free lock and append-only ledger
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install compatible development environment
+        run: |
+          python -m pip install -e ".[dev]"
+          python -m pip install "numpy>=1.24,<2.3"
+      - name: Check source quality
+        run: |
+          python -m ruff check \
+            src/prob4d/selection_lock.py \
+            src/prob4d/deployment_ledger.py \
+            tests/test_selection_lock.py
+          python -m ruff format --check \
+            src/prob4d/selection_lock.py \
+            src/prob4d/deployment_ledger.py \
+            tests/test_selection_lock.py
+          python -m mypy \
+            src/prob4d/selection_lock.py \
+            src/prob4d/deployment_ledger.py
+      - name: Run split and combined evidence regressions
+        run: >-
+          python -m pytest -q
+          tests/test_selection_lock.py
+          tests/test_selection_evidence.py
+      - name: Verify installed public modules
+        run: |
+          python - <<'PY'
+          from prob4d.deployment_ledger import (
+              DEPLOYMENT_LEDGER_SCHEMA,
+              DeploymentLedgerV1,
+              append_deployment_decision,
+          )
+          from prob4d.selection_lock import (
+              SELECTION_LOCK_SCHEMA,
+              SelectionLockV1,
+              build_selection_lock,
+          )
+
+          assert SELECTION_LOCK_SCHEMA == "prob4d.selection-lock"
+          assert DEPLOYMENT_LEDGER_SCHEMA == "prob4d.deployment-ledger"
+          assert callable(build_selection_lock)
+          assert callable(append_deployment_decision)
+          assert SelectionLockV1.__module__ == "prob4d.selection_lock"
+          assert DeploymentLedgerV1.__module__ == "prob4d.deployment_ledger"
+          PY
