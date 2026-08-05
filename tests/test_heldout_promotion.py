@@ -21,7 +21,6 @@ from prob4d.heldout_promotion import (
     write_query_results,
 )
 
-
 ROLES = (
     ("fallback", "physical_fallback", None, "bpt-fallback", False),
     ("visual", "visual_baseline", "provider-visual", "bpt-visual", False),
