@@ -8,8 +8,8 @@ from pathlib import Path
 from typing import Any
 
 from ._heldout_promotion_common import (
-    REPORT_CLAIM_BOUNDARY,
     _SHA256,
+    REPORT_CLAIM_BOUNDARY,
     _atomic_write_json,
     _load_json,
     _repository,

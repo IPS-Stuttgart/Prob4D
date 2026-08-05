@@ -146,9 +146,9 @@ def build_flow_point_consistency_diagnostic(
     """
 
     shape = window.shape
-    available = np.zeros(shape, dtype=bool)
-    relative_residual = np.zeros(shape, dtype=np.float64)
-    direction_disagreement = np.zeros(shape, dtype=np.float64)
+    available: BoolArray = np.zeros(shape, dtype=bool)
+    relative_residual: FloatArray = np.zeros(shape, dtype=np.float64)
+    direction_disagreement: FloatArray = np.zeros(shape, dtype=np.float64)
 
     if (
         window.scene_flow is not None
@@ -251,9 +251,11 @@ def build_common_gauge_seed_dispersion_diagnostic(
         if not np.array_equal(window.frame_indices, reference.frame_indices):
             raise ValueError("seed-dispersion frame indices differ")
 
-    count = np.zeros(reference.shape, dtype=np.int64)
+    count: NDArray[np.int64] = np.zeros(reference.shape, dtype=np.int64)
     point_sum = np.zeros(reference.shape + (3,), dtype=np.float64)
-    squared_norm_sum = np.zeros(reference.shape, dtype=np.float64)
+    squared_norm_sum: FloatArray = np.zeros(
+        reference.shape, dtype=np.float64
+    )
     for window in samples:
         mask = np.asarray(window.valid_mask, dtype=bool)
         points = np.asarray(window.point_map, dtype=np.float64)
