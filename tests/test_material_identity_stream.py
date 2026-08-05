@@ -72,7 +72,7 @@ def root_stream() -> MaterialIdentityHypothesisStreamV1:
         case_id="case",
         stream_id="camera0",
         source_repository="IPS-Stuttgart/Prob4D",
-        source_revision="2d6df37",
+        source_revision="2d6df37" + "0" * 33,
         root_window_id="w0",
         metadata={"claim_bearing": False},
     )
@@ -89,10 +89,10 @@ def test_append_preserves_local_ids_and_pairwise_gate_semantics() -> None:
     assert stream.admitted_window_ids == ("w0", "w1")
     assert stream.hypothesis_count == 2
     summary = stream.updates[0].associations[0]
-    assert [
-        (value.source_track_id, value.target_track_id)
-        for value in summary.hypotheses
-    ] == [(0, 0), (1, 1)]
+    assert [(value.source_track_id, value.target_track_id) for value in summary.hypotheses] == [
+        (0, 0),
+        (1, 1),
+    ]
     assert all(value.selected_by_pairwise_gate for value in summary.hypotheses)
     assert summary.unmatched_source_track_ids == ()
     assert summary.unmatched_target_track_ids == ()
@@ -240,6 +240,27 @@ def test_loader_rejects_unknown_fields_duplicate_keys_and_tampered_ids(tmp_path)
     path.write_text(json.dumps(record))
     with pytest.raises(ValueError, match="update ID mismatch"):
         load_material_identity_stream(path)
+
+
+def test_root_contract_requires_canonical_provenance() -> None:
+    with pytest.raises(ValueError, match="owner/name"):
+        create_material_identity_stream(
+            sequence_id="sequence",
+            case_id="case",
+            stream_id="camera0",
+            source_repository="Prob4D",
+            source_revision="a" * 40,
+            root_window_id="w0",
+        )
+    with pytest.raises(ValueError, match="40-character Git SHA"):
+        create_material_identity_stream(
+            sequence_id="sequence",
+            case_id="case",
+            stream_id="camera0",
+            source_repository="IPS-Stuttgart/Prob4D",
+            source_revision="revision",
+            root_window_id="w0",
+        )
 
 
 def test_root_contract_rejects_coercion_aliases() -> None:

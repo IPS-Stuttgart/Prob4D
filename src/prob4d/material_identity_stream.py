@@ -42,18 +42,23 @@ def _sha256_json(value: Mapping[str, Any]) -> str:
 
 
 def _strict_string(value: Any, *, name: str) -> str:
-    if type(value) is not str or not value:
-        raise ValueError(f"{name} must be a non-empty string")
+    if type(value) is not str or not value or value.strip() != value:
+        raise ValueError(f"{name} must be a non-empty canonical string")
     return value
 
 
 def _sha256(value: Any, *, name: str) -> str:
     digest = _strict_string(value, name=name)
-    if len(digest) != 64 or any(
-        character not in "0123456789abcdef" for character in digest
-    ):
+    if len(digest) != 64 or any(character not in "0123456789abcdef" for character in digest):
         raise ValueError(f"{name} must be a lowercase SHA-256 digest")
     return digest
+
+
+def _git_sha(value: Any, *, name: str) -> str:
+    revision = _strict_string(value, name=name)
+    if len(revision) != 40 or any(character not in "0123456789abcdef" for character in revision):
+        raise ValueError(f"{name} must be a lowercase 40-character Git SHA")
+    return revision
 
 
 def _integer(value: Any, *, name: str, minimum: int = 0) -> int:
@@ -77,9 +82,7 @@ def _real(
     result = float(value)
     if not math.isfinite(result):
         raise ValueError(f"{name} must be finite")
-    if (strictly_positive and result <= minimum) or (
-        not strictly_positive and result < minimum
-    ):
+    if (strictly_positive and result <= minimum) or (not strictly_positive and result < minimum):
         relation = "greater than" if strictly_positive else "at least"
         raise ValueError(f"{name} must be {relation} {minimum}")
     if maximum is not None and result > maximum:
@@ -95,13 +98,10 @@ def _integer_tuple(
 ) -> tuple[int, ...]:
     if type(value) is not tuple:
         raise ValueError(f"{name} must be a tuple of integers")
-    result = tuple(
-        _integer(item, name=f"{name}[{index}]")
-        for index, item in enumerate(value)
-    )
+    result = tuple(_integer(item, name=f"{name}[{index}]") for index, item in enumerate(value))
     if nonempty and not result:
         raise ValueError(f"{name} must not be empty")
-    if any(next_value <= item for item, next_value in zip(result, result[1:])):
+    if any(next_value <= item for item, next_value in zip(result, result[1:], strict=False)):
         raise ValueError(f"{name} must be strictly increasing")
     return result
 
@@ -324,9 +324,7 @@ class MaterialIdentityAssociationSummaryV1:
                 name,
                 _integer(getattr(self, name), name=name, minimum=minimum),
             )
-        if self.possible_track_pair_count != (
-            self.source_track_count * self.target_track_count
-        ):
+        if self.possible_track_pair_count != (self.source_track_count * self.target_track_count):
             raise ValueError("possible_track_pair_count differs from track domains")
         if self.spatial_candidate_pair_count > self.possible_track_pair_count:
             raise ValueError("spatial candidate count exceeds possible pair count")
@@ -351,14 +349,12 @@ class MaterialIdentityAssociationSummaryV1:
         object.__setattr__(self, "unmatched_target_track_ids", unmatched_target)
 
         if type(self.hypotheses) is not tuple or not all(
-            isinstance(value, MaterialIdentityHypothesisV1)
-            for value in self.hypotheses
+            isinstance(value, MaterialIdentityHypothesisV1) for value in self.hypotheses
         ):
             raise TypeError("hypotheses must be a tuple of material-identity hypotheses")
         hypotheses = tuple(self.hypotheses)
         pairs = tuple(
-            (hypothesis.source_track_id, hypothesis.target_track_id)
-            for hypothesis in hypotheses
+            (hypothesis.source_track_id, hypothesis.target_track_id) for hypothesis in hypotheses
         )
         if pairs != tuple(sorted(pairs)) or len(set(pairs)) != len(pairs):
             raise ValueError("hypotheses must contain sorted unique track pairs")
@@ -427,9 +423,7 @@ class MaterialIdentityAssociationSummaryV1:
     @property
     def selected_hypotheses(self) -> tuple[MaterialIdentityHypothesisV1, ...]:
         return tuple(
-            hypothesis
-            for hypothesis in self.hypotheses
-            if hypothesis.selected_by_pairwise_gate
+            hypothesis for hypothesis in self.hypotheses if hypothesis.selected_by_pairwise_gate
         )
 
     def identity_record(self) -> dict[str, object]:
@@ -445,16 +439,12 @@ class MaterialIdentityAssociationSummaryV1:
             "spatially_rejected_pair_count": self.spatially_rejected_pair_count,
             "evaluated_track_pair_count": self.evaluated_track_pair_count,
             "shared_gate_frame_count": self.shared_gate_frame_count,
-            "insufficient_shared_frame_pair_count": (
-                self.insufficient_shared_frame_pair_count
-            ),
+            "insufficient_shared_frame_pair_count": (self.insufficient_shared_frame_pair_count),
             "zero_support_pair_count": self.zero_support_pair_count,
             "low_support_pair_count": self.low_support_pair_count,
             "non_mutual_best_count": self.non_mutual_best_count,
             "ambiguous_mutual_best_count": self.ambiguous_mutual_best_count,
-            "threshold_rejected_mutual_best_count": (
-                self.threshold_rejected_mutual_best_count
-            ),
+            "threshold_rejected_mutual_best_count": (self.threshold_rejected_mutual_best_count),
             "unmatched_source_track_ids": list(self.unmatched_source_track_ids),
             "unmatched_target_track_ids": list(self.unmatched_target_track_ids),
             "hypotheses": [hypothesis.to_record() for hypothesis in self.hypotheses],
@@ -492,9 +482,13 @@ class MaterialIdentityStreamUpdateV1:
                 minimum=1,
             ),
         )
-        if type(self.associations) is not tuple or not self.associations or not all(
-            isinstance(value, MaterialIdentityAssociationSummaryV1)
-            for value in self.associations
+        if (
+            type(self.associations) is not tuple
+            or not self.associations
+            or not all(
+                isinstance(value, MaterialIdentityAssociationSummaryV1)
+                for value in self.associations
+            )
         ):
             raise TypeError("associations must be a non-empty tuple of summaries")
         associations = tuple(self.associations)
@@ -511,9 +505,7 @@ class MaterialIdentityStreamUpdateV1:
             previous = _sha256(previous, name="previous_update_id")
         object.__setattr__(self, "previous_update_id", previous)
         expected = _sha256_json(self.identity_record())
-        if self.update_id is not None and (
-            _sha256(self.update_id, name="update_id") != expected
-        ):
+        if self.update_id is not None and (_sha256(self.update_id, name="update_id") != expected):
             raise ValueError("material-identity stream update ID mismatch")
         object.__setattr__(self, "update_id", expected)
 
@@ -561,7 +553,7 @@ class MaterialIdentityHypothesisStreamV1:
                 self.source_repository,
                 name="source_repository",
             ),
-            "source_revision": _strict_string(
+            "source_revision": _git_sha(
                 self.source_revision,
                 name="source_revision",
             ),
@@ -570,9 +562,11 @@ class MaterialIdentityHypothesisStreamV1:
                 name="root_window_id",
             ),
         }
+        repository = identifiers["source_repository"]
+        if repository.count("/") != 1 or repository.startswith("/") or repository.endswith("/"):
+            raise ValueError("source_repository must have owner/name form")
         if type(self.updates) is not tuple or not all(
-            isinstance(value, MaterialIdentityStreamUpdateV1)
-            for value in self.updates
+            isinstance(value, MaterialIdentityStreamUpdateV1) for value in self.updates
         ):
             raise TypeError("updates must be a tuple of material-identity updates")
         updates = tuple(self.updates)
@@ -671,9 +665,7 @@ def association_summary_from_result(
         raise TypeError("result must be a CrossWindowAssociationResult")
     target = _strict_string(target_window_id, name="target_window_id")
     if target != result.right_window_id:
-        raise ValueError(
-            "target_window_id must equal the association result's right window"
-        )
+        raise ValueError("target_window_id must equal the association result's right window")
     selected_pairs = set(result.accepted_pairs)
     hypotheses = tuple(
         sorted(
@@ -688,15 +680,15 @@ def association_summary_from_result(
             key=lambda value: (value.source_track_id, value.target_track_id),
         )
     )
-    source_ids = {
-        hypothesis.source_track_id for hypothesis in hypotheses
-    } | {link.left_track_id for link in result.links} | set(
-        result.unmatched_left_track_ids
+    source_ids = (
+        {hypothesis.source_track_id for hypothesis in hypotheses}
+        | {link.left_track_id for link in result.links}
+        | set(result.unmatched_left_track_ids)
     )
-    target_ids = {
-        hypothesis.target_track_id for hypothesis in hypotheses
-    } | {link.right_track_id for link in result.links} | set(
-        result.unmatched_right_track_ids
+    target_ids = (
+        {hypothesis.target_track_id for hypothesis in hypotheses}
+        | {link.right_track_id for link in result.links}
+        | set(result.unmatched_right_track_ids)
     )
     source_track_count = max(source_ids, default=-1) + 1
     target_track_count = max(target_ids, default=-1) + 1
@@ -714,16 +706,12 @@ def association_summary_from_result(
         spatially_rejected_pair_count=result.spatially_rejected_pair_count,
         evaluated_track_pair_count=len(result.candidates),
         shared_gate_frame_count=result.shared_gate_frame_count,
-        insufficient_shared_frame_pair_count=(
-            result.insufficient_shared_frame_pair_count
-        ),
+        insufficient_shared_frame_pair_count=(result.insufficient_shared_frame_pair_count),
         zero_support_pair_count=result.zero_support_pair_count,
         low_support_pair_count=result.low_support_pair_count,
         non_mutual_best_count=result.non_mutual_best_count,
         ambiguous_mutual_best_count=result.ambiguous_mutual_best_count,
-        threshold_rejected_mutual_best_count=(
-            result.threshold_rejected_mutual_best_count
-        ),
+        threshold_rejected_mutual_best_count=(result.threshold_rejected_mutual_best_count),
         unmatched_source_track_ids=tuple(result.unmatched_left_track_ids),
         unmatched_target_track_ids=tuple(result.unmatched_right_track_ids),
         hypotheses=hypotheses,
@@ -812,8 +800,7 @@ def write_material_identity_stream(
     output.parent.mkdir(parents=True, exist_ok=True)
     temporary = output.with_name(f".{output.name}.tmp")
     temporary.write_text(
-        json.dumps(stream.to_record(), indent=2, sort_keys=True, allow_nan=False)
-        + "\n",
+        json.dumps(stream.to_record(), indent=2, sort_keys=True, allow_nan=False) + "\n",
         encoding="utf-8",
     )
     os.replace(temporary, output)
@@ -905,16 +892,12 @@ def _summary_from_record(value: Any) -> MaterialIdentityAssociationSummaryV1:
         spatially_rejected_pair_count=value["spatially_rejected_pair_count"],
         evaluated_track_pair_count=value["evaluated_track_pair_count"],
         shared_gate_frame_count=value["shared_gate_frame_count"],
-        insufficient_shared_frame_pair_count=(
-            value["insufficient_shared_frame_pair_count"]
-        ),
+        insufficient_shared_frame_pair_count=(value["insufficient_shared_frame_pair_count"]),
         zero_support_pair_count=value["zero_support_pair_count"],
         low_support_pair_count=value["low_support_pair_count"],
         non_mutual_best_count=value["non_mutual_best_count"],
         ambiguous_mutual_best_count=value["ambiguous_mutual_best_count"],
-        threshold_rejected_mutual_best_count=(
-            value["threshold_rejected_mutual_best_count"]
-        ),
+        threshold_rejected_mutual_best_count=(value["threshold_rejected_mutual_best_count"]),
         unmatched_source_track_ids=tuple(unmatched_source),
         unmatched_target_track_ids=tuple(unmatched_target),
         hypotheses=tuple(_hypothesis_from_record(item) for item in hypotheses),

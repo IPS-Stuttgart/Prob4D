@@ -41,11 +41,16 @@ stream = create_material_identity_stream(
     case_id="case-01",
     stream_id="camera0",
     source_repository="IPS-Stuttgart/Prob4D",
-    source_revision="<exact-revision>",
+    source_revision="<40-character lowercase Git SHA>",
     root_window_id="window-000",
     metadata={"claim_bearing": False},
 )
 ```
+
+Root provenance is canonical and content-bearing: `source_repository` must use
+exact `owner/name` form and `source_revision` must be a lowercase 40-character
+Git SHA. Branch names, tags, abbreviated SHAs, and whitespace-padded aliases fail
+closed so the stream cannot claim an ambiguous source revision.
 
 Pairwise association results used for append must be directed as:
 
