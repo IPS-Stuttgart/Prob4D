@@ -1,0 +1,75 @@
+name: Dispatch material identity CI
+
+on:
+  push:
+    branches:
+      - agent/material-identity-calibration-v1
+    paths:
+      - ".github/workflows/dispatch-material-identity-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: dispatch-material-identity-ci
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: agent/material-identity-calibration-v1
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Wait for validated patch publication
+        shell: bash
+        run: |
+          set -euo pipefail
+          ready=false
+          for attempt in $(seq 1 90); do
+            git fetch origin agent/material-identity-calibration-v1
+            git reset --hard origin/agent/material-identity-calibration-v1
+            if [[ -f src/prob4d/material_identity_calibration.py \
+                  && -f protocols/material-identity-p2m-v1.json \
+                  && ! -e .github/workflows/apply-material-identity-calibration-blobs.yml \
+                  && ! -e .github/workflows/apply-material-identity-calibration-patch.yml \
+                  && ! -e .github/patches/material-identity-calibration ]]; then
+              ready=true
+              break
+            fi
+            sleep 10
+          done
+          if [[ "$ready" != true ]]; then
+            echo "Validated material-identity patch was not published in time." >&2
+            exit 1
+          fi
+
+      - name: Remove dispatcher and push clean head
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/dispatch-material-identity-ci.yml
+          git commit -m "Remove temporary material-identity CI dispatcher"
+          git push origin HEAD:agent/material-identity-calibration-v1
+
+      - name: Dispatch final-head validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh workflow run tests.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref agent/material-identity-calibration-v1
+          gh workflow run material-identity-calibration.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref agent/material-identity-calibration-v1 \
+            -f runner=github-hosted
