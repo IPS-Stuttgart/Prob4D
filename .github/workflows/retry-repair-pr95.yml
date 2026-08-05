@@ -75,10 +75,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git rm \
-            .github/workflows/hosted-repair-pr95.yml \
-            .github/workflows/retry-repair-pr95.yml
-          git add -u
+          git add \
+            docs/material-identity-stream.md \
+            src/prob4d/material_identity_stream.py \
+            tests/test_material_identity_stream.py
           git diff --cached --check
           git commit -m 'Harden material-identity provenance and validation'
           git push origin HEAD:agent/material-identity-hypothesis-stream
