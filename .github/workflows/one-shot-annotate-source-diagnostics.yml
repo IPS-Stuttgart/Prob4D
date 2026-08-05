@@ -60,7 +60,7 @@ jobs:
           PY
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm -f \
+          git rm -f --ignore-unmatch \
             .github/workflows/one-shot-annotate-source-diagnostics.yml \
             .github/workflows/one-shot-sort-promotion-import.yml
           git add src/prob4d/promotion_evidence.py src/prob4d/source_diagnostics.py
