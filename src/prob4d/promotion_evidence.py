@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import os
+import tempfile
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -10,13 +12,13 @@ from typing import Any
 from ._heldout_promotion_common import (
     _SHA256,
     REPORT_CLAIM_BOUNDARY,
-    _atomic_write_json,
     _load_json,
     _repository,
     _revision,
 )
 from ._heldout_promotion_lock import promotion_lock_from_dict
 from ._heldout_promotion_report import promotion_report_from_dict
+from ._immutable_json import plain_json
 from ._selection_evidence_common import (
     _exact_keys,
     _sha256_json,
@@ -817,20 +819,38 @@ def render_promotion_evidence_markdown(card: Mapping[str, Any]) -> str:
 
 
 def _atomic_write_text(path: Path, content: str) -> None:
+    """Publish complete text without replacing a concurrently created path."""
+
     if path.exists():
         raise FileExistsError(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f".{path.name}.tmp-{os.getpid()}")
+    descriptor, temporary_name = tempfile.mkstemp(
+        dir=path.parent,
+        prefix=f".{path.name}.tmp-",
+        text=True,
+    )
+    temporary = Path(temporary_name)
     try:
-        with temporary.open("x", encoding="utf-8") as stream:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
             stream.write(content)
             stream.flush()
             os.fsync(stream.fileno())
-        if path.exists():
-            raise FileExistsError(path)
-        os.replace(temporary, path)
+        os.link(temporary, path)
     finally:
         temporary.unlink(missing_ok=True)
+
+
+def _atomic_write_json(path: Path, value: Mapping[str, Any]) -> None:
+    encoded = (
+        json.dumps(
+            plain_json(value),
+            sort_keys=True,
+            indent=2,
+            allow_nan=False,
+        )
+        + "\n"
+    )
+    _atomic_write_text(path, encoded)
 
 
 def write_promotion_evidence_card(
