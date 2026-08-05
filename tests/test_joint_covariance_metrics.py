@@ -1,10 +1,12 @@
 import hashlib
 import json
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pytest
 
+import prob4d.joint_covariance_metrics as joint_metrics
 from prob4d.cli import main as grouped_main
 from prob4d.joint_covariance_metrics import (
     JOINT_COVARIANCE_DIAGNOSTIC_SCHEMA,
@@ -39,6 +41,49 @@ def test_woodbury_metrics_match_dense_gaussian() -> None:
     assert result["joint_log_determinant"] == pytest.approx(logdet, rel=1e-11)
     assert result["gaussian_nll"] == pytest.approx(nll, rel=1e-11)
     assert result["effective_shared_rank"] == 4
+
+
+def test_subspace_energies_match_direct_svd_reference() -> None:
+    generator = np.random.default_rng(11)
+    residual = generator.normal(size=(8, 3))
+    local_basis = generator.normal(size=(8, 3, 3))
+    local = local_basis @ np.swapaxes(local_basis, -1, -2) + 0.4 * np.eye(3)
+    factor = generator.normal(scale=0.2, size=(8, 3, 5))
+
+    result = evaluate_joint_gaussian_group(residual, local, factor)
+
+    cholesky = np.linalg.cholesky(local)
+    whitened_residual = np.linalg.solve(
+        cholesky,
+        residual[..., None],
+    )[..., 0].reshape(-1)
+    whitened_factor = np.linalg.solve(cholesky, factor).reshape(-1, factor.shape[-1])
+    left, singular_values, _ = np.linalg.svd(whitened_factor, full_matrices=False)
+    rank = int(result["effective_shared_rank"])
+    coefficients = left[:, :rank].T @ whitened_residual
+    shared = float(
+        np.sum(np.square(coefficients) / (1.0 + np.square(singular_values[:rank])))
+    )
+    local_energy = float(whitened_residual @ whitened_residual)
+    conditional = max(local_energy - float(coefficients @ coefficients), 0.0)
+
+    assert result["shared_subspace_normalized_energy"] == pytest.approx(shared / rank)
+    assert result["conditional_subspace_normalized_energy"] == pytest.approx(
+        conditional / (whitened_residual.size - rank)
+    )
+
+
+def test_evaluation_does_not_call_tall_svd(monkeypatch: pytest.MonkeyPatch) -> None:
+    residual = np.ones((4, 3))
+    local = np.repeat(np.eye(3)[None], 4, axis=0)
+    factor = np.ones((4, 3, 2)) * 0.1
+
+    def fail(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("tall SVD should not be used")
+
+    monkeypatch.setattr(joint_metrics.np.linalg, "svd", fail)
+    result = evaluate_joint_gaussian_group(residual, local, factor)
+    assert result["effective_shared_rank"] == 1
 
 
 def test_zero_shared_factor_reduces_to_block_diagonal_model() -> None:
@@ -112,3 +157,87 @@ def test_cli_writes_content_bound_report(tmp_path: Path) -> None:
         grouped_main(
             ["diagnostic", "joint-covariance", str(source), "--output", str(output)]
         )
+
+
+def test_diagnostic_evaluates_the_exact_hashed_bytes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = tmp_path / "matched.npz"
+    replacement = tmp_path / "replacement.npz"
+    output = tmp_path / "report.json"
+    local = np.repeat(np.eye(3)[None], 2, axis=0)
+    factor = np.zeros((2, 3, 1))
+    np.savez(
+        source,
+        residual_xyz_m=np.zeros((2, 3)),
+        local_covariance_m2=local,
+        low_rank_factor_m=factor,
+    )
+    np.savez(
+        replacement,
+        residual_xyz_m=np.ones((2, 3)),
+        local_covariance_m2=local,
+        low_rank_factor_m=factor,
+    )
+    original_read_bytes = Path.read_bytes
+    original_payload = original_read_bytes(source)
+    replacement_payload = original_read_bytes(replacement)
+    replaced = False
+
+    def read_then_replace(path: Path) -> bytes:
+        nonlocal replaced
+        payload = original_read_bytes(path)
+        if path == source and not replaced:
+            source.write_bytes(replacement_payload)
+            replaced = True
+        return payload
+
+    monkeypatch.setattr(Path, "read_bytes", read_then_replace)
+    report = joint_metrics.run_joint_covariance_diagnostic(source, output)
+
+    assert report["source_sha256"] == hashlib.sha256(original_payload).hexdigest()
+    assert report["evaluation"]["equal_group_mean"]["normalized_nees"] == pytest.approx(
+        0.0
+    )
+
+
+def test_report_publication_preserves_a_concurrent_destination(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = tmp_path / "matched.npz"
+    output = tmp_path / "report.json"
+    np.savez(
+        source,
+        residual_xyz_m=np.zeros((1, 3)),
+        local_covariance_m2=np.eye(3)[None],
+        low_rank_factor_m=np.zeros((1, 3, 0)),
+    )
+    original_link = joint_metrics.os.link
+
+    def publish_competitor(source_path: Any, destination_path: Any) -> None:
+        Path(destination_path).write_text("concurrent writer\n", encoding="utf-8")
+        original_link(source_path, destination_path)
+
+    monkeypatch.setattr(joint_metrics.os, "link", publish_competitor)
+
+    with pytest.raises(FileExistsError):
+        joint_metrics.run_joint_covariance_diagnostic(source, output)
+
+    assert output.read_text(encoding="utf-8") == "concurrent writer\n"
+    assert not list(tmp_path.glob(f".{output.name}.tmp-*"))
+
+
+def test_diagnostic_rejects_unknown_npz_members(tmp_path: Path) -> None:
+    source = tmp_path / "matched.npz"
+    np.savez(
+        source,
+        residual_xyz_m=np.zeros((1, 3)),
+        local_covariance_m2=np.eye(3)[None],
+        low_rank_factor_m=np.zeros((1, 3, 0)),
+        unexpected=np.asarray(1),
+    )
+
+    with pytest.raises(ValueError, match="extra=.*unexpected"):
+        joint_metrics.run_joint_covariance_diagnostic(source, tmp_path / "report.json")
