@@ -100,8 +100,7 @@ def validate_prob4d_project_identity(value: Mapping[str, Any]) -> dict[str, obje
         missing = sorted(_IDENTITY_FIELDS - fields)
         extra = sorted(fields - _IDENTITY_FIELDS)
         raise ValueError(
-            "Prob4D project-identity fields changed; "
-            f"missing={missing}, extra={extra}"
+            f"Prob4D project-identity fields changed; missing={missing}, extra={extra}"
         )
 
     normalized = dict(value)
@@ -112,15 +111,11 @@ def validate_prob4d_project_identity(value: Mapping[str, Any]) -> dict[str, obje
         )
     for field in _INTEGER_IDENTITY_FIELDS:
         if type(normalized[field]) is not int:
-            raise ValueError(
-                f"Prob4D project-identity {field} must be a genuine integer"
-            )
+            raise ValueError(f"Prob4D project-identity {field} must be a genuine integer")
 
     aliases = normalized["accepted_repository_aliases"]
     if type(aliases) is not list:
-        raise ValueError(
-            "Prob4D project-identity accepted_repository_aliases must be a JSON array"
-        )
+        raise ValueError("Prob4D project-identity accepted_repository_aliases must be a JSON array")
     for index, alias in enumerate(aliases):
         require_exact_string(
             alias,
@@ -139,8 +134,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="prob4d project identity",
         description=(
-            "Print Prob4D's stable project ID, canonical repository, and frozen "
-            "artifact alias."
+            "Print Prob4D's stable project ID, canonical repository, and frozen artifact alias."
         ),
     )
     parser.add_argument(
