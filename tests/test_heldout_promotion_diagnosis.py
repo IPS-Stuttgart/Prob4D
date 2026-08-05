@@ -83,7 +83,8 @@ def _report(
         query_aggregate={"identity": {}},
         query_decision=query,
         overall_passed=(
-            provider["overall_passed"] is True and query["overall_passed"] is True
+            provider["overall_passed"] is True
+            and query["overall_passed"] is True
         ),
     )
 
