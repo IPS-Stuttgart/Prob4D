@@ -27,6 +27,16 @@ from ._heldout_promotion_common import (
     PromotionArmV1,
     _load_json,
 )
+from ._heldout_promotion_diagnosis import (
+    HELDOUT_PROMOTION_DIAGNOSIS_SCHEMA,
+    HELDOUT_PROMOTION_DIAGNOSIS_VERSION,
+    HeldoutPromotionDiagnosisV1,
+    diagnose_heldout_promotion,
+    load_promotion_diagnosis,
+    promotion_diagnosis_from_dict,
+    write_promotion_diagnosis,
+    write_promotion_diagnosis_markdown,
+)
 from ._heldout_promotion_lock import (
     HeldoutProviderPromotionLockV1,
     load_promotion_lock,
@@ -92,13 +102,21 @@ def _run(arguments: Sequence[str]) -> int:
         provider_report,
         provider_report_sha256=hashlib.sha256(provider_bytes).hexdigest(),
     )
+    diagnosis = diagnose_heldout_promotion(report)
     parsed.output_dir.mkdir(parents=True, exist_ok=True)
     query_output = parsed.output_dir / "query_results.sealed.json"
     report_output = parsed.output_dir / "promotion_report.json"
     markdown_output = parsed.output_dir / "promotion_report.md"
-    existing_outputs = [
-        path for path in (query_output, report_output, markdown_output) if path.exists()
-    ]
+    diagnosis_output = parsed.output_dir / "promotion_diagnosis.json"
+    diagnosis_markdown_output = parsed.output_dir / "promotion_diagnosis.md"
+    outputs = (
+        query_output,
+        report_output,
+        markdown_output,
+        diagnosis_output,
+        diagnosis_markdown_output,
+    )
+    existing_outputs = [path for path in outputs if path.exists()]
     if existing_outputs:
         raise FileExistsError(
             "held-out promotion output already exists: "
@@ -107,6 +125,8 @@ def _run(arguments: Sequence[str]) -> int:
     write_query_results(query_results, query_output)
     write_promotion_report(report, report_output)
     _write_report_markdown(lock, report, markdown_output)
+    write_promotion_diagnosis(diagnosis, diagnosis_output)
+    write_promotion_diagnosis_markdown(diagnosis, diagnosis_markdown_output)
     print(report_output)
     if parsed.require_pass and not report.overall_passed:
         return 3
@@ -153,8 +173,26 @@ def _verify(arguments: Sequence[str]) -> int:
     return 0
 
 
+def _diagnose(arguments: Sequence[str]) -> int:
+    parser = argparse.ArgumentParser(
+        prog="prob4d experiment heldout-provider diagnose",
+        description="Attribute a retained promotion report to candidate failure boundaries.",
+    )
+    parser.add_argument("report", type=Path)
+    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--markdown", type=Path)
+    parsed = parser.parse_args(arguments)
+    report = load_promotion_report(parsed.report)
+    diagnosis = diagnose_heldout_promotion(report)
+    write_promotion_diagnosis(diagnosis, parsed.output)
+    if parsed.markdown is not None:
+        write_promotion_diagnosis_markdown(diagnosis, parsed.markdown)
+    print(parsed.output)
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
-    """Run freeze, run, or verify for the held-out promotion protocol."""
+    """Run freeze, run, verify, or diagnose for the held-out promotion protocol."""
 
     parser = argparse.ArgumentParser(
         prog="prob4d experiment heldout-provider",
@@ -176,6 +214,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         add_help=False,
         help="replay a retained promotion report",
     )
+    subparsers.add_parser(
+        "diagnose",
+        add_help=False,
+        help="attribute failed gates to candidate failure boundaries",
+    )
     arguments = list(sys.argv[1:] if argv is None else argv)
     if not arguments or arguments[0] in {"-h", "--help"}:
         parser.print_help()
@@ -187,6 +230,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run(remaining)
     if parsed.command == "verify":
         return _verify(remaining)
+    if parsed.command == "diagnose":
+        return _diagnose(remaining)
     raise AssertionError("unreachable held-out promotion command")
 
 
@@ -195,27 +240,35 @@ if __name__ == "__main__":
 
 
 __all__ = [
+    "HELDOUT_PROMOTION_DIAGNOSIS_SCHEMA",
+    "HELDOUT_PROMOTION_DIAGNOSIS_VERSION",
     "HELDOUT_PROMOTION_LOCK_SCHEMA",
     "HELDOUT_PROMOTION_LOCK_VERSION",
     "HELDOUT_PROMOTION_REPORT_SCHEMA",
     "HELDOUT_PROMOTION_REPORT_VERSION",
     "HELDOUT_QUERY_RESULTS_SCHEMA",
     "HELDOUT_QUERY_RESULTS_VERSION",
+    "HeldoutPromotionDiagnosisV1",
     "HeldoutPromotionQueryResultsV1",
     "HeldoutProviderPromotionLockV1",
     "HeldoutProviderPromotionReportV1",
     "PromotionArmV1",
     "PromotionQueryRowV1",
     "build_query_results",
+    "diagnose_heldout_promotion",
     "evaluate_heldout_promotion",
+    "load_promotion_diagnosis",
     "load_promotion_lock",
     "load_promotion_report",
     "load_query_results",
+    "promotion_diagnosis_from_dict",
     "promotion_lock_from_config",
     "promotion_lock_from_dict",
     "promotion_report_from_dict",
     "query_results_from_dict",
     "query_results_from_raw",
+    "write_promotion_diagnosis",
+    "write_promotion_diagnosis_markdown",
     "write_promotion_lock",
     "write_promotion_report",
     "write_query_results",
