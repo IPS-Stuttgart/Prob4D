@@ -90,13 +90,14 @@ prob4d experiment heldout-provider run promotion-lock.json \
   --require-pass
 ```
 
-The command refuses an output directory containing any of its three retained
-files, so a repeated invocation cannot silently replace an opened result. It
-writes:
+The command refuses an output directory containing any retained output, so a
+repeated invocation cannot silently replace an opened result. It writes:
 
 - `query_results.sealed.json`, with canonical ordering and a content identity;
-- `promotion_report.json`, with both provider and physical-query decisions; and
-- `promotion_report.md`, a compact gate table.
+- `promotion_report.json`, with both provider and physical-query decisions;
+- `promotion_report.md`, a compact gate table;
+- `promotion_diagnosis.json`, a content-addressed candidate-boundary attribution;
+- `promotion_diagnosis.md`, a human-readable evidence and next-action summary.
 
 Without `--require-pass`, a scientifically valid negative result still returns
 exit code 0 after writing all evidence. With it, a valid failed gate returns exit
@@ -111,9 +112,44 @@ prob4d experiment heldout-provider verify promotion-lock.json \
   --report outputs/promotion/promotion_report.json
 ```
 
-Verification revalidates every artifact and recomputes the deterministic report.
-Any changed row, method set, target group, fallback identity, bootstrap setting,
-or report field fails closed.
+Verification revalidates every claim-bearing artifact and recomputes the
+deterministic report. Any changed row, method set, target group, fallback
+identity, bootstrap setting, or report field fails closed.
+
+The diagnosis is derived only from the retained report and can be regenerated
+independently for an older report:
+
+```bash
+prob4d experiment heldout-provider diagnose \
+  outputs/promotion/promotion_report.json \
+  --output outputs/promotion/promotion_diagnosis.replayed.json \
+  --markdown outputs/promotion/promotion_diagnosis.replayed.md
+```
+
+Matching diagnosis IDs establish deterministic replay of the attribution. The
+diagnosis never changes the promotion report or its decision.
+
+## Deterministic failure attribution
+
+A failed gate is mapped to one or more ordered candidate boundaries. Direct
+query gates identify technical integrity, exact fallback, independent-group
+support, guard calibration, worst-object/session transfer, and accepted-update
+coverage failures. Failed provider rules are grouped by their frozen metric
+family into observation quality, gauge consistency, identity persistence,
+uncertainty calibration, or support/reliability.
+
+When provider competence passes but query superiority fails, the diagnosis marks
+`query_identifiability_or_physical_model_discrepancy`: the retained evidence does
+not distinguish an uninformative physical query from a deficient physical model.
+When both provider competence and query superiority fail, it instead marks
+`downstream_query_superiority` and directs follow-up to the upstream provider
+boundary first.
+
+These labels are candidate boundaries, not causal proof. They are generated from
+predeclared gates and metric names, include the exact observed and required
+values, and explicitly forbid repairing a failed target result by post-hoc
+retuning. Any changed estimator, calibration, guard, or diagnostic policy requires
+a new unopened target cohort.
 
 ## Conjunctive physical-query gates
 
