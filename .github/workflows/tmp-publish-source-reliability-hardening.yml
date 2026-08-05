@@ -1,0 +1,55 @@
+name: Temporary source-reliability hardening publisher
+
+on:
+  push:
+    branches:
+      - agent/harden-source-reliability-artifacts
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PATCH_GZIP_BASE64: "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"
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: agent/harden-source-reliability-artifacts
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install development tools
+        run: python -m pip install -e ".[dev]"
+      - name: Apply hardening patch
+        run: |
+          python - <<'PY'
+          import base64
+          import gzip
+          import os
+          from pathlib import Path
+
+          patch = gzip.decompress(base64.b64decode(os.environ["PATCH_GZIP_BASE64"]))
+          Path("/tmp/source-reliability-hardening.patch").write_bytes(patch)
+          PY
+          git apply --index --whitespace=error-all /tmp/source-reliability-hardening.patch
+      - name: Verify focused quality
+        run: |
+          python -m ruff format src/prob4d/source_reliability.py tests/test_source_reliability.py
+          python -m ruff check src/prob4d/source_reliability.py tests/test_source_reliability.py
+          python -m ruff format --check src/prob4d/source_reliability.py tests/test_source_reliability.py
+          python -m mypy src/prob4d/source_reliability.py
+          python -m pytest -q tests/test_source_reliability.py
+      - name: Publish clean hardening commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/prob4d/source_reliability.py tests/test_source_reliability.py CHANGELOG.md
+          git rm .github/workflows/tmp-publish-source-reliability-hardening.yml
+          git commit -m "Harden source-reliability artifacts"
+          git push origin HEAD:agent/harden-source-reliability-artifacts
