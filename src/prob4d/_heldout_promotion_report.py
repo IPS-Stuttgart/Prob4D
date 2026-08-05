@@ -9,14 +9,13 @@ from pathlib import Path
 from typing import Any
 
 from ._heldout_promotion_common import (
+    _SHA256,
     HELDOUT_PROMOTION_REPORT_SCHEMA,
     HELDOUT_PROMOTION_REPORT_VERSION,
     REPORT_CLAIM_BOUNDARY,
-    _SHA256,
     _atomic_write_json,
     _exact_keys,
     _load_json,
-    _sha256_json,
     _strict_bool,
     _strict_digest,
     _strict_mapping,
@@ -28,6 +27,7 @@ from ._heldout_promotion_evaluation import (
 from ._heldout_promotion_lock import HeldoutProviderPromotionLockV1
 from ._heldout_promotion_query import HeldoutPromotionQueryResultsV1
 from ._immutable_json import frozen_finite_json_mapping, plain_json
+from ._selection_evidence_common import _sha256_json
 
 
 @dataclass(frozen=True, slots=True)
@@ -285,4 +285,3 @@ def _write_report_markdown(
     if path.exists():
         raise FileExistsError(path)
     path.write_text("\n".join(lines), encoding="utf-8")
-
