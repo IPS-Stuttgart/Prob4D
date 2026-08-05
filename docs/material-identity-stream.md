@@ -133,3 +133,14 @@ Report association precision/retention where material labels exist, but make the
 decisive endpoints object/session-level physical prediction, harmful accepted
 updates, coverage and width, rejection rate, and exact fallback. A negative
 result leaves local provider identities unchanged.
+
+## Command-line validation
+
+Validate a retained stream without importing the Python API:
+
+```bash
+prob4d identity validate-stream outputs/material-identities.json
+```
+
+The grouped interface and downstream mixture tools are documented in
+[the material-identity command line](material-identity-cli.md).

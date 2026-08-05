@@ -1,0 +1,43 @@
+{
+  "association_revision": "dddddddddddddddddddddddddddddddddddddddd",
+  "association_rule_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "calibration_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "candidates": [
+    {
+      "association_result_id": null,
+      "calibrated_log_weight": 0.0,
+      "metadata": {
+        "fallback": true
+      },
+      "source_endpoint": null,
+      "source_score": null
+    },
+    {
+      "association_result_id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "calibrated_log_weight": 1.0986122886681098,
+      "metadata": {
+        "source_only": true
+      },
+      "source_endpoint": {
+        "track_id": 7,
+        "window_id": "window-001"
+      },
+      "source_score": 0.8
+    }
+  ],
+  "causal_frame_stop": 75,
+  "metadata": {
+    "claim_bearing": false,
+    "weight_fit_split": "source-calibration-only"
+  },
+  "target_endpoint": {
+    "track_id": 3,
+    "window_id": "window-002"
+  },
+  "tracklet_producer_revision": "cccccccccccccccccccccccccccccccccccccccc",
+  "window_order": [
+    "window-000",
+    "window-001",
+    "window-002"
+  ]
+}

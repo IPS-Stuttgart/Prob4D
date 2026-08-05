@@ -147,6 +147,44 @@ binds bundle/payload hashes, observation identities, and the previous update ID.
 See [append-only observation-factor streams](docs/observation-factor-stream.md)
 and the [compatibility matrix](docs/compatibility.md).
 
+### Held-out provider promotion and material identity
+
+Freeze, run, and deterministically replay the independent Prob4D-to-BayesianPhysTwin
+promotion gate through the grouped command surface:
+
+```bash
+prob4d experiment heldout-provider freeze protocol.json --output promotion-lock.json
+prob4d experiment heldout-provider run promotion-lock.json \
+  --provider-report outputs/provider/provider_evaluation.json \
+  --query-results query-results.raw.json \
+  --output-dir outputs/promotion
+prob4d experiment heldout-provider verify promotion-lock.json \
+  --provider-report outputs/provider/provider_evaluation.json \
+  --query-results outputs/promotion/query_results.sealed.json \
+  --report outputs/promotion/promotion_report.json
+```
+
+The target-free lock binds complete object/session splits, source and model
+identities, comparison arms, calibration and guard artifacts, bootstrap settings,
+and decision margins. The report composes the provider-competence decision with
+separate guarded-query superiority, harmful-update, worst-group, coverage,
+technical-failure, and exact-fallback gates. See
+[held-out provider promotion](docs/heldout-provider-promotion.md).
+
+Portable cross-window material-identity streams and source-calibrated mixtures can
+be inspected without rewriting local observation IDs:
+
+```bash
+prob4d identity validate-stream material-identities.json
+prob4d identity build-mixture mixture-config.json \
+  --output material-identity-mixture.json
+prob4d identity marginalize material-identity-mixture.json likelihoods.json
+```
+
+See [the material-identity command line](docs/material-identity-cli.md),
+[append-only hypothesis streams](docs/material-identity-stream.md), and
+[identity marginalization](docs/material-identity-marginalization.md).
+
 Prepare a separate calibration sequence and world-coordinate truth files, then
 run the real ablation:
 

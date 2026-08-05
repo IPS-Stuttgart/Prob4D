@@ -9,6 +9,8 @@ def test_grouped_cli_lists_provider_and_observation(capsys) -> None:
     assert "provider" in output
     assert "observation" in output
     assert "phystwin" in output
+    assert "experiment" in output
+    assert "identity" in output
 
 
 def test_grouped_cli_lists_explicit_provider_v2_exports(capsys) -> None:
@@ -39,3 +41,20 @@ def test_ambiguous_observation_export_help_is_informational(capsys) -> None:
 def test_grouped_cli_rejects_unknown_command(capsys) -> None:
     assert main(["unknown"]) == 2
     assert "usage: prob4d" in capsys.readouterr().err
+
+
+def test_grouped_cli_lists_heldout_provider_experiment(capsys) -> None:
+    assert main(["experiment"]) == 0
+    output = capsys.readouterr().out
+    assert "heldout-provider" in output
+
+
+def test_grouped_cli_routes_promotion_and_identity_help(capsys) -> None:
+    assert main(["experiment", "heldout-provider", "--help"]) == 0
+    promotion_help = capsys.readouterr().out
+    assert "seal a target-free promotion lock" in promotion_help
+
+    assert main(["identity", "--help"]) == 0
+    identity_help = capsys.readouterr().out
+    assert "build-mixture" in identity_help
+    assert "moment-match" in identity_help

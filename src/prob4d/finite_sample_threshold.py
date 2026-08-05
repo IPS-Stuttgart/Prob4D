@@ -7,12 +7,12 @@ import math
 import struct
 from dataclasses import dataclass
 from numbers import Real
-from typing import Final
+from typing import Any, Final, TypeAlias
 
 import numpy as np
 from numpy.typing import NDArray
 
-FloatArray = NDArray[np.floating]
+FloatArray: TypeAlias = NDArray[np.floating[Any]]
 FINITE_SAMPLE_UPPER_THRESHOLD_SEMANTICS: Final = (
     "split-conformal-upper-order-statistic-v1"
 )

@@ -6,6 +6,7 @@ import csv
 import json
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
+from numbers import Real
 from pathlib import Path
 
 import numpy as np
@@ -31,18 +32,37 @@ _STRONG_OUTLIER_SCENARIOS = (
 _MILD_OUTLIER_SCENARIO = "correlated_mild_outliers"
 
 
+def _real(value: object, *, name: str) -> float:
+    if isinstance(value, (bool, np.bool_)) or not isinstance(value, Real):
+        raise ValueError(f"{name} must be a real number")
+    result = float(value)
+    if not np.isfinite(result):
+        raise ValueError(f"{name} must be finite")
+    return result
+
+
+def _integer(value: object, *, name: str) -> int:
+    if isinstance(value, (bool, np.bool_)) or not isinstance(
+        value, (int, np.integer)
+    ):
+        raise ValueError(f"{name} must be an integer")
+    return int(value)
+
+
 def _aggregate_records(
     records: Sequence[Mapping[str, object]],
     *,
     bootstrap_resamples: int,
     bootstrap_seed: int,
 ) -> list[dict[str, object]]:
-    by_scenario_method: dict[tuple[str, str], list[Mapping[str, object]]] = defaultdict(list)
+    by_scenario_method: dict[
+        tuple[str, str], list[Mapping[str, object]]
+    ] = defaultdict(list)
     tree_by_trial: dict[tuple[str, int], Mapping[str, object]] = {}
     for record in records:
         scenario_id = str(record["scenario_id"])
         method_id = str(record["method_id"])
-        trial_index = int(record["trial_index"])
+        trial_index = _integer(record["trial_index"], name="trial_index")
         by_scenario_method[(scenario_id, method_id)].append(record)
         if method_id == "tree":
             tree_by_trial[(scenario_id, trial_index)] = record
@@ -68,21 +88,26 @@ def _aggregate_records(
                 )
             metrics = {
                 metric: _bootstrap_summary(
-                    [float(record[metric]) for record in group],
+                    [_real(record[metric], name=metric) for record in group],
                     resamples=bootstrap_resamples,
                     seed=_stable_seed(bootstrap_seed, scenario_id, method_id, metric),
                 )
                 for metric in metric_names
             }
-            paired = [
-                float(record["endpoint_displacement_rmse"])
-                - float(
-                    tree_by_trial[(scenario_id, int(record["trial_index"]))][
-                        "endpoint_displacement_rmse"
-                    ]
+            paired: list[float] = []
+            for record in group:
+                trial_index = _integer(record["trial_index"], name="trial_index")
+                tree_record = tree_by_trial[(scenario_id, trial_index)]
+                paired.append(
+                    _real(
+                        record["endpoint_displacement_rmse"],
+                        name="endpoint_displacement_rmse",
+                    )
+                    - _real(
+                        tree_record["endpoint_displacement_rmse"],
+                        name="tree endpoint_displacement_rmse",
+                    )
                 )
-                for record in group
-            ]
             fallback_values = [
                 bool(record["fallback_applied"])
                 for record in group
@@ -218,27 +243,53 @@ def _decision(
         assert isinstance(paired, Mapping)
         assert isinstance(candidate_metrics, Mapping)
         assert isinstance(tree_metrics, Mapping)
-        endpoint_upper_bounds[scenario_id] = float(paired["ci95_upper"])
+        endpoint_upper_bounds[scenario_id] = _real(
+            paired["ci95_upper"], name="paired ci95_upper"
+        )
         candidate_coverage = candidate_metrics["coverage_95"]
         candidate_trace = candidate_metrics["mean_normalized_covariance_trace"]
         tree_trace = tree_metrics["mean_normalized_covariance_trace"]
         assert isinstance(candidate_coverage, Mapping)
         assert isinstance(candidate_trace, Mapping)
         assert isinstance(tree_trace, Mapping)
-        clean_coverages[scenario_id] = float(candidate_coverage["mean"])
-        tree_trace_mean = float(tree_trace["mean"])
+        clean_coverages[scenario_id] = _real(
+            candidate_coverage["mean"], name="candidate coverage mean"
+        )
+        tree_trace_mean = _real(tree_trace["mean"], name="tree covariance trace mean")
         if tree_trace_mean <= 0.0:
             raise ValueError("tree covariance trace must be positive")
         covariance_trace_ratios[scenario_id] = (
-            float(candidate_trace["mean"]) / tree_trace_mean
+            _real(
+                candidate_trace["mean"],
+                name="candidate covariance trace mean",
+            )
+            / tree_trace_mean
         )
 
-    empirical_strong = float(empirical["strong_outlier_detection_rate"])
-    empirical_mild = float(empirical["mild_outlier_detection_rate"])
-    conformal_strong = float(conformal["strong_outlier_detection_rate"])
-    conformal_mild = float(conformal["mild_outlier_detection_rate"])
-    conformal_worst = float(conformal["worst_clean_false_fallback_rate"])
-    empirical_worst = float(empirical["worst_clean_false_fallback_rate"])
+    empirical_strong = _real(
+        empirical["strong_outlier_detection_rate"],
+        name="empirical strong detection",
+    )
+    empirical_mild = _real(
+        empirical["mild_outlier_detection_rate"],
+        name="empirical mild detection",
+    )
+    conformal_strong = _real(
+        conformal["strong_outlier_detection_rate"],
+        name="conformal strong detection",
+    )
+    conformal_mild = _real(
+        conformal["mild_outlier_detection_rate"],
+        name="conformal mild detection",
+    )
+    conformal_worst = _real(
+        conformal["worst_clean_false_fallback_rate"],
+        name="conformal worst clean fallback",
+    )
+    empirical_worst = _real(
+        empirical["worst_clean_false_fallback_rate"],
+        name="empirical worst clean fallback",
+    )
     criteria = {
         "finite_sample_bound_at_most_requested_miscoverage": (
             guaranteed_miscoverage_upper_bound <= conformal_miscoverage
@@ -341,9 +392,9 @@ def _flat_aggregate(aggregate: Sequence[Mapping[str, object]]) -> list[dict[str,
 
 def _format_interval(summary: Mapping[str, object]) -> str:
     return (
-        f"{float(summary['mean']):.5g} "
-        f"[{float(summary['ci95_lower']):.5g}, "
-        f"{float(summary['ci95_upper']):.5g}]"
+        f"{_real(summary['mean'], name='interval mean'):.5g} "
+        f"[{_real(summary['ci95_lower'], name='interval ci95_lower'):.5g}, "
+        f"{_real(summary['ci95_upper'], name='interval ci95_upper'):.5g}]"
     )
 
 
@@ -364,7 +415,7 @@ def _write_markdown(
         "",
         f"Raw threshold: `{raw_threshold:.8g}`. Empirical normalized threshold: "
         f"`{empirical_threshold:.8g}`. Split-conformal threshold: "
-        f"`{float(conformal_threshold['threshold']):.8g}`.",
+        f"`{_real(conformal_threshold['threshold'], name='conformal threshold'):.8g}`.",
         "",
         "| Scenario | Method | Endpoint | Delta vs tree | Coverage | NEES | "
         "Fallback | Detection | Clean false fallback |",
@@ -377,7 +428,9 @@ def _write_markdown(
         assert isinstance(paired, Mapping)
 
         def optional(value: object) -> str:
-            return "—" if value is None else f"{float(value):.3f}"
+            if value is None:
+                return "—"
+            return f"{_real(value, name='optional rate'):.3f}"
 
         coverage = metrics["coverage_95"]
         nees = metrics["mean_normalized_nees"]
@@ -391,8 +444,8 @@ def _write_markdown(
                     str(item["method_id"]),
                     _format_interval(metrics["endpoint_displacement_rmse"]),
                     _format_interval(paired),
-                    f"{float(coverage['mean']):.3f}",
-                    f"{float(nees['mean']):.3f}",
+                    f"{_real(coverage['mean'], name='coverage mean'):.3f}",
+                    f"{_real(nees['mean'], name='NEES mean'):.3f}",
                     optional(item["fallback_rate"]),
                     optional(item["outlier_detection_rate"]),
                     optional(item["clean_false_fallback_rate"]),

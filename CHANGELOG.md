@@ -6,6 +6,16 @@ All notable changes to Prob4D are documented here.
 
 ### Added
 
+- A target-free, content-addressed held-out provider promotion protocol that
+  freezes complete object/session splits, source/model/calibration identities,
+  seven required comparison roles, BayesianPhysTwin guard settings, bootstrap
+  semantics, and decision margins; seals the complete target group-by-arm query
+  matrix; composes provider competence with guarded-query gates; and replays the
+  final report deterministically through `prob4d experiment heldout-provider`.
+- A grouped `prob4d identity` interface for atomic material-identity mixture
+  construction from externally source-calibrated weights, strict mixture and
+  append-only stream validation, candidate-aligned log-sum-exp likelihood
+  marginalization, and law-of-total-covariance Gaussian moment matching.
 - An optional source-only directed-cycle gate for the experimental full-joint
   gauge graph, with a preregistered displacement threshold,
   per-multi-edge-child cycle support, complete audit reporting, and exact analytic

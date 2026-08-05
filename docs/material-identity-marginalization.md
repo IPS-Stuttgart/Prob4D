@@ -71,3 +71,10 @@ update, does not establish provider competence, and does not establish a
 Causal4D intervention benefit. Promotion requires a separately frozen
 object/session-held-out comparison of newest-window, hard-link,
 identity-marginalized, oracle, and exact-fallback arms.
+
+## Grouped command line
+
+The portable build, validation, likelihood-marginalization, and Gaussian
+moment-matching operations are available through `prob4d identity`. See
+[the material-identity command line](material-identity-cli.md) and its validated
+[configuration example](examples/material-identity-mixture-config.json).

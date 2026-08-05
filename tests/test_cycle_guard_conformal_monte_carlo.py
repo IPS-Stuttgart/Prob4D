@@ -14,7 +14,6 @@ from prob4d.cycle_guard_conformal_monte_carlo import (
     run_cycle_guard_conformal_monte_carlo,
 )
 
-
 TEST_SCENARIOS = (
     GaugeGraphStudyScenario("independent_clean", correlation=0.0),
     GaugeGraphStudyScenario("correlated_clean", correlation=0.75),
