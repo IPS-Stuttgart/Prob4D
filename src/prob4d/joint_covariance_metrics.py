@@ -127,9 +127,7 @@ def evaluate_joint_gaussian_group(
     else:
         whitened_factor = np.empty((whitened_residual.size, 0), dtype=np.float64)
 
-    cross_gram, singular_values, right_vectors = _small_gram_singular_structure(
-        whitened_factor
-    )
+    cross_gram, singular_values, right_vectors = _small_gram_singular_structure(whitened_factor)
     gram = np.eye(rank_columns, dtype=np.float64) + cross_gram
     gram_cholesky = np.linalg.cholesky(gram)
     projected = whitened_factor.T @ whitened_residual
@@ -158,9 +156,7 @@ def evaluate_joint_gaussian_group(
     if effective_rank:
         active_singular_values = singular_values[:effective_rank]
         active_right_vectors = right_vectors[:, :effective_rank]
-        coefficients = (
-            active_right_vectors.T @ projected
-        ) / active_singular_values
+        coefficients = (active_right_vectors.T @ projected) / active_singular_values
         shared_energy = float(
             np.sum(np.square(coefficients) / (1.0 + np.square(active_singular_values)))
         )
