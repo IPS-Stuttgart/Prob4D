@@ -94,6 +94,10 @@ All notable changes to Prob4D are documented here.
 
 ### Fixed
 
+- Source-reliability calibration artifacts now reject coercive JSON aliases,
+  duplicate object keys, non-finite constants, non-string feature or group IDs,
+  and noncanonical report primitives. Persistence is atomic, idempotent for
+  identical bytes, and refuses to overwrite a different content-addressed model.
 - Scientific scalar contracts for robust alignment, cross-fitted disagreement,
   and uncertainty calibration reports now reject booleans, integral floats,
   numeric strings, and fractional count truncation. Robust alignment also rejects

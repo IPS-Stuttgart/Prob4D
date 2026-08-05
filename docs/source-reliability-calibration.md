@@ -82,7 +82,29 @@ from prob4d import (
 
 save_source_reliability_model(model, "source-reliability.json")
 loaded = load_source_reliability_model("source-reliability.json")
+assert loaded.artifact_id == model.artifact_id
 ```
+
+## Canonical artifact boundary
+
+Version-1 artifacts are validated without Python-style coercion. The loader
+requires exact top-level and calibration-report key sets, JSON integers for
+counts and versions, JSON booleans for flags, finite JSON numbers for real-valued
+fields, and strings for feature names and calibration group IDs. It rejects
+numeric strings, integral floats used as counts, booleans used as integers,
+duplicate object keys, and `NaN` or infinite constants.
+
+The stored `artifact_id` must equal the SHA-256 digest recomputed from the fully
+validated canonical descriptor. This prevents a noncanonical input from becoming
+accepted merely because it carries a self-consistent digest over values that
+would have been truncated, stringified, or converted through truthiness.
+
+Persistence is append-only at a path. `save_source_reliability_model` writes and
+`fsync`s a temporary file in the destination directory, validates its complete
+bytes, and publishes it without replacing an existing file. Re-saving identical
+bytes is idempotent; attempting to write different bytes to the same path raises
+`FileExistsError`. Concurrent writers therefore either agree on the artifact or
+fail closed rather than silently replacing authenticated calibration evidence.
 
 ## Label boundary
 
@@ -118,3 +140,14 @@ promotion:
 A calibrated source nominality probability is still not proof that assimilating
 the observation improves a physical twin. The downstream baseline-relative guard
 and exact fallback remain necessary.
+
+## Regression checks
+
+The focused suite covers canonical round trips, deterministic fitting, coercive
+aliases, duplicate keys, non-finite constants, non-string identifiers, digest
+mismatches, idempotent saves, and conflicting-path refusal:
+
+```bash
+python -m pytest -q tests/test_source_reliability.py
+python -m mypy src/prob4d/source_reliability.py
+```

@@ -187,9 +187,7 @@ def test_feature_contract_masks_invalid_rows_during_prediction() -> None:
     features = build_source_reliability_features(window, covariance)
     active_values = features.flattened()
     labels = (active_values[:, 2] > 0.5).astype(float)
-    groups = np.asarray(
-        [f"frame-{index // 4}" for index in range(len(active_values))]
-    )
+    groups = np.asarray([f"frame-{index // 4}" for index in range(len(active_values))])
     model = fit_group_balanced_source_reliability(
         active_values,
         labels,
@@ -213,5 +211,104 @@ def test_source_reliability_fit_requires_both_label_classes() -> None:
             np.asarray(["a", "a", "b", "b"]),
             feature_names=("constant",),
             label_definition="nominality",
+            group_definition="sequence",
+        )
+
+
+def _small_source_reliability_model() -> SourceReliabilityModelV1:
+    return fit_group_balanced_source_reliability(
+        np.array([[-1.0], [-0.5], [0.5], [1.0]]),
+        np.array([0.0, 0.0, 1.0, 1.0]),
+        np.array(["a", "a", "b", "b"]),
+        feature_names=("score",),
+        label_definition="source-only nominality",
+        group_definition="sequence",
+    )
+
+
+def test_source_reliability_artifact_rejects_coercive_json_aliases() -> None:
+    model = _small_source_reliability_model()
+    cases = (
+        (("version",), True, "integer"),
+        (("report", "count"), True, "integer"),
+        (("report", "count"), 1.5, "integer"),
+        (("report", "converged"), "false", "Boolean"),
+        (("minimum_probability",), "0.01", "real number"),
+        (("feature_names", 0), 1, "canonical string"),
+        (("calibration_group_ids", 0), 1, "canonical string"),
+    )
+    for path, replacement, message in cases:
+        payload = json.loads(json.dumps(model.to_dict()))
+        target = payload
+        for key in path[:-1]:
+            target = target[key]
+        target[path[-1]] = replacement
+        with pytest.raises(ValueError, match=message):
+            SourceReliabilityModelV1.from_dict(payload)
+
+
+def test_source_reliability_loader_rejects_duplicate_keys_and_nonfinite_values(
+    tmp_path,
+) -> None:
+    model = _small_source_reliability_model()
+    path = tmp_path / "source-reliability.json"
+    save_source_reliability_model(model, path)
+    original = path.read_text(encoding="utf-8")
+
+    schema_line = f'  "schema": "{model.to_dict()["schema"]}",'
+    path.write_text(
+        original.replace(schema_line, f"{schema_line}\n{schema_line}", 1),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="duplicate JSON key"):
+        load_source_reliability_model(path)
+
+    path.write_text(
+        original.replace('  "coefficients": [', '  "coefficients": [\n    NaN,', 1),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="non-finite JSON constant"):
+        load_source_reliability_model(path)
+
+
+def test_source_reliability_save_is_atomic_idempotent_and_no_clobber(tmp_path) -> None:
+    from dataclasses import replace
+
+    model = _small_source_reliability_model()
+    path = tmp_path / "source-reliability.json"
+    save_source_reliability_model(model, path)
+    expected = path.read_bytes()
+
+    save_source_reliability_model(model, path)
+    assert path.read_bytes() == expected
+
+    different = replace(model, metadata={"variant": "different"})
+    with pytest.raises(FileExistsError, match="refusing to replace"):
+        save_source_reliability_model(different, path)
+    assert path.read_bytes() == expected
+    assert not list(tmp_path.glob(f".{path.name}.tmp-*"))
+
+
+def test_source_reliability_fit_rejects_nonstring_identifiers() -> None:
+    features = np.array([[-1.0], [-0.5], [0.5], [1.0]])
+    labels = np.array([0.0, 0.0, 1.0, 1.0])
+
+    with pytest.raises(ValueError, match="group IDs.*string"):
+        fit_group_balanced_source_reliability(
+            features,
+            labels,
+            np.array([1, 1, 2, 2]),
+            feature_names=("score",),
+            label_definition="source-only nominality",
+            group_definition="sequence",
+        )
+
+    with pytest.raises(ValueError, match="feature_names.*canonical string"):
+        fit_group_balanced_source_reliability(
+            features,
+            labels,
+            np.array(["a", "a", "b", "b"]),
+            feature_names=(1,),
+            label_definition="source-only nominality",
             group_definition="sequence",
         )
