@@ -1,0 +1,309 @@
+_choice_set_count + self.null_only_choice_set_count
++            != self.choice_set_count
++        ):
++            raise ValueError("choice-set calibration accounting is inconsistent")
++        object.__setattr__(
++            self,
++            "converged",
++            _strict_bool(self.converged, name="converged"),
++        )
++        for name in (
++            "weighted_log_loss",
++            "weighted_brier_score",
++            "ridge",
++            "probability_floor",
++        ):
++            object.__setattr__(
++                self,
++                name,
++                _strict_real(getattr(self, name), name=name, minimum=0.0),
++            )
++        object.__setattr__(
++            self,
++            "weighted_top1_accuracy",
++            _strict_real(
++                self.weighted_top1_accuracy,
++                name="weighted_top1_accuracy",
++                minimum=0.0,
++                maximum=1.0,
++            ),
++        )
++        if self.ridge <= 0.0:
++            raise ValueError("ridge must be positive")
++        if not 0.0 <= self.probability_floor < 0.5:
++            raise ValueError("probability_floor must lie in [0, 0.5)")
++
++    def to_dict(self) -> dict[str, int | float | bool]:
++        return {
++            "choice_set_count": self.choice_set_count,
++            "informative_choice_set_count": self.informative_choice_set_count,
++            "null_only_choice_set_count": self.null_only_choice_set_count,
++            "candidate_count": self.candidate_count,
++            "group_count": self.group_count,
++            "feature_count": self.feature_count,
++            "iterations": self.iterations,
++            "converged": self.converged,
++            "weighted_log_loss": self.weighted_log_loss,
++            "weighted_brier_score": self.weighted_brier_score,
++            "weighted_top1_accuracy": self.weighted_top1_accuracy,
++            "ridge": self.ridge,
++            "probability_floor": self.probability_floor,
++        }
++
++
++@dataclass(frozen=True, slots=True)
++class MaterialIdentityCalibrationV1:
++    """Content-addressed group-balanced conditional-logit calibration."""
++
++    feature_names: tuple[str, ...]
++    feature_center: FloatArray
++    feature_scale: FloatArray
++    coefficients: FloatArray
++    probability_floor: float
++    association_rule_id: str
++    tracklet_producer_revision: str
++    association_revision: str
++    choice_set_collection_id: str
++    label_set_id: str
++    label_definition: str
++    group_definition: str
++    calibration_group_ids: tuple[str, ...]
++    report: MaterialIdentityCalibrationReportV1
++    metadata: Mapping[str, Any] = field(default_factory=dict)
++    calibration_id: str | None = None
++
++    def __post_init__(self) -> None:
++        names = tuple(
++            _strict_string(value, name=f"feature_names[{index}]")
++            for index, value in enumerate(self.feature_names)
++        )
++        if not names or len(set(names)) != len(names):
++            raise ValueError("feature_names must be non-empty and unique")
++        center = np.asarray(self.feature_center, dtype=np.float64)
++        scale = np.asarray(self.feature_scale, dtype=np.float64)
++        coefficients = np.asarray(self.coefficients, dtype=np.float64)
++        if center.shape != (len(names),) or scale.shape != (len(names),):
++            raise ValueError("feature center and scale must match feature_names")
++        if coefficients.shape != (len(names),):
++            raise ValueError("coefficients must contain one value per feature")
++        if not np.all(np.isfinite(center)) or not np.all(np.isfinite(coefficients)):
++            raise ValueError("calibration parameters must be finite")
++        if not np.all(np.isfinite(scale)) or np.any(scale <= 0.0):
++            raise ValueError("feature_scale must be finite and positive")
++        probability_floor = _strict_real(
++            self.probability_floor,
++            name="probability_floor",
++            minimum=0.0,
++        )
++        if probability_floor >= 0.5:
++            raise ValueError("probability_floor must be less than 0.5")
++        groups = tuple(
++            sorted(
++                _strict_string(value, name=f"calibration_group_ids[{index}]")
++                for index, value in enumerate(self.calibration_group_ids)
++            )
++        )
++        if not groups or len(set(groups)) != len(groups):
++            raise ValueError("calibration_group_ids must be non-empty and unique")
++        if not isinstance(self.report, MaterialIdentityCalibrationReportV1):
++            raise ValueError("report must be MaterialIdentityCalibrationReportV1")
++        if self.report.feature_count != len(names):
++            raise ValueError("calibration report feature count changed")
++        if self.report.group_count != len(groups):
++            raise ValueError("calibration report group count changed")
++        if self.report.probability_floor != probability_floor:
++            raise ValueError("calibration report probability floor changed")
++        object.__setattr__(self, "feature_names", names)
++        object.__setattr__(self, "feature_center", _readonly(center, dtype=np.float64))
++        object.__setattr__(self, "feature_scale", _readonly(scale, dtype=np.float64))
++        object.__setattr__(
++            self,
++            "coefficients",
++            _readonly(coefficients, dtype=np.float64),
++        )
++        object.__setattr__(self, "probability_floor", probability_floor)
++        object.__setattr__(
++            self,
++            "association_rule_id",
++            _strict_digest(
++                self.association_rule_id,
++                name="association_rule_id",
++                length=_SHA256_LENGTH,
++            ),
++        )
++        object.__setattr__(
++            self,
++            "tracklet_producer_revision",
++            _strict_digest(
++                self.tracklet_producer_revision,
++                name="tracklet_producer_revision",
++                length=_GIT_SHA_LENGTH,
++            ),
++        )
++        object.__setattr__(
++            self,
++            "association_revision",
++            _strict_digest(
++                self.association_revision,
++                name="association_revision",
++                length=_GIT_SHA_LENGTH,
++            ),
++        )
++        for name in ("choice_set_collection_id", "label_set_id"):
++            object.__setattr__(
++                self,
++                name,
++                _strict_digest(getattr(self, name), name=name, length=_SHA256_LENGTH),
++            )
++        object.__setattr__(
++            self,
++            "label_definition",
++            _strict_string(self.label_definition, name="label_definition"),
++        )
++        object.__setattr__(
++            self,
++            "group_definition",
++            _strict_string(self.group_definition, name="group_definition"),
++        )
++        object.__setattr__(self, "calibration_group_ids", groups)
++        object.__setattr__(
++            self,
++            "metadata",
++            _target_free_metadata(self.metadata, name="identity calibration metadata"),
++        )
++        expected = _sha256_json(self.descriptor())
++        if self.calibration_id is not None and (
++            _strict_digest(
++                self.calibration_id,
++                name="calibration_id",
++                length=_SHA256_LENGTH,
++            )
++            != expected
++        ):
++            raise ValueError("material-identity calibration_id mismatch")
++        object.__setattr__(self, "calibration_id", expected)
++
++    def _validate_choice_set(self, choice_set: MaterialIdentityChoiceSetV1) -> None:
++        if not isinstance(choice_set, MaterialIdentityChoiceSetV1):
++            raise TypeError("choice_set must be MaterialIdentityChoiceSetV1")
++        if choice_set.feature_names != self.feature_names:
++            raise ValueError("choice-set feature semantics differ from calibration")
++        if choice_set.association_rule_id != self.association_rule_id:
++            raise ValueError("choice-set association rule differs from calibration")
++        if choice_set.tracklet_producer_revision != self.tracklet_producer_revision:
++            raise ValueError("choice-set tracklet revision differs from calibration")
++        if choice_set.association_revision != self.association_revision:
++            raise ValueError("choice-set association revision differs from calibration")
++        if len(choice_set.candidates) * self.probability_floor >= 1.0:
++            raise ValueError("calibration probability floor is too large for choice set")
++
++    def predict_probabilities(self, choice_set: MaterialIdentityChoiceSetV1) -> FloatArray:
++        """Return source-side candidate probabilities in canonical candidate order."""
++
++        self._validate_choice_set(choice_set)
++        standardized = (
++            choice_set.feature_matrix - self.feature_center[None, :]
++        ) / self.feature_scale[None, :]
++        logits = standardized @ self.coefficients
++        return _readonly(
++            _probabilities_with_floor(logits, self.probability_floor),
++            dtype=np.float64,
++        )
++
++    def predict_log_weights(self, choice_set: MaterialIdentityChoiceSetV1) -> FloatArray:
++        return _readonly(np.log(self.predict_probabilities(choice_set)), dtype=np.float64)
++
++    def calibrate_choice_set(
++        self,
++        choice_set: MaterialIdentityChoiceSetV1,
++        *,
++        metadata: Mapping[str, Any] | None = None,
++    ) -> MaterialIdentityMixtureV1:
++        """Convert one complete choice set into a portable calibrated mixture."""
++
++        log_weights = self.predict_log_weights(choice_set)
++        candidates_list: list[MaterialIdentityCandidateV1] = []
++        reserved_candidate_metadata = {
++            "choice_set_id",
++            "calibration_id",
++            "feature_semantics",
++            "weight_model_semantics",
++        }
++        for candidate, log_weight in zip(
++            choice_set.candidates,
++            log_weights,
++            strict=True,
++        ):
++            candidate_metadata = plain_json(candidate.metadata)
++            overlap = sorted(reserved_candidate_metadata & set(candidate_metadata))
++            if overlap:
++                raise ValueError(
++                    f"candidate metadata overrides reserved fields: {overlap}"
++                )
++            candidates_list.append(
++                MaterialIdentityCandidateV1(
++                    source_endpoint=candidate.source_endpoint,
++                    association_result_id=candidate.association_result_id,
++                    source_score=candidate.source_score,
++                    calibrated_log_weight=float(log_weight),
++                    metadata={
++                        **candidate_metadata,
++                        "choice_set_id": choice_set.choice_set_id,
++                        "calibration_id": self.calibration_id,
++                        "feature_semantics": MATERIAL_IDENTITY_FEATURE_SEMANTICS,
++                        "weight_model_semantics": MATERIAL_IDENTITY_WEIGHT_MODEL_SEMANTICS,
++                    },
++                )
++            )
++        candidates = tuple(candidates_list)
++        mixture_metadata: dict[str, Any] = {
++            "choice_set_id": choice_set.choice_set_id,
++            "source_stream_artifact_id": choice_set.source_stream_artifact_id,
++            "source_update_id": choice_set.source_update_id,
++            "feature_semantics": MATERIAL_IDENTITY_FEATURE_SEMANTICS,
++            "weight_model_semantics": MATERIAL_IDENTITY_WEIGHT_MODEL_SEMANTICS,
++            "target_outcomes_used": False,
++        }
++        if metadata is not None:
++            supplied = plain_json(
++                _target_free_metadata(metadata, name="calibrated mixture metadata")
++            )
++            overlap = sorted(set(mixture_metadata) & set(supplied))
++            if overlap:
++                raise ValueError(f"mixture metadata overrides reserved fields: {overlap}")
++            mixture_metadata.update(supplied)
++        return MaterialIdentityMixtureV1(
++            target_endpoint=choice_set.target_endpoint,
++            window_order=choice_set.window_order,
++            causal_frame_stop=choice_set.causal_frame_stop,
++            association_rule_id=choice_set.association_rule_id,
++            calibration_id=cast(str, self.calibration_id),
++            tracklet_producer_revision=choice_set.tracklet_producer_revision,
++            association_revision=choice_set.association_revision,
++            candidates=candidates,
++            metadata=mixture_metadata,
++        )
++
++    def descriptor(self) -> dict[str, object]:
++        return {
++            "schema": MATERIAL_IDENTITY_CALIBRATION_SCHEMA,
++            "schema_version": MATERIAL_IDENTITY_CALIBRATION_VERSION,
++            "weight_model_semantics": MATERIAL_IDENTITY_WEIGHT_MODEL_SEMANTICS,
++            "feature_semantics": MATERIAL_IDENTITY_FEATURE_SEMANTICS,
++            "feature_names": list(self.feature_names),
++            "feature_center": self.feature_center.tolist(),
++            "feature_scale": self.feature_scale.tolist(),
++            "coefficients": self.coefficients.tolist(),
++            "probability_floor": self.probability_floor,
++            "association_rule_id": self.association_rule_id,
++            "tracklet_producer_revision": self.tracklet_producer_revision,
++            "association_revision": self.association_revision,
++            "choice_set_collection_id": self.choice_set_collection_id,
++            "label_set_id": self.label_set_id,
++            "label_definition": self.label_definition,
++            "group_definition": self.group_definition,
++            "calibration_group_ids": list(self.calibration_group_ids),
++            "report": self.report.to_dict(),
++            "metadata": plain_json(self.metadata),
++            "target_outcomes_used": False,
++            "claim_boundary": MATERIAL_IDE
