@@ -7,7 +7,7 @@ import hashlib
 import json
 import platform
 import sys
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from pathlib import Path
 from typing import Final
@@ -419,7 +419,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         source_revision=arguments.source_revision,
     )
     print(arguments.output_dir / "cycle_guard_conformal_monte_carlo.json")
-    return 0 if report["decision"]["overall_passed"] else 3
+    decision = report["decision"]
+    if not isinstance(decision, Mapping):
+        raise RuntimeError("cycle-guard conformal report decision must be a mapping")
+    return 0 if decision.get("overall_passed") is True else 3
 
 
 if __name__ == "__main__":
