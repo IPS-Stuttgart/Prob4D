@@ -24,19 +24,20 @@ jobs:
           from pathlib import Path
 
           path = Path("src/prob4d/motioncrafter.py")
-          source = path.read_text(encoding="utf-8")
-          old = '''                scene_flow=arrays.get("scene_flow"),
-                          deform_mask=arrays.get("deform_mask"),
-                      )
-          '''
-          new = '''                scene_flow=arrays.get("scene_flow"),
-                          deform_mask=arrays.get("deform_mask"),
-                          dense_storage_dtype="float32",
-                      )
-          '''
-          if source.count(old) != 1:
+          lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+          candidates = [
+              index
+              for index in range(1, len(lines) - 1)
+              if lines[index - 1].strip() == 'scene_flow=arrays.get("scene_flow"),'
+              and lines[index].strip() == 'deform_mask=arrays.get("deform_mask"),'
+              and lines[index + 1].strip() == ")"
+          ]
+          if len(candidates) != 1:
               raise SystemExit("MotionCrafter PredictionWindow construction changed")
-          path.write_text(source.replace(old, new), encoding="utf-8")
+          index = candidates[0]
+          indent = lines[index][: len(lines[index]) - len(lines[index].lstrip())]
+          lines.insert(index + 1, f'{indent}dense_storage_dtype="float32",\n')
+          path.write_text("".join(lines), encoding="utf-8")
           PY
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
