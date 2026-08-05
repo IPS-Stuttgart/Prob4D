@@ -29,6 +29,18 @@ def _window(dtype: str = "float64") -> PredictionWindow:
     )
 
 
+def _versioned_payload() -> dict[str, np.ndarray]:
+    return {
+        "schema_name": np.asarray(PREDICTION_WINDOW_NPZ_SCHEMA),
+        "schema_version": np.asarray(PREDICTION_WINDOW_NPZ_VERSION, dtype=np.int64),
+        "dense_storage_dtype": np.asarray("float64"),
+        "window_id": np.asarray("window"),
+        "frame_indices": np.asarray([0], dtype=np.int64),
+        "point_map": np.ones((1, 1, 1, 3), dtype=np.float64),
+        "valid_mask": np.ones((1, 1, 1), dtype=bool),
+    }
+
+
 def test_versioned_round_trip_preserves_float64_precision(tmp_path: Path) -> None:
     expected = _window()
     path = tmp_path / "window.npz"
@@ -73,28 +85,23 @@ def test_legacy_archive_keeps_historical_float64_load_default(tmp_path: Path) ->
     np.savez(
         path,
         window_id=np.asarray("legacy"),
-        frame_indices=np.asarray([4]),
+        frame_indices=np.asarray([4], dtype=np.int32),
         point_map=np.ones((1, 1, 1, 3), dtype=np.float32),
-        valid_mask=np.ones((1, 1, 1), dtype=bool),
+        valid_mask=np.ones((1, 1, 1), dtype=np.uint8),
     )
 
     restored = PredictionWindow.from_npz(path)
     assert restored.point_map.dtype == np.float64
     assert restored.dense_storage_dtype == "float64"
+    assert restored.frame_indices.dtype == np.int64
+    assert restored.valid_mask.dtype == np.bool_
 
 
 def test_versioned_archive_rejects_dtype_metadata_mismatch(tmp_path: Path) -> None:
     path = tmp_path / "bad.npz"
-    np.savez(
-        path,
-        schema_name=np.asarray(PREDICTION_WINDOW_NPZ_SCHEMA),
-        schema_version=np.asarray(PREDICTION_WINDOW_NPZ_VERSION, dtype=np.int64),
-        dense_storage_dtype=np.asarray("float64"),
-        window_id=np.asarray("bad"),
-        frame_indices=np.asarray([0]),
-        point_map=np.ones((1, 1, 1, 3), dtype=np.float32),
-        valid_mask=np.ones((1, 1, 1), dtype=bool),
-    )
+    payload = _versioned_payload()
+    payload["point_map"] = np.ones((1, 1, 1, 3), dtype=np.float32)
+    np.savez(path, **payload)
 
     with pytest.raises(ValueError, match="dtype disagrees"):
         PredictionWindow.from_npz(path)
@@ -111,3 +118,66 @@ def test_versioned_archive_rejects_partial_metadata(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="incomplete storage metadata"):
         PredictionWindow.from_npz(path, start_frame=0)
+
+
+def test_versioned_archive_rejects_unknown_members(tmp_path: Path) -> None:
+    path = tmp_path / "extra.npz"
+    payload = _versioned_payload()
+    payload["unexpected"] = np.asarray(1)
+    np.savez(path, **payload)
+
+    with pytest.raises(ValueError, match="extra=.*unexpected"):
+        PredictionWindow.from_npz(path)
+
+
+def test_versioned_archive_requires_exact_frame_index_dtype(tmp_path: Path) -> None:
+    path = tmp_path / "frames.npz"
+    payload = _versioned_payload()
+    payload["frame_indices"] = np.asarray([0], dtype=np.int32)
+    np.savez(path, **payload)
+
+    with pytest.raises(ValueError, match="frame_indices must use int64"):
+        PredictionWindow.from_npz(path)
+
+
+def test_versioned_archive_requires_boolean_masks(tmp_path: Path) -> None:
+    path = tmp_path / "mask.npz"
+    payload = _versioned_payload()
+    payload["valid_mask"] = np.ones((1, 1, 1), dtype=np.uint8)
+    np.savez(path, **payload)
+
+    with pytest.raises(ValueError, match="valid_mask must use bool"):
+        PredictionWindow.from_npz(path)
+
+
+def test_versioned_archive_requires_flow_and_deform_mask_together(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "flow-only.npz"
+    payload = _versioned_payload()
+    payload["scene_flow"] = np.zeros((1, 1, 1, 3), dtype=np.float64)
+    np.savez(path, **payload)
+
+    with pytest.raises(ValueError, match="scene_flow and deform_mask together"):
+        PredictionWindow.from_npz(path)
+
+
+def test_versioned_archive_requires_boolean_deform_mask(tmp_path: Path) -> None:
+    path = tmp_path / "deform-mask.npz"
+    payload = _versioned_payload()
+    payload["scene_flow"] = np.zeros((1, 1, 1, 3), dtype=np.float64)
+    payload["deform_mask"] = np.ones((1, 1, 1), dtype=np.uint8)
+    np.savez(path, **payload)
+
+    with pytest.raises(ValueError, match="deform_mask must use bool"):
+        PredictionWindow.from_npz(path)
+
+
+def test_versioned_archive_requires_scalar_string_window_id(tmp_path: Path) -> None:
+    path = tmp_path / "window-id.npz"
+    payload = _versioned_payload()
+    payload["window_id"] = np.asarray(["window"])
+    np.savez(path, **payload)
+
+    with pytest.raises(ValueError, match="window_id must be one scalar string"):
+        PredictionWindow.from_npz(path)
