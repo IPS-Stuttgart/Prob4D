@@ -94,11 +94,7 @@ def _candidate(value: Any, *, index: int) -> MaterialIdentityCandidateV1:
         name=name,
     )
     source_raw = mapping["source_endpoint"]
-    source = (
-        None
-        if source_raw is None
-        else _endpoint(source_raw, name=f"{name}.source_endpoint")
-    )
+    source = None if source_raw is None else _endpoint(source_raw, name=f"{name}.source_endpoint")
     return MaterialIdentityCandidateV1(
         source_endpoint=source,
         association_result_id=mapping["association_result_id"],
@@ -137,9 +133,7 @@ def mixture_from_config(value: Any) -> MaterialIdentityMixtureV1:
         calibration_id=mapping["calibration_id"],
         tracklet_producer_revision=mapping["tracklet_producer_revision"],
         association_revision=mapping["association_revision"],
-        candidates=tuple(
-            _candidate(item, index=index) for index, item in enumerate(candidates)
-        ),
+        candidates=tuple(_candidate(item, index=index) for index, item in enumerate(candidates)),
         metadata=_mapping(mapping["metadata"], name="metadata"),
     )
 
@@ -299,12 +293,8 @@ def _moment_match(arguments: Sequence[str]) -> int:
             "probabilities": result.probabilities.tolist(),
             "mean": result.mean.tolist(),
             "covariance": result.covariance.tolist(),
-            "within_hypothesis_covariance": (
-                result.within_hypothesis_covariance.tolist()
-            ),
-            "between_hypothesis_covariance": (
-                result.between_hypothesis_covariance.tolist()
-            ),
+            "within_hypothesis_covariance": (result.within_hypothesis_covariance.tolist()),
+            "between_hypothesis_covariance": (result.between_hypothesis_covariance.tolist()),
             "identity_entropy_nats": result.identity_entropy_nats,
             "effective_hypothesis_count": result.effective_hypothesis_count,
             "semantics": result.semantics,

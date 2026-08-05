@@ -65,28 +65,22 @@ def _provider_report_audit(
         case_method = (case_id, method_id)
         if case_method in observed_case_methods:
             raise ValueError(
-                "provider report contains a duplicate case/method record: "
-                f"{case_method}"
+                f"provider report contains a duplicate case/method record: {case_method}"
             )
         observed_case_methods.add(case_method)
         previous_group = group_by_case.setdefault(case_id, group_id)
         if previous_group != group_id:
-            raise ValueError(
-                f"provider case {case_id!r} is assigned to multiple target groups"
-            )
+            raise ValueError(f"provider case {case_id!r} is assigned to multiple target groups")
         observed_groups.add(group_id)
         methods_by_case.setdefault(case_id, set()).add(method_id)
     if observed_groups != expected_groups:
         raise ValueError("provider report target groups differ from the promotion lock")
     incomplete_cases = sorted(
-        case_id
-        for case_id, methods in methods_by_case.items()
-        if methods != expected_methods
+        case_id for case_id, methods in methods_by_case.items() if methods != expected_methods
     )
     if incomplete_cases:
         raise ValueError(
-            "provider report has incomplete or changed method sets for cases: "
-            f"{incomplete_cases}"
+            f"provider report has incomplete or changed method sets for cases: {incomplete_cases}"
         )
     observed_methods = set().union(*methods_by_case.values()) if methods_by_case else set()
     if observed_methods != expected_methods:
@@ -137,9 +131,7 @@ def _query_evaluation(
     if results.promotion_lock_id != lock.promotion_lock_id:
         raise ValueError("query results reference a different promotion lock")
     expected_keys = {
-        (group_id, arm.arm_id)
-        for group_id in lock.target_group_ids
-        for arm in lock.arms
+        (group_id, arm.arm_id) for group_id in lock.target_group_ids for arm in lock.arms
     }
     rows_by_key = {(row.group_id, row.arm_id): row for row in results.rows}
     if set(rows_by_key) != expected_keys:
@@ -204,9 +196,7 @@ def _query_evaluation(
                 if observed_exact:
                     exact_fallback_count += 1
                 else:
-                    exact_fallback_failures.append(
-                        {"group_id": row.group_id, "arm_id": row.arm_id}
-                    )
+                    exact_fallback_failures.append({"group_id": row.group_id, "arm_id": row.arm_id})
             technical_failure_count += int(row.technical_failure)
         delta_array = np.asarray(deltas, dtype=np.float64)
         aggregate[arm.arm_id] = {
@@ -221,21 +211,15 @@ def _query_evaluation(
             "harmful_accepted_update_count": harmful_accepted_count,
             "technical_failure_count": technical_failure_count,
             "exact_fallback_count": exact_fallback_count,
-            "mean_accepted_coverage": (
-                None if not coverages else float(np.mean(coverages))
-            ),
+            "mean_accepted_coverage": (None if not coverages else float(np.mean(coverages))),
             "mean_accepted_width_mm": None if not widths else float(np.mean(widths)),
         }
 
     primary_rows = [
-        rows_by_key[(group_id, lock.primary_query_arm_id)]
-        for group_id in lock.target_group_ids
+        rows_by_key[(group_id, lock.primary_query_arm_id)] for group_id in lock.target_group_ids
     ]
     primary_deltas = np.asarray(
-        [
-            row.query_rmse_mm - fallback_by_group[row.group_id].query_rmse_mm
-            for row in primary_rows
-        ],
+        [row.query_rmse_mm - fallback_by_group[row.group_id].query_rmse_mm for row in primary_rows],
         dtype=np.float64,
     )
     bootstrap = _paired_bootstrap(
@@ -249,8 +233,7 @@ def _query_evaluation(
     coverage_passed = (
         True
         if coverage_threshold is None
-        else observed_coverage is not None
-        and float(observed_coverage) >= coverage_threshold
+        else observed_coverage is not None and float(observed_coverage) >= coverage_threshold
     )
     exact_fallback_passed = not exact_fallback_failures
     decision = {
@@ -268,19 +251,13 @@ def _query_evaluation(
         ),
         "harmful_update_margin_mm": lock.harmful_update_margin_mm,
         "maximum_harmful_accepted_updates": lock.maximum_harmful_accepted_updates,
-        "observed_harmful_accepted_updates": primary_summary[
-            "harmful_accepted_update_count"
-        ],
+        "observed_harmful_accepted_updates": primary_summary["harmful_accepted_update_count"],
         "harmful_accepted_updates_passed": (
             int(primary_summary["harmful_accepted_update_count"])
             <= lock.maximum_harmful_accepted_updates
         ),
-        "maximum_worst_group_regression_mm": (
-            lock.maximum_worst_group_regression_mm
-        ),
-        "observed_worst_group_regression_mm": primary_summary[
-            "worst_group_regression_mm"
-        ],
+        "maximum_worst_group_regression_mm": (lock.maximum_worst_group_regression_mm),
+        "observed_worst_group_regression_mm": primary_summary["worst_group_regression_mm"],
         "worst_group_regression_passed": (
             float(primary_summary["worst_group_regression_mm"])
             <= lock.maximum_worst_group_regression_mm
@@ -288,8 +265,7 @@ def _query_evaluation(
         "maximum_technical_failures": lock.maximum_technical_failures,
         "observed_technical_failures": primary_summary["technical_failure_count"],
         "technical_failures_passed": (
-            int(primary_summary["technical_failure_count"])
-            <= lock.maximum_technical_failures
+            int(primary_summary["technical_failure_count"]) <= lock.maximum_technical_failures
         ),
         "minimum_mean_accepted_coverage": coverage_threshold,
         "observed_mean_accepted_coverage": observed_coverage,
@@ -317,4 +293,3 @@ def _query_evaluation(
         )
     )
     return aggregate, decision
-

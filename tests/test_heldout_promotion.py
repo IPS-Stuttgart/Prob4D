@@ -193,9 +193,7 @@ def _query_rows(
                 if break_fallback:
                     deployed = hashlib.sha256(b"wrong-fallback").hexdigest()
             else:
-                deployed = hashlib.sha256(
-                    f"deployed-{group_id}-{arm.arm_id}".encode()
-                ).hexdigest()
+                deployed = hashlib.sha256(f"deployed-{group_id}-{arm.arm_id}".encode()).hexdigest()
                 rmse = 4.0
                 exact = None
                 if harmful_primary and arm.arm_id == lock.primary_query_arm_id:
@@ -218,9 +216,7 @@ def _query_rows(
 
 def test_documented_promotion_configuration_is_valid() -> None:
     config = json.loads(
-        Path("docs/examples/heldout-provider-promotion-config.json").read_text(
-            encoding="utf-8"
-        )
+        Path("docs/examples/heldout-provider-promotion-config.json").read_text(encoding="utf-8")
     )
 
     lock = promotion_lock_from_config(config)

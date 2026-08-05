@@ -87,9 +87,7 @@ class HeldoutProviderPromotionReportV1:
             "promotion_lock_id": self.promotion_lock_id,
             "query_results_id": self.query_results_id,
             "provider_report_sha256": self.provider_report_sha256,
-            "provider_evaluation_manifest_sha256": (
-                self.provider_evaluation_manifest_sha256
-            ),
+            "provider_evaluation_manifest_sha256": (self.provider_evaluation_manifest_sha256),
             "provider_audit": plain_json(self.provider_audit),
             "provider_decision": plain_json(self.provider_decision),
             "query_aggregate": plain_json(self.query_aggregate),
@@ -149,9 +147,7 @@ def evaluate_heldout_promotion(
         promotion_lock_id=lock.promotion_lock_id,
         query_results_id=query_results.query_results_id,
         provider_report_sha256=provider_sha,
-        provider_evaluation_manifest_sha256=(
-            lock.provider_evaluation_manifest_sha256
-        ),
+        provider_evaluation_manifest_sha256=(lock.provider_evaluation_manifest_sha256),
         provider_audit=provider_audit,
         provider_decision=provider_decision,
         query_aggregate=query_aggregate,
@@ -173,9 +169,7 @@ def promotion_report_from_dict(value: Any) -> HeldoutProviderPromotionReportV1:
         promotion_lock_id=mapping["promotion_lock_id"],
         query_results_id=mapping["query_results_id"],
         provider_report_sha256=mapping["provider_report_sha256"],
-        provider_evaluation_manifest_sha256=mapping[
-            "provider_evaluation_manifest_sha256"
-        ],
+        provider_evaluation_manifest_sha256=mapping["provider_evaluation_manifest_sha256"],
         provider_audit=_strict_mapping(mapping["provider_audit"], name="provider_audit"),
         provider_decision=_strict_mapping(
             mapping["provider_decision"],
@@ -271,8 +265,7 @@ def _write_report_markdown(
             f"{float(observed):.6g}" if isinstance(observed, float) else str(observed)
         )
         lines.append(
-            f"| {name} | {rendered_observed} | {requirement} | "
-            f"{'PASS' if passed else 'FAIL'} |"
+            f"| {name} | {rendered_observed} | {requirement} | {'PASS' if passed else 'FAIL'} |"
         )
     if lock.minimum_mean_accepted_coverage is not None:
         lines.append(

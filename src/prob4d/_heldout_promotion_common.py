@@ -125,12 +125,15 @@ def _atomic_write_json(
     if path.exists() and not overwrite:
         raise FileExistsError(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    payload = json.dumps(
-        plain_json(value),
-        sort_keys=True,
-        indent=2,
-        allow_nan=False,
-    ) + "\n"
+    payload = (
+        json.dumps(
+            plain_json(value),
+            sort_keys=True,
+            indent=2,
+            allow_nan=False,
+        )
+        + "\n"
+    )
     temporary = path.with_name(
         f".{path.name}.tmp-{os.getpid()}-{hashlib.sha256(payload.encode()).hexdigest()[:16]}"
     )
@@ -194,8 +197,7 @@ def _canonical_string_tuple(
     if type(value) is not tuple:
         raise ValueError(f"{name} must be a tuple")
     result = tuple(
-        _strict_string(item, name=f"{name}[{index}]")
-        for index, item in enumerate(value)
+        _strict_string(item, name=f"{name}[{index}]") for index, item in enumerate(value)
     )
     if nonempty and not result:
         raise ValueError(f"{name} must not be empty")
@@ -260,9 +262,7 @@ class PromotionArmV1:
         elif provider_method is None:
             raise ValueError("every non-fallback arm requires a provider_method_id")
         if (role == "sensor_assisted") != sensor_assisted:
-            raise ValueError(
-                "sensor_assisted must be true exactly for the sensor-assisted role"
-            )
+            raise ValueError("sensor_assisted must be true exactly for the sensor-assisted role")
         object.__setattr__(self, "arm_id", arm_id)
         object.__setattr__(self, "role", cast(PromotionArmRole, role))
         object.__setattr__(self, "query_method_id", query_method)

@@ -45,9 +45,7 @@ def _config() -> dict[str, object]:
 
 def test_documented_mixture_configuration_is_valid() -> None:
     config = json.loads(
-        Path("docs/examples/material-identity-mixture-config.json").read_text(
-            encoding="utf-8"
-        )
+        Path("docs/examples/material-identity-mixture-config.json").read_text(encoding="utf-8")
     )
 
     mixture = mixture_from_config(config)
@@ -92,9 +90,7 @@ def test_marginalize_and_moment_match_cli(tmp_path: Path, capsys) -> None:
     )
     assert main(["marginalize", str(mixture_path), str(likelihood_path)]) == 0
     marginalized = json.loads(capsys.readouterr().out)
-    assert marginalized["posterior_probabilities"] == pytest.approx(
-        [1.0 / 7.0, 6.0 / 7.0]
-    )
+    assert marginalized["posterior_probabilities"] == pytest.approx([1.0 / 7.0, 6.0 / 7.0])
 
     hypotheses_path = tmp_path / "hypotheses.json"
     hypotheses_path.write_text(

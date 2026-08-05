@@ -187,9 +187,7 @@ class HeldoutProviderPromotionLockV1:
             raise ValueError("primary_query_arm_id is not a registered arm")
         primary_arm = arms_by_id[primary_query]
         if primary_arm.role in {"physical_fallback", "sensor_assisted", "diagnostic"}:
-            raise ValueError(
-                "primary query arm must be a non-sensor, non-diagnostic candidate"
-            )
+            raise ValueError("primary query arm must be a non-sensor, non-diagnostic candidate")
         object.__setattr__(self, "provider_reference_arm_id", provider_reference)
         object.__setattr__(self, "primary_query_arm_id", primary_query)
 
@@ -307,9 +305,7 @@ class HeldoutProviderPromotionLockV1:
             "motioncrafter_revision": self.motioncrafter_revision,
             "model_set_id": self.model_set_id,
             "prediction_run_spec_id": self.prediction_run_spec_id,
-            "provider_evaluation_manifest_sha256": (
-                self.provider_evaluation_manifest_sha256
-            ),
+            "provider_evaluation_manifest_sha256": (self.provider_evaluation_manifest_sha256),
             "frozen_artifact_ids": plain_json(self.frozen_artifact_ids),
             "development_group_ids": list(self.development_group_ids),
             "calibration_group_ids": list(self.calibration_group_ids),
@@ -322,12 +318,8 @@ class HeldoutProviderPromotionLockV1:
             "minimum_target_group_count": self.minimum_target_group_count,
             "query_superiority_margin_mm": self.query_superiority_margin_mm,
             "harmful_update_margin_mm": self.harmful_update_margin_mm,
-            "maximum_harmful_accepted_updates": (
-                self.maximum_harmful_accepted_updates
-            ),
-            "maximum_worst_group_regression_mm": (
-                self.maximum_worst_group_regression_mm
-            ),
+            "maximum_harmful_accepted_updates": (self.maximum_harmful_accepted_updates),
+            "maximum_worst_group_regression_mm": (self.maximum_worst_group_regression_mm),
             "maximum_technical_failures": self.maximum_technical_failures,
             "minimum_mean_accepted_coverage": self.minimum_mean_accepted_coverage,
             "metadata": plain_json(self.metadata),
@@ -399,9 +391,7 @@ def _lock_from_mapping(mapping: Mapping[str, Any]) -> HeldoutProviderPromotionLo
         motioncrafter_revision=mapping["motioncrafter_revision"],
         model_set_id=mapping["model_set_id"],
         prediction_run_spec_id=mapping["prediction_run_spec_id"],
-        provider_evaluation_manifest_sha256=mapping[
-            "provider_evaluation_manifest_sha256"
-        ],
+        provider_evaluation_manifest_sha256=mapping["provider_evaluation_manifest_sha256"],
         frozen_artifact_ids=mapping["frozen_artifact_ids"],
         development_group_ids=_string_tuple_from_json(
             mapping["development_group_ids"],
@@ -423,16 +413,10 @@ def _lock_from_mapping(mapping: Mapping[str, Any]) -> HeldoutProviderPromotionLo
         minimum_target_group_count=mapping["minimum_target_group_count"],
         query_superiority_margin_mm=mapping["query_superiority_margin_mm"],
         harmful_update_margin_mm=mapping["harmful_update_margin_mm"],
-        maximum_harmful_accepted_updates=mapping[
-            "maximum_harmful_accepted_updates"
-        ],
-        maximum_worst_group_regression_mm=mapping[
-            "maximum_worst_group_regression_mm"
-        ],
+        maximum_harmful_accepted_updates=mapping["maximum_harmful_accepted_updates"],
+        maximum_worst_group_regression_mm=mapping["maximum_worst_group_regression_mm"],
         maximum_technical_failures=mapping["maximum_technical_failures"],
-        minimum_mean_accepted_coverage=mapping[
-            "minimum_mean_accepted_coverage"
-        ],
+        minimum_mean_accepted_coverage=mapping["minimum_mean_accepted_coverage"],
         metadata=_strict_mapping(mapping["metadata"], name="promotion lock metadata"),
     )
 
