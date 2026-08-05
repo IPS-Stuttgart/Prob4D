@@ -9,17 +9,16 @@ from pathlib import Path
 from typing import Any
 
 from ._heldout_promotion_common import (
+    _SHA256,
     HELDOUT_QUERY_RESULTS_SCHEMA,
     HELDOUT_QUERY_RESULTS_VERSION,
     QUERY_RESULTS_CLAIM_BOUNDARY,
-    _SHA256,
     _atomic_write_json,
     _exact_keys,
     _load_json,
     _nonnegative_real,
     _optional_real,
     _optional_string,
-    _sha256_json,
     _strict_bool,
     _strict_digest,
     _strict_list,
@@ -28,6 +27,7 @@ from ._heldout_promotion_common import (
 )
 from ._heldout_promotion_lock import HeldoutProviderPromotionLockV1
 from ._immutable_json import frozen_finite_json_mapping, plain_json
+from ._selection_evidence_common import _sha256_json
 
 
 @dataclass(frozen=True, slots=True)
@@ -328,4 +328,3 @@ def load_query_results(
 ) -> HeldoutPromotionQueryResultsV1:
     mapping, _ = _load_json(Path(path), name="promotion query results")
     return query_results_from_dict(mapping)
-
