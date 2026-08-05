@@ -272,13 +272,9 @@ def test_tracklet_contract_rejects_scalar_and_array_coercion_aliases() -> None:
     with pytest.raises(ValueError, match=r"source_shape\[1\]"):
         CausalTrackletSet(**{**kwargs, "source_shape": (2, 1.0, 1)})
     with pytest.raises(ValueError, match="track_ids"):
-        CausalTrackletSet(
-            **{**kwargs, "track_ids": np.array([0.0, 0.0], dtype=np.float64)}
-        )
+        CausalTrackletSet(**{**kwargs, "track_ids": np.array([0.0, 0.0], dtype=np.float64)})
     with pytest.raises(ValueError, match="link_probability"):
-        CausalTrackletSet(
-            **{**kwargs, "link_probability": np.array([True, False])}
-        )
+        CausalTrackletSet(**{**kwargs, "link_probability": np.array([True, False])})
 
 
 def test_builder_and_report_reject_boolean_numeric_aliases() -> None:

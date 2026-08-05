@@ -49,16 +49,12 @@ def _real(
     maximum: float | None = None,
     strictly_positive: bool = False,
 ) -> float:
-    if type(value) not in {int, float} and not isinstance(
-        value, (np.integer, np.floating)
-    ):
+    if type(value) not in {int, float} and not isinstance(value, (np.integer, np.floating)):
         raise ValueError(f"{name} must be a real number")
     result = float(value)
     if not np.isfinite(result):
         raise ValueError(f"{name} must be finite")
-    if (strictly_positive and result <= minimum) or (
-        not strictly_positive and result < minimum
-    ):
+    if (strictly_positive and result <= minimum) or (not strictly_positive and result < minimum):
         relation = "greater than" if strictly_positive else "at least"
         raise ValueError(f"{name} must be {relation} {minimum}")
     if maximum is not None and result > maximum:
@@ -174,9 +170,7 @@ class CausalTrackletSet:
                 raise ValueError(f"{name} must lie in [0, 1]")
 
         unique_tracks = np.unique(track_ids)
-        expected_tracks: IntArray = np.arange(
-            len(unique_tracks), dtype=np.int64
-        )
+        expected_tracks: IntArray = np.arange(len(unique_tracks), dtype=np.int64)
         if not np.array_equal(unique_tracks, expected_tracks):
             raise ValueError("track_ids must be contiguous from zero")
         order = np.lexsort((frame_indices, track_ids))
@@ -195,9 +189,7 @@ class CausalTrackletSet:
             if np.any(np.diff(track_frames) <= 0):
                 raise ValueError("frames must increase strictly within each track")
             if np.any(np.diff(track_local) <= 0):
-                raise ValueError(
-                    "local frame indices must increase strictly within each track"
-                )
+                raise ValueError("local frame indices must increase strictly within each track")
             if not np.isclose(link[selected[0]], 1.0):
                 raise ValueError("the first link probability must equal one")
             if not np.isclose(association[selected[0]], 1.0):
@@ -209,9 +201,7 @@ class CausalTrackletSet:
                 atol=1e-15,
                 rtol=1e-12,
             ):
-                raise ValueError(
-                    "association_probability must equal cumulative link probability"
-                )
+                raise ValueError("association_probability must equal cumulative link probability")
 
         object.__setattr__(self, "window_id", window_id)
         object.__setattr__(self, "causal_frame_stop", causal_frame_stop)
@@ -271,22 +261,16 @@ class CausalTrackletSet:
     def geometric_mean_association_probability(self) -> FloatArray:
         """Return length-neutral link support up to each observation row."""
 
-        result: FloatArray = np.ones(
-            self.observation_count, dtype=np.float64
-        )
+        result: FloatArray = np.ones(self.observation_count, dtype=np.float64)
         for track_id in range(self.track_count):
             selected = np.flatnonzero(self.track_ids == track_id)
             links = self.link_probability[selected[1:]]
             if not len(links):
                 continue
-            link_logs: FloatArray = np.full(
-                len(links), -np.inf, dtype=np.float64
-            )
+            link_logs: FloatArray = np.full(len(links), -np.inf, dtype=np.float64)
             positive = links > 0.0
             link_logs[positive] = np.log(links[positive])
-            result[selected[1:]] = np.exp(
-                np.cumsum(link_logs) / np.arange(1, len(links) + 1)
-            )
+            result[selected[1:]] = np.exp(np.cumsum(link_logs) / np.arange(1, len(links) + 1))
         result.setflags(write=False)
         return result
 
@@ -496,9 +480,7 @@ def build_causal_scene_flow_tracklets(
 
     tracks: dict[int, list[_TrackObservation]] = {}
     active: dict[int, tuple[int, int, float]] = {}
-    for track_id, (row, column) in enumerate(
-        zip(seed_rows, seed_columns, strict=True)
-    ):
+    for track_id, (row, column) in enumerate(zip(seed_rows, seed_columns, strict=True)):
         point = window.point_map[first_local, row, column].copy()
         tracks[track_id] = [
             _TrackObservation(
@@ -546,11 +528,14 @@ def build_causal_scene_flow_tracklets(
                 column_start:column_stop,
             ]
             if target_policy == "require":
-                supported_local = valid_local & deform_mask[
-                    next_local,
-                    row_start:row_stop,
-                    column_start:column_stop,
-                ]
+                supported_local = (
+                    valid_local
+                    & deform_mask[
+                        next_local,
+                        row_start:row_stop,
+                        column_start:column_stop,
+                    ]
+                )
                 if not np.any(supported_local):
                     if np.any(valid_local):
                         terminated_target_mask += 1
@@ -650,14 +635,10 @@ def build_causal_scene_flow_tracklets(
     ]
     if not retained_ids:
         raise ValueError("no tracklet satisfies minimum_track_length")
-    id_map = {
-        original: replacement for replacement, original in enumerate(retained_ids)
-    }
+    id_map = {original: replacement for replacement, original in enumerate(retained_ids)}
     flattened: list[tuple[int, _TrackObservation]] = []
     for original in retained_ids:
-        flattened.extend(
-            (id_map[original], observation) for observation in tracks[original]
-        )
+        flattened.extend((id_map[original], observation) for observation in tracks[original])
 
     result = CausalTrackletSet(
         window_id=window.window_id,
@@ -693,18 +674,13 @@ def build_causal_scene_flow_tracklets(
             dtype=np.float64,
         ),
         association_probability=np.asarray(
-            [
-                observation.association_probability
-                for _, observation in flattened
-            ],
+            [observation.association_probability for _, observation in flattened],
             dtype=np.float64,
         ),
         metadata={
             "method": "local-scene-flow-neighborhood-association-v2",
             "source_window_id": window.window_id,
-            "source_frame_indices": [
-                int(window.frame_indices[index]) for index in eligible
-            ],
+            "source_frame_indices": [int(window.frame_indices[index]) for index in eligible],
             "seed_stride": seed_stride,
             "search_radius_pixels": search_radius_pixels,
             "maximum_step_error_local": maximum_step_error_local,
@@ -784,9 +760,7 @@ def tracklets_to_observation_factors(
         rays = None
 
     if prior_reliability is None:
-        reliability_grid: FloatArray = np.ones(
-            tracklets.source_shape, dtype=np.float64
-        )
+        reliability_grid: FloatArray = np.ones(tracklets.source_shape, dtype=np.float64)
     else:
         reliability_grid = _real_array(
             prior_reliability,
@@ -830,9 +804,7 @@ def tracklets_to_observation_factors(
             composite_weight=composite_weight,
             correlation_group_id=f"{correlation_group_prefix}:frame-{int(frame)}",
             causal_frame_stop=tracklets.causal_frame_stop,
-            ray_directions_local=(
-                None if rays is None else rays[local_index, rows, columns]
-            ),
+            ray_directions_local=(None if rays is None else rays[local_index, rows, columns]),
         )
         factors.append(factor)
     return tuple(factors)

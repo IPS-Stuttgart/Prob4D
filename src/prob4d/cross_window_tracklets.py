@@ -49,16 +49,12 @@ def _real(
     maximum: float | None = None,
     strictly_positive: bool = False,
 ) -> float:
-    if type(value) not in {int, float} and not isinstance(
-        value, (np.integer, np.floating)
-    ):
+    if type(value) not in {int, float} and not isinstance(value, (np.integer, np.floating)):
         raise ValueError(f"{name} must be a real number")
     result = float(value)
     if not np.isfinite(result):
         raise ValueError(f"{name} must be finite")
-    if (strictly_positive and result <= minimum) or (
-        not strictly_positive and result < minimum
-    ):
+    if (strictly_positive and result <= minimum) or (not strictly_positive and result < minimum):
         relation = "greater than" if strictly_positive else "at least"
         raise ValueError(f"{name} must be {relation} {minimum}")
     if maximum is not None and result > maximum:
@@ -74,10 +70,7 @@ def _integer_tuple(
 ) -> tuple[int, ...]:
     if type(value) is not tuple:
         raise ValueError(f"{name} must be a tuple of integers")
-    result = tuple(
-        _integer(item, name=f"{name}[{index}]")
-        for index, item in enumerate(value)
-    )
+    result = tuple(_integer(item, name=f"{name}[{index}]") for index, item in enumerate(value))
     if nonempty and not result:
         raise ValueError(f"{name} must not be empty")
     if any(next_value <= value for value, next_value in zip(result, result[1:], strict=False)):
@@ -372,8 +365,7 @@ class CrossWindowAssociationResult:
         if not isinstance(self.configuration, CrossWindowAssociationConfig):
             raise TypeError("configuration must be CrossWindowAssociationConfig")
         if type(self.candidates) is not tuple or not all(
-            isinstance(candidate, CrossWindowAssociationCandidate)
-            for candidate in self.candidates
+            isinstance(candidate, CrossWindowAssociationCandidate) for candidate in self.candidates
         ):
             raise TypeError("candidates must be a tuple of association candidates")
         if type(self.links) is not tuple or not all(
@@ -508,16 +500,12 @@ class CrossWindowAssociationResult:
             "spatially_rejected_pair_count": self.spatially_rejected_pair_count,
             "evaluated_track_pair_count": self.evaluated_track_pair_count,
             "shared_gate_frame_count": self.shared_gate_frame_count,
-            "insufficient_shared_frame_pair_count": (
-                self.insufficient_shared_frame_pair_count
-            ),
+            "insufficient_shared_frame_pair_count": (self.insufficient_shared_frame_pair_count),
             "zero_support_pair_count": self.zero_support_pair_count,
             "low_support_pair_count": self.low_support_pair_count,
             "non_mutual_best_count": self.non_mutual_best_count,
             "ambiguous_mutual_best_count": self.ambiguous_mutual_best_count,
-            "threshold_rejected_mutual_best_count": (
-                self.threshold_rejected_mutual_best_count
-            ),
+            "threshold_rejected_mutual_best_count": (self.threshold_rejected_mutual_best_count),
         }
 
     @property
@@ -598,8 +586,7 @@ def _spatial_candidate_pairs(
     if maximum_distance_m is None:
         if maximum_candidate_pairs is not None and possible_pairs > maximum_candidate_pairs:
             raise ValueError(
-                "exhaustive spatial candidate count exceeds "
-                "maximum_spatial_candidate_pairs"
+                "exhaustive spatial candidate count exceeds maximum_spatial_candidate_pairs"
             )
         return shared_frames, tuple(
             (left_track_id, right_track_id)
@@ -615,9 +602,7 @@ def _spatial_candidate_pairs(
         if not len(left_rows) or not len(right_rows):
             continue
         left_points = left_global_from_local.transform_points(left.points_local[left_rows])
-        right_points = right_global_from_local.transform_points(
-            right.points_local[right_rows]
-        )
+        right_points = right_global_from_local.transform_points(right.points_local[right_rows])
         left_track_ids = left.track_ids[left_rows]
         right_track_ids = right.track_ids[right_rows]
         for left_start in range(0, len(left_rows), chunk_size):
@@ -641,13 +626,9 @@ def _spatial_candidate_pairs(
                             int(right_track_ids[right_start + int(right_offset)]),
                         )
                     )
-                if (
-                    maximum_candidate_pairs is not None
-                    and len(pairs) > maximum_candidate_pairs
-                ):
+                if maximum_candidate_pairs is not None and len(pairs) > maximum_candidate_pairs:
                     raise ValueError(
-                        "spatial candidate count exceeds "
-                        "maximum_spatial_candidate_pairs"
+                        "spatial candidate count exceeds maximum_spatial_candidate_pairs"
                     )
     return shared_frames, tuple(sorted(pairs))
 
@@ -678,9 +659,7 @@ def _candidate_rank(
     *,
     side: Literal["left", "right"],
 ) -> tuple[float, float, float, int]:
-    other_id = (
-        candidate.right_track_id if side == "left" else candidate.left_track_id
-    )
+    other_id = candidate.right_track_id if side == "left" else candidate.left_track_id
     return (
         -candidate.compatibility_score,
         candidate.weighted_rms_m,
@@ -699,9 +678,7 @@ def _best_by_side(
 ]:
     grouped: dict[int, list[CrossWindowAssociationCandidate]] = {}
     for candidate in candidates:
-        track_id = (
-            candidate.left_track_id if side == "left" else candidate.right_track_id
-        )
+        track_id = candidate.left_track_id if side == "left" else candidate.right_track_id
         grouped.setdefault(track_id, []).append(candidate)
     best: dict[int, CrossWindowAssociationCandidate] = {}
     margins: dict[tuple[int, int], float] = {}
@@ -793,9 +770,7 @@ def associate_cross_window_tracklets(
         chunk_size=chunk_size,
     )
 
-    left_frame_rows = {
-        track_id: _frame_rows(left, rows) for track_id, rows in left_tracks.items()
-    }
+    left_frame_rows = {track_id: _frame_rows(left, rows) for track_id, rows in left_tracks.items()}
     right_frame_rows = {
         track_id: _frame_rows(right, rows) for track_id, rows in right_tracks.items()
     }
@@ -814,12 +789,8 @@ def associate_cross_window_tracklets(
             [right_by_frame[frame] for frame in shared_frames],
             dtype=np.int64,
         )
-        left_points = left_global_from_local.transform_points(
-            left.points_local[left_indices]
-        )
-        right_points = right_global_from_local.transform_points(
-            right.points_local[right_indices]
-        )
+        left_points = left_global_from_local.transform_points(left.points_local[left_indices])
+        right_points = right_global_from_local.transform_points(right.points_local[right_indices])
         residuals = left_points - right_points
         distances = np.linalg.norm(residuals, axis=1)
         weights = (
@@ -835,14 +806,10 @@ def associate_cross_window_tracklets(
                 _normalized_square(
                     residual,
                     left_covariance=(
-                        None
-                        if left_covariance is None
-                        else left_covariance[left_index]
+                        None if left_covariance is None else left_covariance[left_index]
                     ),
                     right_covariance=(
-                        None
-                        if right_covariance is None
-                        else right_covariance[right_index]
+                        None if right_covariance is None else right_covariance[right_index]
                     ),
                     config=config,
                 )
@@ -856,9 +823,7 @@ def associate_cross_window_tracklets(
             dtype=np.float64,
         )
         weighted_rms = float(np.sqrt(np.sum(weights * distances**2) / support))
-        normalized_rms = float(
-            np.sqrt(np.sum(weights * normalized_squares) / support)
-        )
+        normalized_rms = float(np.sqrt(np.sum(weights * normalized_squares) / support))
         support_fraction = min(1.0, support / config.minimum_effective_support)
         score = float(support_fraction * np.exp(-0.5 * normalized_rms**2))
         if support < config.minimum_effective_support:
@@ -895,10 +860,7 @@ def associate_cross_window_tracklets(
         pair = (candidate.left_track_id, candidate.right_track_id)
         left_margin = left_margins[pair]
         right_margin = right_margins[pair]
-        if (
-            left_margin < config.minimum_score_margin
-            or right_margin < config.minimum_score_margin
-        ):
+        if left_margin < config.minimum_score_margin or right_margin < config.minimum_score_margin:
             ambiguous += 1
             continue
         if (

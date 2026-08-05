@@ -256,9 +256,7 @@ def test_candidate_and_link_contracts_reject_inconsistent_direct_construction() 
     with pytest.raises(ValueError, match="left_track_id"):
         CrossWindowAssociationCandidate(**{**candidate_kwargs, "left_track_id": True})
     with pytest.raises(ValueError, match="strictly increasing"):
-        CrossWindowAssociationCandidate(
-            **{**candidate_kwargs, "shared_frame_indices": (2, 1)}
-        )
+        CrossWindowAssociationCandidate(**{**candidate_kwargs, "shared_frame_indices": (2, 1)})
     with pytest.raises(ValueError, match="weighted_rms_m"):
         CrossWindowAssociationCandidate(
             **{
