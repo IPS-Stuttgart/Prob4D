@@ -1,0 +1,96 @@
+name: Project identity and source diagnostic contracts
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/fail-closed-quality.yml"
+      - ".github/workflows/source-diagnostic-contracts.yml"
+      - "docs/repository-identity.md"
+      - "docs/source-only-diagnostics.md"
+      - "src/prob4d/_scientific_scalars.py"
+      - "src/prob4d/_strict_json.py"
+      - "src/prob4d/project_identity.py"
+      - "src/prob4d/source_diagnostics.py"
+      - "tests/test_cli.py"
+      - "tests/test_project_identity.py"
+      - "tests/test_scientific_scalar_validation.py"
+      - "tests/test_source_diagnostics.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: source-diagnostic-contracts-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  contract:
+    name: Exact identifiers and diagnostic scalars
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install focused validation environment
+        run: |
+          python -m pip install -e ".[dev]"
+          python -m pip install "numpy>=1.24,<2.3"
+      - name: Check focused source quality
+        run: |
+          python -m ruff check \
+            src/prob4d/_strict_json.py \
+            src/prob4d/project_identity.py \
+            src/prob4d/source_diagnostics.py \
+            tests/test_project_identity.py \
+            tests/test_source_diagnostics.py
+          python -m ruff format --check \
+            src/prob4d/_strict_json.py \
+            src/prob4d/project_identity.py \
+            src/prob4d/source_diagnostics.py \
+            tests/test_project_identity.py \
+            tests/test_source_diagnostics.py
+          python -m mypy \
+            src/prob4d/_strict_json.py \
+            src/prob4d/project_identity.py \
+            src/prob4d/source_diagnostics.py
+      - name: Run focused and adjacent regressions
+        run: |
+          python -m pytest -q \
+            tests/test_cli.py \
+            tests/test_project_identity.py \
+            tests/test_scientific_scalar_validation.py \
+            tests/test_source_diagnostics.py
+      - name: Verify installed public behavior
+        run: |
+          prob4d project identity --compact > project-identity.json
+          python - <<'PY'
+          import json
+
+          from prob4d.project_identity import (
+              PROB4D_CANONICAL_REPOSITORY,
+              canonical_prob4d_repository,
+              is_prob4d_repository,
+              prob4d_project_identity,
+          )
+
+          descriptor = json.loads(open("project-identity.json", encoding="utf-8").read())
+          assert descriptor == prob4d_project_identity()
+          assert canonical_prob4d_repository("ips-stuttgart/prob4d") == (
+              PROB4D_CANONICAL_REPOSITORY
+          )
+          assert not is_prob4d_repository(f" {PROB4D_CANONICAL_REPOSITORY}")
+          PY
