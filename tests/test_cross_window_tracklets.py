@@ -1,11 +1,14 @@
 import json
+from dataclasses import replace
 
 import numpy as np
 import pytest
 
 from prob4d.causal_tracklets import CausalTrackletSet
 from prob4d.cross_window_tracklets import (
+    CrossWindowAssociationCandidate,
     CrossWindowAssociationConfig,
+    CrossWindowAssociationLink,
     associate_cross_window_tracklets,
 )
 from prob4d.sim3 import Sim3
@@ -81,6 +84,7 @@ def test_cross_window_association_recovers_swapped_window_local_ids() -> None:
     assert result.unmatched_left_track_ids == ()
     assert result.unmatched_right_track_ids == ()
     assert all(link.compatibility_score == pytest.approx(1.0) for link in result.links)
+    assert result.descriptor()["schema_version"] == 2
 
 
 def test_cross_window_association_rejects_an_ambiguous_mutual_best() -> None:
@@ -228,7 +232,54 @@ def test_nonshared_causal_suffix_does_not_change_association() -> None:
     )
 
 
-def test_cross_window_association_rejects_one_sided_or_invalid_covariance() -> None:
+def test_cross_window_configuration_rejects_boolean_numeric_aliases() -> None:
+    with pytest.raises(ValueError, match="minimum_shared_frames"):
+        CrossWindowAssociationConfig(minimum_shared_frames=True)
+    with pytest.raises(ValueError, match="minimum_score_margin"):
+        CrossWindowAssociationConfig(minimum_score_margin=False)
+    with pytest.raises(ValueError, match="maximum_spatial_candidate_pairs"):
+        CrossWindowAssociationConfig(maximum_spatial_candidate_pairs=True)
+
+
+def test_candidate_and_link_contracts_reject_inconsistent_direct_construction() -> None:
+    candidate_kwargs = {
+        "left_track_id": 0,
+        "right_track_id": 1,
+        "shared_frame_indices": (1, 2),
+        "effective_support": 2.0,
+        "weighted_rms_m": 0.01,
+        "maximum_distance_m": 0.02,
+        "normalized_rms": 0.5,
+        "compatibility_score": 0.8,
+        "used_covariance": False,
+    }
+    with pytest.raises(ValueError, match="left_track_id"):
+        CrossWindowAssociationCandidate(**{**candidate_kwargs, "left_track_id": True})
+    with pytest.raises(ValueError, match="strictly increasing"):
+        CrossWindowAssociationCandidate(**{**candidate_kwargs, "shared_frame_indices": (2, 1)})
+    with pytest.raises(ValueError, match="weighted_rms_m"):
+        CrossWindowAssociationCandidate(
+            **{
+                **candidate_kwargs,
+                "weighted_rms_m": 0.03,
+                "maximum_distance_m": 0.02,
+            }
+        )
+    with pytest.raises(ValueError, match="used_covariance"):
+        CrossWindowAssociationCandidate(**{**candidate_kwargs, "used_covariance": 1})
+
+    with pytest.raises(ValueError, match="score margins"):
+        CrossWindowAssociationLink(
+            left_track_id=0,
+            right_track_id=1,
+            shared_frame_indices=(1, 2),
+            compatibility_score=0.5,
+            left_score_margin=0.6,
+            right_score_margin=0.4,
+        )
+
+
+def test_result_contract_rejects_inconsistent_manual_accounting() -> None:
     left = make_tracklets(
         "left",
         [np.array([[0.0, 0.0, 1.0], [0.0, 0.0, 1.0]])],
@@ -237,37 +288,45 @@ def test_cross_window_association_rejects_one_sided_or_invalid_covariance() -> N
         "right",
         [np.array([[0.0, 0.0, 1.0], [0.0, 0.0, 1.0]])],
     )
-    covariance = np.repeat(np.eye(3)[None], 2, axis=0)
+    result = associate_cross_window_tracklets(
+        left,
+        right,
+        left_global_from_local=Sim3.identity(),
+        right_global_from_local=Sim3.identity(),
+    )
 
-    with pytest.raises(ValueError, match="both windows or neither"):
-        associate_cross_window_tracklets(
-            left,
-            right,
-            left_global_from_local=Sim3.identity(),
-            right_global_from_local=Sim3.identity(),
-            left_global_covariance_m2=covariance,
-        )
-
-    invalid = covariance.copy()
-    invalid[0, 0, 0] = -1.0
-    with pytest.raises(ValueError, match="positive semidefinite"):
-        associate_cross_window_tracklets(
-            left,
-            right,
-            left_global_from_local=Sim3.identity(),
-            right_global_from_local=Sim3.identity(),
-            left_global_covariance_m2=invalid,
-            right_global_covariance_m2=covariance,
-        )
+    with pytest.raises(ValueError, match="evaluated_track_pair_count"):
+        replace(result, evaluated_track_pair_count=result.evaluated_track_pair_count + 1)
+    with pytest.raises(ValueError, match="unmatched_left_track_ids"):
+        replace(result, unmatched_left_track_ids=(0,))
+    with pytest.raises(ValueError, match="sorted unique"):
+        replace(result, links=(result.links[0], result.links[0]))
 
 
-def test_cross_window_configuration_rejects_boolean_numeric_aliases() -> None:
-    with pytest.raises(ValueError, match="minimum_shared_frames"):
-        CrossWindowAssociationConfig(minimum_shared_frames=True)
-    with pytest.raises(ValueError, match="minimum_score_margin"):
-        CrossWindowAssociationConfig(minimum_score_margin=False)
-    with pytest.raises(ValueError, match="maximum_spatial_candidate_pairs"):
-        CrossWindowAssociationConfig(maximum_spatial_candidate_pairs=True)
+def test_evaluated_pair_count_excludes_insufficient_overlap_pairs() -> None:
+    left = make_tracklets(
+        "left",
+        [np.array([[0.0, 0.0, 1.0], [0.0, 0.0, 1.0]])],
+        frame_start=1,
+    )
+    right = make_tracklets(
+        "right",
+        [np.array([[0.0, 0.0, 1.0], [0.0, 0.0, 1.0]])],
+        frame_start=2,
+    )
+
+    result = associate_cross_window_tracklets(
+        left,
+        right,
+        left_global_from_local=Sim3.identity(),
+        right_global_from_local=Sim3.identity(),
+        configuration=CrossWindowAssociationConfig(minimum_shared_frames=2),
+    )
+
+    assert result.spatial_candidate_pair_count == 1
+    assert result.insufficient_shared_frame_pair_count == 1
+    assert result.evaluated_track_pair_count == 0
+    assert result.candidates == ()
 
 
 def test_spatial_gate_avoids_exhaustive_distractor_pairs() -> None:
@@ -349,6 +408,39 @@ def test_two_axis_chunking_is_result_and_identity_invariant() -> None:
     assert small.to_dict() == large.to_dict()
     assert small.result_id == large.result_id
     assert json.loads(json.dumps(small.to_dict()))["result_id"] == small.result_id
+
+
+def test_cross_window_association_rejects_one_sided_or_invalid_covariance() -> None:
+    left = make_tracklets(
+        "left",
+        [np.array([[0.0, 0.0, 1.0], [0.0, 0.0, 1.0]])],
+    )
+    right = make_tracklets(
+        "right",
+        [np.array([[0.0, 0.0, 1.0], [0.0, 0.0, 1.0]])],
+    )
+    covariance = np.repeat(np.eye(3)[None], 2, axis=0)
+
+    with pytest.raises(ValueError, match="both windows or neither"):
+        associate_cross_window_tracklets(
+            left,
+            right,
+            left_global_from_local=Sim3.identity(),
+            right_global_from_local=Sim3.identity(),
+            left_global_covariance_m2=covariance,
+        )
+
+    invalid = covariance.copy()
+    invalid[0, 0, 0] = -1.0
+    with pytest.raises(ValueError, match="positive semidefinite"):
+        associate_cross_window_tracklets(
+            left,
+            right,
+            left_global_from_local=Sim3.identity(),
+            right_global_from_local=Sim3.identity(),
+            left_global_covariance_m2=invalid,
+            right_global_covariance_m2=covariance,
+        )
 
 
 def test_spatial_candidate_cap_fails_closed() -> None:

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
-from typing import Any
+from typing import Any, Literal, TypeAlias, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -21,8 +21,71 @@ from .data import PredictionWindow
 from .observation_factors import ObservationFactor
 from .uncertainty import StructuredCovariance
 
-FloatArray = NDArray[np.floating]
-IntArray = NDArray[np.integer]
+FloatArray: TypeAlias = NDArray[np.floating[Any]]
+IntArray: TypeAlias = NDArray[np.integer[Any]]
+TargetDeformMaskPolicy = Literal["require", "allow"]
+
+
+def _strict_string(value: Any, *, name: str) -> str:
+    if type(value) is not str or not value:
+        raise ValueError(f"{name} must be a non-empty string")
+    return value
+
+
+def _integer(value: Any, *, name: str, minimum: int = 0) -> int:
+    if type(value) is not int and not isinstance(value, np.integer):
+        raise ValueError(f"{name} must be an integer")
+    result = int(value)
+    if result < minimum:
+        raise ValueError(f"{name} must be at least {minimum}")
+    return result
+
+
+def _real(
+    value: Any,
+    *,
+    name: str,
+    minimum: float = 0.0,
+    maximum: float | None = None,
+    strictly_positive: bool = False,
+) -> float:
+    if type(value) not in {int, float} and not isinstance(value, (np.integer, np.floating)):
+        raise ValueError(f"{name} must be a real number")
+    result = float(value)
+    if not np.isfinite(result):
+        raise ValueError(f"{name} must be finite")
+    if (strictly_positive and result <= minimum) or (not strictly_positive and result < minimum):
+        relation = "greater than" if strictly_positive else "at least"
+        raise ValueError(f"{name} must be {relation} {minimum}")
+    if maximum is not None and result > maximum:
+        raise ValueError(f"{name} must be at most {maximum}")
+    return result
+
+
+def _integer_array(value: Any, *, name: str) -> np.ndarray:
+    raw = np.asarray(value)
+    if raw.dtype.kind not in {"i", "u"}:
+        raise ValueError(f"{name} must contain integers")
+    if raw.dtype.kind == "u" and np.any(raw > np.iinfo(np.int64).max):
+        raise ValueError(f"{name} contains an integer outside int64")
+    return np.asarray(raw, dtype=np.int64).copy()
+
+
+def _real_array(value: Any, *, name: str) -> np.ndarray:
+    raw = np.asarray(value)
+    if raw.dtype.kind not in {"i", "u", "f"}:
+        raise ValueError(f"{name} must contain real numeric values")
+    result = np.asarray(raw, dtype=np.float64).copy()
+    if not np.all(np.isfinite(result)):
+        raise ValueError(f"{name} must be finite")
+    return result
+
+
+def _target_deform_mask_policy(value: Any) -> TargetDeformMaskPolicy:
+    policy = _strict_string(value, name="target_deform_mask_policy")
+    if policy not in {"require", "allow"}:
+        raise ValueError("target_deform_mask_policy must be 'require' or 'allow'")
+    return cast(TargetDeformMaskPolicy, policy)
 
 
 def _readonly(value: np.ndarray, *, dtype: Any) -> np.ndarray:
@@ -50,47 +113,45 @@ class CausalTrackletSet:
     metadata: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        window_id = str(self.window_id)
-        if not window_id:
-            raise ValueError("window_id must not be empty")
-        causal_frame_stop = int(self.causal_frame_stop)
-        seed_frame_index = int(self.seed_frame_index)
-        raw_source_shape = tuple(self.source_shape)
-        source_shape = tuple(int(value) for value in raw_source_shape)
-        if (
-            len(source_shape) != 3
-            or any(value < 1 for value in source_shape)
-            or any(
-                normalized != original
-                for normalized, original in zip(
-                    source_shape,
-                    raw_source_shape,
-                    strict=True,
-                )
-            )
-        ):
-            raise ValueError("source_shape must contain positive integer (T, H, W)")
-        if causal_frame_stop < 1:
-            raise ValueError("causal_frame_stop must be positive")
-        if seed_frame_index < 0 or seed_frame_index >= causal_frame_stop:
+        window_id = _strict_string(self.window_id, name="window_id")
+        causal_frame_stop = _integer(
+            self.causal_frame_stop,
+            name="causal_frame_stop",
+            minimum=1,
+        )
+        seed_frame_index = _integer(
+            self.seed_frame_index,
+            name="seed_frame_index",
+        )
+        if type(self.source_shape) is not tuple or len(self.source_shape) != 3:
+            raise ValueError("source_shape must be a tuple of positive integer (T, H, W)")
+        source_shape = tuple(
+            _integer(value, name=f"source_shape[{index}]", minimum=1)
+            for index, value in enumerate(self.source_shape)
+        )
+        if seed_frame_index >= causal_frame_stop:
             raise ValueError("seed_frame_index must precede causal_frame_stop")
 
-        track_ids = np.asarray(self.track_ids, dtype=np.int64)
-        frame_indices = np.asarray(self.frame_indices, dtype=np.int64)
-        local_indices = np.asarray(self.local_frame_indices, dtype=np.int64)
-        rows = np.asarray(self.rows, dtype=np.int64)
-        columns = np.asarray(self.columns, dtype=np.int64)
-        points = np.asarray(self.points_local, dtype=np.float64)
-        link = np.asarray(self.link_probability, dtype=np.float64)
-        association = np.asarray(self.association_probability, dtype=np.float64)
+        track_ids = _integer_array(self.track_ids, name="track_ids")
+        frame_indices = _integer_array(self.frame_indices, name="frame_indices")
+        local_indices = _integer_array(
+            self.local_frame_indices,
+            name="local_frame_indices",
+        )
+        rows = _integer_array(self.rows, name="rows")
+        columns = _integer_array(self.columns, name="columns")
+        points = _real_array(self.points_local, name="points_local")
+        link = _real_array(self.link_probability, name="link_probability")
+        association = _real_array(
+            self.association_probability,
+            name="association_probability",
+        )
         count = len(track_ids)
         vectors = (frame_indices, local_indices, rows, columns, link, association)
         if count == 0 or any(value.shape != (count,) for value in vectors):
             raise ValueError("tracklet row arrays must share one non-empty length")
         if points.shape != (count, 3):
             raise ValueError("points_local must have shape (N, 3)")
-        if not np.all(np.isfinite(points)):
-            raise ValueError("tracklet points must be finite")
         if np.any(track_ids < 0) or np.any(frame_indices < 0):
             raise ValueError("track and frame indices must be non-negative")
         if np.any(frame_indices >= causal_frame_stop):
@@ -105,13 +166,11 @@ class CausalTrackletSet:
             ("link_probability", link),
             ("association_probability", association),
         ):
-            if not np.all(np.isfinite(value)) or np.any(
-                (value < 0.0) | (value > 1.0)
-            ):
+            if np.any((value < 0.0) | (value > 1.0)):
                 raise ValueError(f"{name} must lie in [0, 1]")
 
         unique_tracks = np.unique(track_ids)
-        expected_tracks = np.arange(len(unique_tracks), dtype=np.int64)
+        expected_tracks: IntArray = np.arange(len(unique_tracks), dtype=np.int64)
         if not np.array_equal(unique_tracks, expected_tracks):
             raise ValueError("track_ids must be contiguous from zero")
         order = np.lexsort((frame_indices, track_ids))
@@ -130,9 +189,7 @@ class CausalTrackletSet:
             if np.any(np.diff(track_frames) <= 0):
                 raise ValueError("frames must increase strictly within each track")
             if np.any(np.diff(track_local) <= 0):
-                raise ValueError(
-                    "local frame indices must increase strictly within each track"
-                )
+                raise ValueError("local frame indices must increase strictly within each track")
             if not np.isclose(link[selected[0]], 1.0):
                 raise ValueError("the first link probability must equal one")
             if not np.isclose(association[selected[0]], 1.0):
@@ -144,9 +201,7 @@ class CausalTrackletSet:
                 atol=1e-15,
                 rtol=1e-12,
             ):
-                raise ValueError(
-                    "association_probability must equal cumulative link probability"
-                )
+                raise ValueError("association_probability must equal cumulative link probability")
 
         object.__setattr__(self, "window_id", window_id)
         object.__setattr__(self, "causal_frame_stop", causal_frame_stop)
@@ -154,7 +209,9 @@ class CausalTrackletSet:
         object.__setattr__(self, "seed_frame_index", seed_frame_index)
         object.__setattr__(self, "track_ids", _readonly(track_ids, dtype=np.int64))
         object.__setattr__(
-            self, "frame_indices", _readonly(frame_indices, dtype=np.int64)
+            self,
+            "frame_indices",
+            _readonly(frame_indices, dtype=np.int64),
         )
         object.__setattr__(
             self,
@@ -164,10 +221,14 @@ class CausalTrackletSet:
         object.__setattr__(self, "rows", _readonly(rows, dtype=np.int64))
         object.__setattr__(self, "columns", _readonly(columns, dtype=np.int64))
         object.__setattr__(
-            self, "points_local", _readonly(points, dtype=np.float64)
+            self,
+            "points_local",
+            _readonly(points, dtype=np.float64),
         )
         object.__setattr__(
-            self, "link_probability", _readonly(link, dtype=np.float64)
+            self,
+            "link_probability",
+            _readonly(link, dtype=np.float64),
         )
         object.__setattr__(
             self,
@@ -196,6 +257,23 @@ class CausalTrackletSet:
     def track_lengths(self) -> IntArray:
         return np.bincount(self.track_ids, minlength=self.track_count)
 
+    @property
+    def geometric_mean_association_probability(self) -> FloatArray:
+        """Return length-neutral link support up to each observation row."""
+
+        result: FloatArray = np.ones(self.observation_count, dtype=np.float64)
+        for track_id in range(self.track_count):
+            selected = np.flatnonzero(self.track_ids == track_id)
+            links = self.link_probability[selected[1:]]
+            if not len(links):
+                continue
+            link_logs: FloatArray = np.full(len(links), -np.inf, dtype=np.float64)
+            positive = links > 0.0
+            link_logs[positive] = np.log(links[positive])
+            result[selected[1:]] = np.exp(np.cumsum(link_logs) / np.arange(1, len(links) + 1))
+        result.setflags(write=False)
+        return result
+
     def summary(self) -> dict[str, object]:
         lengths = self.track_lengths
         return {
@@ -221,6 +299,7 @@ class CausalTrackletReport:
     dropped_short_tracks: int
     terminated_invalid_source: int
     terminated_no_candidate: int
+    terminated_target_mask: int
     terminated_step_error: int
     terminated_low_probability: int
     collision_rejections: int
@@ -230,6 +309,7 @@ class CausalTrackletReport:
     association_sigma_local: float
     minimum_link_probability: float
     minimum_track_length: int
+    target_deform_mask_policy: TargetDeformMaskPolicy = "allow"
 
     def __post_init__(self) -> None:
         integer_fields = (
@@ -239,6 +319,7 @@ class CausalTrackletReport:
             "dropped_short_tracks",
             "terminated_invalid_source",
             "terminated_no_candidate",
+            "terminated_target_mask",
             "terminated_step_error",
             "terminated_low_probability",
             "collision_rejections",
@@ -247,26 +328,47 @@ class CausalTrackletReport:
             "minimum_track_length",
         )
         for name in integer_fields:
-            value = int(getattr(self, name))
-            if value != getattr(self, name) or value < 0:
-                raise ValueError(f"{name} must be a non-negative integer")
-            object.__setattr__(self, name, value)
-        if self.seed_stride < 1:
-            raise ValueError("seed_stride must be positive")
-        if self.minimum_track_length < 1:
-            raise ValueError("minimum_track_length must be positive")
-        positive = (
-            self.maximum_step_error_local,
-            self.association_sigma_local,
+            minimum = 1 if name in {"seed_stride", "minimum_track_length"} else 0
+            object.__setattr__(
+                self,
+                name,
+                _integer(getattr(self, name), name=name, minimum=minimum),
+            )
+        object.__setattr__(
+            self,
+            "maximum_step_error_local",
+            _real(
+                self.maximum_step_error_local,
+                name="maximum_step_error_local",
+                strictly_positive=True,
+            ),
         )
-        if not all(np.isfinite(value) and value > 0.0 for value in positive):
-            raise ValueError("tracklet distance scales must be finite and positive")
-        if not np.isfinite(self.minimum_link_probability) or not (
-            0.0 < self.minimum_link_probability <= 1.0
-        ):
-            raise ValueError("minimum_link_probability must lie in (0, 1]")
+        object.__setattr__(
+            self,
+            "association_sigma_local",
+            _real(
+                self.association_sigma_local,
+                name="association_sigma_local",
+                strictly_positive=True,
+            ),
+        )
+        object.__setattr__(
+            self,
+            "minimum_link_probability",
+            _real(
+                self.minimum_link_probability,
+                name="minimum_link_probability",
+                strictly_positive=True,
+                maximum=1.0,
+            ),
+        )
+        object.__setattr__(
+            self,
+            "target_deform_mask_policy",
+            _target_deform_mask_policy(self.target_deform_mask_policy),
+        )
 
-    def to_dict(self) -> dict[str, int | float]:
+    def to_dict(self) -> dict[str, int | float | str]:
         return asdict(self)
 
 
@@ -302,9 +404,7 @@ def _link_probability(
         uniqueness_score = 1.0
     else:
         margin = max(second_error - best_error, 0.0)
-        uniqueness_score = float(
-            1.0 - np.exp(-0.5 * (margin / sigma) ** 2)
-        )
+        uniqueness_score = float(1.0 - np.exp(-0.5 * (margin / sigma) ** 2))
     return float(np.clip(error_score * uniqueness_score, 0.0, 1.0))
 
 
@@ -318,40 +418,52 @@ def build_causal_scene_flow_tracklets(
     association_sigma_local: float | None = None,
     minimum_link_probability: float = 0.05,
     minimum_track_length: int = 2,
+    target_deform_mask_policy: TargetDeformMaskPolicy = "allow",
 ) -> tuple[CausalTrackletSet, CausalTrackletReport]:
     """Build deterministic prefix-only tracklets from a window's 3-D scene flow."""
 
+    if not isinstance(window, PredictionWindow):
+        raise TypeError("window must be a PredictionWindow")
     scene_flow = window.scene_flow
     deform_mask = window.deform_mask
     if scene_flow is None or deform_mask is None:
         raise ValueError("scene-flow tracklets require scene_flow and deform_mask")
-    causal_frame_stop = int(causal_frame_stop)
-    seed_stride = int(seed_stride)
-    search_radius_pixels = int(search_radius_pixels)
-    minimum_track_length = int(minimum_track_length)
-    if causal_frame_stop < 1:
-        raise ValueError("causal_frame_stop must be positive")
-    if seed_stride < 1:
-        raise ValueError("seed_stride must be positive")
-    if search_radius_pixels < 0:
-        raise ValueError("search_radius_pixels must be non-negative")
-    if not np.isfinite(maximum_step_error_local) or (
-        maximum_step_error_local <= 0.0
-    ):
-        raise ValueError("maximum_step_error_local must be finite and positive")
+    causal_frame_stop = _integer(
+        causal_frame_stop,
+        name="causal_frame_stop",
+        minimum=1,
+    )
+    seed_stride = _integer(seed_stride, name="seed_stride", minimum=1)
+    search_radius_pixels = _integer(
+        search_radius_pixels,
+        name="search_radius_pixels",
+    )
+    maximum_step_error_local = _real(
+        maximum_step_error_local,
+        name="maximum_step_error_local",
+        strictly_positive=True,
+    )
+    minimum_link_probability = _real(
+        minimum_link_probability,
+        name="minimum_link_probability",
+        strictly_positive=True,
+        maximum=1.0,
+    )
+    minimum_track_length = _integer(
+        minimum_track_length,
+        name="minimum_track_length",
+        minimum=1,
+    )
+    target_policy = _target_deform_mask_policy(target_deform_mask_policy)
     sigma = (
         maximum_step_error_local / 3.0
         if association_sigma_local is None
-        else float(association_sigma_local)
+        else _real(
+            association_sigma_local,
+            name="association_sigma_local",
+            strictly_positive=True,
+        )
     )
-    if not np.isfinite(sigma) or sigma <= 0.0:
-        raise ValueError("association_sigma_local must be finite and positive")
-    if not np.isfinite(minimum_link_probability) or not (
-        0.0 < minimum_link_probability <= 1.0
-    ):
-        raise ValueError("minimum_link_probability must lie in (0, 1]")
-    if minimum_track_length < 1:
-        raise ValueError("minimum_track_length must be positive")
 
     eligible = np.flatnonzero(window.frame_indices < causal_frame_stop)
     if not len(eligible):
@@ -359,18 +471,16 @@ def build_causal_scene_flow_tracklets(
     first_local = int(eligible[0])
     seed_frame = int(window.frame_indices[first_local])
     height, width = window.shape[1:]
-    seed_mask = window.valid_mask[first_local].copy()
+    seed_mask = window.valid_mask[first_local] & deform_mask[first_local]
     seed_grid = np.zeros((height, width), dtype=bool)
     seed_grid[::seed_stride, ::seed_stride] = True
     seed_rows, seed_columns = np.nonzero(seed_mask & seed_grid)
     if not len(seed_rows):
-        raise ValueError("the first retained frame has no valid tracklet seed")
+        raise ValueError("the first retained frame has no valid deforming tracklet seed")
 
     tracks: dict[int, list[_TrackObservation]] = {}
     active: dict[int, tuple[int, int, float]] = {}
-    for track_id, (row, column) in enumerate(
-        zip(seed_rows, seed_columns, strict=True)
-    ):
+    for track_id, (row, column) in enumerate(zip(seed_rows, seed_columns, strict=True)):
         point = window.point_map[first_local, row, column].copy()
         tracks[track_id] = [
             _TrackObservation(
@@ -387,13 +497,12 @@ def build_causal_scene_flow_tracklets(
 
     terminated_invalid_source = 0
     terminated_no_candidate = 0
+    terminated_target_mask = 0
     terminated_step_error = 0
     terminated_low_probability = 0
     collision_rejections = 0
 
-    for current_local, next_local in zip(
-        eligible[:-1], eligible[1:], strict=True
-    ):
+    for current_local, next_local in zip(eligible[:-1], eligible[1:], strict=True):
         current_local = int(current_local)
         next_local = int(next_local)
         proposals: list[_Proposal] = []
@@ -413,19 +522,39 @@ def build_causal_scene_flow_tracklets(
             row_stop = min(height, row + search_radius_pixels + 1)
             column_start = max(0, column - search_radius_pixels)
             column_stop = min(width, column + search_radius_pixels + 1)
-            local_mask = window.valid_mask[
+            valid_local = window.valid_mask[
                 next_local,
                 row_start:row_stop,
                 column_start:column_stop,
             ]
+            if target_policy == "require":
+                supported_local = (
+                    valid_local
+                    & deform_mask[
+                        next_local,
+                        row_start:row_stop,
+                        column_start:column_stop,
+                    ]
+                )
+                if not np.any(supported_local):
+                    if np.any(valid_local):
+                        terminated_target_mask += 1
+                    else:
+                        terminated_no_candidate += 1
+                    continue
+                local_mask = supported_local
+            else:
+                local_mask = valid_local
+                if not np.any(local_mask):
+                    terminated_no_candidate += 1
+                    continue
             candidate_rows, candidate_columns = np.nonzero(local_mask)
-            if not len(candidate_rows):
-                terminated_no_candidate += 1
-                continue
             candidate_rows = candidate_rows + row_start
             candidate_columns = candidate_columns + column_start
             candidate_points = window.point_map[
-                next_local, candidate_rows, candidate_columns
+                next_local,
+                candidate_rows,
+                candidate_columns,
             ]
             errors = np.linalg.norm(candidate_points - predicted, axis=1)
             order = np.argsort(errors, kind="stable")
@@ -434,9 +563,7 @@ def build_causal_scene_flow_tracklets(
             if best_error > maximum_step_error_local:
                 terminated_step_error += 1
                 continue
-            second_error = (
-                float(errors[int(order[1])]) if len(order) > 1 else None
-            )
+            second_error = float(errors[int(order[1])]) if len(order) > 1 else None
             link = _link_probability(best_error, second_error, sigma=sigma)
             if link < minimum_link_probability:
                 terminated_low_probability += 1
@@ -477,7 +604,9 @@ def build_causal_scene_flow_tracklets(
         next_frame = int(window.frame_indices[next_local])
         for proposal in sorted(winners.values(), key=lambda item: item.track_id):
             point = window.point_map[
-                next_local, proposal.row, proposal.column
+                next_local,
+                proposal.row,
+                proposal.column,
             ].copy()
             tracks[proposal.track_id].append(
                 _TrackObservation(
@@ -506,15 +635,10 @@ def build_causal_scene_flow_tracklets(
     ]
     if not retained_ids:
         raise ValueError("no tracklet satisfies minimum_track_length")
-    id_map = {
-        original: replacement
-        for replacement, original in enumerate(retained_ids)
-    }
+    id_map = {original: replacement for replacement, original in enumerate(retained_ids)}
     flattened: list[tuple[int, _TrackObservation]] = []
     for original in retained_ids:
-        flattened.extend(
-            (id_map[original], observation) for observation in tracks[original]
-        )
+        flattened.extend((id_map[original], observation) for observation in tracks[original])
 
     result = CausalTrackletSet(
         window_id=window.window_id,
@@ -522,7 +646,8 @@ def build_causal_scene_flow_tracklets(
         source_shape=window.shape,
         seed_frame_index=seed_frame,
         track_ids=np.asarray(
-            [track_id for track_id, _ in flattened], dtype=np.int64
+            [track_id for track_id, _ in flattened],
+            dtype=np.int64,
         ),
         frame_indices=np.asarray(
             [observation.frame_index for _, observation in flattened],
@@ -533,7 +658,8 @@ def build_causal_scene_flow_tracklets(
             dtype=np.int64,
         ),
         rows=np.asarray(
-            [observation.row for _, observation in flattened], dtype=np.int64
+            [observation.row for _, observation in flattened],
+            dtype=np.int64,
         ),
         columns=np.asarray(
             [observation.column for _, observation in flattened],
@@ -548,24 +674,20 @@ def build_causal_scene_flow_tracklets(
             dtype=np.float64,
         ),
         association_probability=np.asarray(
-            [
-                observation.association_probability
-                for _, observation in flattened
-            ],
+            [observation.association_probability for _, observation in flattened],
             dtype=np.float64,
         ),
         metadata={
-            "method": "local-scene-flow-neighborhood-association-v1",
+            "method": "local-scene-flow-neighborhood-association-v2",
             "source_window_id": window.window_id,
-            "source_frame_indices": [
-                int(window.frame_indices[index]) for index in eligible
-            ],
+            "source_frame_indices": [int(window.frame_indices[index]) for index in eligible],
             "seed_stride": seed_stride,
             "search_radius_pixels": search_radius_pixels,
-            "maximum_step_error_local": float(maximum_step_error_local),
+            "maximum_step_error_local": maximum_step_error_local,
             "association_sigma_local": sigma,
-            "minimum_link_probability": float(minimum_link_probability),
+            "minimum_link_probability": minimum_link_probability,
             "minimum_track_length": minimum_track_length,
+            "target_deform_mask_policy": target_policy,
             "association_semantics": (
                 "cumulative product of deterministic local link probabilities"
             ),
@@ -578,15 +700,17 @@ def build_causal_scene_flow_tracklets(
         dropped_short_tracks=len(tracks) - len(retained_ids),
         terminated_invalid_source=terminated_invalid_source,
         terminated_no_candidate=terminated_no_candidate,
+        terminated_target_mask=terminated_target_mask,
         terminated_step_error=terminated_step_error,
         terminated_low_probability=terminated_low_probability,
         collision_rejections=collision_rejections,
         seed_stride=seed_stride,
         search_radius_pixels=search_radius_pixels,
-        maximum_step_error_local=float(maximum_step_error_local),
+        maximum_step_error_local=maximum_step_error_local,
         association_sigma_local=sigma,
-        minimum_link_probability=float(minimum_link_probability),
+        minimum_link_probability=minimum_link_probability,
         minimum_track_length=minimum_track_length,
+        target_deform_mask_policy=target_policy,
     )
     return result, report
 
@@ -604,14 +728,23 @@ def tracklets_to_observation_factors(
 ) -> tuple[ObservationFactor, ...]:
     """Convert persistent tracklet rows into one unfused factor per frame."""
 
-    view_id = str(view_id)
-    correlation_group_prefix = str(correlation_group_prefix)
-    if not view_id or not correlation_group_prefix:
-        raise ValueError("view_id and correlation_group_prefix must be non-empty")
-    if not np.isfinite(effective_samples_per_group) or (
-        effective_samples_per_group <= 0.0
-    ):
-        raise ValueError("effective_samples_per_group must be positive")
+    if not isinstance(tracklets, CausalTrackletSet):
+        raise TypeError("tracklets must be a CausalTrackletSet")
+    view_id = _strict_string(view_id, name="view_id")
+    correlation_group_prefix = _strict_string(
+        correlation_group_prefix,
+        name="correlation_group_prefix",
+    )
+    prior_nominal_probability = _real(
+        prior_nominal_probability,
+        name="prior_nominal_probability",
+        maximum=1.0,
+    )
+    effective_samples_per_group = _real(
+        effective_samples_per_group,
+        name="effective_samples_per_group",
+        strictly_positive=True,
+    )
 
     rays: np.ndarray | None
     if isinstance(covariance, StructuredCovariance):
@@ -620,32 +753,29 @@ def tracklets_to_observation_factors(
         covariance_grid = covariance.matrices()
         rays = covariance.ray_directions
     else:
-        covariance_grid = np.asarray(covariance, dtype=np.float64)
+        covariance_grid = _real_array(covariance, name="covariance")
         expected = tracklets.source_shape + (3, 3)
         if covariance_grid.shape != expected:
             raise ValueError(f"covariance must have shape {expected}")
         rays = None
-    if not np.all(np.isfinite(covariance_grid)):
-        raise ValueError("tracklet covariance must be finite")
 
     if prior_reliability is None:
-        reliability_grid = np.ones(tracklets.source_shape, dtype=np.float64)
+        reliability_grid: FloatArray = np.ones(tracklets.source_shape, dtype=np.float64)
     else:
-        reliability_grid = np.asarray(prior_reliability, dtype=np.float64)
+        reliability_grid = _real_array(
+            prior_reliability,
+            name="prior_reliability",
+        )
         if reliability_grid.shape != tracklets.source_shape:
             raise ValueError("prior_reliability must match tracklet source_shape")
-        if not np.all(np.isfinite(reliability_grid)) or np.any(
-            (reliability_grid < 0.0) | (reliability_grid > 1.0)
-        ):
+        if np.any((reliability_grid < 0.0) | (reliability_grid > 1.0)):
             raise ValueError("prior_reliability must lie in [0, 1]")
 
     prefix = (
         f"{tracklets.window_id}:{view_id}:tracklets"
         if factor_id_prefix is None
-        else str(factor_id_prefix)
+        else _strict_string(factor_id_prefix, name="factor_id_prefix")
     )
-    if not prefix:
-        raise ValueError("factor_id_prefix must be non-empty")
 
     factors: list[ObservationFactor] = []
     for frame in np.unique(tracklets.frame_indices):
@@ -657,9 +787,7 @@ def tracklets_to_observation_factors(
         rows = tracklets.rows[selected]
         columns = tracklets.columns[selected]
         count = len(selected)
-        composite_weight = min(
-            1.0, float(effective_samples_per_group) / count
-        )
+        composite_weight = min(1.0, effective_samples_per_group / count)
         factor = ObservationFactor(
             factor_id=f"{prefix}:frame-{int(frame)}",
             frame_index=int(frame),
@@ -674,13 +802,9 @@ def tracklets_to_observation_factors(
             prior_reliability=reliability_grid[local_index, rows, columns],
             prior_nominal_probability=prior_nominal_probability,
             composite_weight=composite_weight,
-            correlation_group_id=(
-                f"{correlation_group_prefix}:frame-{int(frame)}"
-            ),
+            correlation_group_id=f"{correlation_group_prefix}:frame-{int(frame)}",
             causal_frame_stop=tracklets.causal_frame_stop,
-            ray_directions_local=(
-                None if rays is None else rays[local_index, rows, columns]
-            ),
+            ray_directions_local=(None if rays is None else rays[local_index, rows, columns]),
         )
         factors.append(factor)
     return tuple(factors)
@@ -689,6 +813,7 @@ def tracklets_to_observation_factors(
 __all__ = [
     "CausalTrackletReport",
     "CausalTrackletSet",
+    "TargetDeformMaskPolicy",
     "build_causal_scene_flow_tracklets",
     "tracklets_to_observation_factors",
 ]
