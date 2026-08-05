@@ -47,9 +47,7 @@ class SourceOnlyDiagnosticGrid:
 
     def __post_init__(self) -> None:
         if type(self.feature_names) is not tuple:
-            raise TypeError(
-                "diagnostic feature_names must be a canonical tuple of strings"
-            )
+            raise TypeError("diagnostic feature_names must be a canonical tuple of strings")
         names = tuple(
             require_exact_string(
                 value,
@@ -162,11 +160,7 @@ def build_flow_point_consistency_diagnostic(
     relative_residual = np.zeros(shape, dtype=np.float64)
     direction_disagreement = np.zeros(shape, dtype=np.float64)
 
-    if (
-        window.scene_flow is not None
-        and window.deform_mask is not None
-        and shape[0] > 1
-    ):
+    if window.scene_flow is not None and window.deform_mask is not None and shape[0] > 1:
         current = np.asarray(window.point_map[:-1], dtype=np.float64)
         following = np.asarray(window.point_map[1:], dtype=np.float64)
         flow = np.asarray(window.scene_flow[:-1], dtype=np.float64)
@@ -387,13 +381,9 @@ class CommonModeFailureAudit:
         )
         if self.low_disagreement_high_error_count == 0:
             if severity_mean != 0.0 or severity_max != 0.0:
-                raise ValueError(
-                    "empty low-disagreement/high-error cells require zero severity"
-                )
+                raise ValueError("empty low-disagreement/high-error cells require zero severity")
         elif severity_mean > severity_max:
-            raise ValueError(
-                "low-disagreement/high-error mean cannot exceed its maximum"
-            )
+            raise ValueError("low-disagreement/high-error mean cannot exceed its maximum")
         object.__setattr__(
             self,
             "low_disagreement_high_error_mean",
@@ -412,9 +402,7 @@ class CommonModeFailureAudit:
     def to_dict(self) -> dict[str, int | float]:
         return {
             **asdict(self),
-            "low_disagreement_high_error_rate": (
-                self.low_disagreement_high_error_rate
-            ),
+            "low_disagreement_high_error_rate": (self.low_disagreement_high_error_rate),
         }
 
 
