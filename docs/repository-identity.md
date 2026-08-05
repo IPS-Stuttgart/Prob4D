@@ -19,6 +19,13 @@ The descriptor currently contains:
 - historical alias `FlorianPfaff/Prob4D`; and
 - the repository string retained by frozen observation artifacts.
 
+Repository aliases are matched case-insensitively but are otherwise exact.
+Leading or trailing whitespace, string subclasses, and objects that merely
+provide a string representation fail closed rather than being normalized.
+Descriptor validation also requires exact JSON primitive types, so Boolean
+schema versions and tuple-for-array substitutions cannot compare equal to the
+canonical descriptor through Python coercion rules.
+
 ## Frozen artifact boundary
 
 Provider-v1 artifacts, causal-stream-v1/v2 artifacts, conformance vectors, and
