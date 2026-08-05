@@ -14,13 +14,17 @@ from pathlib import Path, PurePosixPath
 REQUIRED_PATHS = frozenset(
     {
         ".github/CODEOWNERS",
+        ".github/dependabot.yml",
+        ".github/workflows/ecosystem-release-capsule.yml",
         ".github/workflows/heldout-provider-promotion.yml",
         ".github/workflows/tests.yml",
         "CHANGELOG.md",
         "CITATION.cff",
         "CONTRIBUTING.md",
+        "LICENSE",
         "README.md",
         "SECURITY.md",
+        "docs/ecosystem-release-capsule.md",
         "docs/examples/heldout-provider-promotion-config.json",
         "docs/examples/material-identity-mixture-config.json",
         "docs/heldout-provider-promotion.md",
@@ -30,6 +34,7 @@ REQUIRED_PATHS = frozenset(
         "protocols/cycle-guard-conformal-v1.json",
         "protocols/cycle-guard-normalization-v1.json",
         "requirements/ci/minimum.txt",
+        "scripts/ci/build_ecosystem_release_capsule.py",
         "scripts/ci/check_sdist.py",
         "src/prob4d/_heldout_promotion_common.py",
         "src/prob4d/_heldout_promotion_evaluation.py",
@@ -39,6 +44,7 @@ REQUIRED_PATHS = frozenset(
         "src/prob4d/heldout_promotion.py",
         "src/prob4d/material_identity_cli.py",
         "tests/fixtures/prob4d_joint_observation_v1.json",
+        "tests/test_ecosystem_release_capsule.py",
         "tests/test_github_action_pins.py",
         "tests/test_heldout_promotion.py",
         "tests/test_joint_observation_contract_fixture.py",
@@ -49,6 +55,7 @@ REQUIRED_PATHS = frozenset(
 )
 REPRESENTATIVE_TESTS = (
     "tests/test_sim3.py",
+    "tests/test_ecosystem_release_capsule.py",
     "tests/test_heldout_promotion.py",
     "tests/test_material_identity_cli.py",
     "tests/test_provider_manifest.py",
