@@ -1,0 +1,41 @@
+name: One-shot sort promotion evidence import
+
+on:
+  push:
+    branches:
+      - ci/self-hosted-prob4d-storage-evidence
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: [self-hosted, Linux, X64, nvidia-smi]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ci/self-hosted-prob4d-storage-evidence
+          fetch-depth: 0
+      - name: Sort import and remove one-shot workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/prob4d/promotion_evidence.py")
+          source = path.read_text(encoding="utf-8")
+          old = """from ._heldout_promotion_common import (\n    REPORT_CLAIM_BOUNDARY,\n    _SHA256,\n"""
+          new = """from ._heldout_promotion_common import (\n    _SHA256,\n    REPORT_CLAIM_BOUNDARY,\n"""
+          if source.count(old) != 1:
+              raise SystemExit("promotion evidence import block changed")
+          path.write_text(source.replace(old, new), encoding="utf-8")
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/one-shot-sort-promotion-import.yml
+          git add src/prob4d/promotion_evidence.py
+          git commit -m "Sort promotion evidence imports"
+          git push origin HEAD:ci/self-hosted-prob4d-storage-evidence
