@@ -1,0 +1,334 @@
+ logit
++
++Fit the model with:
++
++```bash
++prob4d identity calibrate \
++  outputs/calibration/identity-choices.json \
++  outputs/calibration/identity-labels.json \
++  outputs/calibration/identity-calibration.json \
++  --ridge 0.001 \
++  --probability-floor 0.000001
++```
++
++For choice set `s`, candidate `a`, standardized feature vector `x_sa`, and
++coefficient vector `beta`, the source probability is
++
++```text
++q(a | s) = softmax_a(x_sa^T beta).
++```
++
++Each declared calibration group receives equal total objective mass. Informative
++choice sets within one group then receive equal mass, so an object with more tracks
++cannot dominate solely through row count. Null-only sets remain in the artifact
++and deploy with exact probability one, but they do not dilute the fitted objective
++or inflate its proper-score and top-1 diagnostics. Every calibration group must
++contain at least one non-null choice set. Feature centring and scaling likewise
++give each informative choice set equal mass and each candidate equal mass within
++its set.
++
++The deployed probability floor is applied only after the conditional-logit fit:
++
++```text
++q_floor(a | s) = (1 - |s| epsilon) q(a | s) + epsilon.
++```
++
++The fit fails when `|s| epsilon >= 1`, rather than silently changing the candidate
++set or clipping it inconsistently.
++
++The content-addressed calibration records coefficients, feature normalization,
++regularization, probability floor, exact producer and association revisions,
++training collection and labels, calibration group IDs, equal-group log loss,
++multiclass Brier score, top-1 accuracy, and the explicit target-free claim
++boundary. These metrics are deterministic held-in optimization diagnostics; they
++are not a held-out calibration or promotion result. The frozen P2m gate must
++assess proper scores and downstream trajectories on disjoint groups.
++
++## Publishing portable mixtures
++
++Apply a frozen calibration to any compatible source-only choice collection:
++
++```bash
++prob4d identity build-mixtures \
++  outputs/target-free/identity-choices.json \
++  outputs/calibration/identity-calibration.json \
++  outputs/target-free/calibrated-mixtures
++
++prob4d identity validate-mixtures \
++  outputs/target-free/calibrated-mixtures
++```
++
++The destination must be new. It contains one standard
++`prob4d.material-identity-mixture` JSON file per target-local track and a compact
++manifest binding every choice-set ID, mixture ID, target endpoint, and calibration
++ID. Validation rejects missing or extra members, symlinks, path aliases, manifest
++tampering, mixture-ID drift, changed calibration lineage, and target-boundary drift. A null-only choice set produces probability one on the null candidate
++exactly.
++
++BayesianPhysTwin may then combine the source probabilities with a separately
++frozen prefix-only candidate likelihood and retain the existing exact null and
++physical-baseline fallback rules.
++
++## Frozen P2m experiment
++
++[`protocols/material-identity-p2m-v1.json`](../protocols/material-identity-p2m-v1.json)
++registers the first valid comparison:
++
++- `P0`: newest-window persistent reference;
++- `P2`: hard source-linked identity;
++- `P2m`: source-calibrated identity marginalization; and
++- `P3`: evaluation-only oracle identity.
++
++Association calibration, candidate-likelihood/power calibration, guard
++calibration, and downstream evaluation use disjoint object or simulation groups.
++Promotion requires a proper-score or physical-trajectory improvement over `P0`,
++bounded harmful accepted updates, no material worst-group regression, and exact
++fallback for every rejection. A negative result is retained without retuning the
++same target partition.
++
++## Claim boundary
++
++A valid calibration artifact establishes only reproducible source-side
++probabilities under the declared source labels and groups. It does not establish:
++
++- correct material identity on a held-out physical object;
++- calibrated physical-state uncertainty;
++- a safe or beneficial BayesianPhysTwin update;
++- improved Causal4D intervention prediction; or
++- state of the art.
+diff --git a/docs/material-identity-marginalization.md b/docs/material-identity-marginalization.md
+index a58aef8..59d232f 100644
+--- a/docs/material-identity-marginalization.md
++++ b/docs/material-identity-marginalization.md
+@@ -27,6 +27,16 @@ Every linked source endpoint must occur before the target in the bound window
+ order. No global point ID, connected component, or provider-v2 observation
+ rewrite is created.
+ 
++## Source-side weight calibration
++
++The mixture contract requires source-calibrated log weights but intentionally does
++not infer them from the pairwise ranking statistic. Use
++[`prob4d.material_identity_calibration`](material-identity-calibration.md) to build
++complete null-plus-linked choice sets, fit equal-group conditional-logit weights on
++disjoint source/calibration objects or sessions, and publish standard mixture
++artifacts. BayesianPhysTwin candidate likelihoods and deployment acceptance remain
++separate downstream calibrations.
++
+ ## Exact downstream marginalization
+ 
+ A downstream consumer can evaluate its own log likelihood `ell_a` for every
+diff --git a/protocols/material-identity-p2m-v1.json b/protocols/material-identity-p2m-v1.json
+new file mode 100644
+index 0000000..3e57999
+--- /dev/null
++++ b/protocols/material-identity-p2m-v1.json
+@@ -0,0 +1,64 @@
++{
++  "schema": "prob4d.material-identity-p2m-protocol",
++  "schema_version": 1,
++  "protocol_name": "calibration-separated cross-window identity marginalization",
++  "status": "source-calibration and prospective evaluation contract",
++  "statistical_unit": "independent physical object, acquisition session, or simulation family",
++  "information_boundary": {
++    "association_calibration_groups": "disjoint from likelihood, guard, and target groups",
++    "candidate_likelihood_calibration_groups": "disjoint from association, guard, and target groups",
++    "guard_calibration_groups": "disjoint from association, likelihood, and target groups",
++    "target_evaluation_groups": "opened once after every source-side artifact is sealed",
++    "target_outcomes_used_for_selection": false,
++    "target_outcomes_used_for_calibration": false,
++    "retuning_after_target_access": false
++  },
++  "arms": [
++    {
++      "id": "P0",
++      "name": "newest-window persistent reference",
++      "identity_semantics": "exact null candidate"
++    },
++    {
++      "id": "P2",
++      "name": "hard source-linked identity",
++      "identity_semantics": "frozen source-calibrated hard decision"
++    },
++    {
++      "id": "P2m",
++      "name": "source-calibrated identity marginalization",
++      "identity_semantics": "source prior times separately calibrated prefix likelihood"
++    },
++    {
++      "id": "P3",
++      "name": "evaluation-only oracle identity",
++      "identity_semantics": "not deployable and excluded from selection"
++    }
++  ],
++  "required_artifacts": [
++    "content-addressed choice-set collection",
++    "complete target-free identity label set",
++    "group-balanced conditional-logit calibration",
++    "candidate-aligned prefix-likelihood calibration and power",
++    "common physical-state-domain identity",
++    "baseline-relative guard calibration",
++    "append-only deployment ledger",
++    "object-or-session-level evaluation report"
++  ],
++  "primary_endpoints": [
++    "object-or-session-balanced physical-query RMSE",
++    "proper predictive score",
++    "harmful accepted update rate",
++    "accepted-update coverage and full interval width",
++    "worst-group regression",
++    "exact fallback rate"
++  ],
++  "decision_rule": {
++    "p2m_must_improve_over_p0": "predeclared proper-score or physical-trajectory margin",
++    "harmful_accepted_updates": "at or below the predeclared bound",
++    "worst_group_regression": "at or below the predeclared bound",
++    "fallback": "byte-exact null or physical baseline for every rejection",
++    "negative_result": "complete scientific evidence; no target-side rescue tuning"
++  },
++  "claim_boundary": "The protocol tests whether calibrated cross-window identity ambiguity improves a guarded Bayesian physical-twin query. Contract validity, green CI, or source-side calibration alone is not empirical evidence of held-out provider competence or Causal4D benefit."
++}
+diff --git a/scripts/ci/check_sdist.py b/scripts/ci/check_sdist.py
+index fc8dcbf..1598d0a 100644
+--- a/scripts/ci/check_sdist.py
++++ b/scripts/ci/check_sdist.py
+@@ -14,21 +14,25 @@ from pathlib import Path, PurePosixPath
+ REQUIRED_PATHS = frozenset(
+     {
+         ".github/CODEOWNERS",
++        ".github/workflows/material-identity-calibration.yml",
+         ".github/workflows/tests.yml",
+         "CHANGELOG.md",
+         "CITATION.cff",
+         "CONTRIBUTING.md",
+         "README.md",
+         "SECURITY.md",
++        "docs/material-identity-calibration.md",
+         "docs/provider-v2.md",
+         "docs/repository-identity.md",
+         "protocols/cycle-guard-conformal-v1.json",
+         "protocols/cycle-guard-normalization-v1.json",
++        "protocols/material-identity-p2m-v1.json",
+         "requirements/ci/minimum.txt",
+         "scripts/ci/check_sdist.py",
+         "tests/fixtures/prob4d_joint_observation_v1.json",
+         "tests/test_github_action_pins.py",
+         "tests/test_joint_observation_contract_fixture.py",
++        "tests/test_material_identity_calibration.py",
+         "tests/test_project_identity.py",
+         "tests/test_release_metadata.py",
+     }
+@@ -37,6 +41,7 @@ REPRESENTATIVE_TESTS = (
+     "tests/test_sim3.py",
+     "tests/test_provider_manifest.py",
+     "tests/test_joint_observation_contract_fixture.py",
++    "tests/test_material_identity_calibration.py",
+     "tests/test_project_identity.py",
+     "tests/test_release_metadata.py",
+     "tests/test_github_action_pins.py",
+diff --git a/src/prob4d/cli.py b/src/prob4d/cli.py
+index fdbec90..144b275 100644
+--- a/src/prob4d/cli.py
++++ b/src/prob4d/cli.py
+@@ -44,6 +44,31 @@ _ROUTES: Final[dict[Route, tuple[str, str, str]]] = {
+         "main",
+         "evaluate paired provider artifacts across held-out groups",
+     ),
++    ("identity", "build-mixtures"): (
++        "prob4d.material_identity_calibration_cli",
++        "main_build_mixtures",
++        "apply frozen identity weights and publish portable mixtures",
++    ),
++    ("identity", "calibrate"): (
++        "prob4d.material_identity_calibration_cli",
++        "main_calibrate",
++        "fit group-balanced source-only material-identity probabilities",
++    ),
++    ("identity", "choices-from-stream"): (
++        "prob4d.material_identity_calibration_cli",
++        "main_choices_from_stream",
++        "build complete identity choice sets from an append-only stream",
++    ),
++    ("identity", "merge-choices"): (
++        "prob4d.material_identity_calibration_cli",
++        "main_merge_choices",
++        "merge compatible identity choice-set collections",
++    ),
++    ("identity", "validate-mixtures"): (
++        "prob4d.material_identity_calibration_cli",
++        "main_validate_mixtures",
++        "validate a complete calibrated material-identity mixture directory",
++    ),
+     ("motioncrafter",): (
+         "prob4d.motioncrafter_safe",
+         "main",
+diff --git a/src/prob4d/material_identity_calibration.py b/src/prob4d/material_identity_calibration.py
+new file mode 100644
+index 0000000..b5c7d4f
+--- /dev/null
++++ b/src/prob4d/material_identity_calibration.py
+@@ -0,0 +1,2251 @@
++"""Source-only calibration of Prob4D cross-window material-identity weights.
++
++The pairwise association score is deliberately a ranking diagnostic, not a
++posterior probability.  This module turns complete, content-addressed candidate
++sets into group-balanced conditional-logit probabilities without rewriting any
++window-local observation identity.  A mandatory null candidate preserves the
++newest-window reference exactly.
++"""
++
++from __future__ import annotations
++
++import hashlib
++import json
++import math
++import os
++from collections.abc import Mapping, Sequence
++from dataclasses import dataclass, field
++from pathlib import Path
++from typing import Any, Literal, TypeAlias, cast
++
++import numpy as np
++from numpy.typing import NDArray
++
++from ._immutable_json import frozen_finite_json_mapping, plain_json
++from .material_identity_mixture import (
++    LocalTrackEndpoint,
++    MaterialIdentityCandidateV1,
++    MaterialIdentityMixtureV1,
++    load_material_identity_mixture,
++    write_material_identity_mixture,
++)
++from .material_identity_stream import (
++    MaterialIdentityHypothesisStreamV1,
++    MaterialIdentityHypothesisV1,
++    MaterialIdentityStreamUpdateV1,
++)
++
++FloatArray: TypeAlias = NDArray[np.float64]
++
++MATERIAL_IDENTITY_CHOICE_SET_SCHEMA = "prob4d.material-identity-choice-set"
++MATERIAL_IDENTITY_CHOICE_SET_VERSION = 1
++MATERIAL_IDENTITY_CHOICE_COLLECTION_SCHEMA = (
++    "prob4d.material-identity-choice-set-collection"
++)
++MATERIAL_IDENTITY_CHOICE_COLLECTION_VERSION = 1
++MATERIAL_IDENTITY_LABEL_SET_SCHEMA = "prob4d.material-identity-label-set"
++MATERIAL_IDENTITY_LABEL_SET_VERSION = 1
++MATERIAL_IDENTITY_CALIBRATION_SCHEMA = "prob4d.material-identity-calibration"
++MATERIAL_IDENTITY_CALIBRATION_VERSION = 1
++MATERIAL_IDENTITY_MIXTURE_SET_SCHEMA = "prob4d.material-identity-calibrated-mixture-set"
++MATERIAL_IDENTITY_MIXTURE_SET_VERSION = 1
++MATERIAL_IDENTITY_FEATURE_SEMANTICS = (
++    "source-only-cross-window-identity-features-v1"
++)
++MATERIAL_IDENTITY_WEIGHT_MODEL_SEMANTICS = (
++    "group-balanced-conditional-logit-v1"
++)
++MATERIAL_IDENTITY_CALIBRATION_CLAIM_BOUNDARY = (
++    "This artifact calibrates source-side probabilities over window-local material-"
++    "identity alternatives only. The null candidate preserves the newest-window "
++    "reference, target outcomes are forbidden during fitting, and no physical-state "
++    "update, BayesianPhysTwin benefit, or Causal4D intervention benefit is established."
++)
++
++MATERIAL_IDENTITY_FEATURE_NAMES_V1 =
