@@ -22,6 +22,20 @@ PREDICTION_WINDOW_NPZ_VERSION: Final[int] = 2
 _PREDICTION_WINDOW_METADATA_FIELDS: Final[frozenset[str]] = frozenset(
     {"schema_name", "schema_version", "dense_storage_dtype"}
 )
+_PREDICTION_WINDOW_REQUIRED_MEMBERS: Final[frozenset[str]] = frozenset(
+    {
+        "schema_name",
+        "schema_version",
+        "dense_storage_dtype",
+        "window_id",
+        "frame_indices",
+        "point_map",
+        "valid_mask",
+    }
+)
+_PREDICTION_WINDOW_OPTIONAL_MEMBERS: Final[frozenset[str]] = frozenset(
+    {"scene_flow", "deform_mask", "ray_directions"}
+)
 
 
 def _readonly_owned(value: np.ndarray) -> np.ndarray:
@@ -56,6 +70,45 @@ def _scalar_integer(value: np.ndarray, *, name: str) -> int:
     return int(value.item())
 
 
+def _validated_versioned_archive(data: Any) -> DenseStorageDType:
+    files = set(data.files)
+    allowed = _PREDICTION_WINDOW_REQUIRED_MEMBERS | _PREDICTION_WINDOW_OPTIONAL_MEMBERS
+    missing = sorted(_PREDICTION_WINDOW_REQUIRED_MEMBERS - files)
+    extra = sorted(files - allowed)
+    if missing or extra:
+        raise ValueError(
+            "prediction-window archive fields changed; "
+            f"missing={missing}, extra={extra}"
+        )
+    if ("scene_flow" in files) != ("deform_mask" in files):
+        raise ValueError(
+            "versioned prediction-window archives require scene_flow and deform_mask together"
+        )
+
+    schema_name = _scalar_text(data["schema_name"], name="schema_name")
+    schema_version = _scalar_integer(data["schema_version"], name="schema_version")
+    if schema_name != PREDICTION_WINDOW_NPZ_SCHEMA:
+        raise ValueError("unsupported prediction-window archive schema")
+    if schema_version != PREDICTION_WINDOW_NPZ_VERSION:
+        raise ValueError("unsupported prediction-window archive version")
+    stored_dtype = _validated_dense_storage_dtype(
+        _scalar_text(data["dense_storage_dtype"], name="dense_storage_dtype")
+    )
+    _scalar_text(data["window_id"], name="window_id")
+
+    expected_dtype = _numpy_dense_dtype(stored_dtype)
+    for field in ("point_map", "scene_flow", "ray_directions"):
+        if field in data and data[field].dtype != expected_dtype:
+            raise ValueError(f"{field} dtype disagrees with dense_storage_dtype metadata")
+    if data["frame_indices"].dtype != np.dtype(np.int64):
+        raise ValueError("versioned frame_indices must use int64")
+    if data["valid_mask"].dtype != np.dtype(bool):
+        raise ValueError("versioned valid_mask must use bool")
+    if "deform_mask" in data and data["deform_mask"].dtype != np.dtype(bool):
+        raise ValueError("versioned deform_mask must use bool")
+    return stored_dtype
+
+
 @dataclass(frozen=True)
 class PredictionWindow:
     """Decoded predictions for one local temporal window.
@@ -77,9 +130,7 @@ class PredictionWindow:
 
     def __post_init__(self) -> None:
         window_id = str(self.window_id)
-        dense_storage_dtype = _validated_dense_storage_dtype(
-            self.dense_storage_dtype
-        )
+        dense_storage_dtype = _validated_dense_storage_dtype(self.dense_storage_dtype)
         dense_dtype = _numpy_dense_dtype(dense_storage_dtype)
         frame_indices = np.asarray(self.frame_indices, dtype=np.int64).copy()
         point_map = np.asarray(self.point_map, dtype=dense_dtype).copy()
@@ -297,9 +348,6 @@ class PredictionWindow:
 
         path = Path(path)
         with np.load(path, allow_pickle=False) as data:
-            if "point_map" not in data or "valid_mask" not in data:
-                raise ValueError(f"{path} does not contain point_map and valid_mask")
-
             present_metadata = _PREDICTION_WINDOW_METADATA_FIELDS.intersection(data.files)
             stored_dtype: DenseStorageDType | None = None
             if present_metadata:
@@ -309,27 +357,9 @@ class PredictionWindow:
                         "prediction-window archive has incomplete storage metadata: "
                         + ", ".join(missing)
                     )
-                schema_name = _scalar_text(data["schema_name"], name="schema_name")
-                schema_version = _scalar_integer(
-                    data["schema_version"],
-                    name="schema_version",
-                )
-                if schema_name != PREDICTION_WINDOW_NPZ_SCHEMA:
-                    raise ValueError("unsupported prediction-window archive schema")
-                if schema_version != PREDICTION_WINDOW_NPZ_VERSION:
-                    raise ValueError("unsupported prediction-window archive version")
-                stored_dtype = _validated_dense_storage_dtype(
-                    _scalar_text(
-                        data["dense_storage_dtype"],
-                        name="dense_storage_dtype",
-                    )
-                )
-                expected_dtype = _numpy_dense_dtype(stored_dtype)
-                for field in ("point_map", "scene_flow", "ray_directions"):
-                    if field in data and data[field].dtype != expected_dtype:
-                        raise ValueError(
-                            f"{field} dtype disagrees with dense_storage_dtype metadata"
-                        )
+                stored_dtype = _validated_versioned_archive(data)
+            elif "point_map" not in data or "valid_mask" not in data:
+                raise ValueError(f"{path} does not contain point_map and valid_mask")
 
             target_dtype = (
                 _validated_dense_storage_dtype(dense_storage_dtype)
@@ -337,16 +367,22 @@ class PredictionWindow:
                 else stored_dtype or "float64"
             )
             time_steps = int(data["point_map"].shape[0])
-            if "frame_indices" in data:
+            if stored_dtype is not None:
                 frame_indices = data["frame_indices"]
-            elif start_frame is not None:
-                frame_indices = np.arange(start_frame, start_frame + time_steps)
+                stored_id = _scalar_text(data["window_id"], name="window_id")
             else:
-                raise ValueError(
-                    "prediction files without frame_indices require start_frame explicitly"
+                if "frame_indices" in data:
+                    frame_indices = data["frame_indices"]
+                elif start_frame is not None:
+                    frame_indices = np.arange(start_frame, start_frame + time_steps)
+                else:
+                    raise ValueError(
+                        "prediction files without frame_indices require start_frame explicitly"
+                    )
+                stored_id = (
+                    str(data["window_id"].item()) if "window_id" in data else path.stem
                 )
 
-            stored_id = str(data["window_id"].item()) if "window_id" in data else path.stem
             return cls(
                 window_id=window_id or stored_id,
                 frame_indices=frame_indices,
