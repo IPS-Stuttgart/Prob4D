@@ -1,0 +1,327 @@
+        group_definition=group_definition,
++        target_outcomes_used=False,
++        metadata={} if metadata is None else metadata,
++    )
++
++
++def _training_weights(
++    labels: Sequence[MaterialIdentityChoiceLabelV1],
++) -> tuple[np.ndarray, tuple[str, ...]]:
++    groups = tuple(sorted({label.group_id for label in labels}))
++    weights = np.empty(len(labels), dtype=np.float64)
++    for group_id in groups:
++        selected = np.asarray([label.group_id == group_id for label in labels], dtype=bool)
++        count = int(np.count_nonzero(selected))
++        weights[selected] = 1.0 / (len(groups) * count)
++    if not np.isclose(np.sum(weights), 1.0, atol=1e-12):
++        raise RuntimeError("group-balanced choice-set weights do not sum to one")
++    return weights, groups
++
++
++def _conditional_logit_objective(
++    matrices: Sequence[np.ndarray],
++    chosen_indices: Sequence[int],
++    weights: np.ndarray,
++    coefficients: np.ndarray,
++    ridge: float,
++) -> float:
++    loss = 0.0
++    for matrix, chosen, weight in zip(matrices, chosen_indices, weights, strict=True):
++        logits = matrix @ coefficients
++        loss += float(weight) * (_logsumexp(logits) - float(logits[chosen]))
++    return float(loss + 0.5 * ridge * np.sum(coefficients**2))
++
++
++def fit_group_balanced_material_identity_calibration(
++    collection: MaterialIdentityChoiceSetCollectionV1,
++    labels: MaterialIdentityLabelSetV1,
++    *,
++    ridge: float = 1e-3,
++    maximum_iterations: int = 100,
++    convergence_tolerance: float = 1e-9,
++    probability_floor: float = 1e-6,
++    metadata: Mapping[str, Any] | None = None,
++) -> MaterialIdentityCalibrationV1:
++    """Fit deterministic equal-group conditional logit on complete choice sets."""
++
++    if not isinstance(collection, MaterialIdentityChoiceSetCollectionV1):
++        raise TypeError("collection must be MaterialIdentityChoiceSetCollectionV1")
++    if not isinstance(labels, MaterialIdentityLabelSetV1):
++        raise TypeError("labels must be MaterialIdentityLabelSetV1")
++    if labels.choice_set_collection_id != collection.collection_id:
++        raise ValueError("label set does not describe this choice-set collection")
++    all_choice_sets = collection.choice_sets
++    label_by_id = labels.by_choice_set_id()
++    if set(label_by_id) != set(collection.choice_set_ids):
++        raise ValueError("label set must cover every choice set exactly once")
++    all_labels = tuple(
++        label_by_id[cast(str, value.choice_set_id)] for value in all_choice_sets
++    )
++    informative = tuple(
++        (choice_set, label)
++        for choice_set, label in zip(all_choice_sets, all_labels, strict=True)
++        if len(choice_set.candidates) > 1
++    )
++    if not informative:
++        raise ValueError("calibration requires at least one non-null identity choice set")
++    choice_sets = tuple(choice_set for choice_set, _ in informative)
++    ordered_labels = tuple(label for _, label in informative)
++    weights, calibration_groups = _training_weights(ordered_labels)
++    all_groups = tuple(sorted({label.group_id for label in all_labels}))
++    if calibration_groups != all_groups:
++        missing = sorted(set(all_groups) - set(calibration_groups))
++        raise ValueError(
++            "every calibration group must contain a non-null identity choice set: "
++            f"missing={missing}"
++        )
++    ridge_value = _strict_real(ridge, name="ridge", strictly_positive=True)
++    tolerance = _strict_real(
++        convergence_tolerance,
++        name="convergence_tolerance",
++        strictly_positive=True,
++    )
++    iteration_limit = _strict_integer(
++        maximum_iterations,
++        name="maximum_iterations",
++        minimum=1,
++    )
++    floor = _strict_real(probability_floor, name="probability_floor", minimum=0.0)
++    if floor >= 0.5:
++        raise ValueError("probability_floor must be less than 0.5")
++    if any(len(choice_set.candidates) * floor >= 1.0 for choice_set in all_choice_sets):
++        raise ValueError("probability_floor is too large for a calibration choice set")
++
++    feature_count = len(collection.feature_names)
++    candidate_weights: list[np.ndarray] = []
++    all_features: list[np.ndarray] = []
++    for choice_set, weight in zip(choice_sets, weights, strict=True):
++        matrix = choice_set.feature_matrix
++        all_features.append(matrix)
++        candidate_weights.append(
++            np.full(len(matrix), weight / len(matrix), dtype=np.float64)
++        )
++    features = np.concatenate(all_features, axis=0)
++    feature_weights = np.concatenate(candidate_weights, axis=0)
++    center = np.sum(feature_weights[:, None] * features, axis=0)
++    centered = features - center
++    scale = np.sqrt(np.sum(feature_weights[:, None] * centered**2, axis=0))
++    scale = np.where(scale > 1e-12, scale, 1.0)
++    matrices = tuple(
++        (value.feature_matrix - center[None, :]) / scale[None, :]
++        for value in choice_sets
++    )
++    chosen_indices = tuple(
++        value.candidate_ids.index(label.chosen_candidate_id)
++        for value, label in zip(choice_sets, ordered_labels, strict=True)
++    )
++
++    coefficients = np.zeros(feature_count, dtype=np.float64)
++    regularizer = ridge_value * np.eye(feature_count, dtype=np.float64)
++    converged = False
++    iterations = 0
++    for iteration in range(1, iteration_limit + 1):
++        iterations = iteration
++        gradient = ridge_value * coefficients
++        hessian = regularizer.copy()
++        for matrix, chosen, weight in zip(
++            matrices,
++            chosen_indices,
++            weights,
++            strict=True,
++        ):
++            probability = np.exp(_log_softmax(matrix @ coefficients))
++            indicator = np.zeros(len(probability), dtype=np.float64)
++            indicator[chosen] = 1.0
++            gradient += weight * (matrix.T @ (probability - indicator))
++            covariance = np.diag(probability) - np.outer(probability, probability)
++            hessian += weight * (matrix.T @ covariance @ matrix)
++        hessian += 1e-12 * np.eye(feature_count)
++        try:
++            step = np.linalg.solve(hessian, gradient)
++        except np.linalg.LinAlgError:
++            step = np.linalg.lstsq(hessian, gradient, rcond=None)[0]
++        if np.linalg.norm(step) <= tolerance * (1.0 + np.linalg.norm(coefficients)):
++            converged = True
++            break
++        objective = _conditional_logit_objective(
++            matrices,
++            chosen_indices,
++            weights,
++            coefficients,
++            ridge_value,
++        )
++        accepted = False
++        fraction = 1.0
++        for _ in range(24):
++            candidate = coefficients - fraction * step
++            candidate_objective = _conditional_logit_objective(
++                matrices,
++                chosen_indices,
++                weights,
++                candidate,
++                ridge_value,
++            )
++            if candidate_objective < objective - 1e-14:
++                coefficients = candidate
++                accepted = True
++                break
++            fraction *= 0.5
++        if not accepted:
++            break
++        if np.linalg.norm(fraction * step) <= tolerance * (
++            1.0 + np.linalg.norm(coefficients)
++        ):
++            converged = True
++            break
++
++    log_loss = 0.0
++    brier = 0.0
++    top1 = 0.0
++    for matrix, chosen, weight in zip(matrices, chosen_indices, weights, strict=True):
++        probability = _probabilities_with_floor(matrix @ coefficients, floor)
++        log_loss -= float(weight) * float(np.log(probability[chosen]))
++        indicator = np.zeros(len(probability), dtype=np.float64)
++        indicator[chosen] = 1.0
++        brier += float(weight) * 0.5 * float(np.sum((probability - indicator) ** 2))
++        top1 += float(weight) * float(int(np.argmax(probability)) == chosen)
++    report = MaterialIdentityCalibrationReportV1(
++        choice_set_count=len(all_choice_sets),
++        informative_choice_set_count=len(choice_sets),
++        null_only_choice_set_count=len(all_choice_sets) - len(choice_sets),
++        candidate_count=sum(len(value.candidates) for value in all_choice_sets),
++        group_count=len(calibration_groups),
++        feature_count=feature_count,
++        iterations=iterations,
++        converged=converged,
++        weighted_log_loss=log_loss,
++        weighted_brier_score=brier,
++        weighted_top1_accuracy=top1,
++        ridge=ridge_value,
++        probability_floor=floor,
++    )
++    calibration_metadata: dict[str, Any] = {
++        "target_outcomes_used": False,
++        "choice_set_weighting": "equal-group-then-equal-informative-choice-set-v1",
++        "feature_scaling": "equal-informative-choice-set-candidate-average-v1",
++        "null_only_choice_sets_used_for_fitting": False,
++        "deployed_probability_floor": floor,
++    }
++    if metadata is not None:
++        supplied = plain_json(
++            _target_free_metadata(metadata, name="identity calibration metadata")
++        )
++        overlap = sorted(set(calibration_metadata) & set(supplied))
++        if overlap:
++            raise ValueError(f"calibration metadata overrides reserved fields: {overlap}")
++        calibration_metadata.update(supplied)
++    return MaterialIdentityCalibrationV1(
++        feature_names=collection.feature_names,
++        feature_center=center,
++        feature_scale=scale,
++        coefficients=coefficients,
++        probability_floor=floor,
++        association_rule_id=collection.association_rule_id,
++        tracklet_producer_revision=collection.tracklet_producer_revision,
++        association_revision=collection.association_revision,
++        choice_set_collection_id=cast(str, collection.collection_id),
++        label_set_id=cast(str, labels.label_set_id),
++        label_definition=labels.label_definition,
++        group_definition=labels.group_definition,
++        calibration_group_ids=calibration_groups,
++        report=report,
++        metadata=calibration_metadata,
++    )
++
++
++def _candidate_from_record(
++    value: object,
++    *,
++    target_endpoint: LocalTrackEndpoint,
++) -> MaterialIdentityChoiceCandidateV1:
++    record = _strict_mapping(value, name="choice candidate")
++    _exact_fields(
++        record,
++        {
++            "candidate_id",
++            "kind",
++            "source_endpoint",
++            "association_result_id",
++            "source_score",
++            "features",
++            "metadata",
++        },
++        name="choice candidate",
++    )
++    kind = _strict_string(record["kind"], name="candidate kind")
++    if kind not in {"null", "linked"}:
++        raise ValueError("candidate kind must be null or linked")
++    endpoint = _endpoint_or_none(record["source_endpoint"], name="source_endpoint")
++    if (kind == "null") != (endpoint is None):
++        raise ValueError("candidate kind and source endpoint disagree")
++    candidate = MaterialIdentityChoiceCandidateV1(
++        source_endpoint=endpoint,
++        association_result_id=record["association_result_id"],
++        source_score=record["source_score"],
++        features=np.asarray(_strict_list(record["features"], name="features"), dtype=np.float64),
++        metadata=_strict_mapping(record["metadata"], name="candidate metadata"),
++    )
++    expected = candidate.candidate_id(target_endpoint=target_endpoint)
++    supplied = _strict_digest(
++        record["candidate_id"],
++        name="candidate_id",
++        length=_SHA256_LENGTH,
++    )
++    if supplied != expected:
++        raise ValueError("choice candidate ID mismatch")
++    return candidate
++
++
++def _choice_set_from_record(value: object) -> MaterialIdentityChoiceSetV1:
++    record = _strict_mapping(value, name="choice set")
++    _exact_fields(
++        record,
++        {
++            "schema",
++            "schema_version",
++            "choice_set_id",
++            "target_endpoint",
++            "window_order",
++            "causal_frame_stop",
++            "association_rule_id",
++            "tracklet_producer_revision",
++            "association_revision",
++            "source_stream_artifact_id",
++            "source_update_id",
++            "feature_semantics",
++            "feature_names",
++            "candidates",
++            "metadata",
++            "claim_boundary",
++        },
++        name="choice set",
++    )
++    if record["schema"] != MATERIAL_IDENTITY_CHOICE_SET_SCHEMA:
++        raise ValueError("artifact is not a material-identity choice set")
++    if record["schema_version"] != MATERIAL_IDENTITY_CHOICE_SET_VERSION:
++        raise ValueError("unsupported material-identity choice-set version")
++    if record["feature_semantics"] != MATERIAL_IDENTITY_FEATURE_SEMANTICS:
++        raise ValueError("material-identity feature semantics changed")
++    if record["claim_boundary"] != MATERIAL_IDENTITY_CALIBRATION_CLAIM_BOUNDARY:
++        raise ValueError("material-identity choice-set claim boundary changed")
++    target = LocalTrackEndpoint.from_mapping(record["target_endpoint"], name="target_endpoint")
++    candidates = _strict_list(record["candidates"], name="candidates")
++    return MaterialIdentityChoiceSetV1(
++        target_endpoint=target,
++        window_order=tuple(_strict_list(record["window_order"], name="window_order")),
++        causal_frame_stop=record["causal_frame_stop"],
++        association_rule_id=record["association_rule_id"],
++        tracklet_producer_revision=record["tracklet_producer_revision"],
++        association_revision=record["association_revision"],
++        source_stream_artifact_id=record["source_stream_artifact_id"],
++        source_update_id=record["source_update_id"],
++        feature_names=tuple(_strict_list(record["feature_names"], name="feature_names")),
++        candidates=tuple(
++            _candidate_from_record(candidate, target_endpoint=target)
++            for candidate in candidates
++        ),
++        metadata=_strict_m
