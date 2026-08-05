@@ -40,8 +40,12 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
-          cache: pip
-          cache-dependency-path: pyproject.toml
+      - name: Bootstrap isolated quality environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m venv --clear .quality-venv
+          echo "${PWD}/.quality-venv/bin" >> "${GITHUB_PATH}"
       - name: Install development and compatible typing environment
         run: |
           python -m pip install -e ".[dev]"
@@ -83,11 +87,15 @@ jobs:
             src/prob4d/calibration_compatibility.py \
             src/prob4d/composition_jacobian.py \
             src/prob4d/covariance_root.py \
+            src/prob4d/data.py \
+            src/prob4d/heldout_promotion.py \
+            src/prob4d/joint_covariance_metrics.py \
             src/prob4d/observation_factor_stream.py \
             src/prob4d/prediction_store.py \
             src/prob4d/prediction_store_benchmark.py \
             src/prob4d/prediction_store_cli.py \
             src/prob4d/project_identity.py \
+            src/prob4d/promotion_evidence.py \
             src/prob4d/provider_attestation.py \
             src/prob4d/provider_manifest.py \
             src/prob4d/provider_manifest_cli.py \
