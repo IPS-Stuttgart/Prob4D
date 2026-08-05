@@ -39,11 +39,16 @@ jobs:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: pyproject.toml
-      - name: Install development environment
-        run: python -m pip install -e ".[dev]"
+      - name: Install compatible development environment
+        run: |
+          python -m pip install -e ".[dev]"
+          python -m pip install "numpy>=1.24,<2.3"
       - name: Check focused source quality
         run: |
           python -m ruff check \
+            src/prob4d/material_identity_stream.py \
+            tests/test_material_identity_stream.py
+          python -m ruff format --check \
             src/prob4d/material_identity_stream.py \
             tests/test_material_identity_stream.py
           python -m mypy src/prob4d/material_identity_stream.py
