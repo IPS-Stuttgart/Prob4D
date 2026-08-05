@@ -112,11 +112,16 @@ def _paired_bootstrap(values: np.ndarray, *, resamples: int, seed: int) -> dict[
     generator = np.random.default_rng(seed)
     sampled = generator.integers(0, array.size, size=(resamples, array.size))
     bootstrap_means = np.mean(array[sampled], axis=1)
-    lower, upper = np.quantile(bootstrap_means, [0.025, 0.975], method="linear")
+    interval = np.asarray(
+        np.quantile(bootstrap_means, [0.025, 0.975], method="linear"),
+        dtype=np.float64,
+    )
+    lower = float(interval[0])
+    upper = float(interval[1])
     return {
         "mean": float(np.mean(array)),
-        "ci95_lower": float(lower),
-        "ci95_upper": float(upper),
+        "ci95_lower": lower,
+        "ci95_upper": upper,
         "group_count": int(array.size),
         "resamples": resamples,
         "seed": seed,
@@ -228,6 +233,7 @@ def _query_evaluation(
         seed=lock.bootstrap_seed,
     )
     primary_summary = cast(Mapping[str, Any], aggregate[lock.primary_query_arm_id])
+    bootstrap_upper = cast(float, bootstrap["ci95_upper"])
     coverage_threshold = lock.minimum_mean_accepted_coverage
     observed_coverage = primary_summary["mean_accepted_coverage"]
     coverage_passed = (
@@ -246,9 +252,7 @@ def _query_evaluation(
         ),
         "paired_bootstrap": bootstrap,
         "query_superiority_margin_mm": lock.query_superiority_margin_mm,
-        "query_superiority_passed": (
-            float(bootstrap["ci95_upper"]) <= -lock.query_superiority_margin_mm
-        ),
+        "query_superiority_passed": (bootstrap_upper <= -lock.query_superiority_margin_mm),
         "harmful_update_margin_mm": lock.harmful_update_margin_mm,
         "maximum_harmful_accepted_updates": lock.maximum_harmful_accepted_updates,
         "observed_harmful_accepted_updates": primary_summary["harmful_accepted_update_count"],
