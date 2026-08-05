@@ -42,6 +42,24 @@ identity, frame boundary, or chain predecessor changes the update and stream
 IDs. Relative paths are still validated as retrieval metadata and may not escape
 the stream directory.
 
+## Strict loading and persistence
+
+Stream and referenced bundle manifests are read as strict portable JSON:
+
+duplicate object keys, non-finite numbers, coercion-dependent scalar values,
+unknown fields, malformed digests, unsafe POSIX paths, and contradictory joint
+gauge-covariance metadata fail closed. `validate_bundles=False` skips reopening
+the bundle bytes, but it does not relax stream-manifest validation.
+
+`write_observation_factor_stream` uses a unique temporary file, flushes and
+synchronizes the complete bytes, and atomically replaces the manifest. When a
+manifest already exists, the replacement must be either byte-semantically
+idempotent or a strict extension of the existing update chain. Rewriting a
+persisted stream with changed identifiers or metadata, truncating updates, or
+forking any existing update is rejected.
+
+These persistence checks do not change valid version-1 update or stream IDs.
+
 ## Python example
 
 ```python
