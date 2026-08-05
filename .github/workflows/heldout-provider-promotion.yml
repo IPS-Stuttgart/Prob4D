@@ -21,6 +21,7 @@ on:
       - "scripts/ci/check_sdist.py"
       - "tests/test_cli.py"
       - "tests/test_heldout_promotion.py"
+      - "tests/test_heldout_promotion_diagnosis.py"
       - "tests/test_material_identity_cli.py"
   workflow_dispatch:
 
@@ -62,12 +63,14 @@ jobs:
             src/prob4d/_heldout_promotion_*.py \
             src/prob4d/material_identity_cli.py \
             tests/test_heldout_promotion.py \
+            tests/test_heldout_promotion_diagnosis.py \
             tests/test_material_identity_cli.py
           python -m ruff format --check \
             src/prob4d/heldout_promotion.py \
             src/prob4d/_heldout_promotion_*.py \
             src/prob4d/material_identity_cli.py \
             tests/test_heldout_promotion.py \
+            tests/test_heldout_promotion_diagnosis.py \
             tests/test_material_identity_cli.py
           python -m mypy \
             src/prob4d/heldout_promotion.py \
@@ -78,6 +81,7 @@ jobs:
           python -m pytest -q
           tests/test_cli.py
           tests/test_heldout_promotion.py
+          tests/test_heldout_promotion_diagnosis.py
           tests/test_material_identity_cli.py
           tests/test_material_identity_mixture.py
           tests/test_material_identity_stream.py
@@ -87,11 +91,13 @@ jobs:
           prob4d identity --help
           python - <<'PY'
           from prob4d.heldout_promotion import (
+              HELDOUT_PROMOTION_DIAGNOSIS_SCHEMA,
               HELDOUT_PROMOTION_LOCK_SCHEMA,
               HELDOUT_PROMOTION_REPORT_SCHEMA,
           )
           from prob4d.material_identity_cli import mixture_from_config
 
+          assert HELDOUT_PROMOTION_DIAGNOSIS_SCHEMA.startswith("prob4d.")
           assert HELDOUT_PROMOTION_LOCK_SCHEMA.startswith("prob4d.")
           assert HELDOUT_PROMOTION_REPORT_SCHEMA.startswith("prob4d.")
           assert callable(mixture_from_config)
