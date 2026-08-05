@@ -41,11 +41,7 @@ def _window(
     deform[:-1] = True
     return PredictionWindow(
         window_id=window_id,
-        frame_indices=(
-            np.arange(3, dtype=np.int64)
-            if frame_indices is None
-            else frame_indices
-        ),
+        frame_indices=(np.arange(3, dtype=np.int64) if frame_indices is None else frame_indices),
         point_map=points,
         valid_mask=valid,
         scene_flow=flow,
@@ -85,9 +81,7 @@ def test_flow_point_consistency_is_zero_for_matching_one_step_flow() -> None:
 
 
 def test_flow_point_consistency_detects_magnitude_and_direction_mismatch() -> None:
-    diagnostic = build_flow_point_consistency_diagnostic(
-        _window("seed-1", flow_scale=-1.0)
-    )
+    diagnostic = build_flow_point_consistency_diagnostic(_window("seed-1", flow_scale=-1.0))
 
     assert np.all(diagnostic.values[:-1, ..., 1] > 0.0)
     assert np.allclose(diagnostic.values[:-1, ..., 2], 1.0)
