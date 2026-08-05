@@ -48,9 +48,12 @@ jobs:
           cache-dependency-path: pyproject.toml
       - name: Apply reviewed source repair
         run: python .github/scripts/repair_pr95_source.py
-      - name: Validate focused contracts
+      - name: Format and validate focused contracts
         run: |
           python -m pip install -e '.[dev]'
+          python -m ruff format \
+            src/prob4d/material_identity_stream.py \
+            tests/test_material_identity_stream.py
           python -m ruff check \
             .github/scripts/repair_pr95_source.py \
             src/prob4d/material_identity_stream.py \
