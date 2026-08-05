@@ -97,7 +97,15 @@ repeated invocation cannot silently replace an opened result. It writes:
 - `promotion_report.json`, with both provider and physical-query decisions;
 - `promotion_report.md`, a compact gate table;
 - `promotion_diagnosis.json`, a content-addressed candidate-boundary attribution;
-- `promotion_diagnosis.md`, a human-readable evidence and next-action summary.
+- `promotion_diagnosis.md`, a human-readable evidence and next-action summary;
+- `promotion_evidence_card.json`, a content-addressed paper-facing summary; and
+- `promotion_evidence_card.md`, the corresponding compact evidence card.
+
+The evidence card is derived only from the validated lock and deterministic
+promotion report. It retains exact source revisions, frozen artifact IDs, cohort
+counts, comparison arms, the paired query effect and interval, guard outcomes,
+and explicit non-claims. It neither changes the promotion decision nor replaces
+the more detailed failure diagnosis.
 
 Without `--require-pass`, a scientifically valid negative result still returns
 exit code 0 after writing all evidence. With it, a valid failed gate returns exit
@@ -109,12 +117,14 @@ code 3.
 prob4d experiment heldout-provider verify promotion-lock.json \
   --provider-report outputs/provider/provider_evaluation.json \
   --query-results outputs/promotion/query_results.sealed.json \
-  --report outputs/promotion/promotion_report.json
+  --report outputs/promotion/promotion_report.json \
+  --evidence-card outputs/promotion/promotion_evidence_card.json
 ```
 
-Verification revalidates every claim-bearing artifact and recomputes the
-deterministic report. Any changed row, method set, target group, fallback
-identity, bootstrap setting, or report field fails closed.
+Verification revalidates every claim-bearing artifact, recomputes the
+deterministic report, and optionally requires the retained evidence card to match
+its replay. Any changed row, method set, target group, fallback identity,
+bootstrap setting, report field, or evidence-card field fails closed.
 
 The diagnosis is derived only from the retained report and can be regenerated
 independently for an older report:

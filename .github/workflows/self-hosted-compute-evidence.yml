@@ -1,0 +1,420 @@
+name: Compute evidence
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/self-hosted-compute-evidence.yml"
+      - "src/prob4d/joint_covariance_metrics.py"
+      - "src/prob4d/causal_gauge_graph_monte_carlo.py"
+      - "src/prob4d/cycle_guard_conformal_monte_carlo.py"
+      - "src/prob4d/cycle_guard_conformal_reporting.py"
+      - "src/prob4d/fusion_memory_benchmark.py"
+      - "src/prob4d/evaluation_memory_benchmark.py"
+      - "tests/test_joint_covariance_metrics.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: compute-evidence-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUNBUFFERED: "1"
+  SOURCE_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  monte-carlo:
+    name: Large covariance and Monte Carlo studies
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Bootstrap isolated environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m venv --clear .compute-venv
+          echo "${PWD}/.compute-venv/bin" >> "${GITHUB_PATH}"
+      - name: Install development environment
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+          python -m pip install "numpy>=1.24,<2.3"
+      - name: Run focused scientific regressions
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p outputs/compute-evidence
+          python -m pytest -q \
+            tests/test_joint_covariance_metrics.py \
+            tests/test_causal_gauge_graph_monte_carlo.py \
+            tests/test_cycle_guard_conformal_monte_carlo.py \
+            --junitxml=outputs/compute-evidence/scientific-regressions.xml \
+            2>&1 | tee outputs/compute-evidence/scientific-regressions.log
+      - name: Generate large joint-covariance cases
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          from pathlib import Path
+
+          import numpy as np
+
+          root = Path("outputs/compute-evidence/joint-covariance")
+          root.mkdir(parents=True, exist_ok=True)
+          generator = np.random.default_rng(20260806)
+          group_count = 64
+          rows_per_group = 2048
+          rank = 7
+          sample_count = group_count * rows_per_group
+          group_ids = np.repeat(np.arange(group_count, dtype=np.int64), rows_per_group)
+          standard_deviation = generator.uniform(0.02, 0.08, size=(sample_count, 3))
+          local_covariance = np.zeros((sample_count, 3, 3), dtype=np.float64)
+          diagonal = np.arange(3)
+          local_covariance[:, diagonal, diagonal] = np.square(standard_deviation)
+          factor = generator.normal(scale=0.018, size=(sample_count, 3, rank))
+          latent = generator.normal(size=(group_count, rank))
+          local_noise = standard_deviation * generator.normal(size=(sample_count, 3))
+          shared = np.einsum("ncr,nr->nc", factor, latent[group_ids])
+          for name, residual in {
+              "calibrated": local_noise + shared,
+              "shared-underreported": local_noise + 1.8 * shared,
+          }.items():
+              np.savez_compressed(
+                  root / f"{name}.npz",
+                  residual_xyz_m=residual,
+                  local_covariance_m2=local_covariance,
+                  low_rank_factor_m=factor,
+                  factor_group_ids=group_ids,
+              )
+          (root / "configuration.json").write_text(
+              json.dumps(
+                  {
+                      "seed": 20260806,
+                      "group_count": group_count,
+                      "rows_per_group": rows_per_group,
+                      "sample_count": sample_count,
+                      "shared_rank": rank,
+                      "misspecified_shared_multiplier": 1.8,
+                  },
+                  indent=2,
+                  sort_keys=True,
+              )
+              + "\n",
+              encoding="utf-8",
+          )
+          PY
+          prob4d diagnostic joint-covariance \
+            outputs/compute-evidence/joint-covariance/calibrated.npz \
+            --output outputs/compute-evidence/joint-covariance/calibrated-report.json
+          prob4d diagnostic joint-covariance \
+            outputs/compute-evidence/joint-covariance/shared-underreported.npz \
+            --output outputs/compute-evidence/joint-covariance/shared-underreported-report.json
+      - name: Validate covariance stress-study separation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path("outputs/compute-evidence/joint-covariance")
+          calibrated = json.loads((root / "calibrated-report.json").read_text())
+          misspecified = json.loads(
+              (root / "shared-underreported-report.json").read_text()
+          )
+          calibrated_mean = calibrated["evaluation"]["equal_group_mean"]
+          misspecified_mean = misspecified["evaluation"]["equal_group_mean"]
+          calibrated_nees = float(calibrated_mean["normalized_nees"])
+          calibrated_shared = float(
+              calibrated_mean["shared_subspace_normalized_energy"]
+          )
+          misspecified_shared = float(
+              misspecified_mean["shared_subspace_normalized_energy"]
+          )
+          if not 0.55 <= calibrated_nees <= 1.45:
+              raise RuntimeError(
+                  f"calibrated normalized NEES is implausible: {calibrated_nees}"
+              )
+          if misspecified_shared <= 1.20 * calibrated_shared:
+              raise RuntimeError(
+                  "shared-factor misspecification did not separate from calibration"
+              )
+          (root / "comparison.json").write_text(
+              json.dumps(
+                  {
+                      "calibrated_normalized_nees": calibrated_nees,
+                      "calibrated_shared_energy": calibrated_shared,
+                      "misspecified_shared_energy": misspecified_shared,
+                      "shared_energy_ratio": misspecified_shared / calibrated_shared,
+                  },
+                  indent=2,
+                  sort_keys=True,
+              )
+              + "\n",
+              encoding="utf-8",
+          )
+          PY
+      - name: Run enlarged gauge-graph Monte Carlo replication
+        shell: bash
+        run: |
+          set -euo pipefail
+          prob4d diagnostic gauge-graph-monte-carlo \
+            --output-dir outputs/compute-evidence/gauge-graph \
+            --calibration-trials 48 \
+            --target-trials-per-scenario 64 \
+            --calibration-seed 620260806 \
+            --target-seed 920260806 \
+            --threshold-quantile 0.95 \
+            --representative-radius 1.0 \
+            --num-frames 36 \
+            --height 6 \
+            --width 10 \
+            --window-size 14 \
+            --overlap 9 \
+            --bootstrap-resamples 2000 \
+            --source-revision "${SOURCE_REVISION}"
+      - name: Run finite-sample cycle-guard study
+        id: cycle_guard
+        shell: bash
+        run: |
+          set +e
+          prob4d diagnostic cycle-guard-conformal \
+            --output-dir outputs/compute-evidence/cycle-guard \
+            --calibration-trials 96 \
+            --target-trials-per-scenario 128 \
+            --calibration-seed 408260806 \
+            --target-seed 731260806 \
+            --empirical-threshold-quantile 0.95 \
+            --conformal-miscoverage 0.05 \
+            --representative-radius 1.0 \
+            --minimum-uncertainty-scale 1e-12 \
+            --num-frames 28 \
+            --height 4 \
+            --width 6 \
+            --window-size 11 \
+            --overlap 7 \
+            --minimum-edge-weight 0.0 \
+            --bootstrap-resamples 2500 \
+            --endpoint-noninferiority-margin 0.001 \
+            --minimum-clean-coverage 0.90 \
+            --maximum-clean-covariance-trace-ratio 1.25 \
+            --source-revision "${SOURCE_REVISION}"
+          status=$?
+          set -e
+          if [[ "$status" -ne 0 && "$status" -ne 3 ]]; then
+            exit "$status"
+          fi
+          echo "decision_exit_code=$status" >> "$GITHUB_OUTPUT"
+      - name: Build checksummed Monte Carlo summary
+        if: always()
+        shell: bash
+        env:
+          CYCLE_GUARD_EXIT_CODE: ${{ steps.cycle_guard.outputs.decision_exit_code }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path("outputs/compute-evidence")
+          summary: dict[str, object] = {
+              "schema": "prob4d.compute-evidence",
+              "version": 1,
+              "repository": os.environ["GITHUB_REPOSITORY"],
+              "source_revision": os.environ["SOURCE_REVISION"],
+              "run_id": os.environ["GITHUB_RUN_ID"],
+              "runner_name": os.environ["RUNNER_NAME"],
+              "cycle_guard_decision_exit_code": os.environ.get(
+                  "CYCLE_GUARD_EXIT_CODE", "unavailable"
+              ),
+              "claim_boundary": (
+                  "Synthetic calibration and algorithmic stress evidence only. "
+                  "No physical-object, BayesianPhysTwin, or Causal4D benefit claim."
+              ),
+          }
+          comparison = root / "joint-covariance" / "comparison.json"
+          if comparison.is_file():
+              summary["joint_covariance"] = json.loads(comparison.read_text())
+          (root / "summary.json").write_text(
+              json.dumps(summary, indent=2, sort_keys=True, allow_nan=False) + "\n",
+              encoding="utf-8",
+          )
+          entries = []
+          for path in sorted(root.rglob("*")):
+              if path.is_file() and path.name != "SHA256SUMS":
+                  entries.append(
+                      f"{hashlib.sha256(path.read_bytes()).hexdigest()}  "
+                      f"{path.relative_to(root).as_posix()}"
+                  )
+          (root / "SHA256SUMS").write_text(
+              "\n".join(entries) + "\n", encoding="utf-8"
+          )
+          with Path(os.environ["GITHUB_STEP_SUMMARY"]).open(
+              "a", encoding="utf-8"
+          ) as stream:
+              stream.write("## Compute evidence\n\n")
+              stream.write(f"Source revision: `{os.environ['SOURCE_REVISION']}`\n")
+          PY
+      - name: Upload Monte Carlo evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: monte-carlo-evidence-${{ github.run_id }}
+          path: outputs/compute-evidence
+          if-no-files-found: error
+          retention-days: 30
+
+  memory-profile:
+    name: Full-resolution self-hosted memory profile
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+       startsWith(github.head_ref, 'ci/self-hosted-'))
+    runs-on: [self-hosted, Linux, X64, nvidia-smi]
+    timeout-minutes: 120
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Bootstrap isolated environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m venv --clear .memory-venv
+          echo "${PWD}/.memory-venv/bin" >> "${GITHUB_PATH}"
+      - name: Install lightweight package
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+      - name: Record host identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p outputs/memory-profile
+          {
+            echo "repository=${GITHUB_REPOSITORY}"
+            echo "source_revision=${SOURCE_REVISION}"
+            echo "checked_out_revision=$(git rev-parse HEAD)"
+            echo "run_id=${GITHUB_RUN_ID}"
+            echo "runner_name=${RUNNER_NAME}"
+            echo "runner_os=${RUNNER_OS}"
+            echo "runner_arch=${RUNNER_ARCH}"
+            echo
+            uname -a
+            echo
+            lscpu
+            echo
+            free -b
+            echo
+            nvidia-smi
+            echo
+            python -VV
+          } > outputs/memory-profile/host.txt 2>&1
+      - name: Run full-resolution memory benchmarks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m prob4d.fusion_memory_benchmark \
+            --frames 32 \
+            --height 360 \
+            --width 640 \
+            --contributors 4 \
+            --method covariance_intersection \
+            --fusion-tile-size 16384 \
+            --output-json outputs/memory-profile/fusion.json \
+            > outputs/memory-profile/fusion.stdout.json
+          python -m prob4d.evaluation_memory_benchmark \
+            --frames 32 \
+            --height 360 \
+            --width 640 \
+            --include-flow \
+            --evaluation-chunk-size 65536 \
+            --output-json outputs/memory-profile/evaluation.json \
+            > outputs/memory-profile/evaluation.stdout.json
+      - name: Validate, hash, and summarize memory evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path("outputs/memory-profile")
+          summary: dict[str, object] = {
+              "schema": "prob4d.self-hosted-memory-evidence",
+              "version": 1,
+              "repository": os.environ["GITHUB_REPOSITORY"],
+              "source_revision": os.environ["SOURCE_REVISION"],
+              "run_id": os.environ["GITHUB_RUN_ID"],
+              "runner_name": os.environ["RUNNER_NAME"],
+              "claim_boundary": (
+                  "Hardware-specific engineering evidence only. No reconstruction "
+                  "accuracy or downstream physical-benefit claim."
+              ),
+          }
+          for name in ("fusion", "evaluation"):
+              path = root / f"{name}.json"
+              if path.is_file():
+                  report = json.loads(path.read_text())
+                  summary[name] = {
+                      "configuration": report.get("configuration"),
+                      "timing_seconds": report.get("timing_seconds"),
+                      "memory_bytes": report.get("memory_bytes"),
+                  }
+          (root / "summary.json").write_text(
+              json.dumps(summary, indent=2, sort_keys=True, allow_nan=False) + "\n",
+              encoding="utf-8",
+          )
+          entries = []
+          for path in sorted(root.rglob("*")):
+              if path.is_file() and path.name != "SHA256SUMS":
+                  entries.append(
+                      f"{hashlib.sha256(path.read_bytes()).hexdigest()}  "
+                      f"{path.relative_to(root).as_posix()}"
+                  )
+          (root / "SHA256SUMS").write_text(
+              "\n".join(entries) + "\n", encoding="utf-8"
+          )
+          PY
+      - name: Upload self-hosted memory evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: self-hosted-memory-evidence-${{ github.run_id }}
+          path: outputs/memory-profile
+          if-no-files-found: error
+          retention-days: 30
