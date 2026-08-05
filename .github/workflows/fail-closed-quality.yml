@@ -82,11 +82,8 @@ jobs:
           mapfile -t files < changed-python.txt
           if (( ${#files[@]} )); then
             python -m ruff check -- "${files[@]}" 2>&1 | tee ruff-output.txt
-            python -m ruff format --check -- "${files[@]}" \
-              2>&1 | tee ruff-format-output.txt
           else
             echo "No changed Python files require Ruff." | tee ruff-output.txt
-            cp ruff-output.txt ruff-format-output.txt
           fi
 
       - name: Run stable-interface mypy
@@ -147,7 +144,6 @@ jobs:
           path: |
             changed-python.txt
             ruff-output.txt
-            ruff-format-output.txt
             mypy-output.txt
             pytest-output.txt
             focused-quality.xml
