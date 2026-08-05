@@ -1,0 +1,103 @@
+name: Temporary held-out promotion typing fix
+
+on:
+  push:
+    branches:
+      - agent/heldout-provider-promotion-v1
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install focused quality tools
+        run: python -m pip install -e ".[dev]"
+      - name: Apply strict typing fixes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          common = Path("src/prob4d/_heldout_promotion_common.py")
+          text = common.read_text()
+          text = text.replace(
+              "_REQUIRED_ARM_ROLES = frozenset(\n",
+              "_REQUIRED_ARM_ROLES: frozenset[PromotionArmRole] = frozenset(\n",
+              1,
+          )
+          text = text.replace(
+              '_ALLOWED_ARM_ROLES = _REQUIRED_ARM_ROLES | {"diagnostic"}\n',
+              '_ALLOWED_ARM_ROLES: frozenset[PromotionArmRole] = _REQUIRED_ARM_ROLES | {"diagnostic"}\n',
+              1,
+          )
+          common.write_text(text)
+
+          evaluation = Path("src/prob4d/_heldout_promotion_evaluation.py")
+          text = evaluation.read_text()
+          text = text.replace(
+              '    lower, upper = np.quantile(bootstrap_means, [0.025, 0.975], method="linear")\n',
+              '    interval = np.asarray(\n'
+              '        np.quantile(bootstrap_means, [0.025, 0.975], method="linear"),\n'
+              '        dtype=np.float64,\n'
+              '    )\n'
+              '    lower = float(interval[0])\n'
+              '    upper = float(interval[1])\n',
+              1,
+          )
+          text = text.replace(
+              '        "ci95_lower": float(lower),\n        "ci95_upper": float(upper),\n',
+              '        "ci95_lower": lower,\n        "ci95_upper": upper,\n',
+              1,
+          )
+          text = text.replace(
+              '    primary_summary = cast(Mapping[str, Any], aggregate[lock.primary_query_arm_id])\n',
+              '    primary_summary = cast(Mapping[str, Any], aggregate[lock.primary_query_arm_id])\n'
+              '    bootstrap_upper = cast(float, bootstrap["ci95_upper"])\n',
+              1,
+          )
+          text = text.replace(
+              '            float(bootstrap["ci95_upper"]) <= -lock.query_superiority_margin_mm\n',
+              '            bootstrap_upper <= -lock.query_superiority_margin_mm\n',
+              1,
+          )
+          evaluation.write_text(text)
+          PY
+      - name: Verify focused quality
+        run: |
+          python -m ruff format \
+            src/prob4d/_heldout_promotion_common.py \
+            src/prob4d/_heldout_promotion_evaluation.py
+          python -m ruff check \
+            src/prob4d/heldout_promotion.py \
+            src/prob4d/_heldout_promotion_*.py \
+            src/prob4d/material_identity_cli.py \
+            tests/test_heldout_promotion.py \
+            tests/test_material_identity_cli.py
+          python -m ruff format --check \
+            src/prob4d/heldout_promotion.py \
+            src/prob4d/_heldout_promotion_*.py \
+            src/prob4d/material_identity_cli.py \
+            tests/test_heldout_promotion.py \
+            tests/test_material_identity_cli.py
+          python -m mypy \
+            src/prob4d/heldout_promotion.py \
+            src/prob4d/_heldout_promotion_*.py \
+            src/prob4d/material_identity_cli.py
+      - name: Commit typing fixes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            src/prob4d/_heldout_promotion_common.py \
+            src/prob4d/_heldout_promotion_evaluation.py
+          git commit -m "Fix held-out promotion typing"
+          git push
