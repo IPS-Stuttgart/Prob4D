@@ -1,0 +1,72 @@
+name: Material-identity hypothesis stream
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/material-identity-stream.yml"
+      - "docs/material-identity-stream.md"
+      - "src/prob4d/material_identity_stream.py"
+      - "src/prob4d/cross_window_tracklets.py"
+      - "src/prob4d/causal_tracklets.py"
+      - "tests/test_material_identity_stream.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: material-identity-stream-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  focused-contract:
+    name: Append-only material-identity contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install compatible development environment
+        run: |
+          python -m pip install -e ".[dev]"
+          python -m pip install "numpy>=1.24,<2.3"
+      - name: Check focused source quality
+        run: |
+          python -m ruff check \
+            src/prob4d/material_identity_stream.py \
+            tests/test_material_identity_stream.py
+          python -m ruff format --check \
+            src/prob4d/material_identity_stream.py \
+            tests/test_material_identity_stream.py
+          python -m mypy src/prob4d/material_identity_stream.py
+      - name: Run material-identity regressions
+        run: python -m pytest -q tests/test_material_identity_stream.py
+      - name: Verify installed import and root-only identity
+        run: |
+          python - <<'PY'
+          from prob4d.material_identity_stream import create_material_identity_stream
+
+          stream = create_material_identity_stream(
+              sequence_id="sequence",
+              case_id="case",
+              stream_id="camera0",
+              source_repository="IPS-Stuttgart/Prob4D",
+              source_revision="a" * 40,
+              root_window_id="window-000",
+          )
+          assert len(stream.artifact_id) == 64
+          assert stream.admitted_window_ids == ("window-000",)
+          PY
