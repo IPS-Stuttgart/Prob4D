@@ -1,8 +1,8 @@
 """Transfer-resistant identity for the Prob4D project.
 
 Historical observation artifacts deliberately retain the repository name that was
-current when their schemas were frozen.  Repository display names are therefore
-not suitable as the long-lived identity of the project.  This module publishes a
+current when their schemas were frozen. Repository display names are therefore
+not suitable as the long-lived identity of the project. This module publishes a
 stable GitHub repository ID, the current canonical name, and the accepted
 historical aliases without changing any frozen provider-v1 or causal-stream
 payload.
@@ -14,6 +14,8 @@ import argparse
 import json
 from collections.abc import Mapping, Sequence
 from typing import Any, Final
+
+from ._strict_json import require_exact_string
 
 PROB4D_PROJECT_IDENTITY_SCHEMA: Final = "prob4d.project-identity"
 PROB4D_PROJECT_IDENTITY_VERSION: Final = 1
@@ -37,16 +39,26 @@ _IDENTITY_FIELDS: Final = frozenset(
         "accepted_repository_aliases",
     }
 )
+_STRING_IDENTITY_FIELDS: Final = (
+    "schema_name",
+    "project_id",
+    "canonical_repository",
+    "frozen_artifact_repository",
+)
+_INTEGER_IDENTITY_FIELDS: Final = (
+    "schema_version",
+    "github_repository_id",
+)
 
 
 def canonical_prob4d_repository(value: object) -> str:
     """Return the canonical repository name for a recognized Prob4D alias.
 
-    GitHub repository names are case-insensitive.  Whitespace and unrelated
-    repositories fail closed instead of being silently normalized.
+    GitHub repository names are case-insensitive. Whitespace, coercible objects,
+    and unrelated repositories fail closed instead of being silently normalized.
     """
 
-    repository = str(value).strip()
+    repository = require_exact_string(value, name="Prob4D repository identity")
     for alias in PROB4D_REPOSITORY_ALIASES:
         if repository.casefold() == alias.casefold():
             return PROB4D_CANONICAL_REPOSITORY
@@ -78,9 +90,12 @@ def prob4d_project_identity() -> dict[str, object]:
 
 
 def validate_prob4d_project_identity(value: Mapping[str, Any]) -> dict[str, object]:
-    """Validate and normalize a project-identity descriptor."""
+    """Validate one descriptor without accepting coercible primitive aliases."""
 
-    fields = set(value)
+    field_names = tuple(value)
+    if any(type(field) is not str for field in field_names):
+        raise ValueError("Prob4D project-identity field names must be genuine strings")
+    fields = set(field_names)
     if fields != _IDENTITY_FIELDS:
         missing = sorted(_IDENTITY_FIELDS - fields)
         extra = sorted(fields - _IDENTITY_FIELDS)
@@ -88,7 +103,30 @@ def validate_prob4d_project_identity(value: Mapping[str, Any]) -> dict[str, obje
             "Prob4D project-identity fields changed; "
             f"missing={missing}, extra={extra}"
         )
+
     normalized = dict(value)
+    for field in _STRING_IDENTITY_FIELDS:
+        require_exact_string(
+            normalized[field],
+            name=f"Prob4D project-identity {field}",
+        )
+    for field in _INTEGER_IDENTITY_FIELDS:
+        if type(normalized[field]) is not int:
+            raise ValueError(
+                f"Prob4D project-identity {field} must be a genuine integer"
+            )
+
+    aliases = normalized["accepted_repository_aliases"]
+    if type(aliases) is not list:
+        raise ValueError(
+            "Prob4D project-identity accepted_repository_aliases must be a JSON array"
+        )
+    for index, alias in enumerate(aliases):
+        require_exact_string(
+            alias,
+            name=f"Prob4D project-identity accepted_repository_aliases[{index}]",
+        )
+
     expected = prob4d_project_identity()
     if normalized != expected:
         raise ValueError("Prob4D project-identity descriptor does not match this project")
