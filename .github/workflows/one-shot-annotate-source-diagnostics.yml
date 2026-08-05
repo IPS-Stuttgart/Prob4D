@@ -1,0 +1,68 @@
+name: One-shot annotate source diagnostics
+
+on:
+  push:
+    branches:
+      - ci/self-hosted-prob4d-storage-evidence
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: [self-hosted, Linux, X64, nvidia-smi]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ci/self-hosted-prob4d-storage-evidence
+          fetch-depth: 0
+      - name: Add strict NumPy annotations and sort evidence imports
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          evidence = Path("src/prob4d/promotion_evidence.py")
+          source = evidence.read_text(encoding="utf-8")
+          old_import = """from ._heldout_promotion_common import (\n    REPORT_CLAIM_BOUNDARY,\n    _SHA256,\n"""
+          new_import = """from ._heldout_promotion_common import (\n    _SHA256,\n    REPORT_CLAIM_BOUNDARY,\n"""
+          if old_import in source:
+              source = source.replace(old_import, new_import, 1)
+          elif new_import not in source:
+              raise SystemExit("promotion evidence import block changed")
+          evidence.write_text(source, encoding="utf-8")
+
+          diagnostics = Path("src/prob4d/source_diagnostics.py")
+          source = diagnostics.read_text(encoding="utf-8")
+          replacements = {
+              "    available = np.zeros(shape, dtype=bool)\n":
+                  "    available: BoolArray = np.zeros(shape, dtype=bool)\n",
+              "    relative_residual = np.zeros(shape, dtype=np.float64)\n":
+                  "    relative_residual: FloatArray = np.zeros(shape, dtype=np.float64)\n",
+              "    direction_disagreement = np.zeros(shape, dtype=np.float64)\n":
+                  "    direction_disagreement: FloatArray = np.zeros(shape, dtype=np.float64)\n",
+              "    count = np.zeros(reference.shape, dtype=np.int64)\n":
+                  "    count: NDArray[np.int64] = np.zeros(reference.shape, dtype=np.int64)\n",
+              "    squared_norm_sum = np.zeros(reference.shape, dtype=np.float64)\n":
+                  "    squared_norm_sum: FloatArray = np.zeros(\n"
+                  "        reference.shape, dtype=np.float64\n"
+                  "    )\n",
+          }
+          for old, new in replacements.items():
+              if old in source:
+                  source = source.replace(old, new, 1)
+              elif new not in source:
+                  raise SystemExit(f"source diagnostic declaration changed: {old.strip()}")
+          diagnostics.write_text(source, encoding="utf-8")
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -f \
+            .github/workflows/one-shot-annotate-source-diagnostics.yml \
+            .github/workflows/one-shot-sort-promotion-import.yml
+          git add src/prob4d/promotion_evidence.py src/prob4d/source_diagnostics.py
+          git commit -m "Tighten quality annotations"
+          git push origin HEAD:ci/self-hosted-prob4d-storage-evidence
