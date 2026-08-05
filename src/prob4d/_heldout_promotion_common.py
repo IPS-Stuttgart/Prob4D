@@ -42,7 +42,7 @@ PromotionArmRole = Literal[
     "diagnostic",
 ]
 
-_REQUIRED_ARM_ROLES = frozenset(
+_REQUIRED_ARM_ROLES: frozenset[PromotionArmRole] = frozenset(
     {
         "physical_fallback",
         "visual_baseline",
@@ -53,7 +53,7 @@ _REQUIRED_ARM_ROLES = frozenset(
         "sensor_assisted",
     }
 )
-_ALLOWED_ARM_ROLES = _REQUIRED_ARM_ROLES | {"diagnostic"}
+_ALLOWED_ARM_ROLES: frozenset[PromotionArmRole] = _REQUIRED_ARM_ROLES | {"diagnostic"}
 _REQUIRED_FROZEN_ARTIFACTS = frozenset(
     {
         "provider_configuration",
