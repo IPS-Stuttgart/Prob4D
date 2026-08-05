@@ -90,8 +90,11 @@ supply an appropriately conservative marginal scale or keep the covariance-free
 control.
 
 The compatibility score is a source-side ranking statistic, not a calibrated
-posterior probability. It combines the Gaussian-shaped normalized residual score
-with an effective-support factor. Promotion would require independent calibration
+posterior probability. It combines the covariance-independent isotropic geometric
+residual score with an effective-support factor. Supplied covariance affects the
+reported `normalized_rms` diagnostic only. This prevents a candidate from becoming
+mutual-best merely because its uncertainty volume is larger. A covariance-aware
+admission rule requires a separately versioned, independently calibrated method
 and a downstream guarded physical-prediction gate.
 
 ## Conservative link admission
@@ -130,11 +133,11 @@ as an internally generated one.
 ## Portable result identity
 
 `CrossWindowAssociationResult.descriptor()` emits the complete semantic result:
-configuration, candidates, accepted links, unmatched tracks, and rejection
-accounting. Schema version 2 includes corrected evaluated-pair semantics and the
-strict construction contract. `result_id` is the SHA-256 digest of the canonical
-finite-JSON encoding of that descriptor. `to_dict()` adds the ID to the
-descriptor for compact result retention.
+configuration, ranking semantics, candidates, accepted links, unmatched tracks,
+and rejection accounting. Schema version 2 includes corrected evaluated-pair
+semantics and the strict construction contract. `result_id` is the SHA-256 digest
+of the canonical finite-JSON encoding of that descriptor. `to_dict()` adds the ID
+to the descriptor for compact result retention.
 
 Execution-only tiling is deliberately excluded from the descriptor. Runs using
 different `candidate_chunk_size` values must therefore produce byte-equivalent
