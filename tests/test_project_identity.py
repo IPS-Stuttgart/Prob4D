@@ -33,10 +33,7 @@ def test_project_identity_is_transfer_resistant_and_preserves_frozen_alias() -> 
     assert descriptor["project_id"] == PROB4D_PROJECT_ID
     assert descriptor["github_repository_id"] == PROB4D_GITHUB_REPOSITORY_ID
     assert descriptor["canonical_repository"] == PROB4D_CANONICAL_REPOSITORY
-    assert (
-        descriptor["frozen_artifact_repository"]
-        == PROB4D_FROZEN_ARTIFACT_REPOSITORY
-    )
+    assert descriptor["frozen_artifact_repository"] == PROB4D_FROZEN_ARTIFACT_REPOSITORY
     assert descriptor["accepted_repository_aliases"] == [
         PROB4D_CANONICAL_REPOSITORY,
         PROB4D_FROZEN_ARTIFACT_REPOSITORY,
@@ -45,14 +42,8 @@ def test_project_identity_is_transfer_resistant_and_preserves_frozen_alias() -> 
 
 
 def test_current_and_historical_repository_names_resolve_to_canonical() -> None:
-    assert (
-        canonical_prob4d_repository("ips-stuttgart/prob4d")
-        == PROB4D_CANONICAL_REPOSITORY
-    )
-    assert (
-        canonical_prob4d_repository("FlorianPfaff/Prob4D")
-        == PROB4D_CANONICAL_REPOSITORY
-    )
+    assert canonical_prob4d_repository("ips-stuttgart/prob4d") == PROB4D_CANONICAL_REPOSITORY
+    assert canonical_prob4d_repository("FlorianPfaff/Prob4D") == PROB4D_CANONICAL_REPOSITORY
     assert is_prob4d_repository(PROB4D_CANONICAL_REPOSITORY)
     assert is_prob4d_repository(PROB4D_FROZEN_ARTIFACT_REPOSITORY)
     assert not is_prob4d_repository("other/Prob4D")
@@ -89,16 +80,12 @@ def test_project_identity_rejects_coercible_primitive_aliases() -> None:
         validate_prob4d_project_identity(descriptor)
 
     descriptor = prob4d_project_identity()
-    descriptor["schema_name"] = _RepositoryStringSubclass(
-        str(descriptor["schema_name"])
-    )
+    descriptor["schema_name"] = _RepositoryStringSubclass(str(descriptor["schema_name"]))
     with pytest.raises(ValueError, match="schema_name must be a genuine string"):
         validate_prob4d_project_identity(descriptor)
 
     descriptor = prob4d_project_identity()
-    descriptor["accepted_repository_aliases"] = tuple(
-        descriptor["accepted_repository_aliases"]
-    )
+    descriptor["accepted_repository_aliases"] = tuple(descriptor["accepted_repository_aliases"])
     with pytest.raises(ValueError, match="must be a JSON array"):
         validate_prob4d_project_identity(descriptor)
 
