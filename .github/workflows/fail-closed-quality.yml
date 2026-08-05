@@ -37,8 +37,7 @@ jobs:
           fetch-depth: 0
           ref: ci/self-hosted-prob4d-storage-evidence
           persist-credentials: true
-      # BEGIN ONE-SHOT QUALITY REPAIR
-      - name: Apply one-time strict typing repair
+      - name: Apply one-time source-only quality repair
         if: github.actor != 'github-actions[bot]'
         shell: bash
         run: |
@@ -78,39 +77,12 @@ jobs:
               elif new not in source:
                   raise SystemExit(f"source diagnostic declaration changed: {old.strip()}")
           diagnostics.write_text(source, encoding="utf-8")
-
-          workflow = Path(".github/workflows/fail-closed-quality.yml")
-          text = workflow.read_text(encoding="utf-8")
-          start_marker = "      # BEGIN ONE-SHOT QUALITY REPAIR"
-          end_marker = "      # END ONE-SHOT QUALITY REPAIR"
-          start = text.index(start_marker + "\n")
-          end = text.rindex(end_marker + "\n") + len(end_marker) + 1
-          text = text[:start] + text[end:]
-          text = text.replace(
-              "permissions:\n  contents: write\n",
-              "permissions:\n  contents: read\n",
-              1,
-          )
-          text = text.replace(
-              "          ref: ci/self-hosted-prob4d-storage-evidence\n"
-              "          persist-credentials: true\n",
-              "          persist-credentials: false\n",
-              1,
-          )
-          workflow.write_text(text, encoding="utf-8")
           PY
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm -f --ignore-unmatch \
-            .github/workflows/one-shot-annotate-source-diagnostics.yml \
-            .github/workflows/one-shot-sort-promotion-import.yml
-          git add \
-            .github/workflows/fail-closed-quality.yml \
-            src/prob4d/promotion_evidence.py \
-            src/prob4d/source_diagnostics.py
+          git add src/prob4d/promotion_evidence.py src/prob4d/source_diagnostics.py
           git commit -m "Tighten quality annotations"
           git push origin HEAD:ci/self-hosted-prob4d-storage-evidence
-      # END ONE-SHOT QUALITY REPAIR
       - name: Set up Python 3.12
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
