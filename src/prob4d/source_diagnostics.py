@@ -1,7 +1,7 @@
 """Source-side diagnostics for common-mode observation failures.
 
 Overlap disagreement detects mutually inconsistent windows, but a shared visual
-backbone can be confidently wrong in every window.  This module adds diagnostics
+backbone can be confidently wrong in every window. This module adds diagnostics
 that remain independent of Bayesian-PhysTwin innovations and target labels:
 
 - one-step consistency between decoded point motion and predicted scene flow;
@@ -21,6 +21,8 @@ import numpy as np
 from numpy.typing import NDArray
 
 from ._immutable_json import frozen_finite_json_mapping, plain_json
+from ._scientific_scalars import require_finite_real, require_genuine_integer
+from ._strict_json import require_exact_string
 from .data import PredictionWindow
 from .source_reliability import SourceReliabilityFeatures
 
@@ -44,8 +46,18 @@ class SourceOnlyDiagnosticGrid:
     metadata: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        names = tuple(str(value).strip() for value in self.feature_names)
-        if not names or any(not value for value in names):
+        if type(self.feature_names) is not tuple:
+            raise TypeError(
+                "diagnostic feature_names must be a canonical tuple of strings"
+            )
+        names = tuple(
+            require_exact_string(
+                value,
+                name=f"diagnostic feature_names[{index}]",
+            )
+            for index, value in enumerate(self.feature_names)
+        )
+        if not names:
             raise ValueError("diagnostic feature_names must be non-empty")
         if len(set(names)) != len(names):
             raise ValueError("diagnostic feature_names must be unique")
@@ -141,7 +153,7 @@ def build_flow_point_consistency_diagnostic(
     """Compare one-step decoded point displacement with predicted scene flow.
 
     The diagnostic assumes that ``scene_flow[t]`` predicts motion from local frame
-    ``t`` to local frame ``t + 1``.  It is opt-in and records this assumption in
+    ``t`` to local frame ``t + 1``. It is opt-in and records this assumption in
     metadata so a producer with different flow semantics cannot silently reuse it.
     """
 
@@ -228,7 +240,7 @@ def build_common_gauge_seed_dispersion_diagnostic(
 ) -> SourceOnlyDiagnosticGrid:
     """Measure empirical point dispersion across independently seeded predictions.
 
-    Every input must already be represented in the same declared gauge.  The
+    Every input must already be represented in the same declared gauge. The
     function deliberately does not align samples itself because target-informed or
     differently fitted gauges would change the meaning of empirical dispersion.
     """
@@ -236,10 +248,8 @@ def build_common_gauge_seed_dispersion_diagnostic(
     samples = list(windows)
     if len(samples) < 2:
         raise ValueError("seed dispersion requires at least two prediction windows")
-    gauge_id = str(common_gauge_id).strip()
-    model_identity = str(model_set_id).strip()
-    if not gauge_id or not model_identity:
-        raise ValueError("common_gauge_id and model_set_id must be non-empty")
+    gauge_id = require_exact_string(common_gauge_id, name="common_gauge_id")
+    model_identity = require_exact_string(model_set_id, name="model_set_id")
     window_ids = [window.window_id for window in samples]
     if len(set(window_ids)) != len(window_ids):
         raise ValueError("seed-dispersion window IDs must be unique")
@@ -332,12 +342,19 @@ class CommonModeFailureAudit:
     low_disagreement_high_error_max: float
 
     def __post_init__(self) -> None:
-        thresholds = np.asarray(
-            [self.disagreement_threshold, self.error_threshold],
-            dtype=np.float64,
+        disagreement_threshold = require_finite_real(
+            self.disagreement_threshold,
+            name="disagreement_threshold",
+            minimum=0.0,
         )
-        if not np.all(np.isfinite(thresholds)) or np.any(thresholds < 0.0):
-            raise ValueError("common-mode audit thresholds must be finite and non-negative")
+        error_threshold = require_finite_real(
+            self.error_threshold,
+            name="error_threshold",
+            minimum=0.0,
+        )
+        object.__setattr__(self, "disagreement_threshold", disagreement_threshold)
+        object.__setattr__(self, "error_threshold", error_threshold)
+
         count_names = (
             "valid_count",
             "low_disagreement_low_error_count",
@@ -346,24 +363,47 @@ class CommonModeFailureAudit:
             "high_disagreement_high_error_count",
         )
         for name in count_names:
-            value = getattr(self, name)
-            if isinstance(value, bool) or int(value) != value or value < 0:
-                raise ValueError(f"{name} must be a non-negative integer")
-            object.__setattr__(self, name, int(value))
+            normalized = require_genuine_integer(
+                getattr(self, name),
+                name=name,
+                minimum=0,
+            )
+            object.__setattr__(self, name, normalized)
         if self.valid_count < 1:
             raise ValueError("common-mode audit requires at least one valid row")
         total = sum(getattr(self, name) for name in count_names[1:])
         if total != self.valid_count:
             raise ValueError("common-mode quadrant counts do not sum to valid_count")
-        severity = np.asarray(
-            [
-                self.low_disagreement_high_error_mean,
-                self.low_disagreement_high_error_max,
-            ],
-            dtype=np.float64,
+
+        severity_mean = require_finite_real(
+            self.low_disagreement_high_error_mean,
+            name="low_disagreement_high_error_mean",
+            minimum=0.0,
         )
-        if not np.all(np.isfinite(severity)) or np.any(severity < 0.0):
-            raise ValueError("common-mode failure severity must be finite and non-negative")
+        severity_max = require_finite_real(
+            self.low_disagreement_high_error_max,
+            name="low_disagreement_high_error_max",
+            minimum=0.0,
+        )
+        if self.low_disagreement_high_error_count == 0:
+            if severity_mean != 0.0 or severity_max != 0.0:
+                raise ValueError(
+                    "empty low-disagreement/high-error cells require zero severity"
+                )
+        elif severity_mean > severity_max:
+            raise ValueError(
+                "low-disagreement/high-error mean cannot exceed its maximum"
+            )
+        object.__setattr__(
+            self,
+            "low_disagreement_high_error_mean",
+            severity_mean,
+        )
+        object.__setattr__(
+            self,
+            "low_disagreement_high_error_max",
+            severity_max,
+        )
 
     @property
     def low_disagreement_high_error_rate(self) -> float:
@@ -389,7 +429,7 @@ def audit_common_mode_failures(
     """Report the low-disagreement/high-error quadrant on opened evaluation data.
 
     Thresholds are explicit inputs and should be frozen from development or
-    calibration units.  This function is evaluation-only: its result must not be
+    calibration units. This function is evaluation-only: its result must not be
     used to refit a source-reliability model on the same target outcomes.
     """
 
@@ -410,15 +450,16 @@ def audit_common_mode_failures(
     if not np.any(valid):
         raise ValueError("common-mode audit has no valid rows")
 
-    disagreement_limit = float(disagreement_threshold)
-    error_limit = float(error_threshold)
-    if (
-        not np.isfinite(disagreement_limit)
-        or disagreement_limit < 0.0
-        or not np.isfinite(error_limit)
-        or error_limit < 0.0
-    ):
-        raise ValueError("common-mode thresholds must be finite and non-negative")
+    disagreement_limit = require_finite_real(
+        disagreement_threshold,
+        name="disagreement_threshold",
+        minimum=0.0,
+    )
+    error_limit = require_finite_real(
+        error_threshold,
+        name="error_threshold",
+        minimum=0.0,
+    )
 
     high_disagreement = disagreement > disagreement_limit
     high_error = errors > error_limit
