@@ -5,12 +5,23 @@ import pytest
 
 from prob4d.data import PredictionWindow
 from prob4d.source_diagnostics import (
+    CommonModeFailureAudit,
+    SourceOnlyDiagnosticGrid,
     audit_common_mode_failures,
     augment_source_reliability_features,
     build_common_gauge_seed_dispersion_diagnostic,
     build_flow_point_consistency_diagnostic,
 )
 from prob4d.source_reliability import SourceReliabilityFeatures
+
+
+class _StringLike:
+    def __str__(self) -> str:
+        return "coerced-identifier"
+
+
+class _StringSubclass(str):
+    pass
 
 
 def _window(
@@ -42,6 +53,23 @@ def _window(
     )
 
 
+def _diagnostic_metadata() -> dict[str, bool]:
+    return {
+        "uses_truth": False,
+        "uses_downstream_physical_innovation": False,
+        "uses_association_probability": False,
+    }
+
+
+def _diagnostic_with_names(feature_names: object) -> SourceOnlyDiagnosticGrid:
+    return SourceOnlyDiagnosticGrid(
+        feature_names=feature_names,  # type: ignore[arg-type]
+        values=np.zeros((1, 1, 1), dtype=np.float64),
+        available_mask=np.ones((1, 1), dtype=bool),
+        metadata=_diagnostic_metadata(),
+    )
+
+
 def test_flow_point_consistency_is_zero_for_matching_one_step_flow() -> None:
     diagnostic = build_flow_point_consistency_diagnostic(_window("seed-1"))
 
@@ -65,6 +93,25 @@ def test_flow_point_consistency_detects_magnitude_and_direction_mismatch() -> No
     assert np.allclose(diagnostic.values[:-1, ..., 2], 1.0)
 
 
+def test_diagnostic_feature_names_reject_coercion_and_normalization() -> None:
+    with pytest.raises(TypeError, match="canonical tuple"):
+        _diagnostic_with_names(["feature"])
+    with pytest.raises(TypeError, match="canonical tuple"):
+        _diagnostic_with_names("feature")
+
+    invalid_tuples = (
+        (1,),
+        (" feature",),
+        ("feature ",),
+        ("",),
+        (_StringLike(),),
+        (_StringSubclass("feature"),),
+    )
+    for feature_names in invalid_tuples:
+        with pytest.raises(ValueError):
+            _diagnostic_with_names(feature_names)
+
+
 def test_seed_dispersion_requires_common_grid_and_reports_sample_spread() -> None:
     first = _window("seed-1")
     identical = _window("seed-2")
@@ -86,6 +133,31 @@ def test_seed_dispersion_requires_common_grid_and_reports_sample_spread() -> Non
     assert np.all(spread.values[..., 2] > 0.0)
     assert np.allclose(spread.values[..., 1], 1.0)
     assert spread.metadata["alignment_performed_by_diagnostic"] is False
+
+
+def test_seed_dispersion_rejects_noncanonical_identifiers() -> None:
+    windows = [_window("seed-1"), _window("seed-2")]
+    invalid_values = (
+        " identifier",
+        "identifier ",
+        "",
+        _StringLike(),
+        _StringSubclass("identifier"),
+        1,
+    )
+    for value in invalid_values:
+        with pytest.raises(ValueError):
+            build_common_gauge_seed_dispersion_diagnostic(
+                windows,
+                common_gauge_id=value,  # type: ignore[arg-type]
+                model_set_id="model-set-a",
+            )
+        with pytest.raises(ValueError):
+            build_common_gauge_seed_dispersion_diagnostic(
+                windows,
+                common_gauge_id="metric-anchor-a",
+                model_set_id=value,  # type: ignore[arg-type]
+            )
 
 
 def test_seed_dispersion_rejects_different_frame_identity() -> None:
@@ -141,3 +213,59 @@ def test_common_mode_audit_reports_all_four_quadrants() -> None:
     assert audit.low_disagreement_high_error_rate == pytest.approx(0.25)
     assert audit.low_disagreement_high_error_mean == pytest.approx(0.9)
     assert audit.to_dict()["low_disagreement_high_error_rate"] == pytest.approx(0.25)
+
+
+def test_common_mode_audit_rejects_coercible_scalars() -> None:
+    with pytest.raises(TypeError, match="genuine real scalar"):
+        audit_common_mode_failures(
+            np.asarray([0.1]),
+            np.asarray([0.1]),
+            disagreement_threshold="0.5",  # type: ignore[arg-type]
+            error_threshold=0.5,
+        )
+    with pytest.raises(TypeError, match="genuine real scalar"):
+        audit_common_mode_failures(
+            np.asarray([0.1]),
+            np.asarray([0.1]),
+            disagreement_threshold=False,
+            error_threshold=0.5,
+        )
+    with pytest.raises(TypeError, match="genuine integer"):
+        CommonModeFailureAudit(
+            disagreement_threshold=0.5,
+            error_threshold=0.5,
+            valid_count=1.0,  # type: ignore[arg-type]
+            low_disagreement_low_error_count=1,
+            high_disagreement_low_error_count=0,
+            low_disagreement_high_error_count=0,
+            high_disagreement_high_error_count=0,
+            low_disagreement_high_error_mean=0.0,
+            low_disagreement_high_error_max=0.0,
+        )
+
+
+def test_common_mode_audit_rejects_inconsistent_severity() -> None:
+    with pytest.raises(ValueError, match="require zero severity"):
+        CommonModeFailureAudit(
+            disagreement_threshold=0.5,
+            error_threshold=0.5,
+            valid_count=1,
+            low_disagreement_low_error_count=1,
+            high_disagreement_low_error_count=0,
+            low_disagreement_high_error_count=0,
+            high_disagreement_high_error_count=0,
+            low_disagreement_high_error_mean=0.1,
+            low_disagreement_high_error_max=0.1,
+        )
+    with pytest.raises(ValueError, match="mean cannot exceed"):
+        CommonModeFailureAudit(
+            disagreement_threshold=0.5,
+            error_threshold=0.5,
+            valid_count=1,
+            low_disagreement_low_error_count=0,
+            high_disagreement_low_error_count=0,
+            low_disagreement_high_error_count=1,
+            high_disagreement_high_error_count=0,
+            low_disagreement_high_error_mean=2.0,
+            low_disagreement_high_error_max=1.0,
+        )
