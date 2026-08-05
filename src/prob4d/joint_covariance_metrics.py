@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import io
 import json
 import math
 import os
+import tempfile
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -257,7 +259,7 @@ def run_joint_covariance_diagnostic(
 
     source = Path(input_path)
     payload = source.read_bytes()
-    with np.load(source, allow_pickle=False) as data:
+    with np.load(io.BytesIO(payload), allow_pickle=False) as data:
         required = {"residual_xyz_m", "local_covariance_m2", "low_rank_factor_m"}
         missing = sorted(required - set(data.files))
         if missing:
@@ -286,15 +288,18 @@ def run_joint_covariance_diagnostic(
         raise FileExistsError(destination)
     destination.parent.mkdir(parents=True, exist_ok=True)
     encoded = json.dumps(report, sort_keys=True, indent=2, allow_nan=False) + "\n"
-    temporary = destination.with_name(f".{destination.name}.tmp-{os.getpid()}")
+    descriptor, temporary_name = tempfile.mkstemp(
+        dir=destination.parent,
+        prefix=f".{destination.name}.tmp-",
+        text=True,
+    )
+    temporary = Path(temporary_name)
     try:
-        with temporary.open("x", encoding="utf-8") as stream:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
             stream.write(encoded)
             stream.flush()
             os.fsync(stream.fileno())
-        if destination.exists():
-            raise FileExistsError(destination)
-        os.replace(temporary, destination)
+        os.link(temporary, destination)
     finally:
         temporary.unlink(missing_ok=True)
     return report
