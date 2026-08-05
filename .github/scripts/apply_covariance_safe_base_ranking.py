@@ -159,12 +159,17 @@ replace_once(
     documentation,
     '''`CrossWindowAssociationResult.descriptor()` emits the complete semantic result:
 configuration, candidates, accepted links, unmatched tracks, and rejection
-accounting. `result_id` is the SHA-256 digest of the canonical finite-JSON
+accounting. Schema version 2 includes corrected evaluated-pair semantics and the
+strict construction contract. `result_id` is the SHA-256 digest of the canonical
+finite-JSON encoding of that descriptor. `to_dict()` adds the ID to the
+descriptor for compact result retention.
 ''',
     '''`CrossWindowAssociationResult.descriptor()` emits the complete semantic result:
 configuration, ranking semantics, candidates, accepted links, unmatched tracks,
-and rejection accounting. `result_id` is the SHA-256 digest of the canonical
-finite-JSON
+and rejection accounting. Schema version 2 includes corrected evaluated-pair
+semantics and the strict construction contract. `result_id` is the SHA-256 digest
+of the canonical finite-JSON encoding of that descriptor. `to_dict()` adds the ID
+to the descriptor for compact result retention.
 ''',
     name="ranking identity documentation",
 )
