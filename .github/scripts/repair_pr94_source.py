@@ -1,0 +1,228 @@
+"""Apply the reviewed PR 94 tracklet safety and typing repairs exactly once."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+
+def replace_once(path: str, old: str, new: str, *, name: str) -> None:
+    target = Path(path)
+    text = target.read_text(encoding="utf-8")
+    count = text.count(old)
+    if count != 1:
+        raise SystemExit(f"{name} anchor changed in {path}: occurrences={count}")
+    target.write_text(text.replace(old, new), encoding="utf-8")
+
+
+replace_once(
+    "src/prob4d/cross_window_tracklets.py",
+    "zip(result, result[1:])):",
+    "zip(result, result[1:], strict=False)):",
+    name="strict pair ordering",
+)
+replace_once(
+    "src/prob4d/causal_tracklets.py",
+    '''    seed_mask = window.valid_mask[first_local].copy()
+    if target_policy == "require":
+        seed_mask &= deform_mask[first_local]
+''',
+    '''    seed_mask = window.valid_mask[first_local] & deform_mask[first_local]
+''',
+    name="source-supported seed mask",
+)
+replace_once(
+    "src/prob4d/causal_tracklets.py",
+    'raise ValueError("the first retained frame has no valid tracklet seed")',
+    'raise ValueError("the first retained frame has no valid deforming tracklet seed")',
+    name="seed failure message",
+)
+replace_once(
+    "src/prob4d/causal_tracklets.py",
+    '''    @property
+    def track_lengths(self) -> IntArray:
+        return np.bincount(self.track_ids, minlength=self.track_count)
+
+    def summary(self) -> dict[str, object]:
+''',
+    '''    @property
+    def track_lengths(self) -> IntArray:
+        return np.bincount(self.track_ids, minlength=self.track_count)
+
+    @property
+    def geometric_mean_association_probability(self) -> FloatArray:
+        """Return length-neutral link support up to each observation row."""
+
+        result: FloatArray = np.ones(
+            self.observation_count,
+            dtype=np.float64,
+        )
+        for track_id in range(self.track_count):
+            selected = np.flatnonzero(self.track_ids == track_id)
+            links = self.link_probability[selected[1:]]
+            if not len(links):
+                continue
+            link_logs: FloatArray = np.full(
+                len(links),
+                -np.inf,
+                dtype=np.float64,
+            )
+            positive = links > 0.0
+            link_logs[positive] = np.log(links[positive])
+            result[selected[1:]] = np.exp(
+                np.cumsum(link_logs) / np.arange(1, len(links) + 1)
+            )
+        result.setflags(write=False)
+        return result
+
+    def summary(self) -> dict[str, object]:
+''',
+    name="length-neutral association support",
+)
+replace_once(
+    "src/prob4d/causal_tracklets.py",
+    "        expected_tracks = np.arange(len(unique_tracks), dtype=np.int64)\n",
+    '''        expected_tracks: IntArray = np.arange(
+            len(unique_tracks), dtype=np.int64
+        )
+''',
+    name="expected-track typing",
+)
+replace_once(
+    "src/prob4d/causal_tracklets.py",
+    "        reliability_grid = np.ones(tracklets.source_shape, dtype=np.float64)\n",
+    '''        reliability_grid: FloatArray = np.ones(
+            tracklets.source_shape, dtype=np.float64
+        )
+''',
+    name="reliability-grid typing",
+)
+replace_once(
+    "tests/test_causal_tracklets.py",
+    '''    assert tracklets.summary()["maximum_track_length"] == 4
+
+
+def test_tracklets_do_not_read_post_cutoff_prediction_payloads() -> None:
+''',
+    '''    assert tracklets.summary()["maximum_track_length"] == 4
+
+
+def test_geometric_mean_association_probability_is_length_neutral() -> None:
+    kwargs = minimal_tracklet_kwargs()
+    tracklets = CausalTrackletSet(
+        **{
+            **kwargs,
+            "causal_frame_stop": 3,
+            "source_shape": (3, 1, 1),
+            "track_ids": np.array([0, 0, 0], dtype=np.int64),
+            "frame_indices": np.array([0, 1, 2], dtype=np.int64),
+            "local_frame_indices": np.array([0, 1, 2], dtype=np.int64),
+            "rows": np.array([0, 0, 0], dtype=np.int64),
+            "columns": np.array([0, 0, 0], dtype=np.int64),
+            "points_local": np.array(
+                [
+                    [0.0, 0.0, 1.0],
+                    [0.1, 0.0, 1.0],
+                    [0.2, 0.0, 1.0],
+                ]
+            ),
+            "link_probability": np.array([1.0, 0.25, 0.25]),
+            "association_probability": np.array([1.0, 0.25, 0.0625]),
+        }
+    )
+
+    comparison = tracklets.geometric_mean_association_probability
+    np.testing.assert_allclose(comparison, [1.0, 0.25, 0.25])
+    assert not comparison.flags.writeable
+    np.testing.assert_allclose(
+        tracklets.association_probability,
+        [1.0, 0.25, 0.0625],
+    )
+
+
+def test_tracklets_do_not_read_post_cutoff_prediction_payloads() -> None:
+''',
+    name="geometric-mean regression",
+)
+replace_once(
+    "tests/test_causal_tracklets.py",
+    '''    assert required_report.target_deform_mask_policy == "require"
+
+
+def test_tracklet_contract_rejects_scalar_and_array_coercion_aliases() -> None:
+''',
+    '''    assert required_report.target_deform_mask_policy == "require"
+
+
+def test_seed_rows_always_require_source_deform_support() -> None:
+    point_map = np.zeros((1, 1, 2, 3), dtype=np.float64)
+    point_map[..., 2] = 1.0
+    valid = np.ones((1, 1, 2), dtype=bool)
+    deform = np.zeros_like(valid)
+    deform[0, 0, 0] = True
+    window = PredictionWindow(
+        window_id="seed-mask",
+        frame_indices=np.array([0]),
+        point_map=point_map,
+        valid_mask=valid,
+        scene_flow=np.zeros_like(point_map),
+        deform_mask=deform,
+    )
+
+    tracklets, report = build_causal_scene_flow_tracklets(
+        window,
+        causal_frame_stop=1,
+        seed_stride=1,
+        minimum_track_length=1,
+        target_deform_mask_policy="allow",
+    )
+
+    assert tracklets.track_count == 1
+    np.testing.assert_array_equal(tracklets.columns, [0])
+    assert report.seed_count == 1
+
+
+def test_tracklet_contract_rejects_scalar_and_array_coercion_aliases() -> None:
+''',
+    name="deforming-seed regression",
+)
+replace_once(
+    "docs/causal-tracklets.md",
+    '''same seeded identity. It is not source reliability and must not be replaced by a
+physical residual or downstream posterior responsibility.
+
+## Deform-mask policy
+''',
+    '''same seeded identity. It is not source reliability and must not be replaced by a
+physical residual or downstream posterior responsibility.
+
+`geometric_mean_association_probability` exposes the geometric mean of the
+accepted non-seed links up to each row. It is length-neutral for comparison
+across different track ages, remains uncalibrated, and does not replace the
+cumulative survival probability retained in `association_probability`.
+
+## Deform-mask policy
+''',
+    name="association-support documentation",
+)
+replace_once(
+    "docs/causal-tracklets.md",
+    '''its own deform-mask value is not interpreted as a material-membership label.
+
+Set `target_deform_mask_policy="require"` only when the producer or experiment
+''',
+    '''its own deform-mask value is not interpreted as a material-membership label.
+
+Seeds always require both valid and source-side deform support. This prevents
+`minimum_track_length=1` from emitting a background-only singleton while keeping
+target-frame mask semantics independent.
+
+Set `target_deform_mask_policy="require"` only when the producer or experiment
+''',
+    name="seed-support documentation",
+)
+replace_once(
+    "docs/causal-tracklets.md",
+    "support mask. Seeds and next-frame candidates must then lie in both `valid_mask`",
+    "support mask. Next-frame candidates must then lie in both `valid_mask`",
+    name="target-mask documentation",
+)
