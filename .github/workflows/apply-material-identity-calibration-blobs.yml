@@ -1,0 +1,98 @@
+name: Apply material identity calibration blobs
+
+on:
+  push:
+    branches:
+      - agent/material-identity-calibration-v1
+    paths:
+      - ".github/workflows/apply-material-identity-calibration-blobs.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-material-identity-calibration-blobs
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check out transport branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: agent/material-identity-calibration-v1
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Reassemble and verify patch from Git blobs
+        shell: bash
+        run: |
+          set -euo pipefail
+          : > /tmp/material-identity-calibration.patch
+          blobs=(
+            0eed1d5a143552023250eb450d3f2552c507e964
+            1d95d0457aed3b34ab56fc7735af2144ce99e3c6
+            db117dea73d8c3808b15fbc5fc6717aff6d01eaa
+            a89ce7718d01ac9998571d0ae1205dbadf9ef38c
+            227799283c94ccd91b69dc3f661cf58a511403a4
+            d1156de90b1f63fb5526f86063182d46b1a693b4
+            75a3a88ca611d6162193a0411fec2f85edf31ab3
+            ecc7abe2ebc07cdf7bd99bee4a25fc39e8c4d264
+            42fff2fccec2fc3103d499f777efe40b03a2da8d
+            9edd6f1b84183a29bc4d30cff0c5074da09f4e82
+            4d2c487d8391d72560587e23cc78237ccb04066a
+            23f93b0b5b4d2696d56d796f8c817c5bde12f821
+            febf5c51c4c404c5b87402d416760072d07b31b6
+            3f55198ac3834ca9ffbf69a6b31b73c9c26a7917
+            4998d26aac5aa2e5dad65f0ef36035bf5fda5c16
+            38b16b32d60a024f3021a1d25d16a8d64033b406
+            c146abac65b9151834e3545e9e6ecbb0eedaff91
+            82fa97a2073e9775c47ee8d11b0719498bc524f5
+            4c4676c494eb64542d599970cbac3784a5aaed19
+            6e16c43461a9012dc0d1b0ff313b0ef876560139
+            53a34881e4e547195baaea4e0618d238702df3fb
+            368cde6bc625aece1673c8f194cd95a73fe73b09
+            2a9f827f04e94318cc5ac81581ad02e5b9cc0725
+            57001a490cc2d1612d4a17707515864d0c4bdee4
+            28acc97227517b36852e83e86dcd5b433652052e
+            7ef2e0c45de2ea7417eac5a3be14a669b52ae932
+          )
+          for sha in "${blobs[@]}"; do
+            gh api "repos/${GITHUB_REPOSITORY}/git/blobs/${sha}" --jq .content \
+              | tr -d '\n' \
+              | base64 --decode \
+              >> /tmp/material-identity-calibration.patch
+          done
+          printf '%s  %s\n' \
+            '1b4f088d2d01a432ea550dc611201897b4cb57ad8214fc6237ed543bddbfda2b' \
+            '/tmp/material-identity-calibration.patch' \
+            | sha256sum --check -
+
+      - name: Apply validated patch if needed
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git apply --reverse --check /tmp/material-identity-calibration.patch; then
+            echo "Patch is already applied."
+          else
+            git am --3way /tmp/material-identity-calibration.patch
+          fi
+
+      - name: Remove temporary patch transport and push
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm -r --ignore-unmatch \
+            .github/patches/material-identity-calibration \
+            .github/workflows/apply-material-identity-calibration-patch.yml \
+            .github/workflows/apply-material-identity-calibration-blobs.yml
+          if ! git diff --cached --quiet; then
+            git commit -m "Remove temporary material-identity patch transport"
+          fi
+          git push origin HEAD:agent/material-identity-calibration-v1
