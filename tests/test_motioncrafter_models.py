@@ -10,16 +10,19 @@ import pytest
 from prob4d.calibration_compatibility import motioncrafter_model_identifier
 from prob4d.motioncrafter import MOTIONCRAFTER_SEED_POLICY_DERIVED_PER_CALL
 from prob4d.motioncrafter_models import (
+    DEFAULT_IMAGE_VAE,
     MOTIONCRAFTER_MODEL_SET_SCHEMA,
     PinnedMotionCrafterModelSet,
     PinnedMotionCrafterRunConfig,
+    _pinned_image_vae_proxy,
 )
 from prob4d.motioncrafter_safe import main as motioncrafter_main
 
 
-def _local_model_roots(tmp_path: Path) -> tuple[Path, Path, Path]:
+def _local_model_roots(tmp_path: Path) -> tuple[Path, Path, Path, Path]:
     unet = tmp_path / "unet"
     vae = tmp_path / "vae"
+    image_vae = tmp_path / "image_vae"
     base = tmp_path / "base"
     (unet / "unet_determ").mkdir(parents=True)
     (unet / "unet_determ" / "config.json").write_text(
@@ -32,13 +35,18 @@ def _local_model_roots(tmp_path: Path) -> tuple[Path, Path, Path]:
         '{"kind":"vae"}',
         encoding="utf-8",
     )
+    (image_vae / "vae").mkdir(parents=True)
+    (image_vae / "vae" / "config.json").write_text(
+        '{"kind":"image-vae"}',
+        encoding="utf-8",
+    )
     base.mkdir()
     (base / "model_index.json").write_text(
         '{"kind":"base"}',
         encoding="utf-8",
     )
     (base / "model.bin").write_bytes(b"base weights")
-    return unet, vae, base
+    return unet, vae, image_vae, base
 
 
 def _build_config(
@@ -75,7 +83,9 @@ def test_local_model_set_is_path_independent_and_content_sensitive(
         unet_revision=None,
         vae_reference=first_roots[1],
         vae_revision=None,
-        base_pipeline_reference=first_roots[2],
+        image_vae_reference=first_roots[2],
+        image_vae_revision=None,
+        base_pipeline_reference=first_roots[3],
         base_pipeline_revision=None,
     )
     second = PinnedMotionCrafterModelSet.inspect(
@@ -84,21 +94,25 @@ def test_local_model_set_is_path_independent_and_content_sensitive(
         unet_revision=None,
         vae_reference=second_roots[1],
         vae_revision=None,
-        base_pipeline_reference=second_roots[2],
+        image_vae_reference=second_roots[2],
+        image_vae_revision=None,
+        base_pipeline_reference=second_roots[3],
         base_pipeline_revision=None,
     )
 
     assert first.set_sha256 == second.set_sha256
     assert json.loads(first.manifest_json)["schema"] == MOTIONCRAFTER_MODEL_SET_SCHEMA
 
-    (second_roots[2] / "model.bin").write_bytes(b"changed base weights")
+    (second_roots[3] / "model.bin").write_bytes(b"changed base weights")
     changed = PinnedMotionCrafterModelSet.inspect(
         model_type="determ",
         unet_reference=second_roots[0],
         unet_revision=None,
         vae_reference=second_roots[1],
         vae_revision=None,
-        base_pipeline_reference=second_roots[2],
+        image_vae_reference=second_roots[2],
+        image_vae_revision=None,
+        base_pipeline_reference=second_roots[3],
         base_pipeline_revision=None,
     )
     assert changed.set_sha256 != first.set_sha256
@@ -112,8 +126,10 @@ def test_remote_model_sources_require_exact_revisions(tmp_path: Path) -> None:
             unet_revision=None,
             vae_reference="TencentARC/MotionCrafter",
             vae_revision="a" * 40,
+            image_vae_reference=DEFAULT_IMAGE_VAE,
+            image_vae_revision="b" * 40,
             base_pipeline_reference="stabilityai/stable-video-diffusion-img2vid-xt",
-            base_pipeline_revision="b" * 40,
+            base_pipeline_revision="c" * 40,
         )
 
     with pytest.raises(ValueError, match="40- or 64-character"):
@@ -123,12 +139,14 @@ def test_remote_model_sources_require_exact_revisions(tmp_path: Path) -> None:
             unet_revision="main",
             vae_reference="TencentARC/MotionCrafter",
             vae_revision="a" * 40,
+            image_vae_reference=DEFAULT_IMAGE_VAE,
+            image_vae_revision="b" * 40,
             base_pipeline_reference="stabilityai/stable-video-diffusion-img2vid-xt",
-            base_pipeline_revision="b" * 40,
+            base_pipeline_revision="c" * 40,
         )
 
 
-def test_pinned_model_set_binds_base_pipeline_into_calibration_identity(
+def test_pinned_model_set_binds_all_nested_models_into_calibration_identity(
     tmp_path: Path,
 ) -> None:
     first = PinnedMotionCrafterModelSet.inspect(
@@ -137,8 +155,10 @@ def test_pinned_model_set_binds_base_pipeline_into_calibration_identity(
         unet_revision="a" * 40,
         vae_reference="TencentARC/MotionCrafter",
         vae_revision="b" * 40,
+        image_vae_reference=DEFAULT_IMAGE_VAE,
+        image_vae_revision="c" * 40,
         base_pipeline_reference="stabilityai/stable-video-diffusion-img2vid-xt",
-        base_pipeline_revision="c" * 40,
+        base_pipeline_revision="d" * 40,
     )
     changed_base = PinnedMotionCrafterModelSet.inspect(
         model_type="determ",
@@ -146,6 +166,19 @@ def test_pinned_model_set_binds_base_pipeline_into_calibration_identity(
         unet_revision="a" * 40,
         vae_reference="TencentARC/MotionCrafter",
         vae_revision="b" * 40,
+        image_vae_reference=DEFAULT_IMAGE_VAE,
+        image_vae_revision="c" * 40,
+        base_pipeline_reference="stabilityai/stable-video-diffusion-img2vid-xt",
+        base_pipeline_revision="e" * 40,
+    )
+    changed_image_vae = PinnedMotionCrafterModelSet.inspect(
+        model_type="determ",
+        unet_reference="TencentARC/MotionCrafter",
+        unet_revision="a" * 40,
+        vae_reference="TencentARC/MotionCrafter",
+        vae_revision="b" * 40,
+        image_vae_reference=DEFAULT_IMAGE_VAE,
+        image_vae_revision="f" * 40,
         base_pipeline_reference="stabilityai/stable-video-diffusion-img2vid-xt",
         base_pipeline_revision="d" * 40,
     )
@@ -166,6 +199,7 @@ def test_pinned_model_set_binds_base_pipeline_into_calibration_identity(
     assert motioncrafter_model_identifier(first_manifest) != (
         motioncrafter_model_identifier(changed_manifest)
     )
+    assert changed_image_vae.set_sha256 != first.set_sha256
 
 
 def test_adapter_factory_rejects_another_model_set_before_gpu_imports(
@@ -180,7 +214,9 @@ def test_adapter_factory_rejects_another_model_set_before_gpu_imports(
         unet_revision=None,
         vae_reference=first_roots[1],
         vae_revision=None,
-        base_pipeline_reference=first_roots[2],
+        image_vae_reference=first_roots[2],
+        image_vae_revision=None,
+        base_pipeline_reference=first_roots[3],
         base_pipeline_revision=None,
     )
     second = PinnedMotionCrafterModelSet.inspect(
@@ -189,13 +225,70 @@ def test_adapter_factory_rejects_another_model_set_before_gpu_imports(
         unet_revision=None,
         vae_reference=second_roots[1],
         vae_revision=None,
-        base_pipeline_reference=second_roots[2],
+        image_vae_reference=second_roots[2],
+        image_vae_revision=None,
+        base_pipeline_reference=second_roots[3],
         base_pipeline_revision=None,
     )
     config = _build_config(second, tmp_path)
 
     with pytest.raises(ValueError, match="adapter/config identity mismatch"):
         first.adapter_factory()(config)
+
+
+def test_nested_image_vae_load_is_rebound_to_the_pinned_source() -> None:
+    calls: list[tuple[object, dict[str, object]]] = []
+
+    class FakeAutoencoder:
+        @staticmethod
+        def from_pretrained(reference: object, **kwargs: object) -> object:
+            calls.append((reference, kwargs))
+            return object()
+
+    source = PinnedMotionCrafterModelSet.inspect(
+        model_type="determ",
+        unet_reference="TencentARC/MotionCrafter",
+        unet_revision="a" * 40,
+        vae_reference="TencentARC/MotionCrafter",
+        vae_revision="b" * 40,
+        image_vae_reference=DEFAULT_IMAGE_VAE,
+        image_vae_revision="c" * 40,
+        base_pipeline_reference="stabilityai/stable-video-diffusion-img2vid-xt",
+        base_pipeline_revision="d" * 40,
+    ).image_vae
+    proxy = _pinned_image_vae_proxy(
+        source=source,
+        original_autoencoder_class=FakeAutoencoder,
+        cache_directory="/frozen/cache",
+    )
+
+    proxy.from_pretrained(
+        DEFAULT_IMAGE_VAE,
+        cache_dir="cache",
+        subfolder="vae",
+        revision=None,
+        variant="fp16",
+    )
+    assert calls == [
+        (
+            DEFAULT_IMAGE_VAE,
+            {
+                "cache_dir": "/frozen/cache",
+                "subfolder": "vae",
+                "variant": "fp16",
+                "revision": "c" * 40,
+            },
+        )
+    ]
+
+    with pytest.raises(ValueError, match="nested image-VAE load"):
+        proxy.from_pretrained(
+            DEFAULT_IMAGE_VAE,
+            cache_dir="another-cache",
+            subfolder="vae",
+            revision=None,
+            variant="fp16",
+        )
 
 
 def test_safe_cli_fails_closed_on_mutable_default_model_refs(

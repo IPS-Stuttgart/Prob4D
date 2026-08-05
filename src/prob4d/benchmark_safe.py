@@ -33,6 +33,7 @@ from .motioncrafter import (
 )
 from .motioncrafter_models import (
     DEFAULT_BASE_PIPELINE,
+    DEFAULT_IMAGE_VAE,
     PinnedMotionCrafterModelSet,
 )
 
@@ -49,6 +50,8 @@ class BenchmarkExportConfig:
     unet_revision: str | None = None
     vae_path: str = "TencentARC/MotionCrafter"
     vae_revision: str | None = None
+    image_vae_path: str = DEFAULT_IMAGE_VAE
+    image_vae_revision: str | None = None
     base_pipeline_path: str = DEFAULT_BASE_PIPELINE
     base_pipeline_revision: str | None = None
     metadata_filename: str = "filename_list.txt"
@@ -91,6 +94,8 @@ def _model_set(config: BenchmarkExportConfig) -> PinnedMotionCrafterModelSet:
         unet_revision=config.unet_revision,
         vae_reference=config.vae_path,
         vae_revision=config.vae_revision,
+        image_vae_reference=config.image_vae_path,
+        image_vae_revision=config.image_vae_revision,
         base_pipeline_reference=config.base_pipeline_path,
         base_pipeline_revision=config.base_pipeline_revision,
     )
@@ -456,6 +461,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--unet-revision")
     parser.add_argument("--vae-path", default="TencentARC/MotionCrafter")
     parser.add_argument("--vae-revision")
+    parser.add_argument("--image-vae-path", default=DEFAULT_IMAGE_VAE)
+    parser.add_argument("--image-vae-revision")
     parser.add_argument("--base-pipeline-path", default=DEFAULT_BASE_PIPELINE)
     parser.add_argument("--base-pipeline-revision")
     parser.add_argument("--metadata-filename", default="filename_list.txt")
@@ -508,6 +515,8 @@ def main(argv: list[str] | None = None) -> int:
         unet_revision=arguments.unet_revision,
         vae_path=arguments.vae_path,
         vae_revision=arguments.vae_revision,
+        image_vae_path=arguments.image_vae_path,
+        image_vae_revision=arguments.image_vae_revision,
         base_pipeline_path=arguments.base_pipeline_path,
         base_pipeline_revision=arguments.base_pipeline_revision,
         metadata_filename=arguments.metadata_filename,

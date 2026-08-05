@@ -16,6 +16,7 @@ from .motioncrafter_integrity import (
 )
 from .motioncrafter_models import (
     DEFAULT_BASE_PIPELINE,
+    DEFAULT_IMAGE_VAE,
     PinnedMotionCrafterModelSet,
 )
 from .motioncrafter_runner import SafeMotionCrafterRunner
@@ -36,6 +37,14 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--vae-revision",
         help="exact remote revision; omit only when --vae-path is a local snapshot",
+    )
+    parser.add_argument("--image-vae-path", default=DEFAULT_IMAGE_VAE)
+    parser.add_argument(
+        "--image-vae-revision",
+        help=(
+            "exact remote revision; omit only when --image-vae-path is "
+            "a local snapshot"
+        ),
     )
     parser.add_argument("--base-pipeline-path", default=DEFAULT_BASE_PIPELINE)
     parser.add_argument(
@@ -101,6 +110,8 @@ def main(argv: list[str] | None = None) -> int:
             unet_revision=arguments.unet_revision,
             vae_reference=arguments.vae_path,
             vae_revision=arguments.vae_revision,
+            image_vae_reference=arguments.image_vae_path,
+            image_vae_revision=arguments.image_vae_revision,
             base_pipeline_reference=arguments.base_pipeline_path,
             base_pipeline_revision=arguments.base_pipeline_revision,
         )

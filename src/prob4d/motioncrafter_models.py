@@ -13,8 +13,9 @@ from typing import Any, Final, Literal
 from .motioncrafter import MotionCrafterAdapter, MotionCrafterRunConfig
 
 MOTIONCRAFTER_MODEL_SOURCE_SCHEMA: Final = "prob4d.motioncrafter-model-source.v1"
-MOTIONCRAFTER_MODEL_SET_SCHEMA: Final = "prob4d.motioncrafter-model-set.v1"
+MOTIONCRAFTER_MODEL_SET_SCHEMA: Final = "prob4d.motioncrafter-model-set.v2"
 DEFAULT_BASE_PIPELINE: Final = "stabilityai/stable-video-diffusion-img2vid-xt"
+DEFAULT_IMAGE_VAE: Final = "stable-diffusion-v1-5/stable-diffusion-v1-5"
 
 ModelSourceKind = Literal["local_snapshot", "huggingface_revision"]
 
@@ -317,11 +318,12 @@ class PinnedMotionCrafterRunConfig(MotionCrafterRunConfig):
 
 @dataclass(frozen=True)
 class PinnedMotionCrafterModelSet:
-    """The three immutable model sources used by one MotionCrafter run."""
+    """The four immutable model sources used by one MotionCrafter run."""
 
     model_type: str
     unet: PinnedModelSource
     vae: PinnedModelSource
+    image_vae: PinnedModelSource
     base_pipeline: PinnedModelSource
     loader_module_sha256: str
     loader_module_bytes: int
@@ -337,6 +339,8 @@ class PinnedMotionCrafterModelSet:
         unet_revision: str | None,
         vae_reference: str | Path,
         vae_revision: str | None,
+        image_vae_reference: str | Path,
+        image_vae_revision: str | None,
         base_pipeline_reference: str | Path,
         base_pipeline_revision: str | None,
     ) -> PinnedMotionCrafterModelSet:
@@ -356,6 +360,12 @@ class PinnedMotionCrafterModelSet:
             revision=vae_revision,
             required_members=("geometry_motion_vae",),
         )
+        image_vae = PinnedModelSource.inspect(
+            image_vae_reference,
+            role="image-vae",
+            revision=image_vae_revision,
+            required_members=("vae/config.json",),
+        )
         base = PinnedModelSource.inspect(
             base_pipeline_reference,
             role="base-pipeline",
@@ -369,6 +379,7 @@ class PinnedMotionCrafterModelSet:
             "sources": {
                 "unet": unet.portable_record(),
                 "vae": vae.portable_record(),
+                "image_vae": image_vae.portable_record(),
                 "base_pipeline": base.portable_record(),
             },
             "loader_module": loader,
@@ -379,6 +390,7 @@ class PinnedMotionCrafterModelSet:
             model_type=model_type,
             unet=unet,
             vae=vae,
+            image_vae=image_vae,
             base_pipeline=base,
             loader_module_sha256=str(loader["sha256"]),
             loader_module_bytes=int(loader["bytes"]),
@@ -427,6 +439,39 @@ class PinnedMotionCrafterModelSet:
         return factory
 
 
+def _pinned_image_vae_proxy(
+    *,
+    source: PinnedModelSource,
+    original_autoencoder_class: Any,
+    cache_directory: str,
+) -> type:
+    """Replace MotionCrafter's hidden mutable image-VAE load with a pinned one."""
+
+    class PinnedImageVaeProxy:
+        @staticmethod
+        def from_pretrained(reference: object, **kwargs: Any) -> Any:
+            if str(reference) != DEFAULT_IMAGE_VAE:
+                raise ValueError("MotionCrafter changed its nested image-VAE reference")
+            expected = {
+                "cache_dir": "cache",
+                "subfolder": "vae",
+                "revision": None,
+                "variant": "fp16",
+            }
+            if kwargs != expected:
+                raise ValueError("MotionCrafter changed its nested image-VAE load")
+            runtime_reference, pinned_kwargs = source.from_pretrained_arguments()
+            return original_autoencoder_class.from_pretrained(
+                runtime_reference,
+                cache_dir=cache_directory,
+                subfolder="vae",
+                variant="fp16",
+                **pinned_kwargs,
+            )
+
+    return PinnedImageVaeProxy
+
+
 class PinnedMotionCrafterAdapter(MotionCrafterAdapter):
     """MotionCrafter adapter loading only the model sources bound above."""
 
@@ -455,6 +500,7 @@ class PinnedMotionCrafterAdapter(MotionCrafterAdapter):
                 MotionCrafterDiffPipeline,
                 UNetSpatioTemporalConditionModelVid2vid,
                 UnifyAutoencoderKL,
+                geometry_motion_vae,
             )
         except ImportError as error:
             raise RuntimeError(
@@ -468,18 +514,27 @@ class PinnedMotionCrafterAdapter(MotionCrafterAdapter):
         self.set_seed = set_seed
 
         vae_reference, vae_kwargs = model_set.vae.from_pretrained_arguments()
-        self.geometry_motion_vae = (
-            UnifyAutoencoderKL.from_pretrained(
-                vae_reference,
-                subfolder="geometry_motion_vae",
-                low_cpu_mem_usage=True,
-                torch_dtype=torch.float32,
-                cache_dir=config.cache_directory,
-                **vae_kwargs,
-            )
-            .requires_grad_(False)
-            .to("cuda", dtype=torch.float32)
+        original_image_vae_class = geometry_motion_vae.AutoencoderKL
+        geometry_motion_vae.AutoencoderKL = _pinned_image_vae_proxy(
+            source=model_set.image_vae,
+            original_autoencoder_class=original_image_vae_class,
+            cache_directory=config.cache_directory,
         )
+        try:
+            self.geometry_motion_vae = (
+                UnifyAutoencoderKL.from_pretrained(
+                    vae_reference,
+                    subfolder="geometry_motion_vae",
+                    low_cpu_mem_usage=True,
+                    torch_dtype=torch.float32,
+                    cache_dir=config.cache_directory,
+                    **vae_kwargs,
+                )
+                .requires_grad_(False)
+                .to("cuda", dtype=torch.float32)
+            )
+        finally:
+            geometry_motion_vae.AutoencoderKL = original_image_vae_class
 
         unet_reference, unet_kwargs = model_set.unet.from_pretrained_arguments()
         unet = (
@@ -522,6 +577,7 @@ class PinnedMotionCrafterAdapter(MotionCrafterAdapter):
 
 __all__ = [
     "DEFAULT_BASE_PIPELINE",
+    "DEFAULT_IMAGE_VAE",
     "MOTIONCRAFTER_MODEL_SET_SCHEMA",
     "MOTIONCRAFTER_MODEL_SOURCE_SCHEMA",
     "PinnedModelSource",
