@@ -1,0 +1,62 @@
+name: Merge current main into PR 114
+
+on:
+  pull_request:
+    branches: [main]
+    paths: [.github/workflows/merge-pr-114.yml]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: merge-pr-114
+  cancel-in-progress: false
+
+jobs:
+  merge:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the exact pull-request branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: agent/release-hygiene-ecosystem-capsule
+          fetch-depth: 0
+          persist-credentials: true
+          clean: true
+
+      - name: Merge current main and resolve only reviewed overlaps
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          set +e
+          git merge --no-edit origin/main
+          status=$?
+          set -e
+          if [[ "${status}" -ne 0 ]]; then
+            mapfile -t conflicts < <(git diff --name-only --diff-filter=U | LC_ALL=C sort)
+            allowed=(
+              CHANGELOG.md
+              scripts/ci/check_sdist.py
+              tests/test_heldout_promotion_diagnosis.py
+            )
+            for conflict in "${conflicts[@]}"; do
+              printf '%s\n' "${allowed[@]}" | grep -Fx -- "${conflict}"
+              git checkout --ours -- "${conflict}"
+              git add -- "${conflict}"
+            done
+            test "${#conflicts[@]}" -gt 0
+            git commit --no-edit
+          fi
+          git diff --check
+          grep -F "three-repository installed-wheel release capsule" CHANGELOG.md
+          grep -F '"docs/joint-covariance-diagnostics.md"' scripts/ci/check_sdist.py
+          grep -F 'tests/test_ecosystem_release_capsule.py' scripts/ci/check_sdist.py
+          test -z "$(git diff --name-only --diff-filter=U)"
+
+      - name: Push the conflict-free merge commit
+        run: git push origin HEAD:agent/release-hygiene-ecosystem-capsule
