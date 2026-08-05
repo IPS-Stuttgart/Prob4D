@@ -16,10 +16,8 @@ from ._provider_evaluation_manifest import validate_finite_json
 from ._selection_evidence_common import (
     _SHA256,
     _exact_keys,
-    _sha256_json,
     _strict_bool,
     _strict_digest,
-    _strict_integer,
     _strict_list,
     _strict_mapping,
     _strict_real,
@@ -309,4 +307,3 @@ class PromotionArmV1:
             sensor_assisted=mapping["sensor_assisted"],
             metadata=_strict_mapping(mapping["metadata"], name="arm metadata"),
         )
-
