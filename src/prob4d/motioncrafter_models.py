@@ -245,9 +245,30 @@ class PinnedModelSource:
             )
         return record
 
-    def from_pretrained_arguments(self) -> tuple[str, dict[str, object]]:
+    def from_pretrained_arguments(
+        self,
+        *,
+        cache_directory: str | Path | None = None,
+        required_members: tuple[str, ...] = (),
+    ) -> tuple[str, dict[str, object]]:
+        """Resolve an exact cached revision before falling back to the Hub ID."""
+
         kwargs: dict[str, object] = {}
         if self.kind == "huggingface_revision":
+            if cache_directory is not None:
+                repository_directory = "models--" + self.runtime_reference.replace(
+                    "/", "--"
+                )
+                snapshot = (
+                    Path(cache_directory).expanduser()
+                    / repository_directory
+                    / "snapshots"
+                    / str(self.revision)
+                )
+                if snapshot.is_dir() and all(
+                    (snapshot / relative).exists() for relative in required_members
+                ):
+                    return str(snapshot.resolve()), {}
             kwargs["revision"] = self.revision
         return self.runtime_reference, kwargs
 
@@ -556,8 +577,17 @@ class PinnedMotionCrafterAdapter(MotionCrafterAdapter):
             if config.model_type == "diff"
             else MotionCrafterDetermPipeline
         )
-        base_reference, base_kwargs = (
-            model_set.base_pipeline.from_pretrained_arguments()
+        base_reference, base_kwargs = model_set.base_pipeline.from_pretrained_arguments(
+            cache_directory=config.cache_directory,
+            required_members=(
+                "model_index.json",
+                "feature_extractor/preprocessor_config.json",
+                "scheduler/scheduler_config.json",
+                "image_encoder/config.json",
+                "image_encoder/model.fp16.safetensors",
+                "vae/config.json",
+                "vae/diffusion_pytorch_model.fp16.safetensors",
+            ),
         )
         self.pipeline = pipeline_class.from_pretrained(
             base_reference,

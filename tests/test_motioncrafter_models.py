@@ -12,6 +12,7 @@ from prob4d.motioncrafter import MOTIONCRAFTER_SEED_POLICY_DERIVED_PER_CALL
 from prob4d.motioncrafter_models import (
     DEFAULT_IMAGE_VAE,
     MOTIONCRAFTER_MODEL_SET_SCHEMA,
+    PinnedModelSource,
     PinnedMotionCrafterModelSet,
     PinnedMotionCrafterRunConfig,
     _pinned_image_vae_proxy,
@@ -144,6 +145,50 @@ def test_remote_model_sources_require_exact_revisions(tmp_path: Path) -> None:
             base_pipeline_reference="stabilityai/stable-video-diffusion-img2vid-xt",
             base_pipeline_revision="c" * 40,
         )
+
+
+def test_remote_source_uses_exact_selective_cached_snapshot(tmp_path: Path) -> None:
+    revision = "a" * 40
+    cache = tmp_path / "cache"
+    snapshot = cache / "models--owner--model" / "snapshots" / revision
+    (snapshot / "scheduler").mkdir(parents=True)
+    (snapshot / "model_index.json").write_text("{}", encoding="utf-8")
+    (snapshot / "scheduler" / "scheduler_config.json").write_text(
+        "{}",
+        encoding="utf-8",
+    )
+    source = PinnedModelSource.inspect(
+        "owner/model",
+        role="base-pipeline",
+        revision=revision,
+    )
+
+    assert source.from_pretrained_arguments(
+        cache_directory=cache,
+        required_members=("model_index.json", "scheduler/scheduler_config.json"),
+    ) == (str(snapshot.resolve()), {})
+
+
+def test_remote_source_rejects_incomplete_cached_snapshot(tmp_path: Path) -> None:
+    revision = "a" * 40
+    snapshot = (
+        tmp_path
+        / "cache"
+        / "models--owner--model"
+        / "snapshots"
+        / revision
+    )
+    snapshot.mkdir(parents=True)
+    source = PinnedModelSource.inspect(
+        "owner/model",
+        role="base-pipeline",
+        revision=revision,
+    )
+
+    assert source.from_pretrained_arguments(
+        cache_directory=tmp_path / "cache",
+        required_members=("model_index.json",),
+    ) == ("owner/model", {"revision": revision})
 
 
 def test_pinned_model_set_binds_all_nested_models_into_calibration_identity(
