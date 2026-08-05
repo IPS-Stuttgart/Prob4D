@@ -58,6 +58,42 @@ jobs:
           end = workflow.index(end_marker, start)
           payload = textwrap.dedent(workflow[start:end])
           exec(compile(payload, str(workflow_path), 'exec'))
+
+          source_path = Path('src/prob4d/causal_tracklets.py')
+          source = source_path.read_text(encoding='utf-8')
+          replacements = (
+              (
+                  '        expected_tracks = np.arange(len(unique_tracks), dtype=np.int64)\n',
+                  '        expected_tracks: IntArray = np.arange(\n'
+                  '            len(unique_tracks), dtype=np.int64\n'
+                  '        )\n',
+              ),
+              (
+                  '        result = np.ones(self.observation_count, dtype=np.float64)\n',
+                  '        result: FloatArray = np.ones(\n'
+                  '            self.observation_count, dtype=np.float64\n'
+                  '        )\n',
+              ),
+              (
+                  '            link_logs = np.full(len(links), -np.inf, dtype=np.float64)\n',
+                  '            link_logs: FloatArray = np.full(\n'
+                  '                len(links), -np.inf, dtype=np.float64\n'
+                  '            )\n',
+              ),
+              (
+                  '        reliability_grid = np.ones(tracklets.source_shape, dtype=np.float64)\n',
+                  '        reliability_grid: FloatArray = np.ones(\n'
+                  '            tracklets.source_shape, dtype=np.float64\n'
+                  '        )\n',
+              ),
+          )
+          for old, new in replacements:
+              if source.count(old) != 1:
+                  raise SystemExit(
+                      f'expected one typed repair target, found {source.count(old)}: {old!r}'
+                  )
+              source = source.replace(old, new)
+          source_path.write_text(source, encoding='utf-8')
           PY
       - name: Validate focused contracts
         run: |
