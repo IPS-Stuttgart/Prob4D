@@ -6,6 +6,14 @@ All notable changes to Prob4D are documented here.
 
 ### Added
 
+- A read-only three-repository installed-wheel release capsule that resolves exact
+  Prob4D, BayesianPhysTwin, and Causal4D revisions, reuses the existing isolated
+  golden path, binds the three wheel SHA-256 digests and execution identity, and
+  emits a deeply validated content-addressed JSON artifact.
+- An explicit MIT license in source and built distributions, SPDX package
+  metadata, a license project URL, and the `Typing :: Typed` classifier.
+- Weekly Dependabot maintenance for Python development tools and immutable
+  GitHub Actions dependencies.
 - A target-free, content-addressed held-out provider promotion protocol that
   freezes complete object/session splits, source/model/calibration identities,
   seven required comparison roles, BayesianPhysTwin guard settings, bootstrap
@@ -60,6 +68,13 @@ All notable changes to Prob4D are documented here.
 
 ### Changed
 
+- The causal observation-export guide now uses the explicit calibrated provider-v2
+  command, includes both required covariance calibration artifacts, and names the
+  frozen provider-v1 and exploratory alternatives without invoking the deliberately
+  disabled ambiguous route.
+- Release metadata and source-distribution audits now require the license,
+  dependency-maintenance policy, ecosystem capsule workflow, capsule tooling, and
+  representative capsule regressions.
 - Claim-bearing prediction/calibration compatibility now retains the historical
   version-1 model identifier for legacy common-seed runs and uses a version-2
   identifier for `derived-per-call` runs, preventing silent calibration reuse
