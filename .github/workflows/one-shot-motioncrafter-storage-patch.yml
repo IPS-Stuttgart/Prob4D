@@ -1,0 +1,46 @@
+name: One-shot MotionCrafter storage patch
+
+on:
+  push:
+    branches:
+      - agent/harden-prediction-storage-evidence
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/harden-prediction-storage-evidence
+          fetch-depth: 0
+      - name: Preserve native float32 prediction storage
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/prob4d/motioncrafter.py")
+          source = path.read_text(encoding="utf-8")
+          old = '''                scene_flow=arrays.get("scene_flow"),
+                          deform_mask=arrays.get("deform_mask"),
+                      )
+          '''
+          new = '''                scene_flow=arrays.get("scene_flow"),
+                          deform_mask=arrays.get("deform_mask"),
+                          dense_storage_dtype="float32",
+                      )
+          '''
+          if source.count(old) != 1:
+              raise SystemExit("MotionCrafter PredictionWindow construction changed")
+          path.write_text(source.replace(old, new), encoding="utf-8")
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/one-shot-motioncrafter-storage-patch.yml
+          git add src/prob4d/motioncrafter.py
+          git commit -m "Preserve MotionCrafter float32 storage semantics"
+          git push origin HEAD:agent/harden-prediction-storage-evidence
