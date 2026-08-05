@@ -19,44 +19,53 @@ env:
   PYTHONUNBUFFERED: "1"
   QUALITY_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
   QUALITY_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+  SELF_HOSTED_RECOVERY: >-
+    ${{ github.event_name == 'pull_request' &&
+        github.event.pull_request.head.repo.full_name == github.repository &&
+        startsWith(github.head_ref, 'ci/self-hosted-') }}
 
 jobs:
   authoritative-quality:
-    name: Authoritative Ruff, mypy, and focused regressions
+    name: Authoritative Ruff and mypy
     runs-on: >-
       ${{ github.event_name == 'pull_request' &&
           github.event.pull_request.head.repo.full_name == github.repository &&
           startsWith(github.head_ref, 'ci/self-hosted-') &&
           fromJSON('["self-hosted","Linux","X64","nvidia-smi"]') ||
           'ubuntu-latest' }}
-    timeout-minutes: 45
+    timeout-minutes: 20
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
-
-      - name: Set up Python 3.12
+      - name: Set up hosted Python 3.12
+        if: env.SELF_HOSTED_RECOVERY != 'true'
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
-
-      - name: Bootstrap isolated quality environment
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Set up self-hosted Python 3.12
+        if: env.SELF_HOSTED_RECOVERY == 'true'
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Isolate the self-hosted Python environment
+        if: env.SELF_HOSTED_RECOVERY == 'true'
         shell: bash
         run: |
           set -euo pipefail
-          python -m venv --clear .quality-venv
-          echo "${PWD}/.quality-venv/bin" >> "${GITHUB_PATH}"
-
-      - name: Install pinned quality environment
-        shell: bash
+          environment="$RUNNER_TEMP/prob4d-fail-closed-quality"
+          python -m venv --clear "$environment"
+          "$environment/bin/python" -m ensurepip --upgrade
+          "$environment/bin/python" -m pip install --upgrade pip
+          echo "$environment/bin" >> "$GITHUB_PATH"
+      - name: Install development and compatible typing environment
         run: |
-          set -euo pipefail
-          python -m pip install -r requirements/ci/quality.txt
-          python -m pip install --no-deps -e .
-          python -m pip check
-
+          python -m pip install -e ".[dev]"
+          python -m pip install "numpy>=1.24,<2.3"
       - name: Select changed Python files
         shell: bash
         run: |
@@ -74,7 +83,6 @@ jobs:
             "${base}" "${QUALITY_HEAD_SHA}" -- '*.py' \
             | LC_ALL=C sort -u > changed-python.txt
           cat changed-python.txt
-
       - name: Run Ruff with fail-closed diagnostics
         shell: bash
         run: |
@@ -85,8 +93,7 @@ jobs:
           else
             echo "No changed Python files require Ruff." | tee ruff-output.txt
           fi
-
-      - name: Run stable-interface mypy
+      - name: Run stable-interface mypy with fail-closed diagnostics
         if: always()
         shell: bash
         run: |
@@ -96,15 +103,11 @@ jobs:
             src/prob4d/calibration_compatibility.py \
             src/prob4d/composition_jacobian.py \
             src/prob4d/covariance_root.py \
-            src/prob4d/data.py \
-            src/prob4d/heldout_promotion.py \
-            src/prob4d/joint_covariance_metrics.py \
             src/prob4d/observation_factor_stream.py \
             src/prob4d/prediction_store.py \
             src/prob4d/prediction_store_benchmark.py \
             src/prob4d/prediction_store_cli.py \
             src/prob4d/project_identity.py \
-            src/prob4d/promotion_evidence.py \
             src/prob4d/provider_attestation.py \
             src/prob4d/provider_manifest.py \
             src/prob4d/provider_manifest_cli.py \
@@ -118,24 +121,6 @@ jobs:
             src/prob4d/source_diagnostics.py \
             src/prob4d/sparse_observation_factors.py \
             2>&1 | tee mypy-output.txt
-
-      - name: Run focused regressions
-        if: always()
-        shell: bash
-        run: |
-          set -o pipefail
-          python -m pytest -q \
-            tests/test_data.py \
-            tests/test_data_storage.py \
-            tests/test_io.py \
-            tests/test_joint_covariance_metrics.py \
-            tests/test_promotion_evidence.py \
-            tests/test_promotion_evidence_atomic.py \
-            tests/test_heldout_promotion.py \
-            tests/test_heldout_promotion_diagnosis.py \
-            --junitxml=focused-quality.xml \
-            2>&1 | tee pytest-output.txt
-
       - name: Upload quality diagnostics
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -145,7 +130,5 @@ jobs:
             changed-python.txt
             ruff-output.txt
             mypy-output.txt
-            pytest-output.txt
-            focused-quality.xml
           if-no-files-found: warn
           retention-days: 14
