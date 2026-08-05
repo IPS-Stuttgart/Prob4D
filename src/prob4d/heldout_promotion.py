@@ -51,6 +51,11 @@ from ._heldout_promotion_report import (
     promotion_report_from_dict,
     write_promotion_report,
 )
+from .promotion_evidence import (
+    build_promotion_evidence_card,
+    load_promotion_evidence_card,
+    write_promotion_evidence_card,
+)
 
 
 def _freeze(arguments: Sequence[str]) -> int:
@@ -92,13 +97,21 @@ def _run(arguments: Sequence[str]) -> int:
         provider_report,
         provider_report_sha256=hashlib.sha256(provider_bytes).hexdigest(),
     )
+    evidence_card = build_promotion_evidence_card(lock.to_dict(), report.to_dict())
     parsed.output_dir.mkdir(parents=True, exist_ok=True)
     query_output = parsed.output_dir / "query_results.sealed.json"
     report_output = parsed.output_dir / "promotion_report.json"
     markdown_output = parsed.output_dir / "promotion_report.md"
-    existing_outputs = [
-        path for path in (query_output, report_output, markdown_output) if path.exists()
-    ]
+    evidence_output = parsed.output_dir / "promotion_evidence_card.json"
+    evidence_markdown_output = parsed.output_dir / "promotion_evidence_card.md"
+    retained_outputs = (
+        query_output,
+        report_output,
+        markdown_output,
+        evidence_output,
+        evidence_markdown_output,
+    )
+    existing_outputs = [path for path in retained_outputs if path.exists()]
     if existing_outputs:
         raise FileExistsError(
             "held-out promotion output already exists: "
@@ -107,6 +120,11 @@ def _run(arguments: Sequence[str]) -> int:
     write_query_results(query_results, query_output)
     write_promotion_report(report, report_output)
     _write_report_markdown(lock, report, markdown_output)
+    write_promotion_evidence_card(
+        evidence_card,
+        evidence_output,
+        evidence_markdown_output,
+    )
     print(report_output)
     if parsed.require_pass and not report.overall_passed:
         return 3
@@ -122,6 +140,11 @@ def _verify(arguments: Sequence[str]) -> int:
     parser.add_argument("--provider-report", type=Path, required=True)
     parser.add_argument("--query-results", type=Path, required=True)
     parser.add_argument("--report", type=Path, required=True)
+    parser.add_argument(
+        "--evidence-card",
+        type=Path,
+        help="optionally verify the derived paper-facing evidence card",
+    )
     parsed = parser.parse_args(arguments)
     lock = load_promotion_lock(parsed.lock)
     query_results = load_query_results(parsed.query_results)
@@ -138,12 +161,23 @@ def _verify(arguments: Sequence[str]) -> int:
     )
     if observed.to_dict() != replayed.to_dict():
         raise ValueError("held-out promotion report does not match deterministic replay")
+    replayed_evidence = build_promotion_evidence_card(
+        lock.to_dict(),
+        observed.to_dict(),
+    )
+    if parsed.evidence_card is not None:
+        observed_evidence = load_promotion_evidence_card(parsed.evidence_card)
+        if observed_evidence != replayed_evidence:
+            raise ValueError(
+                "promotion evidence card does not match deterministic replay"
+            )
     print(
         json.dumps(
             {
                 "promotion_lock_id": lock.promotion_lock_id,
                 "query_results_id": query_results.query_results_id,
                 "report_id": observed.report_id,
+                "evidence_card_id": replayed_evidence["evidence_card_id"],
                 "overall_passed": observed.overall_passed,
             },
             sort_keys=True,
@@ -174,7 +208,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     subparsers.add_parser(
         "verify",
         add_help=False,
-        help="replay a retained promotion report",
+        help="replay a retained promotion report and optional evidence card",
     )
     arguments = list(sys.argv[1:] if argv is None else argv)
     if not arguments or arguments[0] in {"-h", "--help"}:
@@ -206,8 +240,10 @@ __all__ = [
     "HeldoutProviderPromotionReportV1",
     "PromotionArmV1",
     "PromotionQueryRowV1",
+    "build_promotion_evidence_card",
     "build_query_results",
     "evaluate_heldout_promotion",
+    "load_promotion_evidence_card",
     "load_promotion_lock",
     "load_promotion_report",
     "load_query_results",
@@ -216,6 +252,7 @@ __all__ = [
     "promotion_report_from_dict",
     "query_results_from_dict",
     "query_results_from_raw",
+    "write_promotion_evidence_card",
     "write_promotion_lock",
     "write_promotion_report",
     "write_query_results",
