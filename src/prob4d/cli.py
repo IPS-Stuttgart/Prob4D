@@ -39,6 +39,11 @@ _ROUTES: Final[dict[Route, tuple[str, str, str]]] = {
         "main",
         "run calibration-separated correlated gauge-graph Monte Carlo study",
     ),
+    ("diagnostic", "joint-covariance"): (
+        "prob4d.joint_covariance_metrics",
+        "main",
+        "evaluate matched residuals under conditional plus low-rank covariance",
+    ),
     ("evaluate", "provider"): (
         "prob4d.provider_evaluation",
         "main",
