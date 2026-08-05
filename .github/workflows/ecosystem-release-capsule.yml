@@ -100,14 +100,6 @@ jobs:
             bayesian-phystwin/pyproject.toml
             causal4d/pyproject.toml
 
-      - name: Validate capsule tooling
-        run: |
-          set -euo pipefail
-          python -m pip install --disable-pip-version-check pytest
-          python -m pytest -q prob4d/tests/test_ecosystem_release_capsule.py
-          python -m py_compile \
-            prob4d/scripts/ci/build_ecosystem_release_capsule.py
-
       - name: Run the installed-wheel three-repository golden path
         shell: bash
         run: |
@@ -117,6 +109,17 @@ jobs:
             prob4d \
             causal4d \
             2>&1 | tee ecosystem-golden-path.log
+
+      - name: Validate capsule tooling
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check pytest
+          python -m pytest -p no:cacheprovider -q \
+            prob4d/tests/test_ecosystem_release_capsule.py
+          python -m py_compile \
+            prob4d/scripts/ci/build_ecosystem_release_capsule.py
 
       - name: Build and verify the content-addressed capsule
         shell: bash
