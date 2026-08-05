@@ -44,6 +44,16 @@ _ROUTES: Final[dict[Route, tuple[str, str, str]]] = {
         "main",
         "evaluate paired provider artifacts across held-out groups",
     ),
+    ("experiment", "heldout-provider"): (
+        "prob4d.heldout_promotion",
+        "main",
+        "freeze, run, and verify the held-out Prob4D-to-BayesianPhysTwin gate",
+    ),
+    ("identity",): (
+        "prob4d.material_identity_cli",
+        "main",
+        "build, validate, and marginalize material-identity artifacts",
+    ),
     ("motioncrafter",): (
         "prob4d.motioncrafter_safe",
         "main",
