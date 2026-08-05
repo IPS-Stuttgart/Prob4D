@@ -197,9 +197,7 @@ def test_diagnostic_evaluates_the_exact_hashed_bytes(
     report = joint_metrics.run_joint_covariance_diagnostic(source, output)
 
     assert report["source_sha256"] == hashlib.sha256(original_payload).hexdigest()
-    assert report["evaluation"]["equal_group_mean"]["normalized_nees"] == pytest.approx(
-        0.0
-    )
+    assert report["evaluation"]["equal_group_mean"]["normalized_nees"] == pytest.approx(0.0)
 
 
 def test_report_publication_preserves_a_concurrent_destination(
