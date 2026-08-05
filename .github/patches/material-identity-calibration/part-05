@@ -1,0 +1,349 @@
+NTITY_CALIBRATION_CLAIM_BOUNDARY,
++        }
++
++    def to_record(self) -> dict[str, object]:
++        return {**self.descriptor(), "calibration_id": self.calibration_id}
++
++
++def _candidate_margin(
++    hypothesis: MaterialIdentityHypothesisV1,
++    alternatives: Sequence[MaterialIdentityHypothesisV1],
++) -> float:
++    competing = [
++        candidate.compatibility_score
++        for candidate in alternatives
++        if candidate.hypothesis_id != hypothesis.hypothesis_id
++    ]
++    return hypothesis.compatibility_score - max(competing, default=0.0)
++
++
++def _candidate_features(
++    hypothesis: MaterialIdentityHypothesisV1,
++    *,
++    alternatives: Sequence[MaterialIdentityHypothesisV1],
++    source_window_lag: int,
++) -> np.ndarray:
++    return np.asarray(
++        [
++            0.0,
++            hypothesis.compatibility_score,
++            _candidate_margin(hypothesis, alternatives),
++            np.log1p(hypothesis.effective_support),
++            np.log1p(1000.0 * hypothesis.weighted_rms_m),
++            np.log1p(1000.0 * hypothesis.maximum_distance_m),
++            np.log1p(hypothesis.normalized_rms),
++            float(len(hypothesis.shared_frame_indices)),
++            float(hypothesis.selected_by_pairwise_gate),
++            float(source_window_lag),
++            0.0,
++            0.0,
++            0.0,
++            0.0,
++            0.0,
++        ],
++        dtype=np.float64,
++    )
++
++
++def _null_features(alternatives: Sequence[MaterialIdentityHypothesisV1]) -> np.ndarray:
++    if alternatives:
++        scores = sorted(
++            (candidate.compatibility_score for candidate in alternatives),
++            reverse=True,
++        )
++        best = scores[0]
++        margin = best - (scores[1] if len(scores) > 1 else 0.0)
++        best_support = max(candidate.effective_support for candidate in alternatives)
++        any_selected = any(candidate.selected_by_pairwise_gate for candidate in alternatives)
++    else:
++        best = 0.0
++        margin = 0.0
++        best_support = 0.0
++        any_selected = False
++    return np.asarray(
++        [
++            1.0,
++            0.0,
++            0.0,
++            0.0,
++            0.0,
++            0.0,
++            0.0,
++            0.0,
++            0.0,
++            0.0,
++            best,
++            margin,
++            np.log1p(best_support),
++            float(len(alternatives)),
++            float(any_selected),
++        ],
++        dtype=np.float64,
++    )
++
++
++def _choice_sets_for_update(
++    stream: MaterialIdentityHypothesisStreamV1,
++    update: MaterialIdentityStreamUpdateV1,
++    *,
++    association_rule_id: str,
++    tracklet_producer_revision: str,
++    association_revision: str,
++) -> tuple[MaterialIdentityChoiceSetV1, ...]:
++    window_order = (
++        stream.root_window_id,
++        *(value.target_window_id for value in stream.updates[: update.update_index + 1]),
++    )
++    window_position = {window_id: index for index, window_id in enumerate(window_order)}
++    target_track_counts = {summary.target_track_count for summary in update.associations}
++    if len(target_track_counts) != 1:
++        raise ValueError("association summaries disagree on target track domain")
++    target_track_count = next(iter(target_track_counts))
++    by_target: dict[int, list[MaterialIdentityHypothesisV1]] = {
++        track_id: [] for track_id in range(target_track_count)
++    }
++    for summary in update.associations:
++        for hypothesis in summary.hypotheses:
++            by_target[hypothesis.target_track_id].append(hypothesis)
++    choice_sets: list[MaterialIdentityChoiceSetV1] = []
++    for target_track_id in range(target_track_count):
++        alternatives = tuple(
++            sorted(
++                by_target[target_track_id],
++                key=lambda value: (
++                    window_position[value.source_window_id],
++                    value.source_track_id,
++                    cast(str, value.association_result_id),
++                ),
++            )
++        )
++        target = LocalTrackEndpoint(
++            window_id=update.target_window_id,
++            track_id=target_track_id,
++        )
++        candidates: list[MaterialIdentityChoiceCandidateV1] = [
++            MaterialIdentityChoiceCandidateV1(
++                source_endpoint=None,
++                association_result_id=None,
++                source_score=None,
++                features=_null_features(alternatives),
++                metadata={"hypothesis_kind": "newest-window-null"},
++            )
++        ]
++        for hypothesis in alternatives:
++            lag = window_position[update.target_window_id] - window_position[
++                hypothesis.source_window_id
++            ]
++            if lag < 1:
++                raise ValueError("source hypothesis does not precede target window")
++            candidates.append(
++                MaterialIdentityChoiceCandidateV1(
++                    source_endpoint=LocalTrackEndpoint(
++                        window_id=hypothesis.source_window_id,
++                        track_id=hypothesis.source_track_id,
++                    ),
++                    association_result_id=hypothesis.association_result_id,
++                    source_score=hypothesis.compatibility_score,
++                    features=_candidate_features(
++                        hypothesis,
++                        alternatives=alternatives,
++                        source_window_lag=lag,
++                    ),
++                    metadata={
++                        "hypothesis_id": hypothesis.hypothesis_id,
++                        "shared_frame_indices": list(hypothesis.shared_frame_indices),
++                    },
++                )
++            )
++        choice_sets.append(
++            MaterialIdentityChoiceSetV1(
++                target_endpoint=target,
++                window_order=tuple(window_order),
++                causal_frame_stop=update.causal_frame_stop,
++                association_rule_id=association_rule_id,
++                tracklet_producer_revision=tracklet_producer_revision,
++                association_revision=association_revision,
++                source_stream_artifact_id=cast(str, stream.artifact_id),
++                source_update_id=cast(str, update.update_id),
++                feature_names=MATERIAL_IDENTITY_FEATURE_NAMES_V1,
++                candidates=tuple(candidates),
++                metadata={
++                    "sequence_id": stream.sequence_id,
++                    "case_id": stream.case_id,
++                    "stream_id": stream.stream_id,
++                    "update_index": update.update_index,
++                    "source_repository": stream.source_repository,
++                    "source_revision": stream.source_revision,
++                },
++            )
++        )
++    return tuple(choice_sets)
++
++
++def build_material_identity_choice_sets(
++    stream: MaterialIdentityHypothesisStreamV1,
++    *,
++    association_rule_id: str,
++    tracklet_producer_revision: str | None = None,
++    association_revision: str | None = None,
++    update_indices: Sequence[int] | None = None,
++    metadata: Mapping[str, Any] | None = None,
++) -> MaterialIdentityChoiceSetCollectionV1:
++    """Build complete null-plus-linked source-only choice sets from a stream."""
++
++    if not isinstance(stream, MaterialIdentityHypothesisStreamV1):
++        raise TypeError("stream must be MaterialIdentityHypothesisStreamV1")
++    if not stream.updates:
++        raise ValueError("material-identity stream has no updates")
++    rule_id = _strict_digest(
++        association_rule_id,
++        name="association_rule_id",
++        length=_SHA256_LENGTH,
++    )
++    tracklet_revision = _strict_digest(
++        (
++            stream.source_revision
++            if tracklet_producer_revision is None
++            else tracklet_producer_revision
++        ),
++        name="tracklet_producer_revision",
++        length=_GIT_SHA_LENGTH,
++    )
++    association_source_revision = _strict_digest(
++        stream.source_revision if association_revision is None else association_revision,
++        name="association_revision",
++        length=_GIT_SHA_LENGTH,
++    )
++    if update_indices is None:
++        selected_indices = tuple(range(len(stream.updates)))
++    else:
++        selected_indices = tuple(
++            sorted(
++                {
++                    _strict_integer(value, name="update_index")
++                    for value in update_indices
++                }
++            )
++        )
++        if not selected_indices:
++            raise ValueError("update_indices must select at least one update")
++        if selected_indices[-1] >= len(stream.updates):
++            raise ValueError("update_indices contains an unavailable update")
++    choice_sets = tuple(
++        choice_set
++        for index in selected_indices
++        for choice_set in _choice_sets_for_update(
++            stream,
++            stream.updates[index],
++            association_rule_id=rule_id,
++            tracklet_producer_revision=tracklet_revision,
++            association_revision=association_source_revision,
++        )
++    )
++    collection_metadata: dict[str, Any] = {
++        "source_stream_artifact_ids": [cast(str, stream.artifact_id)],
++        "source_update_indices": list(selected_indices),
++        "target_outcomes_used": False,
++    }
++    if metadata is not None:
++        supplied = plain_json(
++            _target_free_metadata(metadata, name="choice collection metadata")
++        )
++        overlap = sorted(set(collection_metadata) & set(supplied))
++        if overlap:
++            raise ValueError(f"collection metadata overrides reserved fields: {overlap}")
++        collection_metadata.update(supplied)
++    return MaterialIdentityChoiceSetCollectionV1(
++        feature_names=MATERIAL_IDENTITY_FEATURE_NAMES_V1,
++        association_rule_id=rule_id,
++        tracklet_producer_revision=tracklet_revision,
++        association_revision=association_source_revision,
++        choice_sets=choice_sets,
++        metadata=collection_metadata,
++    )
++
++
++def merge_material_identity_choice_sets(
++    collections: Sequence[MaterialIdentityChoiceSetCollectionV1],
++    *,
++    metadata: Mapping[str, Any] | None = None,
++) -> MaterialIdentityChoiceSetCollectionV1:
++    """Merge independently produced collections under one exact semantics."""
++
++    values = tuple(collections)
++    if not values or any(
++        not isinstance(value, MaterialIdentityChoiceSetCollectionV1) for value in values
++    ):
++        raise ValueError("collections must contain at least one choice-set collection")
++    reference = values[0]
++    for value in values[1:]:
++        if (
++            value.feature_names != reference.feature_names
++            or value.association_rule_id != reference.association_rule_id
++            or value.tracklet_producer_revision != reference.tracklet_producer_revision
++            or value.association_revision != reference.association_revision
++        ):
++            raise ValueError("choice-set collection semantics differ")
++    merged_metadata: dict[str, Any] = {
++        "source_collection_ids": sorted(cast(str, value.collection_id) for value in values),
++        "target_outcomes_used": False,
++    }
++    if metadata is not None:
++        supplied = plain_json(
++            _target_free_metadata(metadata, name="merged choice collection metadata")
++        )
++        overlap = sorted(set(merged_metadata) & set(supplied))
++        if overlap:
++            raise ValueError(f"merged metadata overrides reserved fields: {overlap}")
++        merged_metadata.update(supplied)
++    return MaterialIdentityChoiceSetCollectionV1(
++        feature_names=reference.feature_names,
++        association_rule_id=reference.association_rule_id,
++        tracklet_producer_revision=reference.tracklet_producer_revision,
++        association_revision=reference.association_revision,
++        choice_sets=tuple(
++            choice_set for collection in values for choice_set in collection.choice_sets
++        ),
++        metadata=merged_metadata,
++    )
++
++
++def create_material_identity_label_set(
++    collection: MaterialIdentityChoiceSetCollectionV1,
++    selections: Mapping[str, tuple[str, str]],
++    *,
++    label_definition: str,
++    group_definition: str,
++    metadata: Mapping[str, Any] | None = None,
++) -> MaterialIdentityLabelSetV1:
++    """Create a complete source/calibration label set from exact candidate IDs."""
++
++    if not isinstance(collection, MaterialIdentityChoiceSetCollectionV1):
++        raise TypeError("collection must be MaterialIdentityChoiceSetCollectionV1")
++    if not isinstance(selections, Mapping):
++        raise TypeError("selections must map choice-set IDs to (candidate ID, group ID)")
++    choice_sets = collection.by_id()
++    if set(selections) != set(choice_sets):
++        missing = sorted(set(choice_sets) - set(selections))
++        extra = sorted(set(selections) - set(choice_sets))
++        raise ValueError(f"selection coverage changed: missing={missing}, extra={extra}")
++    labels: list[MaterialIdentityChoiceLabelV1] = []
++    for choice_set_id, choice_set in choice_sets.items():
++        selection = selections[choice_set_id]
++        if type(selection) is not tuple or len(selection) != 2:
++            raise ValueError("every selection must be a (candidate_id, group_id) tuple")
++        candidate_id, group_id = selection
++        if candidate_id not in choice_set.candidate_ids:
++            raise ValueError("selected candidate does not belong to its choice set")
++        labels.append(
++            MaterialIdentityChoiceLabelV1(
++                choice_set_id=choice_set_id,
++                chosen_candidate_id=candidate_id,
++                group_id=group_id,
++            )
++        )
++    return MaterialIdentityLabelSetV1(
++        choice_set_collection_id=cast(str, collection.collection_id),
++        labels=tuple(labels),
++        label_definition=label_definition,
++
