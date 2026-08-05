@@ -90,13 +90,19 @@ prob4d experiment heldout-provider run promotion-lock.json \
   --require-pass
 ```
 
-The command refuses an output directory containing any of its three retained
-files, so a repeated invocation cannot silently replace an opened result. It
-writes:
+The command refuses an output directory containing any retained output, so a
+repeated invocation cannot silently replace an opened result. It writes:
 
 - `query_results.sealed.json`, with canonical ordering and a content identity;
-- `promotion_report.json`, with both provider and physical-query decisions; and
-- `promotion_report.md`, a compact gate table.
+- `promotion_report.json`, with both provider and physical-query decisions;
+- `promotion_report.md`, a compact gate table;
+- `promotion_evidence_card.json`, a content-addressed paper-facing summary; and
+- `promotion_evidence_card.md`, the corresponding concise evidence card.
+
+The evidence card is derived only from the validated lock and deterministic
+promotion report. It retains exact source revisions, frozen artifact IDs, cohort
+counts, comparison arms, the paired query effect and interval, guard outcomes,
+and explicit non-claims. It does not alter the promotion report identity.
 
 Without `--require-pass`, a scientifically valid negative result still returns
 exit code 0 after writing all evidence. With it, a valid failed gate returns exit
@@ -108,12 +114,14 @@ code 3.
 prob4d experiment heldout-provider verify promotion-lock.json \
   --provider-report outputs/provider/provider_evaluation.json \
   --query-results outputs/promotion/query_results.sealed.json \
-  --report outputs/promotion/promotion_report.json
+  --report outputs/promotion/promotion_report.json \
+  --evidence-card outputs/promotion/promotion_evidence_card.json
 ```
 
-Verification revalidates every artifact and recomputes the deterministic report.
-Any changed row, method set, target group, fallback identity, bootstrap setting,
-or report field fails closed.
+Verification revalidates every artifact, recomputes the deterministic report, and
+optionally requires the retained evidence card to match its replay. Any changed
+row, method set, target group, fallback identity, bootstrap setting, report field,
+or evidence-card field fails closed.
 
 ## Conjunctive physical-query gates
 
