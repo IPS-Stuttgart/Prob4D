@@ -338,6 +338,8 @@ jobs:
           "$bin/prob4d" provider manifest --help
           "$bin/prob4d" provider manifest --api-version 2 --help
           "$bin/prob4d" evaluate provider --help
+          "$bin/prob4d" experiment heldout-provider --help
+          "$bin/prob4d" identity --help
           "$bin/prob4d" observation export --help
           "$bin/prob4d" observation export-v1 --help
           "$bin/prob4d" observation export-calibrated --help
