@@ -18,6 +18,7 @@ from dataclasses import dataclass
 import numpy as np
 from numpy.typing import NDArray
 
+from ._scientific_scalars import require_genuine_integer
 from .alignment import WindowAlignment, estimate_sim3_robust
 from .data import PredictionWindow
 from .sim3 import Sim3
@@ -53,36 +54,25 @@ class CrossFittedDisagreementReport:
             "overlap_points": self.overlap_points,
             "evaluated_points": self.evaluated_points,
             "cluster_size": self.cluster_size,
-            "maximum_training_correspondences": (
-                self.maximum_training_correspondences
-            ),
+            "maximum_training_correspondences": (self.maximum_training_correspondences),
             "seed": self.seed,
         }
+        minimums = {
+            "requested_folds": 2,
+            "cluster_size": 1,
+            "maximum_training_correspondences": 4,
+        }
         for name, value in integer_fields.items():
-            normalized = int(value)
-            if normalized != value:
-                raise ValueError(f"{name} must be an integer")
+            normalized = require_genuine_integer(
+                value,
+                name=name,
+                minimum=minimums.get(name, 0),
+            )
             object.__setattr__(self, name, normalized)
-        if self.alignment_count < 0:
-            raise ValueError("alignment_count must be non-negative")
-        if self.requested_folds < 2:
-            raise ValueError("requested_folds must be at least two")
-        if self.candidate_folds < 0 or self.fitted_folds < 0:
-            raise ValueError("fold counts must be non-negative")
-        if self.skipped_folds < 0 or self.skipped_alignments < 0:
-            raise ValueError("skipped counts must be non-negative")
         if self.fitted_folds + self.skipped_folds != self.candidate_folds:
             raise ValueError("fitted and skipped folds must sum to candidate_folds")
-        if self.overlap_points < 0 or self.evaluated_points < 0:
-            raise ValueError("point counts must be non-negative")
         if self.evaluated_points > self.overlap_points:
             raise ValueError("evaluated_points cannot exceed overlap_points")
-        if self.cluster_size < 1:
-            raise ValueError("cluster_size must be positive")
-        if self.maximum_training_correspondences < 4:
-            raise ValueError(
-                "maximum_training_correspondences must be at least four"
-            )
 
     @property
     def evaluated_fraction(self) -> float:
@@ -106,9 +96,7 @@ class CrossFittedDisagreementReport:
             "evaluated_points": self.evaluated_points,
             "evaluated_fraction": self.evaluated_fraction,
             "cluster_size": self.cluster_size,
-            "maximum_training_correspondences": (
-                self.maximum_training_correspondences
-            ),
+            "maximum_training_correspondences": (self.maximum_training_correspondences),
             "seed": self.seed,
         }
 
@@ -122,18 +110,6 @@ class _OverlapRows:
     cluster_ids: IntArray
     reference_rays: NDArray[np.floating]
     moving_rays: NDArray[np.floating]
-
-
-def _validated_integer(
-    value: int,
-    *,
-    name: str,
-    minimum: int,
-) -> int:
-    normalized = int(value)
-    if normalized != value or normalized < minimum:
-        raise ValueError(f"{name} must be an integer of at least {minimum}")
-    return normalized
 
 
 def _clustered_overlap_rows(
@@ -153,17 +129,11 @@ def _clustered_overlap_rows(
     for frame in alignment.common_frames:
         reference_index = reference.local_index(int(frame))
         moving_index = moving.local_index(int(frame))
-        mask = (
-            reference.valid_mask[reference_index]
-            & moving.valid_mask[moving_index]
-        )
+        mask = reference.valid_mask[reference_index] & moving.valid_mask[moving_index]
         rows, columns = np.nonzero(mask)
         if not rows.size:
             continue
-        tile_ids = (
-            rows // cluster_size * tile_columns
-            + columns // cluster_size
-        )
+        tile_ids = rows // cluster_size * tile_columns + columns // cluster_size
         _, compact = np.unique(tile_ids, return_inverse=True)
         cluster_ids = compact.astype(np.int64) + cluster_offset
         cluster_offset += int(np.max(compact) + 1)
@@ -233,12 +203,8 @@ def _training_correspondences(
             continue
         rows = record.rows[selected]
         columns = record.columns[selected]
-        source_parts.append(
-            moving.point_map[record.moving_index][rows, columns]
-        )
-        target_parts.append(
-            reference.point_map[record.reference_index][rows, columns]
-        )
+        source_parts.append(moving.point_map[record.moving_index][rows, columns])
+        target_parts.append(reference.point_map[record.reference_index][rows, columns])
     if not source_parts:
         return np.empty((0, 3)), np.empty((0, 3))
     return np.concatenate(source_parts), np.concatenate(target_parts)
@@ -325,20 +291,18 @@ def accumulate_cross_fitted_disagreement(
     diagnostic is promoted into a claim-bearing provider export.
     """
 
-    fold_count = _validated_integer(folds, name="folds", minimum=2)
-    cluster_width = _validated_integer(
+    fold_count = require_genuine_integer(folds, name="folds", minimum=2)
+    cluster_width = require_genuine_integer(
         cluster_size,
         name="cluster_size",
         minimum=1,
     )
-    maximum = _validated_integer(
+    maximum = require_genuine_integer(
         maximum_training_correspondences,
         name="maximum_training_correspondences",
         minimum=4,
     )
-    normalized_seed = int(seed)
-    if normalized_seed != seed:
-        raise ValueError("seed must be an integer")
+    normalized_seed = require_genuine_integer(seed, name="seed", minimum=0)
     required_window_ids = {
         window_id
         for alignment in alignments
@@ -349,8 +313,7 @@ def accumulate_cross_fitted_disagreement(
         raise KeyError(f"alignment windows are missing: {sorted(missing)}")
 
     evidence = {
-        window_id: DisagreementEvidence.empty(window.shape)
-        for window_id, window in windows.items()
+        window_id: DisagreementEvidence.empty(window.shape) for window_id, window in windows.items()
     }
     candidate_folds = 0
     fitted_folds = 0
@@ -391,9 +354,7 @@ def accumulate_cross_fitted_disagreement(
                 held_out_fold=held_out_fold,
             )
             if source.shape[0] > maximum:
-                generator = np.random.default_rng(
-                    alignment_seed + 97_409 * held_out_fold
-                )
+                generator = np.random.default_rng(alignment_seed + 97_409 * held_out_fold)
                 selected = np.sort(
                     generator.choice(
                         source.shape[0],
@@ -414,9 +375,7 @@ def accumulate_cross_fitted_disagreement(
 
             fold_points = 0
             for record in records:
-                held_out = (
-                    cluster_folds[record.cluster_ids] == held_out_fold
-                )
+                held_out = cluster_folds[record.cluster_ids] == held_out_fold
                 fold_points += _accumulate_rows(
                     evidence,
                     reference,
