@@ -20,14 +20,14 @@ import os
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, TypeAlias, cast
 
 import numpy as np
 from numpy.typing import NDArray
 
 from ._immutable_json import frozen_finite_json_mapping, plain_json
 
-FloatArray = NDArray[np.floating]
+FloatArray: TypeAlias = NDArray[np.floating[Any]]
 
 MATERIAL_IDENTITY_MIXTURE_SCHEMA = "prob4d.material-identity-mixture"
 MATERIAL_IDENTITY_MIXTURE_VERSION = 1
@@ -163,7 +163,7 @@ def _finite_real(
         value, (np.integer, np.floating)
     ):
         raise ValueError(f"{name} must be a real number")
-    result = float(value)
+    result = float(cast(Any, value))
     if not np.isfinite(result):
         raise ValueError(f"{name} must be finite")
     if minimum is not None and result < minimum:
@@ -376,7 +376,9 @@ class MaterialIdentityMixtureV1:
             for candidate in self.candidates
         ):
             raise ValueError("candidates must contain MaterialIdentityCandidateV1 values")
-        candidates = tuple(sorted(self.candidates, key=lambda candidate: candidate.ordering_key()))
+        candidates = tuple(
+            sorted(self.candidates, key=lambda candidate: candidate.ordering_key())
+        )
         null_count = sum(candidate.source_endpoint is None for candidate in candidates)
         if null_count != 1:
             raise ValueError("exactly one null identity hypothesis is required")
@@ -522,7 +524,9 @@ class MarginalizedIdentityLikelihood:
             raise ValueError("posterior_probabilities do not match candidate_ids")
         if not np.all(np.isfinite(probabilities)) or np.any(probabilities < 0.0):
             raise ValueError("posterior_probabilities must be finite and non-negative")
-        if not np.isclose(float(np.sum(probabilities)), 1.0, atol=1e-12, rtol=1e-12):
+        if not np.isclose(
+            float(np.sum(probabilities)), 1.0, atol=1e-12, rtol=1e-12
+        ):
             raise ValueError("posterior_probabilities must sum to one")
         log_marginal = _finite_real(
             self.log_marginal_likelihood,
@@ -604,7 +608,9 @@ class GaussianIdentityMomentMatch:
             float(np.sum(probabilities)), 1.0, atol=1e-12, rtol=1e-12
         ):
             raise ValueError("probabilities must be non-negative and sum to one")
-        if not np.allclose(covariance, within + between, atol=1e-12, rtol=1e-12):
+        if not np.allclose(
+            covariance, within + between, atol=1e-12, rtol=1e-12
+        ):
             raise ValueError("total covariance must equal within plus between covariance")
         for name, value in (
             ("covariance", covariance),
@@ -630,9 +636,17 @@ class GaussianIdentityMomentMatch:
             raise ValueError("unsupported moment-match semantics")
         object.__setattr__(self, "identity_entropy_nats", entropy)
         object.__setattr__(self, "effective_hypothesis_count", effective)
-        object.__setattr__(self, "probabilities", _readonly(probabilities, dtype=np.float64))
+        object.__setattr__(
+            self,
+            "probabilities",
+            _readonly(probabilities, dtype=np.float64),
+        )
         object.__setattr__(self, "mean", _readonly(mean, dtype=np.float64))
-        object.__setattr__(self, "covariance", _readonly(covariance, dtype=np.float64))
+        object.__setattr__(
+            self,
+            "covariance",
+            _readonly(covariance, dtype=np.float64),
+        )
         object.__setattr__(
             self,
             "within_hypothesis_covariance",
@@ -674,7 +688,10 @@ def marginalize_identity_log_likelihoods(
         name="likelihood_power",
         minimum=0.0,
     )
-    prior_log_weights = np.asarray(mixture.normalized_log_weights, dtype=np.float64)
+    prior_log_weights = np.asarray(
+        mixture.normalized_log_weights,
+        dtype=np.float64,
+    )
     if power == 0.0:
         log_terms = prior_log_weights
     else:
@@ -712,12 +729,20 @@ def moment_match_gaussian_identity_hypotheses(
     mean_array = np.asarray(means, dtype=np.float64)
     covariance_array = np.asarray(covariances, dtype=np.float64)
     count = len(candidate_ids)
-    if mean_array.ndim != 2 or mean_array.shape[0] != count or mean_array.shape[1] < 1:
+    if (
+        mean_array.ndim != 2
+        or mean_array.shape[0] != count
+        or mean_array.shape[1] < 1
+    ):
         raise ValueError("means must have shape (candidate_count, dimension)")
     dimension = mean_array.shape[1]
     if covariance_array.shape != (count, dimension, dimension):
-        raise ValueError("covariances must have shape (candidate_count, dimension, dimension)")
-    if not np.all(np.isfinite(mean_array)) or not np.all(np.isfinite(covariance_array)):
+        raise ValueError(
+            "covariances must have shape (candidate_count, dimension, dimension)"
+        )
+    if not np.all(np.isfinite(mean_array)) or not np.all(
+        np.isfinite(covariance_array)
+    ):
         raise ValueError("means and covariances must be finite")
     for index, covariance in enumerate(covariance_array):
         if not np.allclose(covariance, covariance.T, atol=1e-12, rtol=1e-12):
@@ -848,7 +873,9 @@ def load_material_identity_mixture(path: str | Path) -> MaterialIdentityMixtureV
                 ),
             )
         )
-        supplied_ids.append(_sha256(raw_candidate["candidate_id"], name=f"{name}.candidate_id"))
+        supplied_ids.append(
+            _sha256(raw_candidate["candidate_id"], name=f"{name}.candidate_id")
+        )
     raw_window_order = payload["window_order"]
     if type(raw_window_order) is not list or not raw_window_order:
         raise ValueError("window_order must be a non-empty JSON array")
