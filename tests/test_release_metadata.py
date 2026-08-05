@@ -14,6 +14,7 @@ import prob4d
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_VERSION = "0.3.1"
+EXPECTED_LICENSE = "MIT"
 EXPECTED_REPOSITORY = "https://github.com/IPS-Stuttgart/Prob4D"
 
 
@@ -36,6 +37,12 @@ def test_package_and_citation_versions_are_synchronized() -> None:
     match = re.search(r'^version:\s*["\']?([^"\'\s]+)', citation, re.MULTILINE)
     assert match is not None
     assert match.group(1) == EXPECTED_VERSION
+    assert re.search(r'^license:\s*["\']?MIT["\']?$', citation, re.MULTILINE)
+
+    source = (ROOT / "src" / "prob4d" / "__init__.py").read_text(encoding="utf-8")
+    fallback = re.search(r'__version__\s*=\s*["\']([^"\']+)', source)
+    assert fallback is not None
+    assert fallback.group(1) == EXPECTED_VERSION
 
 
 def test_project_urls_point_to_the_canonical_repository() -> None:
@@ -47,14 +54,44 @@ def test_project_urls_point_to_the_canonical_repository() -> None:
     assert urls["Changelog"].startswith(EXPECTED_REPOSITORY)
     assert urls["Citation"].startswith(EXPECTED_REPOSITORY)
     assert urls["Security"].startswith(EXPECTED_REPOSITORY)
+    assert urls["License"] == f"{EXPECTED_REPOSITORY}/blob/main/LICENSE"
+
+
+def test_license_and_typing_metadata_are_explicit() -> None:
+    project = _project()
+    assert project["license"] == EXPECTED_LICENSE
+    assert project["license-files"] == ["LICENSE"]
+
+    classifiers = project["classifiers"]
+    assert isinstance(classifiers, list)
+    assert "Typing :: Typed" in classifiers
+
+    license_text = (ROOT / "LICENSE").read_text(encoding="utf-8")
+    assert license_text.startswith("MIT License\n")
+    assert "Copyright (c) 2026 Florian Pfaff" in license_text
+    assert "THE SOFTWARE IS PROVIDED \"AS IS\"" in license_text
+
+
+def test_observation_export_documentation_uses_an_explicit_route() -> None:
+    documentation = (ROOT / "docs" / "observation-belief-export.md").read_text(
+        encoding="utf-8"
+    )
+    assert "prob4d observation export-calibrated \\" in documentation
+    assert "prob4d observation export \\" not in documentation
+    assert "prob4d observation export-v1" in documentation
 
 
 def test_release_governance_files_exist() -> None:
     for name in (
+        ".github/dependabot.yml",
+        ".github/workflows/ecosystem-release-capsule.yml",
         "CHANGELOG.md",
         "CITATION.cff",
         "CONTRIBUTING.md",
+        "LICENSE",
         "MANIFEST.in",
         "SECURITY.md",
+        "docs/ecosystem-release-capsule.md",
+        "scripts/ci/build_ecosystem_release_capsule.py",
     ):
         assert (ROOT / name).is_file(), name
