@@ -9,12 +9,12 @@ from pathlib import Path
 from typing import Any, cast
 
 from ._heldout_promotion_common import (
+    _REQUIRED_ARM_ROLES,
+    _SHA256,
     HELDOUT_PROMOTION_LOCK_SCHEMA,
     HELDOUT_PROMOTION_LOCK_VERSION,
     LOCK_CLAIM_BOUNDARY,
     PromotionArmV1,
-    _REQUIRED_ARM_ROLES,
-    _SHA256,
     _atomic_write_json,
     _canonical_string_tuple,
     _digest_mapping,
@@ -24,15 +24,14 @@ from ._heldout_promotion_common import (
     _optional_real,
     _repository,
     _revision,
-    _sha256_json,
     _strict_digest,
-    _strict_integer,
     _strict_list,
     _strict_mapping,
     _strict_string,
     _string_tuple_from_json,
 )
 from ._immutable_json import frozen_finite_json_mapping, plain_json
+from ._selection_evidence_common import _sha256_json, _strict_integer
 
 
 @dataclass(frozen=True, slots=True)
@@ -484,4 +483,3 @@ def load_promotion_lock(
 ) -> HeldoutProviderPromotionLockV1:
     mapping, _ = _load_json(Path(path), name="promotion lock")
     return promotion_lock_from_dict(mapping)
-
