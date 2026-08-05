@@ -68,6 +68,32 @@ def _validated_inputs(
     return residual, symmetric, factor, cholesky
 
 
+def _small_gram_singular_structure(
+    whitened_factor: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Return ``W.T @ W`` plus descending singular values/right vectors.
+
+    The low-rank dimension is normally much smaller than the number of residual
+    coordinates. Working in the rank-by-rank Gram matrix therefore avoids a tall
+    SVD and never materializes left singular vectors with shape ``(3N, R)``.
+    """
+
+    rank_columns = int(whitened_factor.shape[1])
+    cross_gram = whitened_factor.T @ whitened_factor
+    if rank_columns == 0:
+        return (
+            cross_gram,
+            np.empty(0, dtype=np.float64),
+            np.empty((0, 0), dtype=np.float64),
+        )
+    eigenvalues, right_vectors = np.linalg.eigh(cross_gram)
+    order = np.arange(rank_columns - 1, -1, -1)
+    eigenvalues = np.maximum(eigenvalues[order], 0.0)
+    right_vectors = right_vectors[:, order]
+    singular_values = np.sqrt(eigenvalues)
+    return cross_gram, singular_values, right_vectors
+
+
 def evaluate_joint_gaussian_group(
     residual_xyz_m: np.ndarray,
     local_covariance_m2: np.ndarray,
@@ -101,10 +127,14 @@ def evaluate_joint_gaussian_group(
     else:
         whitened_factor = np.empty((whitened_residual.size, 0), dtype=np.float64)
 
-    gram = np.eye(rank_columns, dtype=np.float64) + whitened_factor.T @ whitened_factor
+    cross_gram, singular_values, right_vectors = _small_gram_singular_structure(
+        whitened_factor
+    )
+    gram = np.eye(rank_columns, dtype=np.float64) + cross_gram
     gram_cholesky = np.linalg.cholesky(gram)
     projected = whitened_factor.T @ whitened_residual
-    correction = float(projected @ np.linalg.solve(gram, projected))
+    correction_solution = np.linalg.solve(gram_cholesky, projected)
+    correction = float(correction_solution @ correction_solution)
     local_energy = float(whitened_residual @ whitened_residual)
     mahalanobis = max(local_energy - correction, 0.0)
 
@@ -120,24 +150,17 @@ def evaluate_joint_gaussian_group(
         dimension * math.log(2.0 * math.pi) + log_determinant + mahalanobis
     )
 
-    if rank_columns:
-        basis, singular_values, _ = np.linalg.svd(
-            whitened_factor,
-            full_matrices=False,
-        )
-        leading = float(singular_values[0]) if singular_values.size else 0.0
-        tiny = float(np.finfo(np.float64).tiny)
-        threshold = tolerance * max(leading, tiny)
-        effective_rank = int(np.count_nonzero(singular_values > threshold))
-    else:
-        basis = np.empty((dimension, 0), dtype=np.float64)
-        singular_values = np.empty(0, dtype=np.float64)
-        effective_rank = 0
+    leading = float(singular_values[0]) if singular_values.size else 0.0
+    tiny = float(np.finfo(np.float64).tiny)
+    threshold = tolerance * max(leading, tiny)
+    effective_rank = int(np.count_nonzero(singular_values > threshold))
 
     if effective_rank:
-        active_basis = basis[:, :effective_rank]
         active_singular_values = singular_values[:effective_rank]
-        coefficients = active_basis.T @ whitened_residual
+        active_right_vectors = right_vectors[:, :effective_rank]
+        coefficients = (
+            active_right_vectors.T @ projected
+        ) / active_singular_values
         shared_energy = float(
             np.sum(np.square(coefficients) / (1.0 + np.square(active_singular_values)))
         )
@@ -249,6 +272,28 @@ def evaluate_joint_gaussian_groups(
     }
 
 
+def _write_text_exclusive(path: Path, content: str) -> None:
+    """Publish complete text without replacing a concurrently created path."""
+
+    if path.exists():
+        raise FileExistsError(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(
+        dir=path.parent,
+        prefix=f".{path.name}.tmp-",
+        text=True,
+    )
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.link(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 def run_joint_covariance_diagnostic(
     input_path: str | Path,
     output_path: str | Path,
@@ -261,10 +306,13 @@ def run_joint_covariance_diagnostic(
     payload = source.read_bytes()
     with np.load(io.BytesIO(payload), allow_pickle=False) as data:
         required = {"residual_xyz_m", "local_covariance_m2", "low_rank_factor_m"}
+        allowed = required | {"factor_group_ids"}
         missing = sorted(required - set(data.files))
-        if missing:
+        extra = sorted(set(data.files) - allowed)
+        if missing or extra:
             raise ValueError(
-                "joint-covariance input is missing required arrays: " + ", ".join(missing)
+                "joint-covariance input fields changed; "
+                f"missing={missing}, extra={extra}"
             )
         evaluation = evaluate_joint_gaussian_groups(
             data["residual_xyz_m"],
@@ -284,24 +332,8 @@ def run_joint_covariance_diagnostic(
         "claim_boundary": JOINT_COVARIANCE_CLAIM_BOUNDARY,
     }
     destination = Path(output_path)
-    if destination.exists():
-        raise FileExistsError(destination)
-    destination.parent.mkdir(parents=True, exist_ok=True)
     encoded = json.dumps(report, sort_keys=True, indent=2, allow_nan=False) + "\n"
-    descriptor, temporary_name = tempfile.mkstemp(
-        dir=destination.parent,
-        prefix=f".{destination.name}.tmp-",
-        text=True,
-    )
-    temporary = Path(temporary_name)
-    try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
-            stream.write(encoded)
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.link(temporary, destination)
-    finally:
-        temporary.unlink(missing_ok=True)
+    _write_text_exclusive(destination, encoded)
     return report
 
 
