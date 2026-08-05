@@ -1,0 +1,435 @@
+name: Fix PR 113 stream integrity
+
+on:
+  push:
+    branches: [ci/fix-pr-113]
+    paths: [.github/workflows/fix-pr-113-integrity.yml]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fix-pr-113-integrity
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out the exact PR branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: agent/harden-factor-stream-contract
+          fetch-depth: 0
+          persist-credentials: true
+          clean: true
+
+      - name: Apply exact-byte and concurrent-writer hardening
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          source_path = Path("src/prob4d/observation_factor_stream.py")
+          source = source_path.read_text(encoding="utf-8")
+
+          def replace_once(old: str, new: str, marker: str) -> None:
+              global source
+              if old not in source:
+                  if new in source:
+                      return
+                  raise SystemExit(f"missing source marker: {marker}")
+              source = source.replace(old, new, 1)
+
+          replace_once(
+              "import hashlib\nimport json\nimport os\nimport tempfile\n",
+              "import hashlib\nimport json\nimport os\nimport tempfile\nfrom contextlib import contextmanager\n",
+              "context manager import",
+          )
+
+          old_helpers = '''def _sha256_file(path: Path) -> str:
+              digest = hashlib.sha256()
+              try:
+                  with path.open("rb") as stream:
+                      for block in iter(lambda: stream.read(1024 * 1024), b""):
+                          digest.update(block)
+              except OSError as error:
+                  raise ValueError(f"cannot read stream member {path.name!r}") from error
+              return digest.hexdigest()
+
+
+          def _require_nonnegative_integer'''.replace("          ", "")
+          new_helpers = '''def _sha256_file(path: Path) -> str:
+              return _sha256_bytes(_read_bytes(path, name="stream member"))
+
+
+          def _sha256_bytes(payload: bytes) -> str:
+              return hashlib.sha256(payload).hexdigest()
+
+
+          def _read_bytes(path: Path, *, name: str) -> bytes:
+              try:
+                  return path.read_bytes()
+              except OSError as error:
+                  raise ValueError(f"cannot read {name} {path.name!r}") from error
+
+
+          def _load_json_bytes(payload: bytes, *, name: str) -> dict[str, Any]:
+              def object_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+                  result: dict[str, Any] = {}
+                  for key, item in pairs:
+                      if key in result:
+                          raise ValueError(
+                              f"{name} contains duplicate JSON object key {key!r}"
+                          )
+                      result[key] = item
+                  return result
+
+              def reject_constant(token: str) -> Any:
+                  raise ValueError(
+                      f"{name} contains non-finite JSON number {token!r}"
+                  )
+
+              try:
+                  value = json.loads(
+                      payload.decode("utf-8"),
+                      object_pairs_hook=object_pairs,
+                      parse_constant=reject_constant,
+                  )
+              except UnicodeDecodeError as error:
+                  raise ValueError(f"{name} must contain UTF-8 JSON") from error
+              except json.JSONDecodeError as error:
+                  raise ValueError(f"{name} must contain valid JSON") from error
+              if not isinstance(value, dict):
+                  raise ValueError(f"{name} must contain one JSON object")
+              return value
+
+
+          @contextmanager
+          def _exclusive_stream_lock(path: Path):
+              lock = path.with_name(f".{path.name}.lock")
+              try:
+                  descriptor = os.open(
+                      lock,
+                      os.O_CREAT | os.O_EXCL | os.O_WRONLY,
+                      0o600,
+                  )
+              except FileExistsError as error:
+                  raise FileExistsError(
+                      f"observation-factor stream is already being written: {path}"
+                  ) from error
+              try:
+                  with os.fdopen(descriptor, "w", encoding="ascii") as handle:
+                      handle.write(f"{os.getpid()}\\n")
+                      handle.flush()
+                      os.fsync(handle.fileno())
+                  yield
+              finally:
+                  lock.unlink(missing_ok=True)
+
+
+          def _require_nonnegative_integer'''.replace("          ", "")
+          replace_once(old_helpers, new_helpers, "byte and lock helpers")
+
+          replace_once(
+              '''def _bundle_update(
+              bundle_manifest_path: Path,
+              *,
+              stream_directory: Path,
+              update_index: int,
+              admitted_frame_start: int,
+              previous_update_id: str | None,
+          ) -> ObservationFactorStreamUpdateV1:'''.replace("          ", ""),
+              '''def _bundle_update(
+              bundle_manifest_path: Path,
+              *,
+              stream_directory: Path,
+              update_index: int,
+              admitted_frame_start: int | None,
+              previous_update_id: str | None,
+          ) -> ObservationFactorStreamUpdateV1:'''.replace("          ", ""),
+              "optional initial frame start",
+          )
+
+          replace_once(
+              '''    manifest = bundle_manifest_path.resolve()
+              relative_manifest = _relative_member(
+                  manifest,
+                  root=stream_directory,
+                  name="bundle_manifest_path",
+              )
+              record = load_json_object(manifest, name="observation-factor bundle manifest")
+          '''.replace("          ", ""),
+              '''    manifest = bundle_manifest_path.resolve()
+              relative_manifest = _relative_member(
+                  manifest,
+                  root=stream_directory,
+                  name="bundle_manifest_path",
+              )
+              manifest_bytes = _read_bytes(
+                  manifest,
+                  name="observation-factor bundle manifest",
+              )
+              manifest_sha = _sha256_bytes(manifest_bytes)
+              record = _load_json_bytes(
+                  manifest_bytes,
+                  name="observation-factor bundle manifest",
+              )
+          '''.replace("          ", ""),
+              "manifest byte snapshot",
+          )
+
+          replace_once(
+              '''    if _sha256_file(payload_path) != payload_sha:
+                  raise ValueError("observation-factor payload checksum mismatch")
+
+              bundle = load_observation_factor_bundle(manifest)
+              frame_indices = [factor.frame_index for factor in bundle.factors]
+              if not frame_indices:
+                  raise ValueError("stream updates require at least one factor")
+              if min(frame_indices) < admitted_frame_start:
+                  raise ValueError("stream update reintroduces an already admitted frame")
+          '''.replace("          ", ""),
+              '''    payload_bytes = _read_bytes(
+                  payload_path,
+                  name="observation-factor payload",
+              )
+              if _sha256_bytes(payload_bytes) != payload_sha:
+                  raise ValueError("observation-factor payload checksum mismatch")
+
+              with tempfile.TemporaryDirectory(prefix="prob4d-stream-bundle-") as temporary:
+                  snapshot_manifest = Path(temporary) / manifest.name
+                  snapshot_manifest.write_bytes(manifest_bytes)
+                  snapshot_payload = snapshot_manifest.parent / Path(
+                      *PurePosixPath(payload_relative).parts
+                  )
+                  snapshot_payload.parent.mkdir(parents=True, exist_ok=True)
+                  snapshot_payload.write_bytes(payload_bytes)
+                  bundle = load_observation_factor_bundle(snapshot_manifest)
+
+              frame_indices = [factor.frame_index for factor in bundle.factors]
+              if not frame_indices:
+                  raise ValueError("stream updates require at least one factor")
+              effective_start = (
+                  min(frame_indices)
+                  if admitted_frame_start is None
+                  else _require_nonnegative_integer(
+                      admitted_frame_start,
+                      name="admitted_frame_start",
+                  )
+              )
+              if min(frame_indices) < effective_start:
+                  raise ValueError("stream update reintroduces an already admitted frame")
+          '''.replace("          ", ""),
+              "payload byte snapshot",
+          )
+
+          replace_once(
+              "        admitted_frame_start=admitted_frame_start,\n",
+              "        admitted_frame_start=effective_start,\n",
+              "effective frame start",
+          )
+          replace_once(
+              "        bundle_manifest_sha256=_sha256_file(manifest),\n",
+              "        bundle_manifest_sha256=manifest_sha,\n",
+              "manifest snapshot digest",
+          )
+
+          replace_once(
+              '''        if admitted_frame_start is None:
+                      preview = load_observation_factor_bundle(manifest)
+                      admitted_start = min(factor.frame_index for factor in preview.factors)
+                  else:
+                      admitted_start = _require_nonnegative_integer(
+                          admitted_frame_start,
+                          name="admitted_frame_start",
+                      )
+          '''.replace("          ", ""),
+              '''        admitted_start = (
+                      None
+                      if admitted_frame_start is None
+                      else _require_nonnegative_integer(
+                          admitted_frame_start,
+                          name="admitted_frame_start",
+                      )
+                  )
+          '''.replace("          ", ""),
+              "single initial bundle load",
+          )
+
+          old_writer = '''def write_observation_factor_stream(
+              stream: ObservationFactorStreamV1,
+              path: str | Path,
+          ) -> Path:
+              """Atomically persist an idempotent append-only stream manifest."""
+
+              output = Path(path)
+              output.parent.mkdir(parents=True, exist_ok=True)
+              if output.exists():
+                  existing = load_observation_factor_stream(output, validate_bundles=False)
+                  _require_append_only_rewrite(existing, stream)
+
+              serialized = (
+                  json.dumps(stream.to_record(), indent=2, sort_keys=True, allow_nan=False)
+                  + "\\n"
+              )
+              descriptor, temporary_name = tempfile.mkstemp(
+                  prefix=f".{output.name}.",
+                  suffix=".tmp",
+                  dir=output.parent,
+                  text=True,
+              )
+              temporary = Path(temporary_name)
+              try:
+                  with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+                      handle.write(serialized)
+                      handle.flush()
+                      os.fsync(handle.fileno())
+                  os.replace(temporary, output)
+              except Exception:
+                  temporary.unlink(missing_ok=True)
+                  raise
+              return output
+          '''.replace("          ", "")
+          new_writer = '''def write_observation_factor_stream(
+              stream: ObservationFactorStreamV1,
+              path: str | Path,
+          ) -> Path:
+              """Persist an idempotent append-only stream under an exclusive lock."""
+
+              output = Path(path)
+              output.parent.mkdir(parents=True, exist_ok=True)
+              with _exclusive_stream_lock(output):
+                  existing_bytes: bytes | None = None
+                  if output.exists():
+                      existing_bytes = _read_bytes(
+                          output,
+                          name="observation-factor stream manifest",
+                      )
+                      existing = load_observation_factor_stream(
+                          output,
+                          validate_bundles=False,
+                      )
+                      _require_append_only_rewrite(existing, stream)
+
+                  serialized = (
+                      json.dumps(
+                          stream.to_record(),
+                          indent=2,
+                          sort_keys=True,
+                          allow_nan=False,
+                      )
+                      + "\\n"
+                  )
+                  descriptor, temporary_name = tempfile.mkstemp(
+                      prefix=f".{output.name}.",
+                      suffix=".tmp",
+                      dir=output.parent,
+                      text=True,
+                  )
+                  temporary = Path(temporary_name)
+                  try:
+                      with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+                          handle.write(serialized)
+                          handle.flush()
+                          os.fsync(handle.fileno())
+                      if existing_bytes is None:
+                          os.link(temporary, output)
+                      else:
+                          current_bytes = _read_bytes(
+                              output,
+                              name="observation-factor stream manifest",
+                          )
+                          if current_bytes != existing_bytes:
+                              raise RuntimeError(
+                                  "observation-factor stream changed during publication"
+                              )
+                          os.replace(temporary, output)
+                  finally:
+                      temporary.unlink(missing_ok=True)
+              return output
+          '''.replace("          ", "")
+          replace_once(old_writer, new_writer, "exclusive stream writer")
+          source_path.write_text(source, encoding="utf-8")
+
+          test_path = Path("tests/test_observation_factor_stream_strict.py")
+          tests = test_path.read_text(encoding="utf-8")
+          import_marker = "import pytest\n\nfrom prob4d.observation_factor_stream import ("
+          import_replacement = (
+              "import pytest\n\n"
+              "import prob4d.observation_factor_stream as stream_module\n"
+              "from prob4d.observation_factor_stream import ("
+          )
+          if import_marker in tests:
+              tests = tests.replace(import_marker, import_replacement, 1)
+          elif import_replacement not in tests:
+              raise SystemExit("missing test import marker")
+
+          addition = '''
+
+          def test_writer_lock_rejects_a_concurrent_library_writer(tmp_path: Path) -> None:
+              path = tmp_path / "stream.json"
+              lock = path.with_name(f".{path.name}.lock")
+              lock.write_text("competing writer\\n", encoding="utf-8")
+
+              with pytest.raises(FileExistsError, match="already being written"):
+                  write_observation_factor_stream(_stream(), path)
+
+              assert not path.exists()
+              assert lock.read_text(encoding="utf-8") == "competing writer\\n"
+
+
+          def test_first_publication_never_overwrites_a_racing_destination(
+              tmp_path: Path,
+              monkeypatch: pytest.MonkeyPatch,
+          ) -> None:
+              path = tmp_path / "stream.json"
+              original_link = stream_module.os.link
+
+              def racing_link(source: object, destination: object) -> None:
+                  Path(destination).write_text("competing writer\\n", encoding="utf-8")
+                  original_link(source, destination)
+
+              monkeypatch.setattr(stream_module.os, "link", racing_link)
+              with pytest.raises(FileExistsError):
+                  write_observation_factor_stream(_stream(), path)
+
+              assert path.read_text(encoding="utf-8") == "competing writer\\n"
+          '''.replace("          ", "")
+          marker = "def test_writer_lock_rejects_a_concurrent_library_writer"
+          if marker not in tests:
+              tests = tests.rstrip() + addition + "\n"
+          test_path.write_text(tests, encoding="utf-8")
+          PY
+
+      - name: Validate the repaired contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -e ".[dev]"
+          python -m ruff format \
+            src/prob4d/observation_factor_stream.py \
+            tests/test_observation_factor_stream_strict.py
+          python -m ruff check \
+            src/prob4d/observation_factor_stream.py \
+            tests/test_observation_factor_stream_strict.py \
+            tests/test_observation_factor_stream_bundle_strict.py
+          python -m mypy src/prob4d/observation_factor_stream.py
+          python -m pytest -q \
+            tests/test_observation_factor_stream_strict.py \
+            tests/test_observation_factor_stream_bundle_strict.py
+          git diff --check
+
+      - name: Commit and push the reviewed repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            src/prob4d/observation_factor_stream.py \
+            tests/test_observation_factor_stream_strict.py
+          git commit -m "Bind stream updates to exact bytes and serialize writers"
+          git push origin HEAD:agent/harden-factor-stream-contract
