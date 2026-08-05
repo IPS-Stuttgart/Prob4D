@@ -1,0 +1,243 @@
+apping(record["metadata"], name="choice-set metadata"),
++        choice_set_id=record["choice_set_id"],
++    )
++
++
++def _collection_from_record(value: object) -> MaterialIdentityChoiceSetCollectionV1:
++    record = _strict_mapping(value, name="choice-set collection")
++    _exact_fields(
++        record,
++        {
++            "schema",
++            "schema_version",
++            "collection_id",
++            "feature_semantics",
++            "feature_names",
++            "association_rule_id",
++            "tracklet_producer_revision",
++            "association_revision",
++            "choice_sets",
++            "metadata",
++            "claim_boundary",
++        },
++        name="choice-set collection",
++    )
++    if record["schema"] != MATERIAL_IDENTITY_CHOICE_COLLECTION_SCHEMA:
++        raise ValueError("artifact is not a material-identity choice-set collection")
++    if record["schema_version"] != MATERIAL_IDENTITY_CHOICE_COLLECTION_VERSION:
++        raise ValueError("unsupported material-identity choice collection version")
++    if record["feature_semantics"] != MATERIAL_IDENTITY_FEATURE_SEMANTICS:
++        raise ValueError("material-identity feature semantics changed")
++    if record["claim_boundary"] != MATERIAL_IDENTITY_CALIBRATION_CLAIM_BOUNDARY:
++        raise ValueError("material-identity collection claim boundary changed")
++    return MaterialIdentityChoiceSetCollectionV1(
++        feature_names=tuple(_strict_list(record["feature_names"], name="feature_names")),
++        association_rule_id=record["association_rule_id"],
++        tracklet_producer_revision=record["tracklet_producer_revision"],
++        association_revision=record["association_revision"],
++        choice_sets=tuple(
++            _choice_set_from_record(choice_set)
++            for choice_set in _strict_list(record["choice_sets"], name="choice_sets")
++        ),
++        metadata=_strict_mapping(record["metadata"], name="collection metadata"),
++        collection_id=record["collection_id"],
++    )
++
++
++def _label_from_record(value: object) -> MaterialIdentityChoiceLabelV1:
++    record = _strict_mapping(value, name="choice label")
++    _exact_fields(
++        record,
++        {"choice_set_id", "chosen_candidate_id", "group_id"},
++        name="choice label",
++    )
++    return MaterialIdentityChoiceLabelV1(
++        choice_set_id=record["choice_set_id"],
++        chosen_candidate_id=record["chosen_candidate_id"],
++        group_id=record["group_id"],
++    )
++
++
++def _label_set_from_record(value: object) -> MaterialIdentityLabelSetV1:
++    record = _strict_mapping(value, name="label set")
++    _exact_fields(
++        record,
++        {
++            "schema",
++            "schema_version",
++            "label_set_id",
++            "choice_set_collection_id",
++            "labels",
++            "label_definition",
++            "group_definition",
++            "target_outcomes_used",
++            "metadata",
++            "claim_boundary",
++        },
++        name="label set",
++    )
++    if record["schema"] != MATERIAL_IDENTITY_LABEL_SET_SCHEMA:
++        raise ValueError("artifact is not a material-identity label set")
++    if record["schema_version"] != MATERIAL_IDENTITY_LABEL_SET_VERSION:
++        raise ValueError("unsupported material-identity label-set version")
++    if record["claim_boundary"] != MATERIAL_IDENTITY_CALIBRATION_CLAIM_BOUNDARY:
++        raise ValueError("material-identity label-set claim boundary changed")
++    return MaterialIdentityLabelSetV1(
++        choice_set_collection_id=record["choice_set_collection_id"],
++        labels=tuple(
++            _label_from_record(label)
++            for label in _strict_list(record["labels"], name="labels")
++        ),
++        label_definition=record["label_definition"],
++        group_definition=record["group_definition"],
++        target_outcomes_used=record["target_outcomes_used"],
++        metadata=_strict_mapping(record["metadata"], name="label metadata"),
++        label_set_id=record["label_set_id"],
++    )
++
++
++def _report_from_record(value: object) -> MaterialIdentityCalibrationReportV1:
++    record = _strict_mapping(value, name="calibration report")
++    _exact_fields(
++        record,
++        {
++            "choice_set_count",
++            "informative_choice_set_count",
++            "null_only_choice_set_count",
++            "candidate_count",
++            "group_count",
++            "feature_count",
++            "iterations",
++            "converged",
++            "weighted_log_loss",
++            "weighted_brier_score",
++            "weighted_top1_accuracy",
++            "ridge",
++            "probability_floor",
++        },
++        name="calibration report",
++    )
++    return MaterialIdentityCalibrationReportV1(
++        choice_set_count=record["choice_set_count"],
++        informative_choice_set_count=record["informative_choice_set_count"],
++        null_only_choice_set_count=record["null_only_choice_set_count"],
++        candidate_count=record["candidate_count"],
++        group_count=record["group_count"],
++        feature_count=record["feature_count"],
++        iterations=record["iterations"],
++        converged=record["converged"],
++        weighted_log_loss=record["weighted_log_loss"],
++        weighted_brier_score=record["weighted_brier_score"],
++        weighted_top1_accuracy=record["weighted_top1_accuracy"],
++        ridge=record["ridge"],
++        probability_floor=record["probability_floor"],
++    )
++
++
++def _calibration_from_record(value: object) -> MaterialIdentityCalibrationV1:
++    record = _strict_mapping(value, name="material-identity calibration")
++    _exact_fields(
++        record,
++        {
++            "schema",
++            "schema_version",
++            "calibration_id",
++            "weight_model_semantics",
++            "feature_semantics",
++            "feature_names",
++            "feature_center",
++            "feature_scale",
++            "coefficients",
++            "probability_floor",
++            "association_rule_id",
++            "tracklet_producer_revision",
++            "association_revision",
++            "choice_set_collection_id",
++            "label_set_id",
++            "label_definition",
++            "group_definition",
++            "calibration_group_ids",
++            "report",
++            "metadata",
++            "target_outcomes_used",
++            "claim_boundary",
++        },
++        name="material-identity calibration",
++    )
++    if record["schema"] != MATERIAL_IDENTITY_CALIBRATION_SCHEMA:
++        raise ValueError("artifact is not a material-identity calibration")
++    if record["schema_version"] != MATERIAL_IDENTITY_CALIBRATION_VERSION:
++        raise ValueError("unsupported material-identity calibration version")
++    if record["weight_model_semantics"] != MATERIAL_IDENTITY_WEIGHT_MODEL_SEMANTICS:
++        raise ValueError("material-identity weight-model semantics changed")
++    if record["feature_semantics"] != MATERIAL_IDENTITY_FEATURE_SEMANTICS:
++        raise ValueError("material-identity feature semantics changed")
++    if record["claim_boundary"] != MATERIAL_IDENTITY_CALIBRATION_CLAIM_BOUNDARY:
++        raise ValueError("material-identity calibration claim boundary changed")
++    if _strict_bool(record["target_outcomes_used"], name="target_outcomes_used"):
++        raise ValueError("material-identity calibration may not use target outcomes")
++    return MaterialIdentityCalibrationV1(
++        feature_names=tuple(_strict_list(record["feature_names"], name="feature_names")),
++        feature_center=np.asarray(
++            _strict_list(record["feature_center"], name="feature_center"),
++            dtype=np.float64,
++        ),
++        feature_scale=np.asarray(
++            _strict_list(record["feature_scale"], name="feature_scale"),
++            dtype=np.float64,
++        ),
++        coefficients=np.asarray(
++            _strict_list(record["coefficients"], name="coefficients"),
++            dtype=np.float64,
++        ),
++        probability_floor=record["probability_floor"],
++        association_rule_id=record["association_rule_id"],
++        tracklet_producer_revision=record["tracklet_producer_revision"],
++        association_revision=record["association_revision"],
++        choice_set_collection_id=record["choice_set_collection_id"],
++        label_set_id=record["label_set_id"],
++        label_definition=record["label_definition"],
++        group_definition=record["group_definition"],
++        calibration_group_ids=tuple(
++            _strict_list(record["calibration_group_ids"], name="calibration_group_ids")
++        ),
++        report=_report_from_record(record["report"]),
++        metadata=_strict_mapping(record["metadata"], name="calibration metadata"),
++        calibration_id=record["calibration_id"],
++    )
++
++
++def write_material_identity_choice_sets(
++    collection: MaterialIdentityChoiceSetCollectionV1,
++    path: str | Path,
++    *,
++    overwrite: bool = False,
++) -> None:
++    if not isinstance(collection, MaterialIdentityChoiceSetCollectionV1):
++        raise TypeError("collection must be MaterialIdentityChoiceSetCollectionV1")
++    _atomic_write_json(path, collection.to_record(), overwrite=overwrite)
++
++
++def load_material_identity_choice_sets(
++    path: str | Path,
++) -> MaterialIdentityChoiceSetCollectionV1:
++    return _collection_from_record(_load_strict_json(Path(path)))
++
++
++def write_material_identity_label_set(
++    labels: MaterialIdentityLabelSetV1,
++    path: str | Path,
++    *,
++    overwrite: bool = False,
++) -> None:
++    if not isinstance(labels, MaterialIdentityLabelSetV1):
++        raise TypeError("labels must be MaterialIdentityLabelSetV1")
++    _atomic_write_json(path, labels.to_record(), overwrite=overwrite)
++
++
++def load_material_identity_label_set(path: str | Path) -> MaterialIdentityLabelSetV1:
++    return _label_set_from_record(_load_strict_json(Path(path)))
++
++
++def write_material_identity_calibration(
++    calibration: MaterialIdenti
