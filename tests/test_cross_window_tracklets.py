@@ -159,8 +159,49 @@ def test_cross_window_association_uses_global_covariance_when_supplied() -> None
     loose_candidate = loose_result.candidates[0]
     assert tight_candidate.used_covariance
     assert loose_candidate.used_covariance
-    assert loose_candidate.compatibility_score > tight_candidate.compatibility_score
+    assert loose_candidate.compatibility_score == tight_candidate.compatibility_score
     assert loose_candidate.normalized_rms < tight_candidate.normalized_rms
+    assert loose_result.to_dict()["ranking_semantics"] == (
+        "isotropic-geometric-mutual-best-covariance-diagnostic-v1"
+    )
+
+
+def test_covariance_inflation_cannot_change_base_mutual_best_rank() -> None:
+    left = make_tracklets(
+        "left",
+        [np.array([[0.0, 0.0, 1.0], [0.0, 0.0, 1.0]])],
+    )
+    right = make_tracklets(
+        "right",
+        [
+            np.array([[0.01, 0.0, 1.0], [0.01, 0.0, 1.0]]),
+            np.array([[0.01, 0.0, 1.0], [0.01, 0.0, 1.0]]),
+        ],
+    )
+    left_covariance = np.zeros((2, 3, 3), dtype=np.float64)
+    right_covariance = np.zeros((4, 3, 3), dtype=np.float64)
+    right_covariance[2:] = np.eye(3)
+    result = associate_cross_window_tracklets(
+        left,
+        right,
+        left_global_from_local=Sim3.identity(),
+        right_global_from_local=Sim3.identity(),
+        configuration=CrossWindowAssociationConfig(
+            covariance_floor_m2=1e-12,
+            maximum_weighted_rms_m=0.05,
+            maximum_shared_frame_distance_m=0.05,
+            minimum_compatibility_score=0.0,
+            minimum_score_margin=0.0,
+        ),
+        left_global_covariance_m2=left_covariance,
+        right_global_covariance_m2=right_covariance,
+    )
+
+    assert result.accepted_pairs == ((0, 0),)
+    precise, inflated = result.candidates
+    assert precise.compatibility_score == inflated.compatibility_score
+    assert precise.weighted_rms_m == inflated.weighted_rms_m
+    assert precise.normalized_rms > inflated.normalized_rms
 
 
 def test_covariance_score_uses_reduced_mahalanobis_rms() -> None:

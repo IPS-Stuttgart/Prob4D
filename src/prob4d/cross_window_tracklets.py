@@ -24,6 +24,7 @@ IntArray: TypeAlias = NDArray[np.integer[Any]]
 
 _RESIDUAL_DIMENSION = 3
 _ASSOCIATION_SCHEMA_VERSION = 2
+RANKING_SEMANTICS = "isotropic-geometric-mutual-best-covariance-diagnostic-v1"
 
 
 def _strict_string(value: Any, *, name: str) -> str:
@@ -487,6 +488,7 @@ class CrossWindowAssociationResult:
         return {
             "schema_name": "prob4d.cross-window-tracklet-association",
             "schema_version": _ASSOCIATION_SCHEMA_VERSION,
+            "ranking_semantics": RANKING_SEMANTICS,
             "left_window_id": self.left_window_id,
             "right_window_id": self.right_window_id,
             "causal_frame_stop": self.causal_frame_stop,
@@ -709,7 +711,9 @@ def associate_cross_window_tracklets(
 
     Optional covariance arrays must already be in the global frame and align with
     the flattened observations in each tracklet set. They may contain local point
-    uncertainty, gauge uncertainty, or both. Supplying one side only is rejected.
+    uncertainty, gauge uncertainty, or both. They determine the reported
+    ``normalized_rms`` diagnostic but cannot improve mutual-best rank merely by
+    becoming wider. Supplying one side only is rejected.
     """
 
     if not isinstance(left, CausalTrackletSet) or not isinstance(
@@ -825,7 +829,12 @@ def associate_cross_window_tracklets(
         weighted_rms = float(np.sqrt(np.sum(weights * distances**2) / support))
         normalized_rms = float(np.sqrt(np.sum(weights * normalized_squares) / support))
         support_fraction = min(1.0, support / config.minimum_effective_support)
-        score = float(support_fraction * np.exp(-0.5 * normalized_rms**2))
+        geometric_normalized_rms = weighted_rms / config.isotropic_distance_scale_m
+        # Covariance affects the reported normalized residual, not mutual-best
+        # ranking. Otherwise a candidate can improve merely by becoming wider and
+        # less informative. A covariance-aware admission rule requires a separate
+        # source-calibrated method version.
+        score = float(support_fraction * np.exp(-0.5 * geometric_normalized_rms**2))
         if support < config.minimum_effective_support:
             low_support_pairs += 1
         candidates.append(
@@ -917,5 +926,6 @@ __all__ = [
     "CrossWindowAssociationConfig",
     "CrossWindowAssociationLink",
     "CrossWindowAssociationResult",
+    "RANKING_SEMANTICS",
     "associate_cross_window_tracklets",
 ]
