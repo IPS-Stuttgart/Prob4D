@@ -41,6 +41,18 @@ def require_nonempty_string(value: Any, *, name: str) -> str:
     return value
 
 
+def require_exact_string(value: Any, *, name: str) -> str:
+    """Return one non-empty built-in string without silently normalizing it."""
+
+    if type(value) is not str:
+        raise ValueError(f"{name} must be a genuine string")
+    if not value:
+        raise ValueError(f"{name} must be a nonempty string")
+    if value != value.strip():
+        raise ValueError(f"{name} must not contain leading or trailing whitespace")
+    return value
+
+
 def require_exact_integer(
     value: Any,
     *,
@@ -159,6 +171,7 @@ __all__ = [
     "load_json_object",
     "require_exact_fields",
     "require_exact_integer",
+    "require_exact_string",
     "require_finite_json_mapping",
     "require_json_number",
     "require_mapping",
