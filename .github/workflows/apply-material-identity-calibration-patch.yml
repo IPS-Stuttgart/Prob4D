@@ -1,0 +1,57 @@
+name: Apply material identity calibration patch
+
+on:
+  push:
+    branches:
+      - agent/material-identity-calibration-v1
+    paths:
+      - ".github/patches/material-identity-calibration/**"
+      - ".github/workflows/apply-material-identity-calibration-patch.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-material-identity-calibration-patch
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out transport branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: agent/material-identity-calibration-v1
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Reassemble and verify patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .github/patches/material-identity-calibration/part-* \
+            > /tmp/material-identity-calibration.patch
+          printf '%s  %s\n' \
+            '1b4f088d2d01a432ea550dc611201897b4cb57ad8214fc6237ed543bddbfda2b' \
+            '/tmp/material-identity-calibration.patch' \
+            | sha256sum --check -
+
+      - name: Apply validated commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git am --3way /tmp/material-identity-calibration.patch
+
+      - name: Remove temporary patch transport
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm -r \
+            .github/patches/material-identity-calibration \
+            .github/workflows/apply-material-identity-calibration-patch.yml
+          git commit -m "Remove temporary material-identity patch transport"
+          git push origin HEAD:agent/material-identity-calibration-v1
