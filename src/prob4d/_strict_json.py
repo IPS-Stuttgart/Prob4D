@@ -30,14 +30,24 @@ def require_exact_fields(
     missing = expected - value.keys()
     extra = value.keys() - expected
     if missing or extra:
-        raise ValueError(
-            f"{name} fields changed; missing={sorted(missing)}, extra={sorted(extra)}"
-        )
+        raise ValueError(f"{name} fields changed; missing={sorted(missing)}, extra={sorted(extra)}")
 
 
 def require_nonempty_string(value: Any, *, name: str) -> str:
     if not isinstance(value, str) or not value:
         raise ValueError(f"{name} must be a nonempty string")
+    return value
+
+
+def require_exact_string(value: Any, *, name: str) -> str:
+    """Return one non-empty built-in string without silently normalizing it."""
+
+    if type(value) is not str:
+        raise ValueError(f"{name} must be a genuine string")
+    if not value:
+        raise ValueError(f"{name} must be a nonempty string")
+    if value != value.strip():
+        raise ValueError(f"{name} must not contain leading or trailing whitespace")
     return value
 
 
@@ -69,9 +79,7 @@ def require_json_number(value: Any, *, name: str) -> float:
 def require_sha256(value: Any, *, name: str) -> str:
     if not isinstance(value, str):
         raise ValueError(f"{name} must be a string")
-    if len(value) != 64 or any(
-        character not in "0123456789abcdef" for character in value
-    ):
+    if len(value) != 64 or any(character not in "0123456789abcdef" for character in value):
         raise ValueError(f"{name} must be a lowercase SHA-256 digest")
     return value
 
@@ -82,9 +90,7 @@ def require_revision(value: Any, *, name: str) -> str:
     if len(value) not in {40, 64} or any(
         character not in "0123456789abcdef" for character in value
     ):
-        raise ValueError(
-            f"{name} must be an exact lowercase 40- or 64-character revision"
-        )
+        raise ValueError(f"{name} must be an exact lowercase 40- or 64-character revision")
     return value
 
 
@@ -129,16 +135,12 @@ def load_json_object(path: str | Path, *, name: str) -> dict[str, Any]:
         result: dict[str, Any] = {}
         for key, item in pairs:
             if key in result:
-                raise _StrictJsonValueError(
-                    f"{name} contains duplicate JSON object key {key!r}"
-                )
+                raise _StrictJsonValueError(f"{name} contains duplicate JSON object key {key!r}")
             result[key] = item
         return result
 
     def reject_constant(token: str) -> Any:
-        raise _StrictJsonValueError(
-            f"{name} contains non-finite JSON number {token!r}"
-        )
+        raise _StrictJsonValueError(f"{name} contains non-finite JSON number {token!r}")
 
     try:
         value = json.loads(
@@ -159,6 +161,7 @@ __all__ = [
     "load_json_object",
     "require_exact_fields",
     "require_exact_integer",
+    "require_exact_string",
     "require_finite_json_mapping",
     "require_json_number",
     "require_mapping",

@@ -17,11 +17,13 @@ on:
       - "src/prob4d/cli.py"
       - "src/prob4d/heldout_promotion.py"
       - "src/prob4d/_heldout_promotion_*.py"
+      - "src/prob4d/promotion_evidence.py"
       - "src/prob4d/material_identity_cli.py"
       - "scripts/ci/check_sdist.py"
       - "tests/test_cli.py"
       - "tests/test_heldout_promotion.py"
       - "tests/test_heldout_promotion_diagnosis.py"
+      - "tests/test_promotion_evidence.py"
       - "tests/test_material_identity_cli.py"
   workflow_dispatch:
 
@@ -61,20 +63,25 @@ jobs:
           python -m ruff check \
             src/prob4d/heldout_promotion.py \
             src/prob4d/_heldout_promotion_*.py \
+            src/prob4d/promotion_evidence.py \
             src/prob4d/material_identity_cli.py \
             tests/test_heldout_promotion.py \
             tests/test_heldout_promotion_diagnosis.py \
+            tests/test_promotion_evidence.py \
             tests/test_material_identity_cli.py
           python -m ruff format --check \
             src/prob4d/heldout_promotion.py \
             src/prob4d/_heldout_promotion_*.py \
+            src/prob4d/promotion_evidence.py \
             src/prob4d/material_identity_cli.py \
             tests/test_heldout_promotion.py \
             tests/test_heldout_promotion_diagnosis.py \
+            tests/test_promotion_evidence.py \
             tests/test_material_identity_cli.py
           python -m mypy \
             src/prob4d/heldout_promotion.py \
             src/prob4d/_heldout_promotion_*.py \
+            src/prob4d/promotion_evidence.py \
             src/prob4d/material_identity_cli.py
       - name: Run focused regressions
         run: >-
@@ -82,6 +89,7 @@ jobs:
           tests/test_cli.py
           tests/test_heldout_promotion.py
           tests/test_heldout_promotion_diagnosis.py
+          tests/test_promotion_evidence.py
           tests/test_material_identity_cli.py
           tests/test_material_identity_mixture.py
           tests/test_material_identity_stream.py
@@ -94,11 +102,15 @@ jobs:
               HELDOUT_PROMOTION_DIAGNOSIS_SCHEMA,
               HELDOUT_PROMOTION_LOCK_SCHEMA,
               HELDOUT_PROMOTION_REPORT_SCHEMA,
+              build_promotion_evidence_card,
           )
           from prob4d.material_identity_cli import mixture_from_config
+          from prob4d.promotion_evidence import PROMOTION_EVIDENCE_CARD_SCHEMA
 
           assert HELDOUT_PROMOTION_DIAGNOSIS_SCHEMA.startswith("prob4d.")
           assert HELDOUT_PROMOTION_LOCK_SCHEMA.startswith("prob4d.")
           assert HELDOUT_PROMOTION_REPORT_SCHEMA.startswith("prob4d.")
+          assert PROMOTION_EVIDENCE_CARD_SCHEMA.startswith("prob4d.")
+          assert callable(build_promotion_evidence_card)
           assert callable(mixture_from_config)
           PY

@@ -32,6 +32,11 @@ The metadata binds the common-gauge identity, immutable model-set identity,
 window IDs, frame IDs, and the fact that no alignment was performed inside the
 diagnostic.
 
+Feature names, common-gauge IDs, and model-set IDs are exact built-in strings.
+Leading or trailing whitespace, string subclasses, and objects that merely
+provide a string representation are rejected rather than normalized into a
+portable identity.
+
 ## Reliability augmentation
 
 Use `augment_source_reliability_features` to append one or more diagnostic grids
@@ -60,9 +65,14 @@ reliability calibration. Existing calibration artifacts remain unchanged.
 | high | high | detected failure |
 
 The disagreement and error thresholds are explicit inputs and should be frozen
-from development or calibration units. The low-disagreement/high-error rate and
-severity are evaluation outputs only; they must not be used to refit reliability
-on the same target outcomes.
+from development or calibration units. Thresholds must be genuine finite real
+scalars, and retained quadrant counts must be genuine non-negative integers.
+Numeric strings, booleans, and integral floats are not accepted as aliases.
+Empty low-disagreement/high-error cells require zero retained severity, while a
+non-empty cell must have a mean no greater than its maximum.
+
+The low-disagreement/high-error rate and severity are evaluation outputs only;
+they must not be used to refit reliability on the same target outcomes.
 
 These diagnostics do not establish that Prob4D observations improve a physical
 twin. Provider competence, BayesianPhysTwin acceptance, harmful accepted updates,

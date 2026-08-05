@@ -480,6 +480,7 @@ class MotionCrafterAdapter:
                 valid_mask=arrays["valid_mask"],
                 scene_flow=arrays.get("scene_flow"),
                 deform_mask=arrays.get("deform_mask"),
+                dense_storage_dtype="float32",
             )
             relative_path = Path("windows") / f"{window_id}.npz"
             window.to_npz(output / relative_path)
