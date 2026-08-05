@@ -1,0 +1,98 @@
+name: Held-out provider promotion
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/heldout-provider-promotion.yml"
+      - ".github/workflows/tests.yml"
+      - "CHANGELOG.md"
+      - "README.md"
+      - "docs/examples/heldout-provider-promotion-config.json"
+      - "docs/examples/material-identity-mixture-config.json"
+      - "docs/heldout-provider-promotion.md"
+      - "docs/material-identity-cli.md"
+      - "docs/material-identity-marginalization.md"
+      - "docs/material-identity-stream.md"
+      - "src/prob4d/cli.py"
+      - "src/prob4d/heldout_promotion.py"
+      - "src/prob4d/_heldout_promotion_*.py"
+      - "src/prob4d/material_identity_cli.py"
+      - "scripts/ci/check_sdist.py"
+      - "tests/test_cli.py"
+      - "tests/test_heldout_promotion.py"
+      - "tests/test_material_identity_cli.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: heldout-provider-promotion-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  focused-contract:
+    name: Promotion lock and identity orchestration
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install compatible development environment
+        run: |
+          python -m pip install -e ".[dev]"
+          python -m pip install "numpy>=1.24,<2.3"
+      - name: Check focused source quality
+        run: |
+          python -m ruff check \
+            src/prob4d/heldout_promotion.py \
+            src/prob4d/_heldout_promotion_*.py \
+            src/prob4d/material_identity_cli.py \
+            tests/test_heldout_promotion.py \
+            tests/test_material_identity_cli.py
+          python -m ruff format --check \
+            src/prob4d/heldout_promotion.py \
+            src/prob4d/_heldout_promotion_*.py \
+            src/prob4d/material_identity_cli.py \
+            tests/test_heldout_promotion.py \
+            tests/test_material_identity_cli.py
+          python -m mypy \
+            src/prob4d/heldout_promotion.py \
+            src/prob4d/_heldout_promotion_*.py \
+            src/prob4d/material_identity_cli.py
+      - name: Run focused regressions
+        run: >-
+          python -m pytest -q
+          tests/test_cli.py
+          tests/test_heldout_promotion.py
+          tests/test_material_identity_cli.py
+          tests/test_material_identity_mixture.py
+          tests/test_material_identity_stream.py
+      - name: Verify installed grouped commands
+        run: |
+          prob4d experiment heldout-provider --help
+          prob4d identity --help
+          python - <<'PY'
+          from prob4d.heldout_promotion import (
+              HELDOUT_PROMOTION_LOCK_SCHEMA,
+              HELDOUT_PROMOTION_REPORT_SCHEMA,
+          )
+          from prob4d.material_identity_cli import mixture_from_config
+
+          assert HELDOUT_PROMOTION_LOCK_SCHEMA.startswith("prob4d.")
+          assert HELDOUT_PROMOTION_REPORT_SCHEMA.startswith("prob4d.")
+          assert callable(mixture_from_config)
+          PY
