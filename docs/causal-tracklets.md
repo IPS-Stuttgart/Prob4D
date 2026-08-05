@@ -49,6 +49,11 @@ probabilities. It expresses support that the current row still belongs to the
 same seeded identity. It is not source reliability and must not be replaced by a
 physical residual or downstream posterior responsibility.
 
+`geometric_mean_association_probability` exposes the geometric mean of the
+accepted non-seed links up to each row. It is length-neutral for comparison
+across different track ages, remains uncalibrated, and does not replace the
+cumulative survival probability retained in `association_probability`.
+
 ## Deform-mask policy
 
 `scene_flow[t]` predicts motion from frame `t` to frame `t + 1`, so the existing
@@ -57,12 +62,16 @@ compatibility-preserving default is therefore
 `target_deform_mask_policy="allow"`: the next-frame candidate must be valid, while
 its own deform-mask value is not interpreted as a material-membership label.
 
+Seeds always require both valid and source-side deform support. This prevents
+`minimum_track_length=1` from emitting a background-only singleton while keeping
+target-frame mask semantics independent.
+
 Set `target_deform_mask_policy="require"` only when the producer or experiment
 explicitly establishes that the target-frame deform mask is also a valid material
-support mask. Seeds and next-frame candidates must then lie in both `valid_mask`
-and `deform_mask`. A valid geometric candidate rejected only by this extra target
-mask is counted in `terminated_target_mask`, rather than being merged into the
-generic no-candidate count.
+support mask. Next-frame candidates must then lie in both `valid_mask` and
+`deform_mask`. A valid geometric candidate rejected only by this extra target mask
+is counted in `terminated_target_mask`, rather than being merged into the generic
+no-candidate count.
 
 The selected policy is recorded in both immutable tracklet metadata and
 `CausalTrackletReport`; it must therefore be frozen as part of any experiment

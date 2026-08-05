@@ -77,6 +77,39 @@ def test_scene_flow_tracklets_preserve_identity_across_frames() -> None:
     assert tracklets.summary()["maximum_track_length"] == 4
 
 
+def test_geometric_mean_association_probability_is_length_neutral() -> None:
+    kwargs = minimal_tracklet_kwargs()
+    tracklets = CausalTrackletSet(
+        **{
+            **kwargs,
+            "causal_frame_stop": 3,
+            "source_shape": (3, 1, 1),
+            "track_ids": np.array([0, 0, 0], dtype=np.int64),
+            "frame_indices": np.array([0, 1, 2], dtype=np.int64),
+            "local_frame_indices": np.array([0, 1, 2], dtype=np.int64),
+            "rows": np.array([0, 0, 0], dtype=np.int64),
+            "columns": np.array([0, 0, 0], dtype=np.int64),
+            "points_local": np.array(
+                [
+                    [0.0, 0.0, 1.0],
+                    [0.1, 0.0, 1.0],
+                    [0.2, 0.0, 1.0],
+                ]
+            ),
+            "link_probability": np.array([1.0, 0.25, 0.25]),
+            "association_probability": np.array([1.0, 0.25, 0.0625]),
+        }
+    )
+
+    comparison = tracklets.geometric_mean_association_probability
+    np.testing.assert_allclose(comparison, [1.0, 0.25, 0.25])
+    assert not comparison.flags.writeable
+    np.testing.assert_allclose(
+        tracklets.association_probability,
+        [1.0, 0.25, 0.0625],
+    )
+
+
 def test_tracklets_do_not_read_post_cutoff_prediction_payloads() -> None:
     original = moving_window(frames=5)
     changed_points = original.point_map.copy()
@@ -200,6 +233,34 @@ def test_target_deform_mask_policy_is_explicit_and_audited() -> None:
     assert required.track_count == 1
     assert required_report.terminated_target_mask == 1
     assert required_report.target_deform_mask_policy == "require"
+
+
+def test_seed_rows_always_require_source_deform_support() -> None:
+    point_map = np.zeros((1, 1, 2, 3), dtype=np.float64)
+    point_map[..., 2] = 1.0
+    valid = np.ones((1, 1, 2), dtype=bool)
+    deform = np.zeros_like(valid)
+    deform[0, 0, 0] = True
+    window = PredictionWindow(
+        window_id="seed-mask",
+        frame_indices=np.array([0]),
+        point_map=point_map,
+        valid_mask=valid,
+        scene_flow=np.zeros_like(point_map),
+        deform_mask=deform,
+    )
+
+    tracklets, report = build_causal_scene_flow_tracklets(
+        window,
+        causal_frame_stop=1,
+        seed_stride=1,
+        minimum_track_length=1,
+        target_deform_mask_policy="allow",
+    )
+
+    assert tracklets.track_count == 1
+    np.testing.assert_array_equal(tracklets.columns, [0])
+    assert report.seed_count == 1
 
 
 def test_tracklet_contract_rejects_scalar_and_array_coercion_aliases() -> None:

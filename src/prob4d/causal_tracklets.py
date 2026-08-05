@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
-from typing import Any, Literal, cast
+from typing import Any, Literal, TypeAlias, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -21,8 +21,8 @@ from .data import PredictionWindow
 from .observation_factors import ObservationFactor
 from .uncertainty import StructuredCovariance
 
-FloatArray = NDArray[np.floating]
-IntArray = NDArray[np.integer]
+FloatArray: TypeAlias = NDArray[np.floating[Any]]
+IntArray: TypeAlias = NDArray[np.integer[Any]]
 TargetDeformMaskPolicy = Literal["require", "allow"]
 
 
@@ -174,7 +174,9 @@ class CausalTrackletSet:
                 raise ValueError(f"{name} must lie in [0, 1]")
 
         unique_tracks = np.unique(track_ids)
-        expected_tracks = np.arange(len(unique_tracks), dtype=np.int64)
+        expected_tracks: IntArray = np.arange(
+            len(unique_tracks), dtype=np.int64
+        )
         if not np.array_equal(unique_tracks, expected_tracks):
             raise ValueError("track_ids must be contiguous from zero")
         order = np.lexsort((frame_indices, track_ids))
@@ -264,6 +266,29 @@ class CausalTrackletSet:
     @property
     def track_lengths(self) -> IntArray:
         return np.bincount(self.track_ids, minlength=self.track_count)
+
+    @property
+    def geometric_mean_association_probability(self) -> FloatArray:
+        """Return length-neutral link support up to each observation row."""
+
+        result: FloatArray = np.ones(
+            self.observation_count, dtype=np.float64
+        )
+        for track_id in range(self.track_count):
+            selected = np.flatnonzero(self.track_ids == track_id)
+            links = self.link_probability[selected[1:]]
+            if not len(links):
+                continue
+            link_logs: FloatArray = np.full(
+                len(links), -np.inf, dtype=np.float64
+            )
+            positive = links > 0.0
+            link_logs[positive] = np.log(links[positive])
+            result[selected[1:]] = np.exp(
+                np.cumsum(link_logs) / np.arange(1, len(links) + 1)
+            )
+        result.setflags(write=False)
+        return result
 
     def summary(self) -> dict[str, object]:
         lengths = self.track_lengths
@@ -462,14 +487,12 @@ def build_causal_scene_flow_tracklets(
     first_local = int(eligible[0])
     seed_frame = int(window.frame_indices[first_local])
     height, width = window.shape[1:]
-    seed_mask = window.valid_mask[first_local].copy()
-    if target_policy == "require":
-        seed_mask &= deform_mask[first_local]
+    seed_mask = window.valid_mask[first_local] & deform_mask[first_local]
     seed_grid = np.zeros((height, width), dtype=bool)
     seed_grid[::seed_stride, ::seed_stride] = True
     seed_rows, seed_columns = np.nonzero(seed_mask & seed_grid)
     if not len(seed_rows):
-        raise ValueError("the first retained frame has no valid tracklet seed")
+        raise ValueError("the first retained frame has no valid deforming tracklet seed")
 
     tracks: dict[int, list[_TrackObservation]] = {}
     active: dict[int, tuple[int, int, float]] = {}
@@ -761,7 +784,9 @@ def tracklets_to_observation_factors(
         rays = None
 
     if prior_reliability is None:
-        reliability_grid = np.ones(tracklets.source_shape, dtype=np.float64)
+        reliability_grid: FloatArray = np.ones(
+            tracklets.source_shape, dtype=np.float64
+        )
     else:
         reliability_grid = _real_array(
             prior_reliability,

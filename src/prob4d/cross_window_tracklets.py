@@ -11,7 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Any, Literal, TypeAlias
 
 import numpy as np
 from numpy.typing import NDArray
@@ -19,8 +19,8 @@ from numpy.typing import NDArray
 from .causal_tracklets import CausalTrackletSet
 from .sim3 import Sim3
 
-FloatArray = NDArray[np.floating]
-IntArray = NDArray[np.integer]
+FloatArray: TypeAlias = NDArray[np.floating[Any]]
+IntArray: TypeAlias = NDArray[np.integer[Any]]
 
 _RESIDUAL_DIMENSION = 3
 _ASSOCIATION_SCHEMA_VERSION = 2
@@ -80,7 +80,7 @@ def _integer_tuple(
     )
     if nonempty and not result:
         raise ValueError(f"{name} must not be empty")
-    if any(next_value <= value for value, next_value in zip(result, result[1:])):
+    if any(next_value <= value for value, next_value in zip(result, result[1:], strict=False)):
         raise ValueError(f"{name} must be strictly increasing")
     return result
 
