@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/cross-window-tracklets.yml"
+      - ".github/scripts/apply_covariance_safe_base_ranking.py"
       - "docs/causal-tracklets.md"
       - "docs/cross-window-tracklet-association.md"
       - "src/prob4d/cross_window_tracklets.py"
@@ -81,3 +82,70 @@ jobs:
           )
           assert "maximum_spatial_candidate_pairs" in encoded
           PY
+
+  publish-ranking:
+    name: Publish reviewed covariance-safe ranking
+    if: >-
+      github.actor != 'github-actions[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'agent/covariance-safe-base-tracklet-ranking'
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out writable branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: agent/covariance-safe-base-tracklet-ranking
+          fetch-depth: 0
+          persist-credentials: true
+          clean: true
+      - name: Configure publisher identity and refresh main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin main
+          git merge --no-edit origin/main
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Apply, format, and validate ordinary source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python .github/scripts/apply_covariance_safe_base_ranking.py
+          python -m pip install -e '.[dev]'
+          python -m pip install 'numpy>=1.24,<2.3'
+          python -m ruff format \
+            src/prob4d/cross_window_tracklets.py \
+            tests/test_cross_window_tracklets.py
+          python -m ruff check \
+            src/prob4d/cross_window_tracklets.py \
+            tests/test_cross_window_tracklets.py
+          python -m ruff format --check \
+            src/prob4d/cross_window_tracklets.py \
+            tests/test_cross_window_tracklets.py
+          python -m mypy src/prob4d/cross_window_tracklets.py
+          python -m pytest -q \
+            tests/test_cross_window_tracklets.py \
+            tests/test_cross_window_tracklet_evidence.py \
+            tests/test_material_identity_stream.py \
+            tests/test_causal_tracklets.py
+          git diff --check
+      - name: Commit ordinary source only
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add \
+            docs/cross-window-tracklet-association.md \
+            src/prob4d/cross_window_tracklets.py \
+            tests/test_cross_window_tracklets.py
+          git diff --cached --check
+          git commit -m 'Make base cross-window ranking covariance-safe'
+          git push origin HEAD:agent/covariance-safe-base-tracklet-ranking
