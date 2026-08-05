@@ -39,7 +39,7 @@ def write_problem_bundle(root: Path, problem: SyntheticProblem) -> tuple[Path, P
     manifest_windows = []
     for window in problem.overlap_windows:
         relative = Path("windows") / f"{window.window_id}.npz"
-        window.to_npz(root / relative)
+        window.to_npz(root / relative, storage_dtype="float32")
         manifest_windows.append(
             {
                 "window_id": window.window_id,

@@ -1,4 +1,4 @@
-"""Validated data contracts for decoded MotionCrafter predictions."""
+"""Validated data contracts for decoded 4-D prediction windows."""
 
 from __future__ import annotations
 
@@ -16,6 +16,11 @@ DenseStorageDType = Literal["float32", "float64"]
 DENSE_STORAGE_DTYPES: Final[tuple[DenseStorageDType, ...]] = (
     "float32",
     "float64",
+)
+PREDICTION_WINDOW_NPZ_SCHEMA: Final[str] = "prob4d.prediction-window-npz"
+PREDICTION_WINDOW_NPZ_VERSION: Final[int] = 2
+_PREDICTION_WINDOW_METADATA_FIELDS: Final[frozenset[str]] = frozenset(
+    {"schema_name", "schema_version", "dense_storage_dtype"}
 )
 
 
@@ -39,9 +44,21 @@ def _numpy_dense_dtype(value: DenseStorageDType) -> np.dtype[np.floating]:
     return np.dtype(np.float32 if value == "float32" else np.float64)
 
 
+def _scalar_text(value: np.ndarray, *, name: str) -> str:
+    if value.shape != () or value.dtype.kind not in {"U", "S"}:
+        raise ValueError(f"{name} must be one scalar string")
+    return str(value.item())
+
+
+def _scalar_integer(value: np.ndarray, *, name: str) -> int:
+    if value.shape != () or value.dtype.kind not in {"i", "u"}:
+        raise ValueError(f"{name} must be one scalar integer")
+    return int(value.item())
+
+
 @dataclass(frozen=True)
 class PredictionWindow:
-    """Decoded predictions for one local MotionCrafter temporal window.
+    """Decoded predictions for one local temporal window.
 
     Point maps and scene flow use the window's local world gauge. Absolute
     ``frame_indices`` identify duplicate frames across overlapping windows.
@@ -227,21 +244,41 @@ class PredictionWindow:
             output[local_index] = self.rays_at(local_index, dtype=target_dtype)
         return output
 
-    def to_npz(self, path: str | Path) -> None:
-        """Write a portable, self-describing prediction window."""
+    def to_npz(
+        self,
+        path: str | Path,
+        *,
+        storage_dtype: DenseStorageDType | None = None,
+    ) -> None:
+        """Write a versioned archive without silently changing dense precision.
 
+        By default, the archive preserves ``dense_storage_dtype``. Callers that
+        intentionally want a compact float32 archive must pass
+        ``storage_dtype="float32"`` explicitly; the selected on-disk dtype is
+        recorded and validated when the archive is loaded.
+        """
+
+        selected_dtype = (
+            self.dense_storage_dtype
+            if storage_dtype is None
+            else _validated_dense_storage_dtype(storage_dtype)
+        )
+        numpy_dtype = _numpy_dense_dtype(selected_dtype)
         payload: dict[str, np.ndarray] = {
+            "schema_name": np.asarray(PREDICTION_WINDOW_NPZ_SCHEMA),
+            "schema_version": np.asarray(PREDICTION_WINDOW_NPZ_VERSION, dtype=np.int64),
+            "dense_storage_dtype": np.asarray(selected_dtype),
             "window_id": np.asarray(self.window_id),
             "frame_indices": self.frame_indices,
-            "point_map": self.point_map.astype(np.float32, copy=False),
+            "point_map": self.point_map.astype(numpy_dtype, copy=False),
             "valid_mask": self.valid_mask,
         }
         if self.scene_flow is not None:
-            payload["scene_flow"] = self.scene_flow.astype(np.float32, copy=False)
+            payload["scene_flow"] = self.scene_flow.astype(numpy_dtype, copy=False)
             payload["deform_mask"] = self.deform_mask
         if self.ray_directions is not None:
             payload["ray_directions"] = self.ray_directions.astype(
-                np.float32,
+                numpy_dtype,
                 copy=False,
             )
         np.savez_compressed(Path(path), **payload)
@@ -253,14 +290,51 @@ class PredictionWindow:
         *,
         start_frame: int | None = None,
         window_id: str | None = None,
-        dense_storage_dtype: DenseStorageDType = "float64",
+        dense_storage_dtype: DenseStorageDType | None = None,
     ) -> PredictionWindow:
-        """Read a window, requiring explicit frame metadata when absent upstream."""
+        """Read a versioned or legacy window with explicit precision semantics."""
 
         path = Path(path)
         with np.load(path, allow_pickle=False) as data:
             if "point_map" not in data or "valid_mask" not in data:
                 raise ValueError(f"{path} does not contain point_map and valid_mask")
+
+            present_metadata = _PREDICTION_WINDOW_METADATA_FIELDS.intersection(data.files)
+            stored_dtype: DenseStorageDType | None = None
+            if present_metadata:
+                if present_metadata != _PREDICTION_WINDOW_METADATA_FIELDS:
+                    missing = sorted(_PREDICTION_WINDOW_METADATA_FIELDS - present_metadata)
+                    raise ValueError(
+                        "prediction-window archive has incomplete storage metadata: "
+                        + ", ".join(missing)
+                    )
+                schema_name = _scalar_text(data["schema_name"], name="schema_name")
+                schema_version = _scalar_integer(
+                    data["schema_version"],
+                    name="schema_version",
+                )
+                if schema_name != PREDICTION_WINDOW_NPZ_SCHEMA:
+                    raise ValueError("unsupported prediction-window archive schema")
+                if schema_version != PREDICTION_WINDOW_NPZ_VERSION:
+                    raise ValueError("unsupported prediction-window archive version")
+                stored_dtype = _validated_dense_storage_dtype(
+                    _scalar_text(
+                        data["dense_storage_dtype"],
+                        name="dense_storage_dtype",
+                    )
+                )
+                expected_dtype = _numpy_dense_dtype(stored_dtype)
+                for field in ("point_map", "scene_flow", "ray_directions"):
+                    if field in data and data[field].dtype != expected_dtype:
+                        raise ValueError(
+                            f"{field} dtype disagrees with dense_storage_dtype metadata"
+                        )
+
+            target_dtype = (
+                _validated_dense_storage_dtype(dense_storage_dtype)
+                if dense_storage_dtype is not None
+                else stored_dtype or "float64"
+            )
             time_steps = int(data["point_map"].shape[0])
             if "frame_indices" in data:
                 frame_indices = data["frame_indices"]
@@ -268,7 +342,7 @@ class PredictionWindow:
                 frame_indices = np.arange(start_frame, start_frame + time_steps)
             else:
                 raise ValueError(
-                    "MotionCrafter files without frame_indices require start_frame explicitly"
+                    "prediction files without frame_indices require start_frame explicitly"
                 )
 
             stored_id = str(data["window_id"].item()) if "window_id" in data else path.stem
@@ -280,12 +354,14 @@ class PredictionWindow:
                 scene_flow=data["scene_flow"] if "scene_flow" in data else None,
                 deform_mask=data["deform_mask"] if "deform_mask" in data else None,
                 ray_directions=data["ray_directions"] if "ray_directions" in data else None,
-                dense_storage_dtype=dense_storage_dtype,
+                dense_storage_dtype=target_dtype,
             )
 
 
 __all__ = [
     "DENSE_STORAGE_DTYPES",
+    "PREDICTION_WINDOW_NPZ_SCHEMA",
+    "PREDICTION_WINDOW_NPZ_VERSION",
     "DenseStorageDType",
     "PredictionWindow",
 ]
