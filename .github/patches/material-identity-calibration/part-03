@@ -1,0 +1,328 @@
+(self, "window_order", window_order)
++        object.__setattr__(
++            self,
++            "causal_frame_stop",
++            _strict_integer(self.causal_frame_stop, name="causal_frame_stop", minimum=1),
++        )
++        for name in ("association_rule_id", "source_stream_artifact_id", "source_update_id"):
++            object.__setattr__(
++                self,
++                name,
++                _strict_digest(getattr(self, name), name=name, length=_SHA256_LENGTH),
++            )
++        for name in ("tracklet_producer_revision", "association_revision"):
++            object.__setattr__(
++                self,
++                name,
++                _strict_digest(getattr(self, name), name=name, length=_GIT_SHA_LENGTH),
++            )
++        object.__setattr__(self, "feature_names", names)
++        object.__setattr__(self, "candidates", candidates)
++        object.__setattr__(
++            self,
++            "metadata",
++            _target_free_metadata(self.metadata, name="choice-set metadata"),
++        )
++        expected = _sha256_json(self.descriptor())
++        if self.choice_set_id is not None and (
++            _strict_digest(self.choice_set_id, name="choice_set_id", length=_SHA256_LENGTH)
++            != expected
++        ):
++            raise ValueError("material-identity choice_set_id mismatch")
++        object.__setattr__(self, "choice_set_id", expected)
++
++    @property
++    def candidate_ids(self) -> tuple[str, ...]:
++        return tuple(
++            candidate.candidate_id(target_endpoint=self.target_endpoint)
++            for candidate in self.candidates
++        )
++
++    @property
++    def null_candidate_id(self) -> str:
++        return self.candidate_ids[0]
++
++    @property
++    def feature_matrix(self) -> FloatArray:
++        return _readonly(
++            np.stack([candidate.features for candidate in self.candidates]),
++            dtype=np.float64,
++        )
++
++    def descriptor(self) -> dict[str, object]:
++        return {
++            "schema": MATERIAL_IDENTITY_CHOICE_SET_SCHEMA,
++            "schema_version": MATERIAL_IDENTITY_CHOICE_SET_VERSION,
++            "target_endpoint": self.target_endpoint.to_dict(),
++            "window_order": list(self.window_order),
++            "causal_frame_stop": self.causal_frame_stop,
++            "association_rule_id": self.association_rule_id,
++            "tracklet_producer_revision": self.tracklet_producer_revision,
++            "association_revision": self.association_revision,
++            "source_stream_artifact_id": self.source_stream_artifact_id,
++            "source_update_id": self.source_update_id,
++            "feature_semantics": MATERIAL_IDENTITY_FEATURE_SEMANTICS,
++            "feature_names": list(self.feature_names),
++            "candidates": [
++                candidate.to_record(target_endpoint=self.target_endpoint)
++                for candidate in self.candidates
++            ],
++            "metadata": plain_json(self.metadata),
++            "claim_boundary": MATERIAL_IDENTITY_CALIBRATION_CLAIM_BOUNDARY,
++        }
++
++    def to_record(self) -> dict[str, object]:
++        return {**self.descriptor(), "choice_set_id": self.choice_set_id}
++
++
++@dataclass(frozen=True, slots=True)
++class MaterialIdentityChoiceSetCollectionV1:
++    """Canonical collection of choice sets sharing one calibration semantics."""
++
++    feature_names: tuple[str, ...]
++    association_rule_id: str
++    tracklet_producer_revision: str
++    association_revision: str
++    choice_sets: tuple[MaterialIdentityChoiceSetV1, ...]
++    metadata: Mapping[str, Any] = field(default_factory=dict)
++    collection_id: str | None = None
++
++    def __post_init__(self) -> None:
++        names = tuple(
++            _strict_string(value, name=f"feature_names[{index}]")
++            for index, value in enumerate(self.feature_names)
++        )
++        if not names or len(set(names)) != len(names):
++            raise ValueError("feature_names must be non-empty and unique")
++        association_rule_id = _strict_digest(
++            self.association_rule_id,
++            name="association_rule_id",
++            length=_SHA256_LENGTH,
++        )
++        tracklet_revision = _strict_digest(
++            self.tracklet_producer_revision,
++            name="tracklet_producer_revision",
++            length=_GIT_SHA_LENGTH,
++        )
++        association_revision = _strict_digest(
++            self.association_revision,
++            name="association_revision",
++            length=_GIT_SHA_LENGTH,
++        )
++        if type(self.choice_sets) is not tuple or not self.choice_sets:
++            raise ValueError("choice_sets must be a non-empty tuple")
++        if any(not isinstance(value, MaterialIdentityChoiceSetV1) for value in self.choice_sets):
++            raise ValueError("choice_sets must contain MaterialIdentityChoiceSetV1 values")
++        choice_sets = tuple(
++            sorted(self.choice_sets, key=lambda value: cast(str, value.choice_set_id))
++        )
++        ids = tuple(cast(str, value.choice_set_id) for value in choice_sets)
++        if len(set(ids)) != len(ids):
++            raise ValueError("choice_set IDs must be unique")
++        provenance_keys: set[tuple[str, str, str, int]] = set()
++        for choice_set in choice_sets:
++            if choice_set.feature_names != names:
++                raise ValueError("choice-set feature names changed within the collection")
++            if choice_set.association_rule_id != association_rule_id:
++                raise ValueError("choice-set association rule changed within the collection")
++            if choice_set.tracklet_producer_revision != tracklet_revision:
++                raise ValueError("choice-set tracklet revision changed within the collection")
++            if choice_set.association_revision != association_revision:
++                raise ValueError("choice-set association revision changed within the collection")
++            key = (
++                choice_set.source_stream_artifact_id,
++                choice_set.source_update_id,
++                choice_set.target_endpoint.window_id,
++                choice_set.target_endpoint.track_id,
++            )
++            if key in provenance_keys:
++                raise ValueError("duplicate target choice set in one source update")
++            provenance_keys.add(key)
++        object.__setattr__(self, "feature_names", names)
++        object.__setattr__(self, "association_rule_id", association_rule_id)
++        object.__setattr__(self, "tracklet_producer_revision", tracklet_revision)
++        object.__setattr__(self, "association_revision", association_revision)
++        object.__setattr__(self, "choice_sets", choice_sets)
++        object.__setattr__(
++            self,
++            "metadata",
++            _target_free_metadata(self.metadata, name="choice collection metadata"),
++        )
++        expected = _sha256_json(self.descriptor())
++        if self.collection_id is not None and (
++            _strict_digest(self.collection_id, name="collection_id", length=_SHA256_LENGTH)
++            != expected
++        ):
++            raise ValueError("material-identity collection_id mismatch")
++        object.__setattr__(self, "collection_id", expected)
++
++    @property
++    def choice_set_ids(self) -> tuple[str, ...]:
++        return tuple(cast(str, value.choice_set_id) for value in self.choice_sets)
++
++    def by_id(self) -> dict[str, MaterialIdentityChoiceSetV1]:
++        return {cast(str, value.choice_set_id): value for value in self.choice_sets}
++
++    def descriptor(self) -> dict[str, object]:
++        return {
++            "schema": MATERIAL_IDENTITY_CHOICE_COLLECTION_SCHEMA,
++            "schema_version": MATERIAL_IDENTITY_CHOICE_COLLECTION_VERSION,
++            "feature_semantics": MATERIAL_IDENTITY_FEATURE_SEMANTICS,
++            "feature_names": list(self.feature_names),
++            "association_rule_id": self.association_rule_id,
++            "tracklet_producer_revision": self.tracklet_producer_revision,
++            "association_revision": self.association_revision,
++            "choice_sets": [value.to_record() for value in self.choice_sets],
++            "metadata": plain_json(self.metadata),
++            "claim_boundary": MATERIAL_IDENTITY_CALIBRATION_CLAIM_BOUNDARY,
++        }
++
++    def to_record(self) -> dict[str, object]:
++        return {**self.descriptor(), "collection_id": self.collection_id}
++
++
++@dataclass(frozen=True, slots=True)
++class MaterialIdentityChoiceLabelV1:
++    """One source/calibration identity label for one complete choice set."""
++
++    choice_set_id: str
++    chosen_candidate_id: str
++    group_id: str
++
++    def __post_init__(self) -> None:
++        object.__setattr__(
++            self,
++            "choice_set_id",
++            _strict_digest(self.choice_set_id, name="choice_set_id", length=_SHA256_LENGTH),
++        )
++        object.__setattr__(
++            self,
++            "chosen_candidate_id",
++            _strict_digest(
++                self.chosen_candidate_id,
++                name="chosen_candidate_id",
++                length=_SHA256_LENGTH,
++            ),
++        )
++        object.__setattr__(self, "group_id", _strict_string(self.group_id, name="group_id"))
++
++    def to_dict(self) -> dict[str, str]:
++        return {
++            "choice_set_id": self.choice_set_id,
++            "chosen_candidate_id": self.chosen_candidate_id,
++            "group_id": self.group_id,
++        }
++
++
++@dataclass(frozen=True, slots=True)
++class MaterialIdentityLabelSetV1:
++    """Content-addressed labels that explicitly exclude target outcomes."""
++
++    choice_set_collection_id: str
++    labels: tuple[MaterialIdentityChoiceLabelV1, ...]
++    label_definition: str
++    group_definition: str
++    target_outcomes_used: bool = False
++    metadata: Mapping[str, Any] = field(default_factory=dict)
++    label_set_id: str | None = None
++
++    def __post_init__(self) -> None:
++        object.__setattr__(
++            self,
++            "choice_set_collection_id",
++            _strict_digest(
++                self.choice_set_collection_id,
++                name="choice_set_collection_id",
++                length=_SHA256_LENGTH,
++            ),
++        )
++        if type(self.labels) is not tuple or not self.labels:
++            raise ValueError("labels must be a non-empty tuple")
++        if any(not isinstance(value, MaterialIdentityChoiceLabelV1) for value in self.labels):
++            raise ValueError("labels must contain MaterialIdentityChoiceLabelV1 values")
++        labels = tuple(sorted(self.labels, key=lambda value: value.choice_set_id))
++        if len({value.choice_set_id for value in labels}) != len(labels):
++            raise ValueError("labels must contain one row per choice set")
++        object.__setattr__(self, "labels", labels)
++        object.__setattr__(
++            self,
++            "label_definition",
++            _strict_string(self.label_definition, name="label_definition"),
++        )
++        object.__setattr__(
++            self,
++            "group_definition",
++            _strict_string(self.group_definition, name="group_definition"),
++        )
++        if _strict_bool(self.target_outcomes_used, name="target_outcomes_used"):
++            raise ValueError("material-identity calibration may not use target outcomes")
++        object.__setattr__(self, "target_outcomes_used", False)
++        object.__setattr__(
++            self,
++            "metadata",
++            _target_free_metadata(self.metadata, name="identity label metadata"),
++        )
++        expected = _sha256_json(self.descriptor())
++        if self.label_set_id is not None and (
++            _strict_digest(self.label_set_id, name="label_set_id", length=_SHA256_LENGTH)
++            != expected
++        ):
++            raise ValueError("material-identity label_set_id mismatch")
++        object.__setattr__(self, "label_set_id", expected)
++
++    def by_choice_set_id(self) -> dict[str, MaterialIdentityChoiceLabelV1]:
++        return {value.choice_set_id: value for value in self.labels}
++
++    def descriptor(self) -> dict[str, object]:
++        return {
++            "schema": MATERIAL_IDENTITY_LABEL_SET_SCHEMA,
++            "schema_version": MATERIAL_IDENTITY_LABEL_SET_VERSION,
++            "choice_set_collection_id": self.choice_set_collection_id,
++            "labels": [value.to_dict() for value in self.labels],
++            "label_definition": self.label_definition,
++            "group_definition": self.group_definition,
++            "target_outcomes_used": self.target_outcomes_used,
++            "metadata": plain_json(self.metadata),
++            "claim_boundary": MATERIAL_IDENTITY_CALIBRATION_CLAIM_BOUNDARY,
++        }
++
++    def to_record(self) -> dict[str, object]:
++        return {**self.descriptor(), "label_set_id": self.label_set_id}
++
++
++@dataclass(frozen=True, slots=True)
++class MaterialIdentityCalibrationReportV1:
++    """Deterministic optimization and held-in source-calibration diagnostics."""
++
++    choice_set_count: int
++    informative_choice_set_count: int
++    null_only_choice_set_count: int
++    candidate_count: int
++    group_count: int
++    feature_count: int
++    iterations: int
++    converged: bool
++    weighted_log_loss: float
++    weighted_brier_score: float
++    weighted_top1_accuracy: float
++    ridge: float
++    probability_floor: float
++
++    def __post_init__(self) -> None:
++        for name in (
++            "choice_set_count",
++            "informative_choice_set_count",
++            "null_only_choice_set_count",
++            "candidate_count",
++            "group_count",
++            "feature_count",
++            "iterations",
++        ):
++            minimum = 0 if name == "null_only_choice_set_count" else 1
++            object.__setattr__(
++                self,
++                name,
++                _strict_integer(getattr(self, name), name=name, minimum=minimum),
++            )
++        if (
++            self.informative
