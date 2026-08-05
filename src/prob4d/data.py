@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Final, Literal, cast
+from typing import Any, Final, Literal, TypeAlias, cast
 
 import numpy as np
 from numpy.typing import NDArray
 
-FloatArray = NDArray[np.floating]
-BoolArray = NDArray[np.bool_]
-IntArray = NDArray[np.integer]
+FloatArray: TypeAlias = NDArray[np.floating[Any]]
+BoolArray: TypeAlias = NDArray[np.bool_]
+IntArray: TypeAlias = NDArray[np.integer[Any]]
 DenseStorageDType = Literal["float32", "float64"]
 DENSE_STORAGE_DTYPES: Final[tuple[DenseStorageDType, ...]] = (
     "float32",
@@ -40,7 +40,7 @@ def _validated_dense_storage_dtype(value: object) -> DenseStorageDType:
     return cast(DenseStorageDType, normalized)
 
 
-def _numpy_dense_dtype(value: DenseStorageDType) -> np.dtype[np.floating]:
+def _numpy_dense_dtype(value: DenseStorageDType) -> np.dtype[Any]:
     return np.dtype(np.float32 if value == "float32" else np.float64)
 
 
@@ -109,6 +109,7 @@ class PredictionWindow:
         if (scene_flow is None) != (deform_mask is None):
             raise ValueError("scene_flow and deform_mask must either both be present or absent")
         if deform_mask is not None:
+            assert scene_flow is not None
             if np.any(deform_mask & ~valid_mask):
                 raise ValueError("deform_mask must be a subset of valid_mask")
             if not np.all(np.isfinite(scene_flow[deform_mask])):
@@ -200,7 +201,7 @@ class PredictionWindow:
         self,
         local_index: int,
         *,
-        dtype: type[np.floating] | np.dtype[np.floating] | None = None,
+        dtype: type[np.floating[Any]] | np.dtype[np.floating[Any]] | None = None,
     ) -> FloatArray:
         """Return normalized rays for one frame without copying the full window."""
 
@@ -229,7 +230,7 @@ class PredictionWindow:
     def rays(
         self,
         *,
-        dtype: type[np.floating] | np.dtype[np.floating] | None = None,
+        dtype: type[np.floating[Any]] | np.dtype[np.floating[Any]] | None = None,
     ) -> FloatArray:
         """Return all normalized rays, using frame-local temporary storage."""
 
@@ -264,7 +265,7 @@ class PredictionWindow:
             else _validated_dense_storage_dtype(storage_dtype)
         )
         numpy_dtype = _numpy_dense_dtype(selected_dtype)
-        payload: dict[str, np.ndarray] = {
+        payload: dict[str, Any] = {
             "schema_name": np.asarray(PREDICTION_WINDOW_NPZ_SCHEMA),
             "schema_version": np.asarray(PREDICTION_WINDOW_NPZ_VERSION, dtype=np.int64),
             "dense_storage_dtype": np.asarray(selected_dtype),
