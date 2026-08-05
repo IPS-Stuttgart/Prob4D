@@ -9,20 +9,32 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import tempfile
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeAlias
 
 import numpy as np
 from numpy.typing import NDArray
 
 from ._immutable_json import frozen_finite_json_mapping, plain_json
+from ._selection_evidence_common import (
+    _SHA256,
+    _exact_keys,
+    _strict_bool,
+    _strict_integer,
+    _strict_list,
+    _strict_mapping,
+    _strict_real,
+    _strict_string,
+)
 from .data import PredictionWindow
 from .uncertainty import DisagreementEvidence, StructuredCovariance
 
-FloatArray = NDArray[np.floating]
-BoolArray = NDArray[np.bool_]
+FloatArray: TypeAlias = NDArray[np.floating[Any]]
+BoolArray: TypeAlias = NDArray[np.bool_]
 
 SOURCE_RELIABILITY_SCHEMA = "prob4d.source-reliability-calibration"
 SOURCE_RELIABILITY_VERSION = 1
@@ -41,6 +53,32 @@ def _canonical_json(value: Mapping[str, Any]) -> bytes:
         separators=(",", ":"),
         allow_nan=False,
     ).encode("utf-8")
+
+
+def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON key {key!r}")
+        result[key] = value
+    return result
+
+
+def _reject_nonfinite_constant(value: str) -> None:
+    raise ValueError(f"non-finite JSON constant is forbidden: {value}")
+
+
+def _strict_real_array(value: Any, *, name: str) -> FloatArray:
+    items = _strict_list(value, name=name)
+    return np.asarray(
+        [_strict_real(item, name=f"{name}[{index}]") for index, item in enumerate(items)],
+        dtype=np.float64,
+    )
+
+
+def _strict_string_tuple_from_json(value: Any, *, name: str) -> tuple[str, ...]:
+    items = _strict_list(value, name=name)
+    return tuple(_strict_string(item, name=f"{name}[{index}]") for index, item in enumerate(items))
 
 
 def _sigmoid(logits: np.ndarray) -> np.ndarray:
@@ -63,7 +101,10 @@ class SourceReliabilityFeatures:
     metadata: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        names = tuple(str(value) for value in self.feature_names)
+        names = tuple(
+            _strict_string(value, name=f"feature_names[{index}]")
+            for index, value in enumerate(self.feature_names)
+        )
         if not names or any(not value for value in names):
             raise ValueError("feature_names must be non-empty")
         if len(set(names)) != len(names):
@@ -154,10 +195,9 @@ def build_source_reliability_features(
         normalized_disagreement = np.zeros(window.shape, dtype=np.float64)
     else:
         has_overlap = evidence.count > 0.0
-        normalized_disagreement = (
-            evidence.parallel_mean / np.maximum(parallel, 1e-15)
-            + evidence.lateral_mean / np.maximum(lateral, 1e-15)
-        )
+        normalized_disagreement = evidence.parallel_mean / np.maximum(
+            parallel, 1e-15
+        ) + evidence.lateral_mean / np.maximum(lateral, 1e-15)
         normalized_disagreement = np.where(
             has_overlap,
             normalized_disagreement,
@@ -166,10 +206,11 @@ def build_source_reliability_features(
     log_disagreement = np.log1p(np.maximum(normalized_disagreement, 0.0))
 
     time_steps = window.shape[0]
+    temporal_edge: FloatArray
     if time_steps == 1:
         temporal_edge = np.ones(1, dtype=np.float64)
     else:
-        positions = np.arange(time_steps, dtype=np.float64)
+        positions: FloatArray = np.arange(time_steps, dtype=np.float64)
         distance = np.minimum(positions, time_steps - 1.0 - positions)
         temporal_edge = 1.0 - distance / max((time_steps - 1.0) / 2.0, 1.0)
         temporal_edge = np.clip(temporal_edge, 0.0, 1.0)
@@ -184,12 +225,8 @@ def build_source_reliability_features(
         has_scene_flow = window.deform_mask & valid
         flow_norm = np.linalg.norm(window.scene_flow, axis=-1)
         positive_flow = flow_norm[has_scene_flow & (flow_norm > 0.0)]
-        flow_scale = (
-            float(np.median(positive_flow))
-            if len(positive_flow)
-            else 1.0
-        )
-        flow_scale = max(flow_scale, np.finfo(np.float64).tiny)
+        flow_scale = float(np.median(positive_flow)) if len(positive_flow) else 1.0
+        flow_scale = max(flow_scale, float(np.finfo(np.float64).tiny))
         log_relative_flow = np.log1p(flow_norm / flow_scale)
         log_relative_flow = np.where(has_scene_flow, log_relative_flow, 0.0)
 
@@ -249,24 +286,32 @@ class SourceReliabilityCalibrationReport:
     def __post_init__(self) -> None:
         integer_fields = ("count", "group_count", "feature_count", "iterations")
         for name in integer_fields:
-            value = int(getattr(self, name))
-            if value != getattr(self, name) or value < 1:
-                raise ValueError(f"{name} must be a positive integer")
-            object.__setattr__(self, name, value)
+            object.__setattr__(
+                self,
+                name,
+                _strict_integer(getattr(self, name), name=name, minimum=1),
+            )
+        converged = _strict_bool(self.converged, name="converged")
         diagnostics = np.asarray(
             [
-                self.group_balanced_nominal_fraction,
-                self.weighted_log_loss,
-                self.weighted_brier_score,
-                self.ridge,
+                _strict_real(
+                    self.group_balanced_nominal_fraction,
+                    name="group_balanced_nominal_fraction",
+                ),
+                _strict_real(self.weighted_log_loss, name="weighted_log_loss"),
+                _strict_real(
+                    self.weighted_brier_score,
+                    name="weighted_brier_score",
+                ),
+                _strict_real(self.ridge, name="ridge"),
             ],
             dtype=np.float64,
         )
-        if not np.all(np.isfinite(diagnostics)) or np.any(diagnostics < 0.0):
-            raise ValueError("source reliability diagnostics must be finite and non-negative")
+        if np.any(diagnostics < 0.0):
+            raise ValueError("source reliability diagnostics must be non-negative")
         if diagnostics[0] > 1.0:
             raise ValueError("nominal fraction must lie in [0, 1]")
-        object.__setattr__(self, "converged", bool(self.converged))
+        object.__setattr__(self, "converged", converged)
         object.__setattr__(
             self,
             "group_balanced_nominal_fraction",
@@ -297,7 +342,10 @@ class SourceReliabilityModelV1:
     metadata: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        names = tuple(str(value) for value in self.feature_names)
+        names = tuple(
+            _strict_string(value, name=f"feature_names[{index}]")
+            for index, value in enumerate(self.feature_names)
+        )
         if not names or any(not value for value in names):
             raise ValueError("feature_names must be non-empty")
         if len(set(names)) != len(names):
@@ -314,16 +362,25 @@ class SourceReliabilityModelV1:
             raise ValueError("source reliability model values must be finite")
         if not np.all(np.isfinite(scale)) or np.any(scale <= 0.0):
             raise ValueError("feature_scale must be finite and positive")
-        minimum = float(self.minimum_probability)
-        maximum = float(self.maximum_probability)
+        minimum = _strict_real(self.minimum_probability, name="minimum_probability")
+        maximum = _strict_real(self.maximum_probability, name="maximum_probability")
         if not 0.0 < minimum < maximum < 1.0:
             raise ValueError("probability limits must satisfy 0 < minimum < maximum < 1")
-        label_definition = str(self.label_definition).strip()
-        group_definition = str(self.group_definition).strip()
-        if not label_definition or not group_definition:
-            raise ValueError("label_definition and group_definition must be non-empty")
-        groups = tuple(sorted(str(value).strip() for value in self.calibration_group_ids))
-        if not groups or any(not value for value in groups) or len(set(groups)) != len(groups):
+        label_definition = _strict_string(
+            self.label_definition,
+            name="label_definition",
+        )
+        group_definition = _strict_string(
+            self.group_definition,
+            name="group_definition",
+        )
+        groups = tuple(
+            sorted(
+                _strict_string(value, name=f"calibration_group_ids[{index}]")
+                for index, value in enumerate(self.calibration_group_ids)
+            )
+        )
+        if not groups or len(set(groups)) != len(groups):
             raise ValueError("calibration_group_ids must be non-empty and unique")
         if self.report.feature_count != feature_count:
             raise ValueError("calibration report feature count changed")
@@ -404,45 +461,130 @@ class SourceReliabilityModelV1:
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> SourceReliabilityModelV1:
-        if payload.get("schema") != SOURCE_RELIABILITY_SCHEMA:
+        mapping = _strict_mapping(payload, name="source reliability artifact")
+        if any(type(key) is not str for key in mapping):
+            raise ValueError("source reliability artifact keys must be strings")
+        _exact_keys(
+            mapping,
+            {
+                "artifact_id",
+                "schema",
+                "version",
+                "feature_names",
+                "feature_center",
+                "feature_scale",
+                "coefficients",
+                "minimum_probability",
+                "maximum_probability",
+                "label_definition",
+                "group_definition",
+                "calibration_group_ids",
+                "report",
+                "metadata",
+            },
+            name="source reliability artifact",
+        )
+        if mapping["schema"] != SOURCE_RELIABILITY_SCHEMA:
             raise ValueError("unexpected source reliability schema")
-        if payload.get("version") != SOURCE_RELIABILITY_VERSION:
+        if (
+            _strict_integer(mapping["version"], name="version", minimum=1)
+            != SOURCE_RELIABILITY_VERSION
+        ):
             raise ValueError("unsupported source reliability version")
-        report_payload = payload.get("report")
-        if not isinstance(report_payload, Mapping):
-            raise ValueError("source reliability artifact is missing its report")
-        try:
-            report = SourceReliabilityCalibrationReport(
-                count=int(report_payload["count"]),
-                group_count=int(report_payload["group_count"]),
-                feature_count=int(report_payload["feature_count"]),
-                iterations=int(report_payload["iterations"]),
-                converged=bool(report_payload["converged"]),
-                group_balanced_nominal_fraction=float(
-                    report_payload["group_balanced_nominal_fraction"]
-                ),
-                weighted_log_loss=float(report_payload["weighted_log_loss"]),
-                weighted_brier_score=float(
-                    report_payload["weighted_brier_score"]
-                ),
-                ridge=float(report_payload["ridge"]),
-            )
-            artifact = cls(
-                feature_names=tuple(payload["feature_names"]),
-                feature_center=np.asarray(payload["feature_center"], dtype=np.float64),
-                feature_scale=np.asarray(payload["feature_scale"], dtype=np.float64),
-                coefficients=np.asarray(payload["coefficients"], dtype=np.float64),
-                minimum_probability=float(payload["minimum_probability"]),
-                maximum_probability=float(payload["maximum_probability"]),
-                label_definition=str(payload["label_definition"]),
-                group_definition=str(payload["group_definition"]),
-                calibration_group_ids=tuple(payload["calibration_group_ids"]),
-                report=report,
-                metadata=payload.get("metadata", {}),
-            )
-        except (KeyError, TypeError, ValueError) as error:
-            raise ValueError("invalid source reliability artifact") from error
-        if str(payload.get("artifact_id", "")) != artifact.artifact_id:
+        artifact_id = _strict_string(mapping["artifact_id"], name="artifact_id")
+        if _SHA256.fullmatch(artifact_id) is None:
+            raise ValueError("artifact_id has a noncanonical digest format")
+        report_payload = _strict_mapping(mapping["report"], name="calibration report")
+        if any(type(key) is not str for key in report_payload):
+            raise ValueError("calibration report keys must be strings")
+        _exact_keys(
+            report_payload,
+            {
+                "count",
+                "group_count",
+                "feature_count",
+                "iterations",
+                "converged",
+                "group_balanced_nominal_fraction",
+                "weighted_log_loss",
+                "weighted_brier_score",
+                "ridge",
+            },
+            name="calibration report",
+        )
+        report = SourceReliabilityCalibrationReport(
+            count=_strict_integer(report_payload["count"], name="count", minimum=1),
+            group_count=_strict_integer(
+                report_payload["group_count"],
+                name="group_count",
+                minimum=1,
+            ),
+            feature_count=_strict_integer(
+                report_payload["feature_count"],
+                name="feature_count",
+                minimum=1,
+            ),
+            iterations=_strict_integer(
+                report_payload["iterations"],
+                name="iterations",
+                minimum=1,
+            ),
+            converged=_strict_bool(report_payload["converged"], name="converged"),
+            group_balanced_nominal_fraction=_strict_real(
+                report_payload["group_balanced_nominal_fraction"],
+                name="group_balanced_nominal_fraction",
+            ),
+            weighted_log_loss=_strict_real(
+                report_payload["weighted_log_loss"],
+                name="weighted_log_loss",
+            ),
+            weighted_brier_score=_strict_real(
+                report_payload["weighted_brier_score"],
+                name="weighted_brier_score",
+            ),
+            ridge=_strict_real(report_payload["ridge"], name="ridge"),
+        )
+        artifact = cls(
+            feature_names=_strict_string_tuple_from_json(
+                mapping["feature_names"],
+                name="feature_names",
+            ),
+            feature_center=_strict_real_array(
+                mapping["feature_center"],
+                name="feature_center",
+            ),
+            feature_scale=_strict_real_array(
+                mapping["feature_scale"],
+                name="feature_scale",
+            ),
+            coefficients=_strict_real_array(
+                mapping["coefficients"],
+                name="coefficients",
+            ),
+            minimum_probability=_strict_real(
+                mapping["minimum_probability"],
+                name="minimum_probability",
+            ),
+            maximum_probability=_strict_real(
+                mapping["maximum_probability"],
+                name="maximum_probability",
+            ),
+            label_definition=_strict_string(
+                mapping["label_definition"],
+                name="label_definition",
+            ),
+            group_definition=_strict_string(
+                mapping["group_definition"],
+                name="group_definition",
+            ),
+            calibration_group_ids=_strict_string_tuple_from_json(
+                mapping["calibration_group_ids"],
+                name="calibration_group_ids",
+            ),
+            report=report,
+            metadata=_strict_mapping(mapping["metadata"], name="metadata"),
+        )
+        if artifact_id != artifact.artifact_id:
             raise ValueError("source reliability artifact_id does not match content")
         return artifact
 
@@ -467,8 +609,9 @@ def _weighted_objective(
     ridge: float,
 ) -> float:
     logits = design @ parameters
-    data_loss = np.sum(weights * (np.logaddexp(0.0, logits) - labels * logits))
-    return float(data_loss + 0.5 * ridge * np.sum(parameters[1:] ** 2))
+    data_loss = float(np.sum(weights * (np.logaddexp(0.0, logits) - labels * logits)))
+    penalty = float(np.sum(parameters[1:] ** 2))
+    return data_loss + 0.5 * ridge * penalty
 
 
 def fit_group_balanced_source_reliability(
@@ -497,7 +640,10 @@ def fit_group_balanced_source_reliability(
     leading_shape = values.shape[:-1]
     if labels.shape != leading_shape or groups.shape != leading_shape:
         raise ValueError("labels and group_ids must match feature leading dimensions")
-    names = tuple(str(value) for value in feature_names)
+    names = tuple(
+        _strict_string(value, name=f"feature_names[{index}]")
+        for index, value in enumerate(feature_names)
+    )
     if len(names) != values.shape[-1]:
         raise ValueError("feature_names length differs from feature count")
     active = np.ones(leading_shape, dtype=bool)
@@ -519,12 +665,14 @@ def fit_group_balanced_source_reliability(
         raise ValueError("nominal_labels must contain only zero or one")
     if len(np.unique(active_labels)) != 2:
         raise ValueError("source reliability calibration requires both label classes")
-    normalized_groups = np.asarray(
-        ["" if value is None else str(value).strip() for value in raw_groups],
-        dtype=str,
-    )
-    if np.any(normalized_groups == ""):
-        raise ValueError("active calibration group IDs must be non-empty")
+    normalized_group_values: list[str] = []
+    for index, value in enumerate(raw_groups):
+        if not isinstance(value, str):
+            raise ValueError(f"active calibration group IDs[{index}] must be a string")
+        normalized_group_values.append(
+            _strict_string(str(value), name=f"active calibration group IDs[{index}]")
+        )
+    normalized_groups = np.asarray(normalized_group_values, dtype=str)
     active_values, active_labels, normalized_groups = _canonical_training_rows(
         active_values,
         active_labels,
@@ -532,22 +680,35 @@ def fit_group_balanced_source_reliability(
     )
     canonical_groups = tuple(sorted(set(normalized_groups.tolist())))
     group_count = len(canonical_groups)
-    weights = np.empty(len(active_labels), dtype=np.float64)
+    weights: FloatArray = np.empty(len(active_labels), dtype=np.float64)
     for group_id in canonical_groups:
         selected = normalized_groups == group_id
         weights[selected] = 1.0 / (group_count * int(np.count_nonzero(selected)))
     if not np.isclose(np.sum(weights), 1.0, atol=1e-12):
         raise RuntimeError("group-balanced calibration weights do not sum to one")
 
-    ridge = float(ridge)
-    tolerance = float(convergence_tolerance)
-    maximum_iterations = int(maximum_iterations)
+    ridge = _strict_real(ridge, name="ridge")
+    tolerance = _strict_real(
+        convergence_tolerance,
+        name="convergence_tolerance",
+    )
+    maximum_iterations = _strict_integer(
+        maximum_iterations,
+        name="maximum_iterations",
+        minimum=1,
+    )
     if not np.isfinite(ridge) or ridge <= 0.0:
         raise ValueError("ridge must be finite and positive")
     if not np.isfinite(tolerance) or tolerance <= 0.0:
         raise ValueError("convergence_tolerance must be finite and positive")
-    if maximum_iterations < 1:
-        raise ValueError("maximum_iterations must be positive")
+    minimum_probability = _strict_real(
+        minimum_probability,
+        name="minimum_probability",
+    )
+    maximum_probability = _strict_real(
+        maximum_probability,
+        name="maximum_probability",
+    )
     if not 0.0 < minimum_probability < maximum_probability < 1.0:
         raise ValueError("probability limits must satisfy 0 < minimum < maximum < 1")
 
@@ -605,9 +766,7 @@ def fit_group_balanced_source_reliability(
             fraction *= 0.5
         if not accepted:
             break
-        if np.linalg.norm(fraction * step) <= tolerance * (
-            1.0 + np.linalg.norm(parameters)
-        ):
+        if np.linalg.norm(fraction * step) <= tolerance * (1.0 + np.linalg.norm(parameters)):
             converged = True
             break
 
@@ -625,9 +784,7 @@ def fit_group_balanced_source_reliability(
             )
         )
     )
-    weighted_brier = float(
-        np.sum(weights * (fitted_probability - active_labels) ** 2)
-    )
+    weighted_brier = float(np.sum(weights * (fitted_probability - active_labels) ** 2))
     report = SourceReliabilityCalibrationReport(
         count=len(active_labels),
         group_count=group_count,
@@ -654,21 +811,64 @@ def fit_group_balanced_source_reliability(
     )
 
 
+def _serialized_source_reliability_model(model: SourceReliabilityModelV1) -> bytes:
+    return (json.dumps(model.to_dict(), sort_keys=True, indent=2, allow_nan=False) + "\n").encode(
+        "utf-8"
+    )
+
+
 def save_source_reliability_model(
     model: SourceReliabilityModelV1,
     path: str | Path,
 ) -> None:
-    Path(path).write_text(
-        json.dumps(model.to_dict(), sort_keys=True, indent=2, allow_nan=False) + "\n",
-        encoding="utf-8",
+    target = Path(path)
+    payload = _serialized_source_reliability_model(model)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if target.exists():
+        if target.read_bytes() == payload:
+            return
+        raise FileExistsError(
+            f"refusing to replace a different source reliability artifact: {target}"
+        )
+
+    descriptor = tempfile.NamedTemporaryFile(
+        mode="wb",
+        prefix=f".{target.name}.tmp-",
+        dir=target.parent,
+        delete=False,
     )
+    temporary = Path(descriptor.name)
+    try:
+        with descriptor:
+            descriptor.write(payload)
+            descriptor.flush()
+            os.fsync(descriptor.fileno())
+        if temporary.read_bytes() != payload:
+            raise OSError("temporary source reliability artifact failed validation")
+        try:
+            os.link(temporary, target)
+        except FileExistsError:
+            if target.read_bytes() == payload:
+                return
+            raise FileExistsError(
+                f"refusing to replace a different source reliability artifact: {target}"
+            ) from None
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def load_source_reliability_model(path: str | Path) -> SourceReliabilityModelV1:
-    payload = json.loads(Path(path).read_text(encoding="utf-8"))
-    if not isinstance(payload, Mapping):
-        raise ValueError("source reliability artifact must be a JSON object")
-    return SourceReliabilityModelV1.from_dict(payload)
+    source = Path(path)
+    try:
+        payload = json.loads(
+            source.read_text(encoding="utf-8"),
+            object_pairs_hook=_reject_duplicate_keys,
+            parse_constant=_reject_nonfinite_constant,
+        )
+    except (UnicodeError, json.JSONDecodeError) as error:
+        raise ValueError(f"source reliability artifact is invalid JSON: {source}") from error
+    mapping = _strict_mapping(payload, name="source reliability artifact")
+    return SourceReliabilityModelV1.from_dict(mapping)
 
 
 __all__ = [
