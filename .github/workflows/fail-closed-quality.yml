@@ -133,6 +133,7 @@ jobs:
             tests/test_io.py \
             tests/test_joint_covariance_metrics.py \
             tests/test_promotion_evidence.py \
+            tests/test_promotion_evidence_atomic.py \
             tests/test_heldout_promotion.py \
             tests/test_heldout_promotion_diagnosis.py \
             --junitxml=focused-quality.xml \
