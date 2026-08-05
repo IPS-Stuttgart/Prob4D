@@ -26,7 +26,7 @@ env:
 jobs:
   focused-contract:
     name: Append-only material-identity contract
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - name: Check out repository
@@ -59,7 +59,7 @@ jobs:
               case_id="case",
               stream_id="camera0",
               source_repository="IPS-Stuttgart/Prob4D",
-              source_revision="revision",
+              source_revision="a" * 40,
               root_window_id="window-000",
           )
           assert len(stream.artifact_id) == 64
