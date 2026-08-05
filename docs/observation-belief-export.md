@@ -22,7 +22,7 @@ independent metric prior for the first retained overlap window. The anchor is a
 content-addressed JSON document:
 
 ```python
-from prob4d.provider_v1 import MetricGaugeAnchor, save_metric_gauge_anchor
+from prob4d.provider_v2 import MetricGaugeAnchor, save_metric_gauge_anchor
 
 anchor = MetricGaugeAnchor(
     window_id="window_0000",
@@ -57,13 +57,18 @@ semantics from factor names.
 
 ## Command
 
+New claim-bearing experiments must select the calibrated provider-v2 route
+explicitly:
+
 ```bash
-prob4d observation export \
+prob4d observation export-calibrated \
   outputs/sequence/predictions.json \
   outputs/sequence/observation_belief.npz \
   --case-id sequence \
   --causal-frame-stop 134 \
   --metric-gauge-anchor outputs/metric_gauge_anchor.json \
+  --gauge-covariance-calibration outputs/calibration/gauge.json \
+  --point-uncertainty-calibration outputs/calibration/point.json \
   --pixel-stride 4 \
   --sampling-mode information_stratified \
   --max-gauge-rank 64 \
@@ -73,6 +78,11 @@ prob4d observation export \
 
 prob4d-validate-observation outputs/sequence/observation_belief.npz
 ```
+
+Use `prob4d observation export-v1` only for frozen provider-v1 reproduction and
+`prob4d observation export-exploratory` for explicitly labelled controls. The
+bare `prob4d observation export` command is intentionally ambiguous: it prints
+migration guidance and runs no exporter.
 
 `--causal-frame-stop` is exclusive. An overlap-window manifest entry is admitted
 only when its declared stop is at most the cutoff and its payload contains the
@@ -183,3 +193,6 @@ the group prior and composite weight as distinct inputs. Causal4D independently
 checks the version, rank, parent lineage, exact anchor/calibration bindings, and
 covariance treatment before it binds the resulting twin belief to the
 observation artifact.
+
+For release-facing interoperability evidence, run the
+[three-repository installed-wheel release capsule](ecosystem-release-capsule.md).
