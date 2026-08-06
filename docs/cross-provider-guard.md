@@ -106,7 +106,7 @@ content identities are recomputed.
       "matched_observations_sha256": "<sha256>",
       "alignment_artifact_id": "<sha256>",
       "row_identity_sha256": "<sha256>",
-      "coordinate_frame_id": "registered-world-object-01-session-02"
+      "coordinate_frame_id": "registered-world-object-01/session-02"
     }
   ],
   "metadata": {
@@ -147,16 +147,23 @@ prob4d diagnostic cross-provider-guard evaluate \
   cross-provider-decision.json
 ```
 
-Replay artifact validation:
+Replay artifact validation from the exact sealed panels:
 
 ```bash
 prob4d diagnostic cross-provider-guard verify-calibration \
-  cross-provider-calibration.json
+  cross-provider-calibration.json \
+  --panel calibration-panel.json
 
 prob4d diagnostic cross-provider-guard verify-decision \
   cross-provider-decision.json \
-  --calibration cross-provider-calibration.json
+  --calibration cross-provider-calibration.json \
+  --panel target-panel.json
 ```
+
+The verification commands reopen and verify the provider manifests, selected
+payloads, matched-observation bytes, alignment and row identities, then recompute
+the complete calibration or decision record. A re-signed but semantically changed
+artifact therefore fails deterministic replay.
 
 A target case is admitted only when its case score does not exceed the frozen
 finite-sample threshold and its common support is not below the frozen minimum.
