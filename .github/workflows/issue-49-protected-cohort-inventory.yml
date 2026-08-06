@@ -1,0 +1,392 @@
+name: Inventory unopened held-out cohort metadata
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - ".github/workflows/issue-49-protected-cohort-inventory.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: issue-49-protected-cohort-inventory-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  inventory:
+    name: Target-blind protected cohort inventory
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Linux, X64, nvidia-smi]
+    timeout-minutes: 45
+    steps:
+      - name: Check out exact reviewed head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          clean: true
+
+      - name: Enumerate path and filesystem metadata only
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/issue-49-protected-cohort-inventory"
+          mkdir -p "$output"
+          python3 - "$output/inventory.json" <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import stat
+          import sys
+          from typing import Any
+
+          OUTPUT = Path(sys.argv[1])
+          ROOTS = (
+              Path("/mnt/lexar4tb"),
+              Path("/mnt/data"),
+              Path("/data"),
+              Path("/home/github-runner"),
+          )
+          PROTECTED_TOKENS = (
+              "adaptive-confirmation",
+              "prospective",
+              "reserved",
+              "heldout",
+              "holdout",
+              "target",
+              "confirmation",
+          )
+          KNOWN_OPEN_OR_PUBLIC_TOKENS = (
+              "contact-trust-calibration-v1",
+              "calibration",
+              "development",
+              "official-hub",
+              "official_hub",
+              "postopen",
+              "fresh12",
+              "fresh6",
+              "public",
+              "source-only",
+          )
+          PRUNE_NAMES = {
+              ".git",
+              ".mypy_cache",
+              ".pytest_cache",
+              ".ruff_cache",
+              ".venv",
+              "__pycache__",
+              "actions-runner",
+              "anaconda3",
+              "envs",
+              "miniconda3",
+              "node_modules",
+              "site-packages",
+              "venv",
+          }
+          PRUNE_PATH_TOKENS = (
+              "/_work/",
+              "/.git/",
+              "/outputs/",
+              "/predictions/",
+              "/renders/",
+              "/tmp/",
+          )
+          VIDEO_EXTENSIONS = {".avi", ".mkv", ".mov", ".mp4", ".webm"}
+          RELEVANT_EXTENSIONS = VIDEO_EXTENSIONS | {
+              ".bag",
+              ".csv",
+              ".h5",
+              ".hdf5",
+              ".json",
+              ".npy",
+              ".npz",
+              ".parquet",
+              ".pcd",
+              ".ply",
+              ".rosbag",
+              ".yaml",
+              ".yml",
+              ".zarr",
+          }
+          OUTCOME_NAME_TOKENS = (
+              "groundtruth",
+              "ground_truth",
+              "label",
+              "outcome",
+              "target",
+              "truth",
+          )
+          MAX_DEPTH = 22
+          MAX_RELEVANT_MEMBERS = 200
+          MAX_CANDIDATES = 2000
+
+          def canonical_sha256(value: object) -> str:
+              payload = json.dumps(
+                  value,
+                  sort_keys=True,
+                  separators=(",", ":"),
+                  allow_nan=False,
+              ).encode("utf-8")
+              return hashlib.sha256(payload).hexdigest()
+
+          def normalized_tokens(path: Path, tokens: tuple[str, ...]) -> list[str]:
+              lowered = str(path).lower().replace("_", "-")
+              return sorted(
+                  token
+                  for token in tokens
+                  if token.replace("_", "-") in lowered
+              )
+
+          roots: list[Path] = []
+          seen_roots: set[str] = set()
+          for candidate in ROOTS:
+              if not candidate.exists() or not candidate.is_dir():
+                  continue
+              try:
+                  resolved = candidate.resolve(strict=True)
+              except OSError:
+                  continue
+              if str(resolved) not in seen_roots:
+                  seen_roots.add(str(resolved))
+                  roots.append(resolved)
+
+          candidates: list[dict[str, Any]] = []
+          scanned_entries = 0
+          protected_directories_seen = 0
+          for root in roots:
+              stop = False
+              for current, directories, files in os.walk(root, followlinks=False):
+                  current_path = Path(current)
+                  scanned_entries += len(directories) + len(files)
+                  try:
+                      relative = current_path.relative_to(root)
+                  except ValueError:
+                      directories[:] = []
+                      continue
+                  depth = len(relative.parts)
+                  directories[:] = sorted(
+                      name
+                      for name in directories
+                      if name not in PRUNE_NAMES
+                      and not (current_path / name).is_symlink()
+                      and depth < MAX_DEPTH
+                      and not any(
+                          token in f"/{str(current_path / name).lower().strip('/')}/"
+                          for token in PRUNE_PATH_TOKENS
+                      )
+                  )
+                  protection = normalized_tokens(current_path, PROTECTED_TOKENS)
+                  if not protection:
+                      continue
+                  protected_directories_seen += 1
+
+                  extension_counts: dict[str, int] = {}
+                  relevant_members: list[dict[str, object]] = []
+                  total_regular_bytes = 0
+                  regular_file_count = 0
+                  video_count = 0
+                  named_outcome_file_count = 0
+                  for name in sorted(files):
+                      member = current_path / name
+                      try:
+                          metadata = member.lstat()
+                      except OSError:
+                          continue
+                      if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+                          continue
+                      regular_file_count += 1
+                      total_regular_bytes += metadata.st_size
+                      suffix = member.suffix.lower()
+                      extension_counts[suffix or "<none>"] = (
+                          extension_counts.get(suffix or "<none>", 0) + 1
+                      )
+                      if suffix in VIDEO_EXTENSIONS:
+                          video_count += 1
+                      lowered_name = name.lower()
+                      if any(token in lowered_name for token in OUTCOME_NAME_TOKENS):
+                          named_outcome_file_count += 1
+                      if (
+                          suffix in RELEVANT_EXTENSIONS
+                          and len(relevant_members) < MAX_RELEVANT_MEMBERS
+                      ):
+                          relevant_members.append(
+                              {
+                                  "name": name,
+                                  "bytes": metadata.st_size,
+                                  "extension": suffix or "<none>",
+                              }
+                          )
+
+                  if video_count < 1:
+                      continue
+                  relative_path = relative.as_posix()
+                  risk_flags = normalized_tokens(
+                      current_path,
+                      KNOWN_OPEN_OR_PUBLIC_TOKENS,
+                  )
+                  ancestor_candidates = [
+                      value.as_posix()
+                      for value in (
+                          relative,
+                          relative.parent,
+                          relative.parent.parent,
+                          relative.parent.parent.parent,
+                      )
+                      if value.as_posix() not in {"", "."}
+                  ]
+                  record: dict[str, Any] = {
+                      "root": str(root),
+                      "relative_path": relative_path,
+                      "session_path": str(current_path),
+                      "protection_tokens": protection,
+                      "known_open_or_public_risk_flags": risk_flags,
+                      "ancestor_group_candidates": ancestor_candidates,
+                      "regular_file_count": regular_file_count,
+                      "video_file_count": video_count,
+                      "named_outcome_file_count": named_outcome_file_count,
+                      "total_regular_bytes": total_regular_bytes,
+                      "extension_counts": dict(sorted(extension_counts.items())),
+                      "relevant_members": relevant_members,
+                  }
+                  record["metadata_identity"] = canonical_sha256(record)
+                  candidates.append(record)
+                  if len(candidates) >= MAX_CANDIDATES:
+                      stop = True
+                      break
+              if stop:
+                  break
+
+          token_priority = {
+              token: index for index, token in enumerate(PROTECTED_TOKENS)
+          }
+
+          def candidate_key(value: dict[str, Any]) -> tuple[object, ...]:
+              protections = value["protection_tokens"]
+              priority = min(token_priority[item] for item in protections)
+              return (
+                  bool(value["known_open_or_public_risk_flags"]),
+                  priority,
+                  -int(value["video_file_count"]),
+                  str(value["session_path"]),
+              )
+
+          candidates.sort(key=candidate_key)
+          report: dict[str, Any] = {
+              "schema": "prob4d.issue-49-protected-cohort-inventory",
+              "schema_version": 1,
+              "repository": os.environ.get("GITHUB_REPOSITORY"),
+              "source_revision": os.environ.get("GITHUB_SHA"),
+              "run_id": os.environ.get("GITHUB_RUN_ID"),
+              "runner_name": os.environ.get("RUNNER_NAME"),
+              "roots": [str(value) for value in roots],
+              "protected_path_tokens": list(PROTECTED_TOKENS),
+              "known_open_or_public_risk_tokens": list(
+                  KNOWN_OPEN_OR_PUBLIC_TOKENS
+              ),
+              "scanned_entry_count": scanned_entries,
+              "protected_directories_seen": protected_directories_seen,
+              "candidate_session_count": len(candidates),
+              "candidate_sessions": candidates,
+              "recommended_metadata_only_candidates": [
+                  value["metadata_identity"] for value in candidates[:24]
+              ],
+              "selection_boundary": {
+                  "recommendation_is_binding_target_selection": False,
+                  "selection_uses_path_names": True,
+                  "selection_uses_file_names_sizes_and_extensions": True,
+                  "selection_uses_video_or_payload_bytes": False,
+                  "selection_uses_container_probe": False,
+                  "selection_uses_decoded_frames": False,
+                  "selection_uses_truth_labels_or_target_outcomes": False,
+              },
+              "information_boundary": {
+                  "candidate_regular_files_opened": False,
+                  "candidate_bytes_hashed": False,
+                  "candidate_video_containers_opened": False,
+                  "candidate_frames_decoded": False,
+                  "prediction_payloads_opened": False,
+                  "truth_or_target_outcomes_opened": False,
+              },
+              "claim_boundary": (
+                  "Filesystem-metadata discovery only. This report neither selects a "
+                  "claim-bearing target cohort nor establishes provider competence, "
+                  "uncertainty calibration, BayesianPhysTwin benefit, safety, or state "
+                  "of the art."
+              ),
+          }
+          report["artifact_id"] = canonical_sha256(report)
+          OUTPUT.write_text(
+              json.dumps(report, indent=2, sort_keys=True, allow_nan=False) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          (
+            cd "$output"
+            sha256sum inventory.json > SHA256SUMS
+          )
+
+      - name: Validate the information boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/issue-49-protected-cohort-inventory"
+          python3 - "$output/inventory.json" <<'PY'
+          import json
+          from pathlib import Path
+          import sys
+
+          report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          assert report["schema"] == "prob4d.issue-49-protected-cohort-inventory"
+          assert report["schema_version"] == 1
+          assert all(value is False for value in report["information_boundary"].values())
+          assert report["selection_boundary"]["recommendation_is_binding_target_selection"] is False
+          assert report["selection_boundary"]["selection_uses_video_or_payload_bytes"] is False
+          assert report["selection_boundary"]["selection_uses_truth_labels_or_target_outcomes"] is False
+          assert isinstance(report["artifact_id"], str) and len(report["artifact_id"]) == 64
+          print(
+              "candidate_sessions=",
+              report["candidate_session_count"],
+              "artifact_id=",
+              report["artifact_id"],
+          )
+          PY
+
+      - name: Publish compact inventory summary
+        if: always()
+        shell: bash
+        run: |
+          output="$RUNNER_TEMP/issue-49-protected-cohort-inventory"
+          if [[ -f "$output/inventory.json" ]]; then
+            python3 - "$output/inventory.json" <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          from pathlib import Path
+          import sys
+
+          report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          clean = sum(
+              not item["known_open_or_public_risk_flags"]
+              for item in report["candidate_sessions"]
+          )
+          print("## Issue 49 protected-cohort metadata inventory")
+          print()
+          print(f"- Candidate acquisition sessions: **{report['candidate_session_count']}**")
+          print(f"- Candidates without known-open/public path flags: **{clean}**")
+          print(f"- Metadata-only artifact ID: `{report['artifact_id']}`")
+          print()
+          print(report["claim_boundary"])
+          PY
+          fi
+
+      - name: Upload metadata-only evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        with:
+          name: issue-49-protected-cohort-inventory-${{ github.run_id }}
+          path: ${{ runner.temp }}/issue-49-protected-cohort-inventory
+          if-no-files-found: error
+          retention-days: 14

@@ -1,0 +1,111 @@
+name: Launch unopened held-out cohort inventory
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/issue-49-protected-cohort-inventory.yml"
+      - ".github/workflows/issue-49-protected-cohort-inventory-launch.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: issue-49-protected-cohort-inventory-main
+  cancel-in-progress: false
+
+jobs:
+  inventory:
+    name: Target-blind protected cohort inventory
+    runs-on: [self-hosted, Linux, X64, nvidia-smi]
+    timeout-minutes: 45
+    steps:
+      - name: Check out exact merged revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          clean: true
+
+      - name: Execute the reviewed metadata-only inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          workflow=.github/workflows/issue-49-protected-cohort-inventory.yml
+          script="$RUNNER_TEMP/issue-49-protected-cohort-inventory.py"
+          output="$RUNNER_TEMP/issue-49-protected-cohort-inventory"
+          mkdir -p "$output"
+          awk '
+            /python3 - \"\$output\/inventory.json\" <<'"'"'PY'"'"'/ {capture=1; next}
+            capture && /^          PY$/ {exit}
+            capture {sub(/^          /, ""); print}
+          ' "$workflow" > "$script"
+          test -s "$script"
+          python3 "$script" "$output/inventory.json"
+          (
+            cd "$output"
+            sha256sum inventory.json > SHA256SUMS
+          )
+
+      - name: Validate the information boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/issue-49-protected-cohort-inventory"
+          python3 - "$output/inventory.json" <<'PY'
+          import json
+          from pathlib import Path
+          import sys
+
+          report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          assert report["schema"] == "prob4d.issue-49-protected-cohort-inventory"
+          assert report["schema_version"] == 1
+          assert all(value is False for value in report["information_boundary"].values())
+          assert report["selection_boundary"]["recommendation_is_binding_target_selection"] is False
+          assert report["selection_boundary"]["selection_uses_video_or_payload_bytes"] is False
+          assert report["selection_boundary"]["selection_uses_container_probe"] is False
+          assert report["selection_boundary"]["selection_uses_decoded_frames"] is False
+          assert report["selection_boundary"]["selection_uses_truth_labels_or_target_outcomes"] is False
+          assert isinstance(report["artifact_id"], str) and len(report["artifact_id"]) == 64
+          print(
+              "candidate_sessions=",
+              report["candidate_session_count"],
+              "artifact_id=",
+              report["artifact_id"],
+          )
+          PY
+
+      - name: Publish compact inventory summary
+        if: always()
+        shell: bash
+        run: |
+          output="$RUNNER_TEMP/issue-49-protected-cohort-inventory"
+          if [[ -f "$output/inventory.json" ]]; then
+            python3 - "$output/inventory.json" <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          from pathlib import Path
+          import sys
+
+          report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          clean = sum(
+              not item["known_open_or_public_risk_flags"]
+              for item in report["candidate_sessions"]
+          )
+          print("## Issue 49 protected-cohort metadata inventory")
+          print()
+          print(f"- Candidate acquisition sessions: **{report['candidate_session_count']}**")
+          print(f"- Candidates without known-open/public path flags: **{clean}**")
+          print(f"- Metadata-only artifact ID: `{report['artifact_id']}`")
+          print()
+          print(report["claim_boundary"])
+          PY
+          fi
+
+      - name: Upload metadata-only evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        with:
+          name: issue-49-protected-cohort-inventory-${{ github.run_id }}
+          path: ${{ runner.temp }}/issue-49-protected-cohort-inventory
+          if-no-files-found: error
+          retention-days: 14
