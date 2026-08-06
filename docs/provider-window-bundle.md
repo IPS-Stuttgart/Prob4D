@@ -158,7 +158,8 @@ report = verify_provider_window_bundle(
 Loading a bundle never opens prediction payloads. Full verification reopens each
 NPZ, checks its exact hash and byte count, revalidates the `PredictionWindow`, and
 compares every recorded shape, frame, precision, capability, archive, and source
-interval field.
+interval field. The payload hash and filesystem signature are checked both before
+and after archive validation, so concurrent mutation fails closed.
 
 ## Persistence and race behavior
 
