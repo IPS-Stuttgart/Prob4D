@@ -28,6 +28,10 @@ from ._strict_json import (
     require_string_sequence,
 )
 from .data import PredictionWindow
+from .prediction_provider_io import (
+    save_prediction_provider_manifest,
+    verify_prediction_provider_manifest,
+)
 from .prediction_provider_manifest import (
     PREDICTION_PROVIDER_MANIFEST_VERSION,
     SOURCE_DEPENDENCY_SEMANTICS,
@@ -36,8 +40,6 @@ from .prediction_provider_manifest import (
     PredictionProviderManifestV1,
     _relative_member,
     _resolved_member,
-    save_prediction_provider_manifest,
-    verify_prediction_provider_manifest,
 )
 
 PREDICTION_PROVIDER_IMPORT_SPEC_SCHEMA: Final = (
