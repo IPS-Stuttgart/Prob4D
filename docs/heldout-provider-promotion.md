@@ -9,7 +9,70 @@ The statistical unit is a complete physical object or acquisition session. A
 frame, point, track, or already-opened output directory is not an independent
 held-out unit.
 
-## Three-stage workflow
+## Four-stage workflow
+
+### 0. Bind the authoritative Stage-0 cohort
+
+For the fresh-object Deform360 experiment, cohort ownership remains in
+BayesianPhysTwin. Prob4D must consume the committed official-Hub Stage-0
+selection rather than discover, rename, replace, or re-split objects locally.
+The authoritative artifact is:
+
+```text
+IPS-Stuttgart/BayesianPhysTwin
+protocols/locks/deform360_official_hub_visuotactile_v1_selection.json
+```
+
+It contains ten calibration objects and twelve confirmation objects, balanced
+between the registered sheet and volumetric strata. The Stage-0 information
+boundary permits official object names and the selected `metadata.json` files
+only. Camera media, tactile and robot arrays, geometry annotations, and target
+outcomes remain unopened at selection time.
+
+Check out the exact BayesianPhysTwin revision that will be used by the experiment
+and create a portable binding:
+
+```bash
+bpt_revision="$(git -C ../BayesianPhysTwin rev-parse HEAD)"
+
+prob4d experiment heldout-provider cohort-bind \
+  ../BayesianPhysTwin/protocols/locks/\
+deform360_official_hub_visuotactile_v1_selection.json \
+  --source-revision "${bpt_revision}" \
+  --output deform360-cohort-binding.json
+```
+
+The command validates all three nested BayesianPhysTwin identities:
+
+- `selection_sha256`, over the exact 10/12 object-and-episode selection;
+- `content_selection_sha256`, over the complete Stage-0 content before the
+  implementation revision is attached; and
+- `selection_artifact_sha256`, over the committed artifact content.
+
+It additionally enforces:
+
+- exactly five sheet and five volumetric calibration objects;
+- exactly six sheet and six volumetric confirmation objects;
+- object-level disjointness and one selected episode per object;
+- exact object-metadata paths and metadata SHA-256 values;
+- the official dataset and resolved revision;
+- the frozen official-processing repository and revision;
+- the names/metadata-only information boundary;
+- prohibition of replacement after payload access; and
+- exact BayesianPhysTwin source repository, revision, and path provenance.
+
+Replay the portable binding independently, optionally against the source
+selection bytes:
+
+```bash
+prob4d experiment heldout-provider cohort-verify \
+  deform360-cohort-binding.json \
+  --selection ../BayesianPhysTwin/protocols/locks/\
+deform360_official_hub_visuotactile_v1_selection.json
+```
+
+The binding is protocol evidence only. It does not open raw Deform360 payloads
+or establish provider competence or physical benefit.
 
 ### 1. Freeze before target access
 
@@ -17,16 +80,37 @@ Start from the documented configuration skeleton and replace every placeholder
 revision, digest, group, method, margin, and metadata value:
 
 ```bash
-cp docs/examples/heldout-provider-promotion-config.json protocol.json
+cp docs/examples/deform360-heldout-provider-promotion-config.json protocol.json
+```
+
+For the real Deform360 gate:
+
+- copy `calibration_group_ids` and `target_group_ids` exactly from the cohort
+  binding;
+- set `bayesian_phystwin_repository` and `bayesian_phystwin_revision` to the
+  binding source;
+- set `minimum_target_group_count` to the complete confirmation count, twelve;
+- keep development groups disjoint from both bound splits; and
+- set `frozen_artifact_ids.cohort_binding` to the exact `cohort_binding_id`.
+
+Then require agreement while freezing:
+
+```bash
 prob4d experiment heldout-provider freeze protocol.json \
+  --cohort-binding deform360-cohort-binding.json \
   --output promotion-lock.json
 ```
 
-The lock requires disjoint sorted development, calibration, and target groups.
-It binds the exact Prob4D, BayesianPhysTwin, and MotionCrafter revisions; immutable
-model and run-spec identities; the provider-evaluation manifest; all calibration,
-selection, and guard artifacts; the bootstrap unit and seed; and every decision
-margin.
+The command fails if the BayesianPhysTwin source, calibration split, confirmation
+split, complete-target requirement, development separation, or binding identity
+differs. Omitting `--cohort-binding` preserves the historical interface for
+existing controlled and synthetic studies; new Deform360 claim-bearing runs
+should use the bound route.
+
+The promotion lock binds the exact Prob4D, BayesianPhysTwin, and MotionCrafter
+revisions; immutable model and run-spec identities; the provider-evaluation
+manifest; all calibration, cohort, selection, and guard artifacts; the bootstrap
+unit and seed; and every decision margin.
 
 Exactly one arm is required for each registered role:
 
@@ -45,9 +129,9 @@ method because it is not a visual observation source.
 ### 2. Run once on the frozen target
 
 First run `prob4d evaluate provider` with a decision-bearing schema-v2 manifest.
-The resulting provider report must be schema version 3, use common support, reject
-legacy artifacts, use no oracle alignment, and match the frozen target groups,
-methods, reference, bootstrap count, seed, and manifest digest exactly.
+The resulting provider report must be schema version 3, use common support,
+reject legacy artifacts, use no oracle alignment, and match the frozen target
+groups, methods, reference, bootstrap count, seed, and manifest digest exactly.
 
 BayesianPhysTwin then writes one raw row for every target-group/arm pair:
 
@@ -56,7 +140,7 @@ BayesianPhysTwin then writes one raw row for every target-group/arm pair:
   "promotion_lock_id": "<promotion-lock SHA-256>",
   "rows": [
     {
-      "group_id": "target-object-01",
+      "group_id": "166-glove-green-cloth",
       "arm_id": "fallback",
       "query_rmse_mm": 5.1,
       "deployed_artifact_id": "<physical-fallback SHA-256>",
@@ -102,10 +186,11 @@ repeated invocation cannot silently replace an opened result. It writes:
 - `promotion_evidence_card.md`, the corresponding compact evidence card.
 
 The evidence card is derived only from the validated lock and deterministic
-promotion report. It retains exact source revisions, frozen artifact IDs, cohort
-counts, comparison arms, the paired query effect and interval, guard outcomes,
-and explicit non-claims. It neither changes the promotion decision nor replaces
-the more detailed failure diagnosis.
+promotion report. It retains exact source revisions, frozen artifact IDs,
+cohort counts, comparison arms, the paired query effect and interval, guard
+outcomes, and explicit non-claims. The frozen `cohort_binding` ID links the
+paper-facing result to the exact BPT Stage-0 selection without duplicating cohort
+ownership in Prob4D.
 
 Without `--require-pass`, a scientifically valid negative result still returns
 exit code 0 after writing all evidence. With it, a valid failed gate returns exit
@@ -158,8 +243,8 @@ boundary first.
 These labels are candidate boundaries, not causal proof. They are generated from
 predeclared gates and metric names, include the exact observed and required
 values, and explicitly forbid repairing a failed target result by post-hoc
-retuning. Any changed estimator, calibration, guard, or diagnostic policy requires
-a new unopened target cohort.
+retuning. Any changed estimator, calibration, cohort selection, guard, or
+diagnostic policy requires a new unopened target cohort.
 
 ## Conjunctive physical-query gates
 
@@ -173,9 +258,9 @@ The primary candidate passes only when all of the following pass:
 - accepted-update mean coverage reaches the frozen threshold when one is set; and
 - every rejected update reproduces the exact physical fallback.
 
-Provider competence is a separate conjunctive gate. A good observation score does
-not authorize a Bayesian update, and a guarded query result does not repair a
-failed provider report.
+Provider competence is a separate conjunctive gate. A good observation score
+does not authorize a Bayesian update, and a guarded query result does not repair
+a failed provider report.
 
 ## Claim boundary
 
