@@ -25,10 +25,10 @@ _ROUTES: Final[dict[Route, tuple[str, str, str]]] = {
         "stress coherent visual bias and explicit shared-bias uncertainty",
     ),
     ("diagnostic", "cross-provider-guard"): (
-    "prob4d.cross_provider_guard",
-    "main",
-    "calibrate provider corroboration without independence assumptions",
-),
+        "prob4d.cross_provider_guard",
+        "main",
+        "calibrate provider corroboration without independence assumptions",
+    ),
     ("diagnostic", "cycle-guard-conformal"): (
         "prob4d.cycle_guard_conformal_monte_carlo",
         "main",
