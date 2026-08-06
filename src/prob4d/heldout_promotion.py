@@ -67,15 +67,19 @@ from .deform360_cohort_binding import (
     DEFORM360_COHORT_BINDING_VERSION,
     Deform360CohortUnitV1,
     Deform360OfficialHubCohortBindingV1,
-    bind_cli as _cohort_bind,
     build_deform360_official_hub_cohort_binding,
     deform360_cohort_binding_from_dict,
     load_deform360_cohort_binding,
     validate_deform360_cohort_binding_against_selection,
     validate_deform360_official_hub_selection,
     validate_promotion_config_against_deform360_binding,
-    verify_cli as _cohort_verify,
     write_deform360_cohort_binding,
+)
+from .deform360_cohort_binding import (
+    bind_cli as _cohort_bind,
+)
+from .deform360_cohort_binding import (
+    verify_cli as _cohort_verify,
 )
 from .promotion_evidence import (
     build_promotion_evidence_card,
@@ -204,7 +208,9 @@ def _verify(arguments: Sequence[str]) -> int:
         provider_report_sha256=hashlib.sha256(provider_bytes).hexdigest(),
     )
     if observed.to_dict() != replayed.to_dict():
-        raise ValueError("held-out promotion report does not match deterministic replay")
+        raise ValueError(
+            "held-out promotion report does not match deterministic replay"
+        )
     replayed_evidence = build_promotion_evidence_card(
         lock.to_dict(),
         observed.to_dict(),
@@ -212,7 +218,9 @@ def _verify(arguments: Sequence[str]) -> int:
     if parsed.evidence_card is not None:
         observed_evidence = load_promotion_evidence_card(parsed.evidence_card)
         if observed_evidence != replayed_evidence:
-            raise ValueError("promotion evidence card does not match deterministic replay")
+            raise ValueError(
+                "promotion evidence card does not match deterministic replay"
+            )
     print(
         json.dumps(
             {
