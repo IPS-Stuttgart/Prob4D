@@ -1,0 +1,293 @@
+name: Temporary provider bundle compatibility repair
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/temporary-provider-bundle-compatibility.yml"
+      - "src/prob4d/provider_bundle.py"
+      - "tests/test_provider_bundle.py"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: temporary-provider-bundle-compatibility-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'agent/generic-provider-bundle'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out source branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: agent/generic-provider-bundle
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install focused development environment
+        run: |
+          python -m pip install -e ".[dev]"
+          python -m pip install "ruff==0.16.1"
+      - name: Apply compatibility and manifest-snapshot hardening
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          provider = Path("src/prob4d/provider_bundle.py")
+          source = provider.read_text(encoding="utf-8")
+          old_archive = '''def _archive_schema(
+              path: Path,
+          ) -> tuple[ArchiveSchema, DenseStorageDType, str]:
+              try:
+                  with np.load(path, allow_pickle=False) as archive:
+                      files = set(archive.files)
+                      versioned = {
+                          "schema_name",
+                          "schema_version",
+                          "dense_storage_dtype",
+                      }.issubset(files)
+                      point_map = archive["point_map"]
+                      if point_map.dtype == np.dtype(np.float32):
+                          storage_dtype: DenseStorageDType = "float32"
+                      elif point_map.dtype == np.dtype(np.float64):
+                          storage_dtype = "float64"
+                      else:
+                          raise ValueError("prediction point_map must use float32 or float64")
+                      stored_id_array = archive["window_id"]
+                      if stored_id_array.shape != () or stored_id_array.dtype.kind not in {"U", "S"}:
+                          raise ValueError("prediction window_id must be one scalar string")
+                      stored_id = _strict_string(
+                          str(stored_id_array.item()),
+                          name="prediction window_id",
+                      )
+              except (OSError, ValueError, KeyError) as error:
+                  raise ValueError(f"provider payload {path} is not a readable prediction archive") from error
+              return (
+                  VERSIONED_ARCHIVE_SCHEMA if versioned else LEGACY_ARCHIVE_SCHEMA,
+                  storage_dtype,
+                  stored_id,
+              )
+          '''.replace("          ", "")
+          new_archive = '''def _archive_schema(
+              path: Path,
+          ) -> tuple[ArchiveSchema, DenseStorageDType, str | None]:
+              try:
+                  with np.load(path, allow_pickle=False) as archive:
+                      files = set(archive.files)
+                      versioned = {
+                          "schema_name",
+                          "schema_version",
+                          "dense_storage_dtype",
+                      }.issubset(files)
+                      point_map = archive["point_map"]
+                      if point_map.dtype == np.dtype(np.float32):
+                          storage_dtype: DenseStorageDType = "float32"
+                      elif point_map.dtype == np.dtype(np.float64):
+                          storage_dtype = "float64"
+                      else:
+                          raise ValueError("prediction point_map must use float32 or float64")
+                      stored_id: str | None = None
+                      if "window_id" in files:
+                          stored_id_array = archive["window_id"]
+                          if stored_id_array.shape != () or stored_id_array.dtype.kind not in {"U", "S"}:
+                              raise ValueError("prediction window_id must be one scalar string")
+                          stored_id = _strict_string(
+                              str(stored_id_array.item()),
+                              name="prediction window_id",
+                          )
+                      elif versioned:
+                          raise ValueError("versioned prediction archive requires window_id")
+              except (OSError, ValueError, KeyError) as error:
+                  raise ValueError(f"provider payload {path} is not a readable prediction archive") from error
+              return (
+                  VERSIONED_ARCHIVE_SCHEMA if versioned else LEGACY_ARCHIVE_SCHEMA,
+                  storage_dtype,
+                  stored_id,
+              )
+          '''.replace("          ", "")
+          if old_archive in source:
+              source = source.replace(old_archive, new_archive)
+          elif new_archive not in source:
+              raise SystemExit("prediction archive inspection block changed unexpectedly")
+
+          old_identity = '''    if stored_window_id != expected_window_id:
+              raise ValueError("prediction archive window_id differs from the ingest specification")
+          '''.replace("          ", "")
+          new_identity = '''    if stored_window_id is not None and stored_window_id != expected_window_id:
+              raise ValueError("prediction archive window_id differs from the ingest specification")
+          '''.replace("          ", "")
+          if old_identity in source:
+              source = source.replace(old_identity, new_identity)
+          elif new_identity not in source:
+              raise SystemExit("prediction window identity check changed unexpectedly")
+
+          old_manifest = '''    path = Path(manifest_path)
+              verification = _verify_motioncrafter_manifest(path)
+              if verification.get("integrity_bound") is not True:
+                  raise ValueError("MotionCrafter provider adaptation requires artifact_integrity")
+              manifest = _load_strict_json(path, name="MotionCrafter prediction manifest")
+          '''.replace("          ", "")
+          new_manifest = '''    path = Path(manifest_path)
+              before = _file_signature(path)
+              initial_sha = _sha256_file(path)
+              verification = _verify_motioncrafter_manifest(path)
+              if verification.get("integrity_bound") is not True:
+                  raise ValueError("MotionCrafter provider adaptation requires artifact_integrity")
+              manifest = _load_strict_json(path, name="MotionCrafter prediction manifest")
+              final_sha = _sha256_file(path)
+              after = _file_signature(path)
+              if before != after or initial_sha != final_sha:
+                  raise ValueError("MotionCrafter prediction manifest changed during verification")
+          '''.replace("          ", "")
+          if old_manifest in source:
+              source = source.replace(old_manifest, new_manifest)
+          elif new_manifest not in source:
+              raise SystemExit("MotionCrafter verification block changed unexpectedly")
+          source = source.replace(
+              '            "motioncrafter_manifest_sha256": _sha256_file(path),\n',
+              '            "motioncrafter_manifest_sha256": final_sha,\n',
+          )
+          provider.write_text(source, encoding="utf-8")
+
+          tests = Path("tests/test_provider_bundle.py")
+          source = tests.read_text(encoding="utf-8")
+          source = source.replace(
+              '''    versioned: bool = True,
+                  with_flow: bool = True,
+              ) -> None:
+              '''.replace("              ", ""),
+              '''    versioned: bool = True,
+                  with_flow: bool = True,
+                  include_window_id: bool = True,
+              ) -> None:
+              '''.replace("              ", ""),
+          )
+          source = source.replace(
+              '''    payload: dict[str, np.ndarray] = {
+                  "window_id": np.asarray(window_id),
+                  "frame_indices": frames,
+              '''.replace("              ", ""),
+              '''    payload: dict[str, np.ndarray] = {
+                  "frame_indices": frames,
+              '''.replace("              ", ""),
+          )
+          flow_marker = '''    if scene_flow is not None:
+              payload["scene_flow"] = scene_flow
+          '''.replace("          ", "")
+          flow_replacement = '''    if include_window_id:
+              payload["window_id"] = np.asarray(window_id)
+              if scene_flow is not None:
+                  payload["scene_flow"] = scene_flow
+          '''.replace("          ", "")
+          if "    if include_window_id:\n" not in source:
+              if flow_marker not in source:
+                  raise SystemExit("legacy payload helper changed unexpectedly")
+              source = source.replace(flow_marker, flow_replacement, 1)
+
+          legacy_test = '''
+
+          def test_legacy_archives_may_use_specification_window_identity(tmp_path: Path) -> None:
+              _write_window(
+                  tmp_path / "windows/window_a.npz",
+                  window_id="window_a",
+                  frame_indices=(0, 1, 2),
+                  versioned=False,
+                  include_window_id=False,
+              )
+              _write_window(
+                  tmp_path / "windows/window_b.npz",
+                  window_id="window_b",
+                  frame_indices=(1, 2, 3),
+                  versioned=False,
+                  include_window_id=False,
+              )
+
+              bundle = build_provider_window_bundle(_write_spec(tmp_path, _spec(allow_legacy=True)))
+              assert [item.window_id for item in bundle.windows] == ["window_a", "window_b"]
+              verify_provider_window_bundle(bundle, payload_root=tmp_path)
+          '''.replace("          ", "")
+          marker = "\n\ndef test_window_identity_and_source_interval_fail_closed(tmp_path: Path) -> None:\n"
+          if "def test_legacy_archives_may_use_specification_window_identity" not in source:
+              if marker not in source:
+                  raise SystemExit("legacy test insertion marker is missing")
+              source = source.replace(marker, legacy_test + marker)
+
+          mutation_test = '''
+
+          def test_motioncrafter_manifest_mutation_is_rejected(
+              tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+          ) -> None:
+              _write_window(
+                  tmp_path / "windows/window_0000.npz",
+                  window_id="window_0000",
+                  frame_indices=(10, 11, 12),
+                  versioned=False,
+              )
+              manifest = {
+                  "format_version": 1,
+                  "motioncrafter_commit": "d" * 40,
+                  "config": {
+                      "model_type": "determ",
+                      "model_source_set_sha256": "e" * 64,
+                  },
+                  "overlap_windows": [
+                      {
+                          "window_id": "window_0000",
+                          "path": "windows/window_0000.npz",
+                          "start_frame": 10,
+                          "stop_frame": 13,
+                      }
+                  ],
+                  "artifact_integrity": {
+                      "run_spec_sha256": "1" * 64,
+                      "run_spec": {"input_video": {"sha256": "f" * 64}},
+                  },
+              }
+              manifest_path = tmp_path / "predictions.json"
+              manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+              def mutate(path: Path) -> dict[str, object]:
+                  value = json.loads(path.read_text(encoding="utf-8"))
+                  value["config"]["model_type"] = "diff"
+                  path.write_text(json.dumps(value), encoding="utf-8")
+                  return {"integrity_bound": True}
+
+              monkeypatch.setattr(provider_bundle, "_verify_motioncrafter_manifest", mutate)
+              with pytest.raises(ValueError, match="changed during verification"):
+                  build_motioncrafter_provider_window_bundle(manifest_path)
+          '''.replace("          ", "")
+          marker = "\n\ndef test_symlink_payloads_are_rejected(tmp_path: Path) -> None:\n"
+          if "def test_motioncrafter_manifest_mutation_is_rejected" not in source:
+              if marker not in source:
+                  raise SystemExit("manifest mutation test insertion marker is missing")
+              source = source.replace(marker, mutation_test + marker)
+          tests.write_text(source, encoding="utf-8")
+          PY
+          python -m ruff format src/prob4d/provider_bundle.py tests/test_provider_bundle.py
+          python -m ruff check src/prob4d/provider_bundle.py tests/test_provider_bundle.py
+          python -m mypy src/prob4d/provider_bundle.py
+          python -m pytest -q tests/test_provider_bundle.py tests/test_cli.py
+      - name: Commit and push reviewed repair
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- src/prob4d/provider_bundle.py tests/test_provider_bundle.py; then
+            echo "compatibility repair already present"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/prob4d/provider_bundle.py tests/test_provider_bundle.py
+          git commit -m "Harden legacy provider and manifest admission"
+          git push \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            HEAD:refs/heads/agent/generic-provider-bundle
