@@ -89,10 +89,25 @@ _ROUTES: Final[dict[Route, tuple[str, str, str]]] = {
         "main",
         "print the stable project ID and repository aliases",
     ),
+    ("provider", "ingest"): (
+        "prob4d.provider_bundle",
+        "main_ingest",
+        "bind external prediction windows into a provider-neutral bundle",
+    ),
+    ("provider", "ingest-motioncrafter"): (
+        "prob4d.provider_bundle",
+        "main_ingest_motioncrafter",
+        "adapt an integrity-bound MotionCrafter prediction manifest",
+    ),
     ("provider", "manifest"): (
         "prob4d.provider_manifest_cli",
         "main",
         "print a versioned observation-provider manifest",
+    ),
+    ("provider", "validate"): (
+        "prob4d.provider_bundle",
+        "main_validate",
+        "validate a provider-neutral bundle and its exact payloads",
     ),
     ("phystwin", "evaluate"): (
         "prob4d.phystwin_experiment",
