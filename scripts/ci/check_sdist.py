@@ -20,7 +20,9 @@ REQUIRED_PATHS = frozenset(
         ".github/workflows/observation-bias-binding.yml",
         ".github/workflows/provider-runtime.yml",
         ".github/workflows/recursive-visual-bias.yml",
+        ".github/workflows/security-scanning.yml",
         ".github/workflows/tests.yml",
+        ".github/workflows/trusted-self-hosted-validation.yml",
         "CHANGELOG.md",
         "CITATION.cff",
         "CONTRIBUTING.md",
@@ -39,6 +41,7 @@ REQUIRED_PATHS = frozenset(
         "docs/provider-v2.md",
         "docs/recursive-visual-bias.md",
         "docs/repository-identity.md",
+        "docs/trusted-self-hosted-validation.md",
         "protocols/cycle-guard-conformal-v1.json",
         "protocols/cycle-guard-normalization-v1.json",
         "requirements/ci/minimum.txt",
@@ -71,6 +74,8 @@ REQUIRED_PATHS = frozenset(
         "tests/test_promotion_evidence.py",
         "tests/test_provider_runtime.py",
         "tests/test_release_metadata.py",
+        "tests/test_security_scanning_workflow_policy.py",
+        "tests/test_trusted_self_hosted_validation_policy.py",
         "tests/test_visual_bias_stream.py",
     }
 )
@@ -88,6 +93,8 @@ REPRESENTATIVE_TESTS = (
     "tests/test_joint_observation_contract_fixture.py",
     "tests/test_project_identity.py",
     "tests/test_release_metadata.py",
+    "tests/test_security_scanning_workflow_policy.py",
+    "tests/test_trusted_self_hosted_validation_policy.py",
     "tests/test_visual_bias_stream.py",
     "tests/test_github_action_pins.py",
 )

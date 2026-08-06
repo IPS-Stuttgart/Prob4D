@@ -82,6 +82,8 @@ def test_release_governance_files_exist() -> None:
     for name in (
         ".github/dependabot.yml",
         ".github/workflows/ecosystem-release-capsule.yml",
+        ".github/workflows/security-scanning.yml",
+        ".github/workflows/trusted-self-hosted-validation.yml",
         "CHANGELOG.md",
         "CITATION.cff",
         "CONTRIBUTING.md",
@@ -89,6 +91,7 @@ def test_release_governance_files_exist() -> None:
         "MANIFEST.in",
         "SECURITY.md",
         "docs/ecosystem-release-capsule.md",
+        "docs/trusted-self-hosted-validation.md",
         "scripts/ci/build_ecosystem_release_capsule.py",
     ):
         assert (ROOT / name).is_file(), name
