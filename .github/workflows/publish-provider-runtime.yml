@@ -36,7 +36,7 @@ jobs:
       github.repository == 'IPS-Stuttgart/Prob4D' &&
       (github.event_name != 'pull_request' ||
        github.event.pull_request.head.repo.full_name == github.repository)
-    runs-on: [self-hosted, Linux, X64, nvidia-smi]
+    runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
       - name: Check out exact staging revision
