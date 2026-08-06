@@ -35,9 +35,7 @@ PROVIDER_INGEST_SPEC_SCHEMA: Final = "prob4d.provider-window-ingest-spec"
 PROVIDER_INGEST_SPEC_VERSION: Final = 1
 PROVIDER_WINDOW_BUNDLE_SCHEMA: Final = "prob4d.provider-window-bundle"
 PROVIDER_WINDOW_BUNDLE_VERSION: Final = 1
-PROVIDER_WINDOW_VERIFICATION_SCHEMA: Final = (
-    "prob4d.provider-window-bundle-verification"
-)
+PROVIDER_WINDOW_VERIFICATION_SCHEMA: Final = "prob4d.provider-window-bundle-verification"
 PROVIDER_WINDOW_VERIFICATION_VERSION: Final = 1
 PROVIDER_WINDOW_CLAIM_BOUNDARY: Final = (
     "This artifact binds exact provider-window bytes, source-frame lineage, and "
@@ -145,9 +143,7 @@ def _safe_relative_path(value: object, *, name: str) -> str:
     if "\\" in text:
         raise ValueError(f"{name} must be a POSIX relative path")
     path = PurePosixPath(text)
-    if path.is_absolute() or not path.parts or any(
-        part in {"", ".", ".."} for part in path.parts
-    ):
+    if path.is_absolute() or not path.parts or any(part in {"", ".", ".."} for part in path.parts):
         raise ValueError(f"{name} must be a safe POSIX relative path")
     canonical = path.as_posix()
     if canonical != text:
@@ -300,8 +296,7 @@ def _load_prediction_window(
         raise ValueError("prediction archive window_id differs from the ingest specification")
     if archive_schema == LEGACY_ARCHIVE_SCHEMA and not allow_legacy_window_archives:
         raise ValueError(
-            "legacy unversioned prediction archives require "
-            "allow_legacy_window_archives=true"
+            "legacy unversioned prediction archives require allow_legacy_window_archives=true"
         )
     try:
         window = PredictionWindow.from_npz(
@@ -806,9 +801,7 @@ def build_motioncrafter_provider_window_bundle(
         "schema_version": PROVIDER_INGEST_SPEC_VERSION,
         "provider_name": "MotionCrafter",
         "provider_version": (
-            f"{model_type}@{commit[:12]}"
-            if provider_version is None
-            else provider_version
+            f"{model_type}@{commit[:12]}" if provider_version is None else provider_version
         ),
         "implementation_identity": f"git:{commit}",
         "model_set_identity": f"sha256:{model_set_sha}",
@@ -887,9 +880,7 @@ def load_provider_window_bundle(
 ) -> ProviderWindowBundleV1:
     """Load one strict bundle manifest without opening prediction payloads."""
 
-    return provider_window_bundle_from_dict(
-        _load_strict_json(path, name="provider window bundle")
-    )
+    return provider_window_bundle_from_dict(_load_strict_json(path, name="provider window bundle"))
 
 
 def _fsync_directory(path: Path) -> None:
@@ -974,38 +965,20 @@ def verify_provider_window_bundle(
     root = Path(payload_root)
     total_bytes = 0
     for record in bundle.windows:
-        payload = _resolve_payload_member(
-            root,
-            record.relative_path,
-            name=f"provider window {record.window_id!r}",
+        actual = _record_from_payload(
+            _IngestWindowSpec(
+                window_id=record.window_id,
+                relative_path=record.relative_path,
+                source_frame_start=record.source_frame_start,
+                source_frame_stop_exclusive=(record.source_frame_stop_exclusive),
+            ),
+            payload_root=root,
+            allow_legacy_window_archives=(record.archive_schema == LEGACY_ARCHIVE_SCHEMA),
         )
-        if payload.stat().st_size != record.payload_byte_count:
+        if actual.payload_byte_count != record.payload_byte_count:
             raise ValueError(f"payload byte count mismatch for {record.window_id!r}")
-        if _sha256_file(payload) != record.payload_sha256:
+        if actual.payload_sha256 != record.payload_sha256:
             raise ValueError(f"payload SHA-256 mismatch for {record.window_id!r}")
-        window, archive_schema = _load_prediction_window(
-            payload,
-            expected_window_id=record.window_id,
-            allow_legacy_window_archives=record.archive_schema == LEGACY_ARCHIVE_SCHEMA,
-        )
-        actual = ProviderWindowRecordV1(
-            window_id=window.window_id,
-            relative_path=record.relative_path,
-            payload_sha256=record.payload_sha256,
-            payload_byte_count=record.payload_byte_count,
-            archive_schema=archive_schema,
-            source_frame_start=record.source_frame_start,
-            source_frame_stop_exclusive=record.source_frame_stop_exclusive,
-            output_frame_start=int(window.frame_indices[0]),
-            output_frame_stop_exclusive=int(window.frame_indices[-1]) + 1,
-            frame_count=int(window.frame_indices.size),
-            height=int(window.shape[1]),
-            width=int(window.shape[2]),
-            dense_storage_dtype=window.dense_storage_dtype,
-            has_scene_flow=window.scene_flow is not None,
-            has_ray_directions=window.ray_directions is not None,
-            frame_indices_sha256=_frame_indices_sha256(window.frame_indices),
-        )
         if actual != record:
             raise ValueError(f"payload contract mismatch for {record.window_id!r}")
         total_bytes += record.payload_byte_count
@@ -1045,9 +1018,7 @@ def main_ingest(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--payload-root", type=Path)
     arguments = parser.parse_args(argv)
     root = (
-        arguments.specification.parent
-        if arguments.payload_root is None
-        else arguments.payload_root
+        arguments.specification.parent if arguments.payload_root is None else arguments.payload_root
     )
     bundle = build_provider_window_bundle(
         arguments.specification,

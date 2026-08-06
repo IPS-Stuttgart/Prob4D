@@ -164,9 +164,7 @@ def test_legacy_archives_require_explicit_admission(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="allow_legacy_window_archives"):
         build_provider_window_bundle(_write_spec(tmp_path, _spec()))
 
-    bundle = build_provider_window_bundle(
-        _write_spec(tmp_path, _spec(allow_legacy=True))
-    )
+    bundle = build_provider_window_bundle(_write_spec(tmp_path, _spec(allow_legacy=True)))
     assert all(item.archive_schema == LEGACY_ARCHIVE_SCHEMA for item in bundle.windows)
     verify_provider_window_bundle(bundle, payload_root=tmp_path)
 
