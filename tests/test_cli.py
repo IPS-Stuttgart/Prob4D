@@ -73,6 +73,17 @@ def test_grouped_cli_routes_provider_neutral_prediction_help(capsys) -> None:
     output = capsys.readouterr().out
     assert "import-motioncrafter" in output
     assert "validate" in output
+    assert "runtime" in output
+
+
+def test_grouped_cli_routes_provider_runtime_help(capsys) -> None:
+    with pytest.raises(SystemExit) as exit_info:
+        main(["prediction", "runtime", "--help"])
+    assert exit_info.value.code == 0
+    output = capsys.readouterr().out
+    assert "causally selected provider-neutral" in output
+    assert "inspect" in output
+    assert "fuse-exploratory" in output
 
 
 def test_grouped_cli_routes_vggt_import_help(capsys) -> None:

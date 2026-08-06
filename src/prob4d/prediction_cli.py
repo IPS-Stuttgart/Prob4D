@@ -12,7 +12,7 @@ from .prediction_provider_manifest import main as legacy_prediction_main
 def _help_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="prob4d prediction",
-        description="import and validate provider-neutral prediction manifests",
+        description="import, validate, and execute provider-neutral predictions",
     )
     subparsers = parser.add_subparsers(dest="command")
     subparsers.add_parser(
@@ -26,6 +26,10 @@ def _help_parser() -> argparse.ArgumentParser:
     subparsers.add_parser(
         "validate",
         help="strictly validate a neutral manifest and its payloads",
+    )
+    subparsers.add_parser(
+        "runtime",
+        help="causally load, inspect, or exploratorily fuse neutral payloads",
     )
     return parser
 
@@ -42,6 +46,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         from .vggt_provider_adapter import main as vggt_main
 
         return int(vggt_main(arguments[1:]))
+    if arguments[0] == "runtime":
+        from .provider_runtime import main as runtime_main
+
+        return int(runtime_main(arguments[1:]))
     return int(legacy_prediction_main(arguments))
 
 
