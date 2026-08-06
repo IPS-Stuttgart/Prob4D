@@ -194,18 +194,8 @@ def test_motioncrafter_manifest_mutation_during_import_is_rejected(
 ) -> None:
     source = tmp_path / "predictions.json"
     source.write_text("{}\n", encoding="utf-8")
-
-    def mutating_importer(
-        source_path: str | Path,
-        output_path: str | Path,
-        *,
-        sequence_id: str,
-        view_id: str,
-    ) -> PredictionProviderManifestV1:
-        del output_path, sequence_id, view_id
-        member = Path(source_path)
-        member.write_text('{"changed": true}\n', encoding="utf-8")
-        raise AssertionError("source mutation must be detected before output admission")
+    payload = tmp_path / "window.npz"
+    _write_window(payload)
 
     def returning_mutating_importer(
         source_path: str | Path,
@@ -217,9 +207,8 @@ def test_motioncrafter_manifest_mutation_during_import_is_rejected(
         del output_path, sequence_id, view_id
         member = Path(source_path)
         member.write_text('{"changed": true}\n', encoding="utf-8")
-        return pytest.fail("wrapper should reject the changed source snapshot")
+        return _manifest(payload)
 
-    del mutating_importer
     monkeypatch.setattr(
         provider_io,
         "_import_motioncrafter_manifest",
