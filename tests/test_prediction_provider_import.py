@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Mapping
 from pathlib import Path
 
 import numpy as np
@@ -192,7 +193,7 @@ def test_generic_import_roundtrip_and_canonical_order(tmp_path: Path) -> None:
 def test_frame_lineage_must_match_payload_frames(tmp_path: Path) -> None:
     specification, output = _two_window_bundle(tmp_path)
     value = json.loads(specification.read_text(encoding="utf-8"))
-    value["payloads"][0]["frame_lineage"][0]["output_frame_id"] = 99
+    value["payloads"][0]["frame_lineage"][0]["output_frame_id"] = 1
     specification.write_text(json.dumps(value), encoding="utf-8")
 
     with pytest.raises(ValueError, match="lineage differs"):
