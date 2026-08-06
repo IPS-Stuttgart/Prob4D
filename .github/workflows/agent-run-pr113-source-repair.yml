@@ -9,7 +9,7 @@ on:
 permissions:
   contents: write
 
-# Second revision triggers the registered source-only executor.
+# Third revision applies Ruff's safe import organizer before validation.
 concurrency:
   group: run-pr113-source-only-repair
   cancel-in-progress: false
@@ -73,6 +73,9 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install -e ".[dev]"
+          python -m ruff check --fix \
+            src/prob4d/observation_factor_stream.py \
+            tests/test_observation_factor_stream_strict.py
           python -m ruff format \
             src/prob4d/observation_factor_stream.py \
             tests/test_observation_factor_stream_strict.py
