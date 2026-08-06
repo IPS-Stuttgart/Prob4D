@@ -1,19 +1,24 @@
 # Production memory profiling
 
-Prob4D provides a workflow for reproducible, fresh-process memory measurements
-at the production `25 x 320 x 640` window shape. It is an engineering evidence
-surface for issue #50, not a reconstruction or downstream physics experiment.
+Prob4D provides fresh-process memory measurements at the production
+`25 x 320 x 640` window shape. This is an engineering evidence surface, not a
+reconstruction-accuracy or downstream-physics experiment.
+
+Issue #50 is complete. The repository retains the bounded fusion, evaluation,
+loading, and artifact-parity implementations plus their recorded evidence. New
+profiling work should be opened only when a concrete regression or bottleneck is
+identified.
 
 ## Covered phases
 
-The workflow runs each measured phase in a separate Python process:
+The standard workflow runs each measured phase in a separate Python process:
 
 1. dense covariance-intersection fusion with configurable contributor and tile
    counts;
-2. metric, prefix-aligned, and oracle-aligned provider evaluation with optional
-   dense scene flow and configurable evaluation chunks;
-3. optional eager-NPZ and read-only mmap-NPY loading for an actual prediction
-   bundle already present on the runner.
+2. bounded provider evaluation with optional dense scene flow and configurable
+   evaluation chunks; and
+3. optional eager-NPZ and read-only mmap-NPY loading when a prediction bundle is
+   explicitly staged in the ephemeral job.
 
 Separate processes prevent an earlier phase's high-water RSS mark from being
 attributed to a later phase. Every JSON report records the exact repository
@@ -22,15 +27,12 @@ process RSS, retained-array accounting, and a deterministic output digest.
 
 ## Runner and invocation
 
-The checked-in workflow uses `ubuntu-latest` by default. Manual dispatches can
-select `self-hosted` to target the IPS runner labels:
-
-```text
-self-hosted, Linux, X64, nvidia-smi
-```
+`.github/workflows/production-memory-profile.yml` always uses a GitHub-hosted
+runner. Pull-request source and workflow inputs cannot redirect it to a persistent
+self-hosted machine.
 
 A pull request that changes the workflow or one of its benchmark surfaces runs
-the full synthetic profile automatically. For a manual run, open **Actions →
+the synthetic profile automatically. For a manual hosted run, open **Actions →
 Production memory profile → Run workflow**. The defaults are:
 
 ```text
@@ -43,18 +45,23 @@ evaluation chunk size: 65536
 include flow: true
 ```
 
-The optional `prediction_manifest` and `prediction_store` inputs are absolute
-paths already present on the selected runner. They are primarily useful with
-the self-hosted option because GitHub-hosted runners are ephemeral. When
-supplied, the workflow additionally runs the verified eager and mmap loading
-benchmarks in fresh processes. These paths are never uploaded; only their
-content-addressed identities and measurements are included in the JSON evidence.
+The optional `prediction_manifest` and `prediction_store` values refer only to
+paths already staged inside that ephemeral hosted job. They do not provide access
+to files on `workstation2` or another persistent host.
+
+Hardware-specific validation on `workstation2` uses the separate
+`Trusted exact-head validation` workflow. That workflow must be dispatched from
+`main`, verifies an open same-repository pull request and its exact current
+40-character head SHA on a hosted runner, and enters the protected
+`trusted-self-hosted-validation` environment before checking out reviewed source.
+See [trusted self-hosted exact-head validation](trusted-self-hosted-validation.md).
 
 ## Evidence artifact
 
-Each run uploads one `production-memory-profile-<run-id>` artifact containing:
+Each standard run uploads one `production-memory-profile-<run-id>` artifact
+containing:
 
-- `host.txt`, including CPU, RAM, Python, NumPy, and any available GPU/driver
+- `host.txt`, including CPU, RAM, Python, NumPy, and any available driver
   identity;
 - one JSON and captured stdout file per executed phase;
 - `summary.json`, binding the phase reports to the workflow revision and runner;
@@ -63,14 +70,17 @@ Each run uploads one `production-memory-profile-<run-id>` artifact containing:
 The workflow fails closed when a required phase does not report positive peak
 RSS or when a report revision differs from `GITHUB_SHA`.
 
-## Claim boundary and remaining work
+The protected exact-head workflow emits a separate compact validation artifact
+that binds the approved pull request, exact head and base revisions, runner,
+distribution hashes, selected validation lanes, and final job status.
+
+## Claim boundary
 
 Synthetic full-resolution runs establish only resource behavior for the selected
-host and configuration. Optional actual-bundle loading adds storage evidence but
-does not establish visual accuracy, calibration, Bayesian-PhysTwin acceptance,
-or Causal4D benefit.
+host and configuration. Actual-bundle loading adds storage evidence but does not
+establish visual accuracy, uncertainty calibration, BayesianPhysTwin acceptance,
+Causal4D benefit, deployment safety, or permission to open target data.
 
-Issue #50 remains open until one frozen real multi-overlap bundle is profiled
-phase by phase through loading, disagreement, gauge estimation, fusion,
-provider export, and evaluation. The workflow is the repeatable hardware and
-artifact substrate for that final evidence gate.
+A successful protected self-hosted run is privileged implementation validation
+for one exact revision. It does not replace a frozen scientific protocol or its
+information-order and evidence-publication requirements.
