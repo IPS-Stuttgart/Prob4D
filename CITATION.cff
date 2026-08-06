@@ -7,6 +7,7 @@ authors:
     given-names: "Florian"
 repository-code: "https://github.com/IPS-Stuttgart/Prob4D"
 url: "https://github.com/IPS-Stuttgart/Prob4D"
+license: "MIT"
 version: "0.3.1"
 abstract: >-
   Probabilistic recursive fusion for long-horizon 4D reconstruction from overlapping
