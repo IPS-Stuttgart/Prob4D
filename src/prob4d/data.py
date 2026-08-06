@@ -9,6 +9,8 @@ from typing import Any, Final, Literal, TypeAlias, cast
 import numpy as np
 from numpy.typing import NDArray
 
+from ._immutable_array import immutable_array
+
 FloatArray: TypeAlias = NDArray[np.floating[Any]]
 BoolArray: TypeAlias = NDArray[np.bool_]
 IntArray: TypeAlias = NDArray[np.integer[Any]]
@@ -39,18 +41,15 @@ _PREDICTION_WINDOW_OPTIONAL_MEMBERS: Final[frozenset[str]] = frozenset(
 
 
 def _readonly_owned(value: np.ndarray) -> np.ndarray:
-    """Freeze an array that is already an owned defensive copy."""
+    """Move an already validated array onto irreversible read-only storage."""
 
-    value.setflags(write=False)
-    return value
+    return immutable_array(value)
 
 
 def _validated_dense_storage_dtype(value: object) -> DenseStorageDType:
     normalized = str(value)
     if normalized not in DENSE_STORAGE_DTYPES:
-        raise ValueError(
-            "dense_storage_dtype must be one of " + ", ".join(DENSE_STORAGE_DTYPES)
-        )
+        raise ValueError("dense_storage_dtype must be one of " + ", ".join(DENSE_STORAGE_DTYPES))
     return cast(DenseStorageDType, normalized)
 
 
@@ -77,8 +76,7 @@ def _validated_versioned_archive(data: Any) -> DenseStorageDType:
     extra = sorted(files - allowed)
     if missing or extra:
         raise ValueError(
-            "prediction-window archive fields changed; "
-            f"missing={missing}, extra={extra}"
+            f"prediction-window archive fields changed; missing={missing}, extra={extra}"
         )
     if ("scene_flow" in files) != ("deform_mask" in files):
         raise ValueError(
@@ -379,9 +377,7 @@ class PredictionWindow:
                     raise ValueError(
                         "prediction files without frame_indices require start_frame explicitly"
                     )
-                stored_id = (
-                    str(data["window_id"].item()) if "window_id" in data else path.stem
-                )
+                stored_id = str(data["window_id"].item()) if "window_id" in data else path.stem
 
             return cls(
                 window_id=window_id or stored_id,

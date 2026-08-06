@@ -115,3 +115,28 @@ def test_frozen_mapping_remains_recursively_immutable_and_copyable() -> None:
 
     assert thawed == {"nested": {"values": [1, 2, 3]}}
     assert plain_json(frozen) == {"nested": {"values": [1, 2]}}
+
+
+def test_frozen_json_has_no_mutable_builtin_base_class_escape() -> None:
+    frozen = frozen_finite_json_mapping({"items": [1, 2]})
+    values = cast(FrozenJsonList, frozen["items"])
+
+    assert not isinstance(frozen, dict)
+    assert not isinstance(values, list)
+    with pytest.raises(TypeError):
+        dict.__setitem__(frozen, "changed", True)  # type: ignore[arg-type]
+    with pytest.raises(TypeError):
+        list.append(values, 3)  # type: ignore[arg-type]
+
+
+def test_frozen_json_explicit_copy_returns_mutable_plain_values() -> None:
+    frozen = cast(
+        FrozenJsonDict,
+        frozen_finite_json_mapping({"nested": {"items": [1]}}),
+    )
+
+    copied = frozen.copy()
+    copied["nested"]["items"].append(2)
+
+    assert copied == {"nested": {"items": [1, 2]}}
+    assert plain_json(frozen) == {"nested": {"items": [1]}}

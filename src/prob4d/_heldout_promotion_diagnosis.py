@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TypedDict
@@ -202,7 +202,7 @@ _QUERY_GATE_BOUNDARIES: tuple[tuple[str, str], ...] = (
 
 
 def _sequence(value: Any, *, name: str) -> tuple[Any, ...]:
-    if not isinstance(value, (list, tuple)):
+    if isinstance(value, (str, bytes)) or not isinstance(value, Sequence):
         raise ValueError(f"{name} must be an array")
     return tuple(value)
 
