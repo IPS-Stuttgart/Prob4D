@@ -68,9 +68,13 @@ second_points_m         float64 [N, 3]
 first_covariance_m2     float64 [N, 3, 3]
 second_covariance_m2    float64 [N, 3, 3]
 valid_mask              bool    [N]
+alignment_artifact_id   Unicode scalar
+row_identity_sha256     Unicode scalar
+coordinate_frame_id     Unicode scalar
 ```
 
-It may additionally contain:
+The three embedded identities must exactly match the enclosing case record. It
+may additionally contain:
 
 ```text
 cross_covariance_m2     float64 [N, 3, 3]
@@ -107,13 +111,19 @@ content identities are recomputed.
   ],
   "metadata": {
     "uses_truth": false,
-    "uses_downstream_physical_innovation": false
+    "uses_target_outcomes": false,
+    "uses_downstream_physical_innovation": false,
+    "alignment_uses_truth": false,
+    "alignment_uses_downstream_physical_innovation": false
   }
 }
 ```
 
 Calibration case IDs are the exchangeable statistical units. Do not place frames,
-pixels, or correlated windows into the panel as separate calibration cases.
+pixels, or correlated windows into the panel as separate calibration cases. The
+row quantile is bound into panel evaluation and must match the value recorded by
+the calibration artifact; the API rejects relabelling scores with another
+quantile after they have been computed.
 
 ## Commands
 

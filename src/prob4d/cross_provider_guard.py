@@ -111,6 +111,8 @@ _CASE_SCORE_FIELDS: Final = frozenset(
     {
         "case_id",
         "sequence_id",
+        "first_provider_contract_id",
+        "second_provider_contract_id",
         "first_manifest_artifact_id",
         "second_manifest_artifact_id",
         "first_manifest_sha256",
@@ -198,6 +200,9 @@ _MATCHED_REQUIRED_FIELDS: Final = frozenset(
         "first_covariance_m2",
         "second_covariance_m2",
         "valid_mask",
+        "alignment_artifact_id",
+        "row_identity_sha256",
+        "coordinate_frame_id",
     }
 )
 _MATCHED_OPTIONAL_FIELDS: Final = frozenset({"cross_covariance_m2"})
@@ -218,6 +223,40 @@ def _sha256_json(value: Mapping[str, Any]) -> str:
 
 def _sha256_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
+
+
+def _load_json_bytes_object(payload: bytes, *, name: str) -> dict[str, Any]:
+    """Parse the exact JSON bytes whose content digest is retained."""
+
+    class _DuplicateKeyError(ValueError):
+        pass
+
+    def object_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, item in pairs:
+            if key in result:
+                raise _DuplicateKeyError(
+                    f"{name} contains duplicate JSON object key {key!r}"
+                )
+            result[key] = item
+        return result
+
+    def reject_constant(token: str) -> Any:
+        raise ValueError(f"{name} contains non-finite JSON number {token!r}")
+
+    try:
+        value = json.loads(
+            payload.decode("utf-8"),
+            object_pairs_hook=object_pairs,
+            parse_constant=reject_constant,
+        )
+    except UnicodeDecodeError as error:
+        raise ValueError(f"{name} must contain UTF-8 JSON") from error
+    except json.JSONDecodeError as error:
+        raise ValueError(f"{name} must contain valid JSON") from error
+    if not isinstance(value, dict):
+        raise ValueError(f"{name} must contain one JSON object")
+    return value
 
 
 def _sha256_file(path: Path) -> str:
@@ -651,6 +690,8 @@ class CrossProviderCaseScoreV1:
 
     case_id: str
     sequence_id: str
+    first_provider_contract_id: str
+    second_provider_contract_id: str
     first_manifest_artifact_id: str
     second_manifest_artifact_id: str
     first_manifest_sha256: str
@@ -681,6 +722,8 @@ class CrossProviderCaseScoreV1:
                 require_exact_string(getattr(self, name), name=name),
             )
         for name in (
+            "first_provider_contract_id",
+            "second_provider_contract_id",
             "first_manifest_artifact_id",
             "second_manifest_artifact_id",
             "first_manifest_sha256",
@@ -743,6 +786,8 @@ class CrossProviderCaseScoreV1:
         return {
             "case_id": self.case_id,
             "sequence_id": self.sequence_id,
+            "first_provider_contract_id": self.first_provider_contract_id,
+            "second_provider_contract_id": self.second_provider_contract_id,
             "first_manifest_artifact_id": self.first_manifest_artifact_id,
             "second_manifest_artifact_id": self.second_manifest_artifact_id,
             "first_manifest_sha256": self.first_manifest_sha256,
@@ -775,6 +820,8 @@ class CrossProviderCaseScoreV1:
         return cls(
             case_id=mapping["case_id"],
             sequence_id=mapping["sequence_id"],
+            first_provider_contract_id=mapping["first_provider_contract_id"],
+            second_provider_contract_id=mapping["second_provider_contract_id"],
             first_manifest_artifact_id=mapping["first_manifest_artifact_id"],
             second_manifest_artifact_id=mapping["second_manifest_artifact_id"],
             first_manifest_sha256=mapping["first_manifest_sha256"],
@@ -821,6 +868,7 @@ class EvaluatedCrossProviderPanel:
     first_provider: ProviderContractV1
     second_provider: ProviderContractV1
     covariance_mode: str
+    row_quantile: float
     cases: tuple[CrossProviderCaseScoreV1, ...]
     metadata: Mapping[str, Any]
 
@@ -884,6 +932,9 @@ def _load_matched_observations(
     path: Path,
     *,
     expected_sha256: str,
+    alignment_artifact_id: str,
+    row_identity_sha256: str,
+    coordinate_frame_id: str,
     row_quantile: float,
 ) -> CrossProviderScoreSummary:
     payload = path.read_bytes()
@@ -899,6 +950,24 @@ def _load_matched_observations(
                     "matched-observation fields changed; "
                     f"missing={missing}, extra={extra}"
                 )
+            embedded_alignment = np.asarray(archive["alignment_artifact_id"])
+            embedded_rows = np.asarray(archive["row_identity_sha256"])
+            embedded_frame = np.asarray(archive["coordinate_frame_id"])
+            for value, expected, name in (
+                (
+                    embedded_alignment,
+                    alignment_artifact_id,
+                    "alignment_artifact_id",
+                ),
+                (embedded_rows, row_identity_sha256, "row_identity_sha256"),
+                (embedded_frame, coordinate_frame_id, "coordinate_frame_id"),
+            ):
+                if value.shape != () or value.dtype.kind != "U":
+                    raise ValueError(
+                        f"matched-observation {name} must be a Unicode scalar"
+                    )
+                if str(value.item()) != expected:
+                    raise ValueError(f"matched-observation {name} mismatch")
             cross = (
                 archive["cross_covariance_m2"]
                 if "cross_covariance_m2" in archive.files
@@ -921,7 +990,13 @@ def _load_matched_observations(
 
 def _required_source_only_metadata(value: object, *, name: str) -> Mapping[str, Any]:
     mapping = require_finite_json_mapping(value, name=name)
-    for field_name in ("uses_truth", "uses_downstream_physical_innovation"):
+    for field_name in (
+        "uses_truth",
+        "uses_target_outcomes",
+        "uses_downstream_physical_innovation",
+        "alignment_uses_truth",
+        "alignment_uses_downstream_physical_innovation",
+    ):
         if mapping.get(field_name) is not False:
             raise ValueError(f"{name} must declare {field_name}=false")
     return mapping
@@ -942,7 +1017,10 @@ def evaluate_cross_provider_panel(
     if source.is_symlink() or not source.is_file():
         raise ValueError("cross-provider panel must be a regular non-symlink file")
     source_bytes = source.read_bytes()
-    record = load_json_object(source, name="cross-provider panel")
+    record = _load_json_bytes_object(
+        source_bytes,
+        name="cross-provider panel",
+    )
     require_exact_fields(record, _PANEL_FIELDS, name="cross-provider panel")
     if record["schema"] != CROSS_PROVIDER_PANEL_SCHEMA:
         raise ValueError("unsupported cross-provider panel schema")
@@ -1032,6 +1110,18 @@ def evaluate_cross_provider_panel(
             case["matched_observations_sha256"],
             name="matched_observations_sha256",
         )
+        alignment_artifact_id = require_sha256(
+            case["alignment_artifact_id"],
+            name="alignment_artifact_id",
+        )
+        row_identity_sha256 = require_sha256(
+            case["row_identity_sha256"],
+            name="row_identity_sha256",
+        )
+        coordinate_frame_id = require_exact_string(
+            case["coordinate_frame_id"],
+            name="coordinate_frame_id",
+        )
         matched_path = _resolved_member(
             root,
             case["matched_observations"],
@@ -1040,6 +1130,9 @@ def evaluate_cross_provider_panel(
         score = _load_matched_observations(
             matched_path,
             expected_sha256=matched_sha,
+            alignment_artifact_id=alignment_artifact_id,
+            row_identity_sha256=row_identity_sha256,
+            coordinate_frame_id=coordinate_frame_id,
             row_quantile=quantile,
         )
         if covariance_mode is None:
@@ -1054,6 +1147,8 @@ def evaluate_cross_provider_panel(
             CrossProviderCaseScoreV1(
                 case_id=case_id,
                 sequence_id=first_manifest.sequence_id,
+                first_provider_contract_id=str(current_first.contract_id),
+                second_provider_contract_id=str(current_second.contract_id),
                 first_manifest_artifact_id=first_artifact_id,
                 second_manifest_artifact_id=second_artifact_id,
                 first_manifest_sha256=_sha256_file(first_manifest_path),
@@ -1063,18 +1158,9 @@ def evaluate_cross_provider_panel(
                 first_payload_ids=first_payload_ids,
                 second_payload_ids=second_payload_ids,
                 matched_observations_sha256=matched_sha,
-                alignment_artifact_id=require_sha256(
-                    case["alignment_artifact_id"],
-                    name="alignment_artifact_id",
-                ),
-                row_identity_sha256=require_sha256(
-                    case["row_identity_sha256"],
-                    name="row_identity_sha256",
-                ),
-                coordinate_frame_id=require_exact_string(
-                    case["coordinate_frame_id"],
-                    name="coordinate_frame_id",
-                ),
+                alignment_artifact_id=alignment_artifact_id,
+                row_identity_sha256=row_identity_sha256,
+                coordinate_frame_id=coordinate_frame_id,
                 shared_input_dependence_group_id=shared_input,
                 covariance_mode=score.covariance_mode,
                 row_count=score.row_count,
@@ -1108,6 +1194,7 @@ def evaluate_cross_provider_panel(
         first_provider=first_contract,
         second_provider=second_contract,
         covariance_mode=covariance_mode,
+        row_quantile=quantile,
         cases=ordered_cases,
         metadata=frozen_finite_json_mapping(
             metadata,
@@ -1193,8 +1280,18 @@ class CrossProviderCalibrationV1:
             raise ValueError("calibration cases must be ordered by case_id")
         if len({item.case_id for item in cases}) != len(cases):
             raise ValueError("calibration case IDs must be unique")
+        first_contract_id = self.first_provider.contract_id
+        second_contract_id = self.second_provider.contract_id
+        if first_contract_id is None or second_contract_id is None:
+            raise ValueError("provider contract IDs must be materialized")
         if any(item.covariance_mode != self.covariance_mode for item in cases):
             raise ValueError("calibration cases mix covariance modes")
+        if any(
+            item.first_provider_contract_id != first_contract_id
+            or item.second_provider_contract_id != second_contract_id
+            for item in cases
+        ):
+            raise ValueError("calibration cases differ from the provider contracts")
         if any(item.support_fraction < minimum_support for item in cases):
             raise ValueError(
                 "clean calibration case falls below minimum common support"
@@ -1421,9 +1518,18 @@ class CrossProviderDecisionV1:
             raise ValueError("decision cases must be ordered by case_id")
         if len({item.score.case_id for item in cases}) != len(cases):
             raise ValueError("decision case IDs must be unique")
+        first_contract_id = self.first_provider.contract_id
+        second_contract_id = self.second_provider.contract_id
+        if first_contract_id is None or second_contract_id is None:
+            raise ValueError("provider contract IDs must be materialized")
         for item in cases:
             if item.score.covariance_mode != self.covariance_mode:
                 raise ValueError("decision cases mix covariance modes")
+            if (
+                item.score.first_provider_contract_id != first_contract_id
+                or item.score.second_provider_contract_id != second_contract_id
+            ):
+                raise ValueError("decision cases differ from the provider contracts")
             expected_reasons = _rejection_reasons(
                 item.score,
                 threshold=threshold,
@@ -1551,6 +1657,13 @@ def fit_cross_provider_calibration(
     if panel.purpose != "calibration":
         raise ValueError("cross-provider calibration requires a calibration panel")
     quantile = _probability(row_quantile, name="row_quantile", open_interval=True)
+    if not math.isclose(
+        panel.row_quantile,
+        quantile,
+        rel_tol=0.0,
+        abs_tol=0.0,
+    ):
+        raise ValueError("calibration row_quantile differs from panel evaluation")
     minimum_support = _probability(
         minimum_support_fraction,
         name="minimum_support_fraction",
@@ -1575,7 +1688,10 @@ def fit_cross_provider_calibration(
             "panel_metadata": plain_json(panel.metadata),
             "payloads_verified": True,
             "uses_truth": False,
+            "uses_target_outcomes": False,
             "uses_downstream_physical_innovation": False,
+            "alignment_uses_truth": False,
+            "alignment_uses_downstream_physical_innovation": False,
         },
     )
 
@@ -1592,6 +1708,13 @@ def apply_cross_provider_calibration(
         raise ValueError("target provider contract differs from calibration")
     if panel.covariance_mode != calibration.covariance_mode:
         raise ValueError("target covariance mode differs from calibration")
+    if not math.isclose(
+        panel.row_quantile,
+        calibration.row_quantile,
+        rel_tol=0.0,
+        abs_tol=0.0,
+    ):
+        raise ValueError("target row_quantile differs from calibration")
     threshold = calibration.finite_sample_threshold.threshold
     decision_cases: list[CrossProviderDecisionCaseV1] = []
     for score in panel.cases:
@@ -1630,7 +1753,10 @@ def apply_cross_provider_calibration(
             "panel_metadata": plain_json(panel.metadata),
             "payloads_verified": True,
             "uses_truth": False,
+            "uses_target_outcomes": False,
             "uses_downstream_physical_innovation": False,
+            "alignment_uses_truth": False,
+            "alignment_uses_downstream_physical_innovation": False,
         },
     )
 
@@ -1855,7 +1981,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     verify_decision = subparsers.add_parser("verify-decision")
     verify_decision.add_argument("decision")
-    verify_decision.add_argument("--calibration")
+    verify_decision.add_argument("--calibration", required=True)
 
     stress = subparsers.add_parser("stress")
     stress.add_argument("--output", required=True)

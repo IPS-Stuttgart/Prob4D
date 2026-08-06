@@ -11,6 +11,7 @@ import pytest
 import prob4d.cross_provider_guard as cross_provider
 from prob4d.cli import main as grouped_main
 from prob4d.cross_provider_guard import (
+    CrossProviderCalibrationV1,
     apply_cross_provider_calibration,
     compute_cross_provider_score,
     evaluate_cross_provider_panel,
@@ -140,6 +141,9 @@ def _matched(
         "first_covariance_m2": covariance,
         "second_covariance_m2": covariance,
         "valid_mask": valid,
+        "alignment_artifact_id": np.asarray("a" * 64),
+        "row_identity_sha256": np.asarray("b" * 64),
+        "coordinate_frame_id": np.asarray("registered-world-case-a"),
     }
     if explicit_cross_covariance:
         arrays["cross_covariance_m2"] = np.zeros_like(covariance)
@@ -176,7 +180,10 @@ def _panel(
         ],
         "metadata": {
             "uses_truth": False,
+            "uses_target_outcomes": False,
             "uses_downstream_physical_innovation": False,
+            "alignment_uses_truth": False,
+            "alignment_uses_downstream_physical_innovation": False,
         },
     }
     path.write_text(json.dumps(record, indent=2, sort_keys=True), encoding="utf-8")
@@ -450,6 +457,76 @@ def test_resigned_threshold_tamper_is_rejected(tmp_path: Path) -> None:
         load_cross_provider_calibration(path)
 
 
+def test_calibration_rejects_a_different_declared_row_quantile(
+    tmp_path: Path,
+) -> None:
+    first_path, first, second_path, second = _provider_pair(tmp_path)
+    matched = tmp_path / "matched.npz"
+    _matched(matched)
+    panel_path = tmp_path / "panel.json"
+    _panel(
+        panel_path,
+        purpose="calibration",
+        first_manifest=first_path,
+        second_manifest=second_path,
+        first_payload_id=str(first.payloads[0].payload_id),
+        second_payload_id=str(second.payloads[0].payload_id),
+        matched=matched,
+    )
+    panel = evaluate_cross_provider_panel(
+        panel_path,
+        row_quantile=0.9,
+        expected_purpose="calibration",
+    )
+    with pytest.raises(ValueError, match="row_quantile differs"):
+        fit_cross_provider_calibration(
+            panel,
+            miscoverage=0.5,
+            row_quantile=0.95,
+            minimum_support_fraction=0.75,
+        )
+
+
+def test_resigned_provider_contract_tamper_is_rejected(tmp_path: Path) -> None:
+    first_path, first, second_path, second = _provider_pair(tmp_path)
+    matched = tmp_path / "matched.npz"
+    _matched(matched)
+    panel_path = tmp_path / "panel.json"
+    _panel(
+        panel_path,
+        purpose="calibration",
+        first_manifest=first_path,
+        second_manifest=second_path,
+        first_payload_id=str(first.payloads[0].payload_id),
+        second_payload_id=str(second.payloads[0].payload_id),
+        matched=matched,
+    )
+    calibration = fit_cross_provider_calibration(
+        evaluate_cross_provider_panel(
+            panel_path,
+            row_quantile=0.95,
+            expected_purpose="calibration",
+        ),
+        miscoverage=0.5,
+        row_quantile=0.95,
+        minimum_support_fraction=0.75,
+    )
+    record = calibration.to_record()
+    provider = record["first_provider"]
+    assert isinstance(provider, dict)
+    provider["provider_family"] = "DifferentProvider"
+    contract_descriptor = {
+        key: value for key, value in provider.items() if key != "contract_id"
+    }
+    provider["contract_id"] = cross_provider._sha256_json(contract_descriptor)
+    descriptor = {key: value for key, value in record.items() if key != "artifact_id"}
+    record["artifact_id"] = cross_provider._sha256_json(descriptor)
+    path = tmp_path / "provider-tampered.json"
+    path.write_text(json.dumps(record), encoding="utf-8")
+    with pytest.raises(ValueError, match="differ from the provider contracts"):
+        load_cross_provider_calibration(path)
+
+
 def test_controlled_stress_exposes_provider_specific_but_not_shared_bias() -> None:
     report = run_cross_provider_guard_stress(
         calibration_cases=120,
@@ -460,11 +537,8 @@ def test_controlled_stress_exposes_provider_specific_but_not_shared_bias() -> No
         miscoverage=0.1,
         seed=20260806,
     )
-    gates = report["gates"]
+    assert all(report["gates"].values())
     results = report["results"]
-    assert isinstance(gates, dict)
-    assert isinstance(results, dict)
-    assert all(gates.values())
     assert results["provider_specific_corruption_detection_rate"] >= 0.95
     assert results["shared_common_bias_rejection_rate"] <= 0.13
 
