@@ -1,0 +1,64 @@
+name: Frozen real-bundle eager versus mmap profile
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/issue50-real-bundle-profile.yml"
+      - "protocols/issue50-real-bundle-profile-v1.json"
+      - "scripts/ci/profile_real_prediction_bundle.py"
+      - "scripts/ci/run_issue50_real_bundle_profile.sh"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: issue50-real-bundle-profile-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONHASHSEED: "0"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+  HF_HUB_DISABLE_TELEMETRY: "1"
+
+jobs:
+  profile:
+    name: Frozen real bundle on workstation2
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Linux, X64, nvidia-smi]
+    timeout-minutes: 360
+    steps:
+      - name: Check out exact reviewed head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Generate, profile, and compare the frozen bundle
+        shell: bash
+        run: bash scripts/ci/run_issue50_real_bundle_profile.sh
+
+      - name: Upload compact real-profile evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        with:
+          name: issue50-frozen-real-bundle-profile
+          path: ${{ runner.temp }}/issue50-real-profile/evidence
+          if-no-files-found: error
+          retention-days: 90
