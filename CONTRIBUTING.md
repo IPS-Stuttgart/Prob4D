@@ -27,6 +27,20 @@ identity, or evidence admission require focused adversarial tests and correspond
 changelog documentation. Exact fallback and causal-prefix invariants must remain
 fail-closed.
 
+## Privileged validation
+
+Ordinary pull-request workflows must remain on ephemeral GitHub-hosted runners. Do not
+route pull-request source to a persistent self-hosted runner through a branch prefix,
+changed workflow, or mutable runner-selection input.
+
+When one explicitly reviewed revision genuinely requires the local GPU, large memory,
+or approved data, use the protected `Trusted exact-head validation` workflow described
+in `docs/trusted-self-hosted-validation.md`. The workflow must be dispatched from
+`main`, bind the current open same-repository pull-request head by its full SHA, and
+pause at the independently reviewed `trusted-self-hosted-validation` environment before
+self-hosted checkout. A successful privileged run is implementation evidence only; it
+does not authorize target access or promote a scientific claim.
+
 ## Pull requests
 
 A pull request should describe:
