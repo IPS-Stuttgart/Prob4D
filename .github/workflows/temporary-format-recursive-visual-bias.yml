@@ -1,19 +1,25 @@
 name: Temporary recursive visual-bias formatter
 
 on:
-  push:
-    branches:
-      - agent/recursive-visual-bias-stream
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/temporary-format-recursive-visual-bias.yml"
+      - "src/prob4d/cli.py"
+      - "src/prob4d/visual_bias_stream.py"
+      - "tests/test_cli.py"
+      - "tests/test_visual_bias_stream.py"
 
 permissions:
   contents: write
 
 concurrency:
-  group: temporary-recursive-visual-bias-formatter
+  group: temporary-recursive-visual-bias-formatter-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   format-and-test:
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64, nvidia-smi]
     timeout-minutes: 30
     steps:
