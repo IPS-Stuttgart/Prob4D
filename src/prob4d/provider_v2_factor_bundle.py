@@ -13,7 +13,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -41,9 +41,7 @@ from .provider_v1 import (
 )
 from .runtime_revision import assert_runtime_revision
 
-CLAIM_BEARING_FACTOR_BUNDLE_SCHEMA = (
-    "prob4d.claim-bearing-observation-factor-bundle"
-)
+CLAIM_BEARING_FACTOR_BUNDLE_SCHEMA = "prob4d.claim-bearing-observation-factor-bundle"
 CLAIM_BEARING_FACTOR_BUNDLE_VERSION = 1
 _REQUIRED_PROVIDER_CAPABILITIES = frozenset(
     {
@@ -81,9 +79,7 @@ _ENVELOPE_FIELDS = frozenset(
         "metadata",
     }
 )
-_CALIBRATION_FIELDS = frozenset(
-    {"gauge_artifact_id", "point_artifact_id"}
-)
+_CALIBRATION_FIELDS = frozenset({"gauge_artifact_id", "point_artifact_id"})
 
 
 def _canonical_json(value: Mapping[str, Any]) -> bytes:
@@ -120,9 +116,7 @@ def _require_nonempty_string(value: object, *, name: str) -> str:
 
 def _require_sha256(value: object, *, name: str) -> str:
     digest = _require_nonempty_string(value, name=name)
-    if len(digest) != 64 or any(
-        character not in "0123456789abcdef" for character in digest
-    ):
+    if len(digest) != 64 or any(character not in "0123456789abcdef" for character in digest):
         raise ValueError(f"{name} must be a lowercase SHA-256 digest")
     return digest
 
@@ -185,8 +179,7 @@ def _validated_calibration_ids(value: object) -> Mapping[str, str]:
         raise ValueError("calibration_artifact_ids must be a mapping")
     if set(value) != _CALIBRATION_FIELDS:
         raise ValueError(
-            "calibration_artifact_ids must contain exactly gauge_artifact_id "
-            "and point_artifact_id"
+            "calibration_artifact_ids must contain exactly gauge_artifact_id and point_artifact_id"
         )
     result: dict[str, str] = {}
     for name in sorted(_CALIBRATION_FIELDS):
@@ -201,11 +194,9 @@ def _validated_calibration_ids(value: object) -> Mapping[str, str]:
 
 
 def _validated_gauge_ids(value: object) -> tuple[str, ...]:
-    if not isinstance(value, (list, tuple)) or not value:
+    if isinstance(value, (str, bytes)) or not isinstance(value, Sequence) or not value:
         raise ValueError("gauge_ids must be a nonempty sequence")
-    result = tuple(
-        _require_nonempty_string(item, name="gauge_id") for item in value
-    )
+    result = tuple(_require_nonempty_string(item, name="gauge_id") for item in value)
     if len(set(result)) != len(result):
         raise ValueError("gauge_ids must be unique")
     return result
@@ -239,7 +230,7 @@ def _validated_lineage(
     )
 
     selected = lineage.get("selected_windows")
-    if not isinstance(selected, list) or not selected:
+    if isinstance(selected, (str, bytes)) or not isinstance(selected, Sequence) or not selected:
         raise ValueError("claim-bearing factors require selected source-window lineage")
     selected_ids: set[str] = set()
     for raw_window in selected:
@@ -293,19 +284,17 @@ def _provider_fields(
     )
     manifest = validated["provider_manifest"]
     capabilities = manifest.get("capabilities")
-    if not isinstance(capabilities, list) or not _REQUIRED_PROVIDER_CAPABILITIES.issubset(
-        capabilities
+    if (
+        isinstance(capabilities, (str, bytes))
+        or not isinstance(capabilities, Sequence)
+        or not _REQUIRED_PROVIDER_CAPABILITIES.issubset(capabilities)
     ):
-        raise ValueError(
-            "provider manifest lacks claim-bearing observation-factor capabilities"
-        )
+        raise ValueError("provider manifest lacks claim-bearing observation-factor capabilities")
     provider_manifest_id = _require_sha256(
         validated.get("provider_manifest_id"),
         name="provider_manifest_id",
     )
-    calibration_ids = _validated_calibration_ids(
-        validated.get("calibration_artifact_ids")
-    )
+    calibration_ids = _validated_calibration_ids(validated.get("calibration_artifact_ids"))
     runtime = validated.get("runtime_revision")
     if not isinstance(runtime, Mapping):
         raise ValueError("validated provider runtime revision must be a mapping")
@@ -422,17 +411,13 @@ class ClaimBearingObservationFactorBundleEnvelopeV1:
             self.provider_manifest_id,
             name="provider_manifest_id",
         )
-        calibration_ids = _validated_calibration_ids(
-            self.calibration_artifact_ids
-        )
+        calibration_ids = _validated_calibration_ids(self.calibration_artifact_ids)
         runtime_source = _require_nonempty_string(
             self.runtime_revision_source,
             name="runtime_revision_source",
         )
         if self.runtime_revision_independently_verified is not True:
-            raise ValueError(
-                "runtime_revision_independently_verified must be literally True"
-            )
+            raise ValueError("runtime_revision_independently_verified must be literally True")
         if manifest_id != attested_manifest_id:
             raise ValueError("provider_manifest_id differs from provider attestation")
         if dict(calibration_ids) != dict(attested_calibration_ids):
@@ -473,10 +458,14 @@ class ClaimBearingObservationFactorBundleEnvelopeV1:
 
         expected = _sha256_json(self.identity_record())
         supplied = self.artifact_id
-        if supplied is not None and _require_sha256(
-            supplied,
-            name="artifact_id",
-        ) != expected:
+        if (
+            supplied is not None
+            and _require_sha256(
+                supplied,
+                name="artifact_id",
+            )
+            != expected
+        ):
             raise ValueError("claim-bearing factor envelope artifact ID mismatch")
         object.__setattr__(self, "artifact_id", expected)
 
@@ -504,9 +493,7 @@ class ClaimBearingObservationFactorBundleEnvelopeV1:
             ),
             "causal_source_lineage": plain_json(self.causal_source_lineage),
             "provider_manifest_id": self.provider_manifest_id,
-            "calibration_artifact_ids": plain_json(
-                self.calibration_artifact_ids
-            ),
+            "calibration_artifact_ids": plain_json(self.calibration_artifact_ids),
             "runtime_revision_source": self.runtime_revision_source,
             "runtime_revision_independently_verified": (
                 self.runtime_revision_independently_verified
@@ -531,8 +518,7 @@ class ClaimBearingObservationFactorBundleEnvelopeV1:
             missing = sorted(_ENVELOPE_FIELDS - value.keys())
             extra = sorted(value.keys() - _ENVELOPE_FIELDS)
             raise ValueError(
-                "claim-bearing factor envelope fields changed; "
-                f"missing={missing}, extra={extra}"
+                f"claim-bearing factor envelope fields changed; missing={missing}, extra={extra}"
             )
         if value.get("schema") != CLAIM_BEARING_FACTOR_BUNDLE_SCHEMA:
             raise ValueError("unexpected claim-bearing factor envelope schema")
@@ -607,7 +593,7 @@ def _lineage_window_bounds(
     lineage: Mapping[str, Any],
 ) -> dict[str, tuple[int, int]]:
     selected = lineage.get("selected_windows")
-    if not isinstance(selected, list):
+    if isinstance(selected, (str, bytes)) or not isinstance(selected, Sequence):
         raise ValueError("causal source lineage selected_windows changed type")
     result: dict[str, tuple[int, int]] = {}
     for raw_window in selected:
@@ -745,11 +731,7 @@ def seal_claim_bearing_observation_factor_bundle(
     envelope_file = Path(envelope_path)
     envelope_file.parent.mkdir(parents=True, exist_ok=True)
     default_manifest, default_payload = _default_bundle_paths(envelope_file)
-    manifest_file = (
-        default_manifest
-        if bundle_manifest_path is None
-        else Path(bundle_manifest_path)
-    )
+    manifest_file = default_manifest if bundle_manifest_path is None else Path(bundle_manifest_path)
     payload_file = default_payload if payload_path is None else Path(payload_path)
     if manifest_file.resolve() == envelope_file.resolve():
         raise ValueError("bundle manifest and claim-bearing envelope must differ")
@@ -838,9 +820,7 @@ def write_claim_bearing_observation_factor_bundle(
     from .provider_v2 import prob4d_provider_manifest
 
     attestation = build_provider_attestation(
-        provider_manifest=prob4d_provider_manifest(
-            provider_revision=bundle.source_revision
-        ),
+        provider_manifest=prob4d_provider_manifest(provider_revision=bundle.source_revision),
         provider_revision=bundle.source_revision,
         export_mode="calibrated",
         calibration_compatibility_validated=True,
@@ -852,9 +832,7 @@ def write_claim_bearing_observation_factor_bundle(
         composition_jacobian_mode="analytic",
         runtime_revision=runtime.as_metadata(),
     )
-    lineage = causal_selection.artifact_lineage_metadata(
-        causal_frame_stop=bundle.causal_frame_stop
-    )
+    lineage = causal_selection.artifact_lineage_metadata(causal_frame_stop=bundle.causal_frame_stop)
     return seal_claim_bearing_observation_factor_bundle(
         bundle,
         envelope_path,

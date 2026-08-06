@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import replace
 
 import numpy as np
@@ -40,8 +40,7 @@ def bind_causal_stream_contract_v2(
         "stream contract v2 can only bind the strict Prob4D causal stream",
     )
     _require(
-        artifact.window_names
-        and artifact.window_names[0] == metric_anchor.window_id,
+        artifact.window_names and artifact.window_names[0] == metric_anchor.window_id,
         "metric gauge anchor must identify the first exported window",
     )
     metadata = dict(artifact.metadata)
@@ -81,8 +80,7 @@ def bind_causal_stream_contract_v2(
     )
     factor_rank = len(artifact.factor_names)
     expected_factor_names = tuple(
-        f"{PROB4D_JOINT_GAUGE_FACTOR_PREFIX}{index:04d}"
-        for index in range(factor_rank)
+        f"{PROB4D_JOINT_GAUGE_FACTOR_PREFIX}{index:04d}" for index in range(factor_rank)
     )
     _require(
         factor_rank > 0 and artifact.factor_names == expected_factor_names,
@@ -110,8 +108,7 @@ def bind_causal_stream_contract_v2(
         "exported metric gauge-anchor identity changed",
     )
     _require(
-        existing_anchor.get("source_artifact_sha256")
-        == metric_anchor.source_artifact_sha256,
+        existing_anchor.get("source_artifact_sha256") == metric_anchor.source_artifact_sha256,
         "exported metric gauge-anchor source digest changed",
     )
     lineage = metadata.get("causal_source_lineage")
@@ -121,22 +118,21 @@ def bind_causal_stream_contract_v2(
     )
     selected_windows = lineage.get("selected_windows")
     _require(
-        isinstance(selected_windows, list) and bool(selected_windows),
+        isinstance(selected_windows, Sequence)
+        and not isinstance(selected_windows, (str, bytes))
+        and bool(selected_windows),
         "stream contract v2 requires selected source-window lineage",
     )
     first_window = selected_windows[0]
     _require(
         isinstance(first_window, Mapping)
         and first_window.get("window_id") == metric_anchor.window_id
-        and first_window.get("payload_sha256")
-        == metric_anchor.source_artifact_sha256,
+        and first_window.get("payload_sha256") == metric_anchor.source_artifact_sha256,
         "metric gauge anchor is not bound to the first selected payload",
     )
 
     anchor_metadata = metric_anchor.contract_metadata(case_id=artifact.case_id)
-    metadata["prob4d_causal_stream_contract_version"] = (
-        PROB4D_CAUSAL_STREAM_CONTRACT_VERSION
-    )
+    metadata["prob4d_causal_stream_contract_version"] = PROB4D_CAUSAL_STREAM_CONTRACT_VERSION
     metadata["metric_gauge_anchor"] = anchor_metadata
     metadata["metric_anchor_covariance_in_joint_factor"] = True
     metadata["prob4d_causal_stream_contract"] = {
@@ -147,9 +143,7 @@ def bind_causal_stream_contract_v2(
             "gauge tree"
         ),
         "factor_group_semantics": "one shared latent vector across all windows",
-        "metric_anchor_covariance_treatment": anchor_metadata[
-            "covariance_treatment"
-        ],
+        "metric_anchor_covariance_treatment": anchor_metadata["covariance_treatment"],
         "causal_frame_stop_convention": "exclusive",
     }
     return replace(artifact, metadata=metadata)
