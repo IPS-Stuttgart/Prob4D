@@ -1,28 +1,32 @@
 name: Temporary publish independent-anchor common-bias product
 
 on:
-  push:
+  pull_request:
     branches: [main]
     paths:
-      - ".github/workflows/temporary-publish-anchor-common-bias.yml"
+      - ".github/anchor-common-bias-publish/**"
+      - ".github/workflows/publish-anchor-common-bias-product.yml"
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: temporary-publish-anchor-common-bias
+  group: temporary-publish-anchor-common-bias-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: false
 
 jobs:
   publish:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - name: Check out trusted default-branch control plane
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.pull_request.base.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
           clean: true
@@ -44,7 +48,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
           archive="${RUNNER_TEMP}/anchor-common-bias-product.tar.gz"
           cat _staging/anchor-study/.github/anchor-common-bias-publish/product.tar.gz.b64.part* \
             | base64 --decode > "${archive}"
@@ -73,7 +76,7 @@ jobs:
                   if not member.isfile() or member.issym() or member.islnk():
                       raise SystemExit(f"non-regular product member: {member.name}")
           PY
-          git reset --hard 35681c4b5b4f47a28e8b99e240a1b3109e0c95ef
+          git reset --hard eefb6ba74d737d5ad3310326a5156bcb48aaede5
           tar -xzf "${archive}" -C .
           python - <<'PY'
           from pathlib import Path
@@ -130,7 +133,7 @@ jobs:
           prob4d diagnostic anchor-common-bias --help
           mkdir -p "${RUNNER_TEMP}/anchor-study"
           prob4d diagnostic anchor-common-bias \
-            --source-revision "35681c4b5b4f47a28e8b99e240a1b3109e0c95ef" \
+            --source-revision "eefb6ba74d737d5ad3310326a5156bcb48aaede5" \
             --output-json "${RUNNER_TEMP}/anchor-study/report.json" \
             --output-markdown "${RUNNER_TEMP}/anchor-study/report.md"
           REPORT="${RUNNER_TEMP}/anchor-study/report.json" python - <<'PY'
