@@ -1,0 +1,200 @@
+name: Resolve real-profile model cache revisions
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/freeze-real-profile-model-cache.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: resolve-real-profile-model-cache-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  resolve:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Linux, X64, nvidia-smi]
+    timeout-minutes: 15
+    steps:
+      - name: Check out exact reviewed head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          clean: true
+
+      - name: Resolve exact cached revisions without opening model tensors
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="${RUNNER_TEMP}/real-profile-model-cache"
+          mkdir -p "${output}"
+          python3 - "${output}/model-cache.json" <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import sys
+          from typing import Any
+
+          output = Path(sys.argv[1])
+          cache_root = Path.home() / ".cache" / "huggingface" / "hub"
+          repositories = {
+              "motioncrafter": {
+                  "repository": "TencentARC/MotionCrafter",
+                  "cache_name": "models--TencentARC--MotionCrafter",
+                  "required": [
+                      "unet_determ",
+                      "geometry_motion_vae",
+                  ],
+              },
+              "base_pipeline": {
+                  "repository": "stabilityai/stable-video-diffusion-img2vid-xt",
+                  "cache_name": "models--stabilityai--stable-video-diffusion-img2vid-xt",
+                  "required": [
+                      "model_index.json",
+                      "feature_extractor/preprocessor_config.json",
+                      "scheduler/scheduler_config.json",
+                      "image_encoder/config.json",
+                      "image_encoder/model.fp16.safetensors",
+                      "vae/config.json",
+                      "vae/diffusion_pytorch_model.fp16.safetensors",
+                  ],
+              },
+              "image_vae": {
+                  "repository": "stable-diffusion-v1-5/stable-diffusion-v1-5",
+                  "cache_name": "models--stable-diffusion-v1-5--stable-diffusion-v1-5",
+                  "required": ["vae/config.json"],
+              },
+          }
+
+          def read_ref(path: Path) -> str | None:
+              try:
+                  value = path.read_text(encoding="utf-8").strip()
+              except OSError:
+                  return None
+              if len(value) not in {40, 64} or any(
+                  character not in "0123456789abcdef" for character in value
+              ):
+                  return None
+              return value
+
+          def descriptor(name: str, specification: dict[str, Any]) -> dict[str, Any]:
+              repository_root = cache_root / specification["cache_name"]
+              snapshots_root = repository_root / "snapshots"
+              ref_revision = read_ref(repository_root / "refs" / "main")
+              snapshots = sorted(
+                  candidate.name
+                  for candidate in snapshots_root.iterdir()
+                  if candidate.is_dir()
+              ) if snapshots_root.is_dir() else []
+              candidates: list[dict[str, Any]] = []
+              for revision in snapshots:
+                  snapshot = snapshots_root / revision
+                  missing = [
+                      relative
+                      for relative in specification["required"]
+                      if not (snapshot / relative).exists()
+                  ]
+                  regular_files = 0
+                  symlinks = 0
+                  logical_bytes = 0
+                  metadata = hashlib.sha256()
+                  for member in sorted(snapshot.rglob("*")):
+                      if member.is_dir():
+                          continue
+                      relative = member.relative_to(snapshot).as_posix()
+                      try:
+                          stat = member.stat()
+                      except OSError:
+                          continue
+                      regular_files += 1
+                      symlinks += int(member.is_symlink())
+                      logical_bytes += stat.st_size
+                      target = os.readlink(member) if member.is_symlink() else ""
+                      metadata.update(relative.encode("utf-8") + b"\0")
+                      metadata.update(str(stat.st_size).encode("ascii") + b"\0")
+                      metadata.update(target.encode("utf-8") + b"\0")
+                  candidates.append(
+                      {
+                          "revision": revision,
+                          "path": str(snapshot),
+                          "missing_required_members": missing,
+                          "complete": not missing,
+                          "file_count": regular_files,
+                          "symlink_count": symlinks,
+                          "logical_bytes": logical_bytes,
+                          "layout_sha256": metadata.hexdigest(),
+                          "model_tensor_bytes_opened": False,
+                      }
+                  )
+              complete = [value for value in candidates if value["complete"]]
+              selected = None
+              if ref_revision is not None:
+                  selected = next(
+                      (value for value in complete if value["revision"] == ref_revision),
+                      None,
+                  )
+              if selected is None and len(complete) == 1:
+                  selected = complete[0]
+              return {
+                  "role": name,
+                  "repository": specification["repository"],
+                  "cache_root": str(repository_root),
+                  "main_ref_revision": ref_revision,
+                  "snapshots": candidates,
+                  "selected": selected,
+                  "admitted": selected is not None,
+              }
+
+          records = {
+              name: descriptor(name, specification)
+              for name, specification in repositories.items()
+          }
+          admitted = all(record["admitted"] for record in records.values())
+          report = {
+              "schema": "prob4d.real-profile-model-cache.v1",
+              "repository": os.environ.get("GITHUB_REPOSITORY"),
+              "source_revision": os.environ.get("GITHUB_SHA"),
+              "run_id": os.environ.get("GITHUB_RUN_ID"),
+              "runner_name": os.environ.get("RUNNER_NAME"),
+              "huggingface_hub_cache": str(cache_root),
+              "admitted": admitted,
+              "models": records,
+              "information_boundary": {
+                  "cache_refs_opened": True,
+                  "snapshot_layout_opened": True,
+                  "model_tensor_bytes_opened": False,
+                  "video_frames_opened": False,
+                  "prediction_or_target_bytes_opened": False,
+              },
+              "claim_boundary": (
+                  "Model-cache availability and exact revision resolution only; no inference, "
+                  "accuracy, uncertainty, memory-performance, or intervention claim."
+              ),
+          }
+          output.write_text(
+              json.dumps(report, indent=2, sort_keys=True, allow_nan=False) + "\n",
+              encoding="utf-8",
+          )
+          if not admitted:
+              raise SystemExit("one or more required cached model revisions are unavailable")
+          PY
+          (
+            cd "${output}"
+            sha256sum model-cache.json > SHA256SUMS
+          )
+          cat "${output}/model-cache.json"
+
+      - name: Upload exact cache-revision evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        with:
+          name: real-profile-model-cache
+          path: ${{ runner.temp }}/real-profile-model-cache
+          if-no-files-found: error
+          retention-days: 14
