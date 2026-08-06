@@ -1,0 +1,439 @@
+name: Freeze real profile source inventory
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/freeze-real-profile-source-inventory.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: freeze-real-profile-source-inventory-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  inventory:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Linux, X64, nvidia-smi]
+    timeout-minutes: 30
+    steps:
+      - name: Check out exact reviewed head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          clean: true
+
+      - name: Inventory source videos, checkout, model cache, and GPU
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="${RUNNER_TEMP}/real-profile-source-inventory"
+          mkdir -p "${output}"
+          python3 - "${output}/source-inventory.json" <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import shutil
+          import subprocess
+          import sys
+          from typing import Any
+
+          OUTPUT = Path(sys.argv[1])
+          ROOTS = (
+              Path("/mnt/lexar4tb"),
+              Path("/mnt/data"),
+              Path("/data"),
+              Path("/home/github-runner"),
+          )
+          PRUNE = {
+              ".cache",
+              ".git",
+              ".mypy_cache",
+              ".pytest_cache",
+              ".ruff_cache",
+              ".venv",
+              "__pycache__",
+              "anaconda3",
+              "envs",
+              "node_modules",
+              "site-packages",
+          }
+          MAX_DEPTH = 18
+          MAX_VIDEO_CANDIDATES = 5000
+          HASH_COUNT = 20
+          PROBE_COUNT = 100
+
+          def run(arguments: list[str], *, cwd: Path | None = None) -> dict[str, Any]:
+              try:
+                  result = subprocess.run(
+                      arguments,
+                      cwd=cwd,
+                      check=False,
+                      capture_output=True,
+                      text=True,
+                      timeout=30,
+                  )
+              except (OSError, subprocess.TimeoutExpired) as error:
+                  return {"available": False, "error": type(error).__name__}
+              return {
+                  "available": True,
+                  "returncode": result.returncode,
+                  "stdout": result.stdout.strip(),
+                  "stderr": result.stderr.strip(),
+              }
+
+          def sha256(path: Path) -> str:
+              digest = hashlib.sha256()
+              with path.open("rb") as stream:
+                  for block in iter(lambda: stream.read(4 * 1024 * 1024), b""):
+                      digest.update(block)
+              return digest.hexdigest()
+
+          def score_video(path: Path, size: int) -> int:
+              lowered = str(path).lower()
+              score = 0
+              if "/datasets/" in lowered or "/dataset/" in lowered:
+                  score += 400
+              for token in (
+                  "deform360",
+                  "phystwin",
+                  "poke",
+                  "sloth",
+                  "rope",
+                  "cloth",
+                  "fabric",
+                  "sheet",
+              ):
+                  if token in lowered:
+                      score += 250
+              for token in (
+                  "synthetic",
+                  "fixture",
+                  "/test/",
+                  "/tests/",
+                  "/output",
+                  "/prediction",
+                  "/render",
+                  "/tmp/",
+              ):
+                  if token in lowered:
+                      score -= 500
+              if path.name in {"0.mp4", "video.mp4", "color.mp4", "rgb.mp4"}:
+                  score += 80
+              if 1_000_000 <= size <= 4_000_000_000:
+                  score += min(150, max(0, size.bit_length() * 5))
+              return score
+
+          videos: list[dict[str, Any]] = []
+          checkouts: list[dict[str, Any]] = []
+          seen_checkout_paths: set[str] = set()
+          scanned_entries = 0
+          roots: list[Path] = []
+          for root in ROOTS:
+              if not root.exists() or not root.is_dir():
+                  continue
+              try:
+                  roots.append(root.resolve())
+              except OSError:
+                  continue
+
+          for root in roots:
+              stop = False
+              for current, directories, files in os.walk(root, followlinks=False):
+                  current_path = Path(current)
+                  scanned_entries += len(directories) + len(files)
+                  try:
+                      depth = len(current_path.relative_to(root).parts)
+                  except ValueError:
+                      directories[:] = []
+                      continue
+                  directories[:] = sorted(
+                      name
+                      for name in directories
+                      if name not in PRUNE
+                      and not (current_path / name).is_symlink()
+                      and depth < MAX_DEPTH
+                  )
+
+                  lowered_name = current_path.name.lower().replace("-", "")
+                  if (
+                      "motioncrafter" in lowered_name
+                      and (current_path / ".git").exists()
+                      and str(current_path) not in seen_checkout_paths
+                  ):
+                      seen_checkout_paths.add(str(current_path))
+                      commit = run(["git", "rev-parse", "HEAD"], cwd=current_path)
+                      status = run(
+                          ["git", "status", "--porcelain=v1", "--untracked-files=all"],
+                          cwd=current_path,
+                      )
+                      remote = run(["git", "remote", "get-url", "origin"], cwd=current_path)
+                      checkouts.append(
+                          {
+                              "path": str(current_path),
+                              "commit": commit.get("stdout") if commit.get("returncode") == 0 else None,
+                              "clean": status.get("returncode") == 0 and not status.get("stdout"),
+                              "status_entry_count": len(str(status.get("stdout", "")).splitlines()),
+                              "origin": remote.get("stdout") if remote.get("returncode") == 0 else None,
+                          }
+                      )
+
+                  for name in sorted(files):
+                      if not name.lower().endswith((".mp4", ".mov", ".mkv", ".avi")):
+                          continue
+                      path = current_path / name
+                      try:
+                          stat = path.stat()
+                      except OSError:
+                          continue
+                      if path.is_symlink() or not path.is_file() or stat.st_size <= 0:
+                          continue
+                      videos.append(
+                          {
+                              "path": str(path),
+                              "root": str(root),
+                              "bytes": stat.st_size,
+                              "selection_score": score_video(path, stat.st_size),
+                          }
+                      )
+                      if len(videos) >= MAX_VIDEO_CANDIDATES:
+                          stop = True
+                          break
+                  if stop:
+                      break
+              if stop:
+                  break
+
+          videos.sort(
+              key=lambda value: (
+                  int(value["selection_score"]),
+                  int(value["bytes"]),
+                  str(value["path"]),
+              ),
+              reverse=True,
+          )
+
+          ffprobe = shutil.which("ffprobe")
+          for index, video in enumerate(videos[:PROBE_COUNT]):
+              if ffprobe is not None:
+                  probe = run(
+                      [
+                          ffprobe,
+                          "-v",
+                          "error",
+                          "-select_streams",
+                          "v:0",
+                          "-show_entries",
+                          "stream=codec_name,width,height,avg_frame_rate,nb_frames:format=duration",
+                          "-of",
+                          "json",
+                          str(video["path"]),
+                      ]
+                  )
+                  if probe.get("returncode") == 0:
+                      try:
+                          video["ffprobe"] = json.loads(str(probe.get("stdout", "{}")))
+                      except json.JSONDecodeError:
+                          video["ffprobe_error"] = "invalid-json"
+                  else:
+                      video["ffprobe_error"] = probe.get("stderr")
+              if index < HASH_COUNT:
+                  try:
+                      video["sha256"] = sha256(Path(video["path"]))
+                  except OSError as error:
+                      video["sha256_error"] = type(error).__name__
+
+          cache_roots: list[dict[str, Any]] = []
+          cache_candidates = [
+              Path(os.environ.get("HF_HOME", "")),
+              Path(os.environ.get("HUGGINGFACE_HUB_CACHE", "")),
+              Path.home() / ".cache" / "huggingface",
+              Path("/mnt/lexar4tb/huggingface"),
+              Path("/mnt/lexar4tb/huggingface-cache"),
+              Path("/mnt/lexar4tb/.cache/huggingface"),
+          ]
+          seen_cache: set[str] = set()
+          for candidate in cache_candidates:
+              if not str(candidate) or not candidate.exists() or not candidate.is_dir():
+                  continue
+              try:
+                  resolved = candidate.resolve()
+              except OSError:
+                  continue
+              if str(resolved) in seen_cache:
+                  continue
+              seen_cache.add(str(resolved))
+              relevant: list[dict[str, Any]] = []
+              hub = resolved / "hub" if (resolved / "hub").is_dir() else resolved
+              try:
+                  children = sorted(hub.iterdir())
+              except OSError:
+                  children = []
+              for child in children:
+                  lowered = child.name.lower()
+                  if not any(
+                      token in lowered
+                      for token in (
+                          "motioncrafter",
+                          "stable-video-diffusion",
+                          "img2vid",
+                          "tencentarc",
+                      )
+                  ):
+                      continue
+                  snapshots = child / "snapshots"
+                  revisions = []
+                  if snapshots.is_dir():
+                      try:
+                          revisions = sorted(
+                              value.name for value in snapshots.iterdir() if value.is_dir()
+                          )
+                      except OSError:
+                          revisions = []
+                  relevant.append(
+                      {
+                          "path": str(child),
+                          "snapshot_revisions": revisions,
+                      }
+                  )
+              cache_roots.append(
+                  {
+                      "path": str(resolved),
+                      "relevant_model_entries": relevant,
+                  }
+              )
+
+          executables: list[dict[str, Any]] = []
+          names = (
+              "prob4d-motioncrafter",
+              "prob4d",
+              "python",
+              "python3",
+              "ffprobe",
+              "nvidia-smi",
+          )
+          for name in names:
+              value = shutil.which(name)
+              executables.append({"name": name, "path": value})
+
+          venv_candidates: list[dict[str, Any]] = []
+          for root in roots:
+              for current, directories, _ in os.walk(root, followlinks=False):
+                  current_path = Path(current)
+                  try:
+                      depth = len(current_path.relative_to(root).parts)
+                  except ValueError:
+                      directories[:] = []
+                      continue
+                  directories[:] = [
+                      name
+                      for name in directories
+                      if name not in PRUNE
+                      and not (current_path / name).is_symlink()
+                      and depth < 8
+                  ]
+                  lowered = current_path.name.lower()
+                  if "motioncrafter" not in lowered:
+                      continue
+                  python = current_path / "bin" / "python"
+                  command = current_path / "bin" / "prob4d-motioncrafter"
+                  if python.is_file() or command.is_file():
+                      venv_candidates.append(
+                          {
+                              "path": str(current_path),
+                              "python": str(python) if python.is_file() else None,
+                              "prob4d_motioncrafter": str(command) if command.is_file() else None,
+                          }
+                      )
+
+          gpu = run(
+              [
+                  "nvidia-smi",
+                  "--query-gpu=name,uuid,memory.total,driver_version",
+                  "--format=csv,noheader,nounits",
+              ]
+          )
+          report = {
+              "schema": "prob4d.real-profile-source-inventory",
+              "version": 1,
+              "repository": os.environ.get("GITHUB_REPOSITORY"),
+              "source_revision": os.environ.get("GITHUB_SHA"),
+              "run_id": os.environ.get("GITHUB_RUN_ID"),
+              "runner_name": os.environ.get("RUNNER_NAME"),
+              "roots": [str(value) for value in roots],
+              "scanned_entry_count": scanned_entries,
+              "video_candidate_count": len(videos),
+              "videos": videos[:500],
+              "motioncrafter_checkouts": checkouts,
+              "huggingface_caches": cache_roots,
+              "venv_candidates": venv_candidates,
+              "executables": executables,
+              "gpu": gpu,
+              "information_boundary": {
+                  "video_container_metadata_opened": True,
+                  "top_video_bytes_hashed": HASH_COUNT,
+                  "video_frames_decoded": False,
+                  "prediction_payloads_opened": False,
+                  "truth_or_target_outcomes_opened": False,
+                  "model_weight_bytes_opened": False,
+              },
+              "selection_rule": (
+                  "Prefer a hashed real dataset video with at least one complete MotionCrafter "
+                  "window, a clean exact upstream checkout, and locally available pinned model snapshots."
+              ),
+              "claim_boundary": (
+                  "Runtime/input feasibility evidence only. This is not provider competence, "
+                  "memory performance, physical-query benefit, or intervention evidence."
+              ),
+          }
+          OUTPUT.write_text(
+              json.dumps(report, indent=2, sort_keys=True, allow_nan=False) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          (
+            cd "${output}"
+            sha256sum source-inventory.json > SHA256SUMS
+          )
+          python3 - "${output}/source-inventory.json" <<'PY'
+          import json
+          from pathlib import Path
+          import sys
+
+          report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          print(
+              "videos=", report["video_candidate_count"],
+              "checkouts=", len(report["motioncrafter_checkouts"]),
+              "caches=", len(report["huggingface_caches"]),
+              "venvs=", len(report["venv_candidates"]),
+          )
+          for value in report["videos"][:20]:
+              print(
+                  "VIDEO",
+                  value["selection_score"],
+                  value["bytes"],
+                  value.get("sha256"),
+                  value["path"],
+              )
+          for value in report["motioncrafter_checkouts"]:
+              print("CHECKOUT", value)
+          for value in report["huggingface_caches"]:
+              print("CACHE", value)
+          for value in report["venv_candidates"]:
+              print("VENV", value)
+          print("GPU", report["gpu"])
+          PY
+
+      - name: Upload compact source/runtime inventory
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: real-profile-source-inventory
+          path: ${{ runner.temp }}/real-profile-source-inventory
+          if-no-files-found: error
+          retention-days: 14
