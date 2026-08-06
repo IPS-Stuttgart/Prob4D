@@ -158,11 +158,9 @@ def _ambiguous_observation_export(argv: Sequence[str] | None = None) -> int:
     arguments = list(() if argv is None else argv)
     help_requested = any(value in {"-h", "--help"} for value in arguments)
     lines = [
-        "usage: prob4d observation <export-calibrated|export-exploratory|export-v1> "
-        "[arguments]",
+        "usage: prob4d observation <export-calibrated|export-exploratory|export-v1> [arguments]",
         "",
-        "'prob4d observation export' is intentionally ambiguous and does not run "
-        "an exporter.",
+        "'prob4d observation export' is intentionally ambiguous and does not run an exporter.",
         "",
         "Choose one explicit contract:",
         "  export-calibrated   claim-bearing provider-v2 export",
