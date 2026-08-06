@@ -2,7 +2,7 @@
 
 Each update references one schema-v4 :class:`ObservationFactorBundle` on disk,
 adds observations from one non-overlapping causal frame interval, and binds the
-previous update ID.  Bundle paths are retrieval metadata; hashes, identities,
+previous update ID. Bundle paths are retrieval metadata; hashes, identities,
 and frame boundaries determine the portable update and stream content addresses.
 """
 
@@ -11,7 +11,9 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from collections.abc import Mapping
+import tempfile
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -19,6 +21,16 @@ from typing import Any
 import numpy as np
 
 from ._immutable_json import frozen_finite_json_mapping, plain_json
+from ._strict_json import (
+    load_json_object,
+    require_exact_fields,
+    require_exact_integer,
+    require_finite_json_mapping,
+    require_mapping,
+    require_nonempty_string,
+    require_sha256,
+    require_string_sequence,
+)
 from .observation_factors import (
     OBSERVATION_FACTOR_SCHEMA,
     OBSERVATION_FACTOR_SCHEMA_VERSION,
@@ -28,6 +40,53 @@ from .observation_factors import (
 
 OBSERVATION_FACTOR_STREAM_SCHEMA = "prob4d.observation-factor-stream"
 OBSERVATION_FACTOR_STREAM_VERSION = 1
+
+_STREAM_FIELDS = frozenset(
+    {
+        "schema",
+        "schema_version",
+        "sequence_id",
+        "case_id",
+        "stream_id",
+        "source_repository",
+        "source_revision",
+        "metadata",
+        "updates",
+        "artifact_id",
+    }
+)
+_UPDATE_FIELDS = frozenset(
+    {
+        "update_index",
+        "admitted_frame_start",
+        "causal_frame_stop",
+        "bundle_manifest_path",
+        "bundle_manifest_sha256",
+        "bundle_payload_sha256",
+        "bundle_sequence_id",
+        "case_id",
+        "stream_id",
+        "source_repository",
+        "source_revision",
+        "factor_count",
+        "observation_count",
+        "persistent_identity_count",
+        "observation_identity_sha256",
+        "gauge_ids",
+        "previous_update_id",
+        "update_id",
+    }
+)
+_PAYLOAD_FIELDS = frozenset({"path", "sha256", "allow_pickle"})
+_GAUGE_COVARIANCE_FIELDS = frozenset(
+    {
+        "semantics",
+        "joint_covariance_key",
+        "ordered_gauge_ids",
+        "cross_window_covariance_preserved",
+        "diagonal_blocks_match_gauge_marginals",
+    }
+)
 
 
 def _canonical_json(value: Mapping[str, Any]) -> bytes:
@@ -44,34 +103,77 @@ def _sha256_json(value: Mapping[str, Any]) -> str:
 
 
 def _sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
+    return _sha256_bytes(_read_bytes(path, name="stream member"))
+
+
+def _sha256_bytes(payload: bytes) -> str:
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _read_bytes(path: Path, *, name: str) -> bytes:
     try:
-        with path.open("rb") as stream:
-            for block in iter(lambda: stream.read(1024 * 1024), b""):
-                digest.update(block)
+        return path.read_bytes()
     except OSError as error:
-        raise ValueError(f"cannot read stream member {path.name!r}") from error
-    return digest.hexdigest()
+        raise ValueError(f"cannot read {name} {path.name!r}") from error
 
 
-def _require_sha256(value: object, *, name: str) -> str:
-    digest = str(value)
-    if len(digest) != 64 or any(
-        character not in "0123456789abcdef" for character in digest
-    ):
-        raise ValueError(f"{name} must be a lowercase SHA-256 digest")
-    return digest
+def _load_json_bytes(payload: bytes, *, name: str) -> dict[str, Any]:
+    def object_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, item in pairs:
+            if key in result:
+                raise ValueError(f"{name} contains duplicate JSON object key {key!r}")
+            result[key] = item
+        return result
 
+    def reject_constant(token: str) -> Any:
+        raise ValueError(f"{name} contains non-finite JSON number {token!r}")
 
-def _require_nonnegative_integer(value: object, *, name: str) -> int:
-    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-        raise ValueError(f"{name} must be a non-negative integer")
+    try:
+        value = json.loads(
+            payload.decode("utf-8"),
+            object_pairs_hook=object_pairs,
+            parse_constant=reject_constant,
+        )
+    except UnicodeDecodeError as error:
+        raise ValueError(f"{name} must contain UTF-8 JSON") from error
+    except json.JSONDecodeError as error:
+        raise ValueError(f"{name} must contain valid JSON") from error
+    if not isinstance(value, dict):
+        raise ValueError(f"{name} must contain one JSON object")
     return value
 
 
+@contextmanager
+def _exclusive_stream_lock(path: Path) -> Iterator[None]:
+    lock = path.with_name(f".{path.name}.lock")
+    try:
+        descriptor = os.open(
+            lock,
+            os.O_CREAT | os.O_EXCL | os.O_WRONLY,
+            0o600,
+        )
+    except FileExistsError as error:
+        raise FileExistsError(
+            f"observation-factor stream is already being written: {path}"
+        ) from error
+    try:
+        with os.fdopen(descriptor, "w", encoding="ascii") as handle:
+            handle.write(f"{os.getpid()}\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        yield
+    finally:
+        lock.unlink(missing_ok=True)
+
+
+def _require_nonnegative_integer(value: object, *, name: str) -> int:
+    return require_exact_integer(value, name=name, minimum=0)
+
+
 def _safe_relative_path(value: object, *, name: str) -> str:
-    path = str(value)
-    if not path or "\\" in path:
+    path = require_nonempty_string(value, name=name)
+    if "\\" in path:
         raise ValueError(f"{name} must be a safe POSIX relative path")
     pure = PurePosixPath(path)
     if pure.is_absolute() or any(part in {"", ".", ".."} for part in pure.parts):
@@ -112,9 +214,7 @@ def _observation_identity_summary(
             persistent_identities.add(persistent)
             observation_identities.append(observation)
     if len(set(observation_identities)) != len(observation_identities):
-        raise ValueError(
-            "an observation-factor stream update contains duplicate frame identities"
-        )
+        raise ValueError("an observation-factor stream update contains duplicate frame identities")
     ordered = sorted(observation_identities)
     digest = hashlib.sha256(_canonical_json({"observations": ordered})).hexdigest()
     return len(persistent_identities), len(observation_identities), digest
@@ -174,36 +274,41 @@ class ObservationFactorStreamUpdateV1:
             raise ValueError("stream updates must contain factors and observations")
 
         identifiers = {
-            "bundle_sequence_id": str(self.bundle_sequence_id),
-            "case_id": str(self.case_id),
-            "stream_id": str(self.stream_id),
-            "source_repository": str(self.source_repository),
-            "source_revision": str(self.source_revision),
+            "bundle_sequence_id": require_nonempty_string(
+                self.bundle_sequence_id,
+                name="bundle_sequence_id",
+            ),
+            "case_id": require_nonempty_string(self.case_id, name="case_id"),
+            "stream_id": require_nonempty_string(self.stream_id, name="stream_id"),
+            "source_repository": require_nonempty_string(
+                self.source_repository,
+                name="source_repository",
+            ),
+            "source_revision": require_nonempty_string(
+                self.source_revision,
+                name="source_revision",
+            ),
         }
-        if any(not value for value in identifiers.values()):
-            raise ValueError("stream update identifiers must be non-empty")
-        gauge_ids = tuple(str(value) for value in self.gauge_ids)
-        if not gauge_ids or any(not value for value in gauge_ids):
-            raise ValueError("gauge_ids must be non-empty")
+        gauge_ids = require_string_sequence(self.gauge_ids, name="gauge_ids")
         if len(set(gauge_ids)) != len(gauge_ids):
             raise ValueError("gauge_ids must be unique")
 
         previous = self.previous_update_id
         if previous is not None:
-            previous = _require_sha256(previous, name="previous_update_id")
+            previous = require_sha256(previous, name="previous_update_id")
         manifest_path = _safe_relative_path(
             self.bundle_manifest_path,
             name="bundle_manifest_path",
         )
-        manifest_sha = _require_sha256(
+        manifest_sha = require_sha256(
             self.bundle_manifest_sha256,
             name="bundle_manifest_sha256",
         )
-        payload_sha = _require_sha256(
+        payload_sha = require_sha256(
             self.bundle_payload_sha256,
             name="bundle_payload_sha256",
         )
-        identity_sha = _require_sha256(
+        identity_sha = require_sha256(
             self.observation_identity_sha256,
             name="observation_identity_sha256",
         )
@@ -225,7 +330,7 @@ class ObservationFactorStreamUpdateV1:
 
         expected = _sha256_json(self.identity_record())
         supplied = self.update_id
-        if supplied is not None and _require_sha256(supplied, name="update_id") != expected:
+        if supplied is not None and require_sha256(supplied, name="update_id") != expected:
             raise ValueError("observation-factor stream update ID mismatch")
         object.__setattr__(self, "update_id", expected)
 
@@ -258,6 +363,32 @@ class ObservationFactorStreamUpdateV1:
             "update_id": self.update_id,
         }
 
+    @classmethod
+    def from_record(cls, value: object) -> ObservationFactorStreamUpdateV1:
+        mapping = require_mapping(value, name="observation-factor stream update")
+        require_exact_fields(mapping, _UPDATE_FIELDS, name="stream update")
+        gauge_ids = require_string_sequence(mapping["gauge_ids"], name="gauge_ids")
+        return cls(
+            update_index=mapping["update_index"],
+            admitted_frame_start=mapping["admitted_frame_start"],
+            causal_frame_stop=mapping["causal_frame_stop"],
+            bundle_manifest_path=mapping["bundle_manifest_path"],
+            bundle_manifest_sha256=mapping["bundle_manifest_sha256"],
+            bundle_payload_sha256=mapping["bundle_payload_sha256"],
+            bundle_sequence_id=mapping["bundle_sequence_id"],
+            case_id=mapping["case_id"],
+            stream_id=mapping["stream_id"],
+            source_repository=mapping["source_repository"],
+            source_revision=mapping["source_revision"],
+            factor_count=mapping["factor_count"],
+            observation_count=mapping["observation_count"],
+            persistent_identity_count=mapping["persistent_identity_count"],
+            observation_identity_sha256=mapping["observation_identity_sha256"],
+            gauge_ids=gauge_ids,
+            previous_update_id=mapping["previous_update_id"],
+            update_id=mapping["update_id"],
+        )
+
 
 @dataclass(frozen=True)
 class ObservationFactorStreamV1:
@@ -274,17 +405,26 @@ class ObservationFactorStreamV1:
 
     def __post_init__(self) -> None:
         identifiers = {
-            "sequence_id": str(self.sequence_id),
-            "case_id": str(self.case_id),
-            "stream_id": str(self.stream_id),
-            "source_repository": str(self.source_repository),
-            "source_revision": str(self.source_revision),
+            "sequence_id": require_nonempty_string(
+                self.sequence_id,
+                name="sequence_id",
+            ),
+            "case_id": require_nonempty_string(self.case_id, name="case_id"),
+            "stream_id": require_nonempty_string(self.stream_id, name="stream_id"),
+            "source_repository": require_nonempty_string(
+                self.source_repository,
+                name="source_repository",
+            ),
+            "source_revision": require_nonempty_string(
+                self.source_revision,
+                name="source_revision",
+            ),
         }
-        if any(not value for value in identifiers.values()):
-            raise ValueError("stream identifiers must be non-empty")
         updates = tuple(self.updates)
         if not updates:
             raise ValueError("an observation-factor stream must contain updates")
+        if any(not isinstance(update, ObservationFactorStreamUpdateV1) for update in updates):
+            raise ValueError("updates must contain ObservationFactorStreamUpdateV1 values")
         previous: ObservationFactorStreamUpdateV1 | None = None
         for index, update in enumerate(updates):
             if update.update_index != index:
@@ -297,14 +437,15 @@ class ObservationFactorStreamV1:
             expected_previous = None if previous is None else previous.update_id
             if update.previous_update_id != expected_previous:
                 raise ValueError("stream update hash chain is broken")
-            if previous is not None and (
-                update.admitted_frame_start != previous.causal_frame_stop
-            ):
+            if previous is not None and update.admitted_frame_start != previous.causal_frame_stop:
                 raise ValueError("stream frame intervals must be contiguous")
             previous = update
 
         metadata = frozen_finite_json_mapping(
-            self.metadata,
+            require_finite_json_mapping(
+                self.metadata,
+                name="observation-factor stream metadata",
+            ),
             name="observation-factor stream metadata",
         )
         object.__setattr__(self, "updates", updates)
@@ -314,7 +455,7 @@ class ObservationFactorStreamV1:
 
         expected = _sha256_json(self.identity_record())
         supplied = self.artifact_id
-        if supplied is not None and _require_sha256(supplied, name="artifact_id") != expected:
+        if supplied is not None and require_sha256(supplied, name="artifact_id") != expected:
             raise ValueError("observation-factor stream artifact ID mismatch")
         object.__setattr__(self, "artifact_id", expected)
 
@@ -363,7 +504,7 @@ def _bundle_update(
     *,
     stream_directory: Path,
     update_index: int,
-    admitted_frame_start: int,
+    admitted_frame_start: int | None,
     previous_update_id: str | None,
 ) -> ObservationFactorStreamUpdateV1:
     manifest = bundle_manifest_path.resolve()
@@ -372,26 +513,59 @@ def _bundle_update(
         root=stream_directory,
         name="bundle_manifest_path",
     )
-    try:
-        record = json.loads(manifest.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as error:
-        raise ValueError("observation-factor bundle manifest is unreadable") from error
-    if not isinstance(record, dict):
-        raise ValueError("observation-factor bundle manifest must be a JSON object")
+    manifest_bytes = _read_bytes(
+        manifest,
+        name="observation-factor bundle manifest",
+    )
+    manifest_sha = _sha256_bytes(manifest_bytes)
+    record = _load_json_bytes(
+        manifest_bytes,
+        name="observation-factor bundle manifest",
+    )
     if record.get("schema") != OBSERVATION_FACTOR_SCHEMA:
         raise ValueError("stream updates require an observation-factor bundle")
-    if int(record.get("schema_version", -1)) != OBSERVATION_FACTOR_SCHEMA_VERSION:
+    schema_version = require_exact_integer(
+        record.get("schema_version"),
+        name="observation-factor schema_version",
+        minimum=1,
+    )
+    if schema_version != OBSERVATION_FACTOR_SCHEMA_VERSION:
         raise ValueError("stream updates require observation-factor schema v4")
-    covariance = record.get("gauge_covariance")
-    if not isinstance(covariance, dict) or (
+    covariance = require_mapping(
+        record.get("gauge_covariance"),
+        name="gauge_covariance",
+    )
+    require_exact_fields(
+        covariance,
+        _GAUGE_COVARIANCE_FIELDS,
+        name="gauge_covariance",
+    )
+    if (
         covariance.get("semantics") != "joint-cross-window"
         or covariance.get("cross_window_covariance_preserved") is not True
+        or covariance.get("diagonal_blocks_match_gauge_marginals") is not True
     ):
         raise ValueError("stream updates require joint cross-window gauge covariance")
+    require_nonempty_string(
+        covariance.get("joint_covariance_key"),
+        name="joint_covariance_key",
+    )
+    require_string_sequence(
+        covariance.get("ordered_gauge_ids"),
+        name="ordered_gauge_ids",
+    )
 
-    payload_record = record.get("payload")
-    if not isinstance(payload_record, dict):
-        raise ValueError("observation-factor bundle payload record is missing")
+    payload_record = require_mapping(
+        record.get("payload"),
+        name="observation-factor bundle payload record",
+    )
+    require_exact_fields(
+        payload_record,
+        _PAYLOAD_FIELDS,
+        name="payload record",
+    )
+    if payload_record.get("allow_pickle") is not False:
+        raise ValueError("observation-factor payload must disable pickle")
     payload_relative = _safe_relative_path(
         payload_record.get("path"),
         name="observation-factor payload path",
@@ -401,35 +575,52 @@ def _bundle_update(
         payload_relative,
         name="observation-factor payload path",
     )
-    payload_sha = _require_sha256(
+    payload_sha = require_sha256(
         payload_record.get("sha256"),
         name="observation-factor payload SHA-256",
     )
-    if _sha256_file(payload_path) != payload_sha:
+    payload_bytes = _read_bytes(
+        payload_path,
+        name="observation-factor payload",
+    )
+    if _sha256_bytes(payload_bytes) != payload_sha:
         raise ValueError("observation-factor payload checksum mismatch")
 
-    bundle = load_observation_factor_bundle(manifest)
+    with tempfile.TemporaryDirectory(prefix="prob4d-stream-bundle-") as temporary:
+        snapshot_manifest = Path(temporary) / manifest.name
+        snapshot_manifest.write_bytes(manifest_bytes)
+        snapshot_payload = snapshot_manifest.parent / Path(*PurePosixPath(payload_relative).parts)
+        snapshot_payload.parent.mkdir(parents=True, exist_ok=True)
+        snapshot_payload.write_bytes(payload_bytes)
+        bundle = load_observation_factor_bundle(snapshot_manifest)
+
     frame_indices = [factor.frame_index for factor in bundle.factors]
     if not frame_indices:
         raise ValueError("stream updates require at least one factor")
-    if min(frame_indices) < admitted_frame_start:
+    effective_start = (
+        min(frame_indices)
+        if admitted_frame_start is None
+        else _require_nonnegative_integer(
+            admitted_frame_start,
+            name="admitted_frame_start",
+        )
+    )
+    if min(frame_indices) < effective_start:
         raise ValueError("stream update reintroduces an already admitted frame")
     if max(frame_indices) >= bundle.causal_frame_stop:
         raise ValueError("stream update crosses its exclusive causal frame stop")
-    persistent_count, observation_count, identity_sha = _observation_identity_summary(
-        bundle
-    )
+    persistent_count, observation_count, identity_sha = _observation_identity_summary(bundle)
     case_id = bundle.case_id
     stream_id = bundle.stream_id
-    if case_id is None or stream_id is None:  # Normalized by ObservationFactorBundle.
+    if case_id is None or stream_id is None:
         raise RuntimeError("validated observation-factor bundle lost case or stream ID")
 
     return ObservationFactorStreamUpdateV1(
         update_index=update_index,
-        admitted_frame_start=admitted_frame_start,
+        admitted_frame_start=effective_start,
         causal_frame_stop=bundle.causal_frame_stop,
         bundle_manifest_path=relative_manifest,
-        bundle_manifest_sha256=_sha256_file(manifest),
+        bundle_manifest_sha256=manifest_sha,
         bundle_payload_sha256=payload_sha,
         bundle_sequence_id=bundle.sequence_id,
         case_id=case_id,
@@ -461,14 +652,14 @@ def append_observation_factor_bundle(
     if stream is None:
         update_index = 0
         previous_update_id = None
-        if admitted_frame_start is None:
-            preview = load_observation_factor_bundle(manifest)
-            admitted_start = min(factor.frame_index for factor in preview.factors)
-        else:
-            admitted_start = _require_nonnegative_integer(
+        admitted_start = (
+            None
+            if admitted_frame_start is None
+            else _require_nonnegative_integer(
                 admitted_frame_start,
                 name="admitted_frame_start",
             )
+        )
     else:
         update_index = len(stream.updates)
         previous_update_id = stream.updates[-1].update_id
@@ -510,21 +701,85 @@ def append_observation_factor_bundle(
     )
 
 
+def _require_append_only_rewrite(
+    existing: ObservationFactorStreamV1,
+    candidate: ObservationFactorStreamV1,
+) -> None:
+    for name in (
+        "sequence_id",
+        "case_id",
+        "stream_id",
+        "source_repository",
+        "source_revision",
+    ):
+        if getattr(existing, name) != getattr(candidate, name):
+            raise ValueError(f"persisted observation-factor stream {name} changed")
+    if plain_json(existing.metadata) != plain_json(candidate.metadata):
+        raise ValueError("persisted observation-factor stream metadata changed")
+    if len(existing.updates) > len(candidate.updates):
+        raise ValueError("observation-factor stream persistence cannot roll back updates")
+    if candidate.updates[: len(existing.updates)] != existing.updates:
+        raise ValueError("observation-factor stream persistence cannot fork its update chain")
+
+
 def write_observation_factor_stream(
     stream: ObservationFactorStreamV1,
     path: str | Path,
 ) -> Path:
-    """Atomically write a content-addressed stream manifest."""
+    """Persist an idempotent append-only stream under an exclusive lock."""
 
     output = Path(path)
     output.parent.mkdir(parents=True, exist_ok=True)
-    temporary = output.with_name(f".{output.name}.tmp")
-    temporary.write_text(
-        json.dumps(stream.to_record(), indent=2, sort_keys=True, allow_nan=False)
-        + "\n",
-        encoding="utf-8",
-    )
-    os.replace(temporary, output)
+    with _exclusive_stream_lock(output):
+        existing_bytes: bytes | None = None
+        if output.exists():
+            existing_bytes = _read_bytes(
+                output,
+                name="observation-factor stream manifest",
+            )
+            existing = load_observation_factor_stream(
+                output,
+                validate_bundles=False,
+            )
+            _require_append_only_rewrite(existing, stream)
+
+        serialized = (
+            json.dumps(
+                stream.to_record(),
+                indent=2,
+                sort_keys=True,
+                allow_nan=False,
+            )
+            + "\n"
+        )
+        descriptor, temporary_name = tempfile.mkstemp(
+            prefix=f".{output.name}.",
+            suffix=".tmp",
+            dir=output.parent,
+            text=True,
+        )
+        temporary = Path(temporary_name)
+        try:
+            with os.fdopen(
+                descriptor,
+                "w",
+                encoding="utf-8",
+            ) as handle:
+                handle.write(serialized)
+                handle.flush()
+                os.fsync(handle.fileno())
+            if existing_bytes is None:
+                os.link(temporary, output)
+            else:
+                current_bytes = _read_bytes(
+                    output,
+                    name="observation-factor stream manifest",
+                )
+                if current_bytes != existing_bytes:
+                    raise RuntimeError("observation-factor stream changed during publication")
+                os.replace(temporary, output)
+        finally:
+            temporary.unlink(missing_ok=True)
     return output
 
 
@@ -536,30 +791,32 @@ def load_observation_factor_stream(
     """Load a stream and optionally revalidate every referenced bundle and payload."""
 
     manifest = Path(path)
-    try:
-        record = json.loads(manifest.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as error:
-        raise ValueError("observation-factor stream manifest is unreadable") from error
-    if not isinstance(record, dict):
-        raise ValueError("observation-factor stream manifest must be a JSON object")
+    record = load_json_object(manifest, name="observation-factor stream manifest")
+    require_exact_fields(record, _STREAM_FIELDS, name="stream manifest")
     if record.get("schema") != OBSERVATION_FACTOR_STREAM_SCHEMA:
         raise ValueError("manifest is not an observation-factor stream")
-    if int(record.get("schema_version", -1)) != OBSERVATION_FACTOR_STREAM_VERSION:
+    version = require_exact_integer(
+        record.get("schema_version"),
+        name="observation-factor stream schema_version",
+        minimum=1,
+    )
+    if version != OBSERVATION_FACTOR_STREAM_VERSION:
         raise ValueError("unsupported observation-factor stream version")
     raw_updates = record.get("updates")
-    if not isinstance(raw_updates, list) or not raw_updates:
+    if type(raw_updates) is not list or not raw_updates:
         raise ValueError("observation-factor stream has no updates")
-    if any(not isinstance(value, dict) for value in raw_updates):
-        raise ValueError("observation-factor stream updates must be JSON objects")
-    updates = tuple(ObservationFactorStreamUpdateV1(**value) for value in raw_updates)
+    updates = tuple(ObservationFactorStreamUpdateV1.from_record(value) for value in raw_updates)
     stream = ObservationFactorStreamV1(
-        sequence_id=str(record.get("sequence_id", "")),
-        case_id=str(record.get("case_id", "")),
-        stream_id=str(record.get("stream_id", "")),
-        source_repository=str(record.get("source_repository", "")),
-        source_revision=str(record.get("source_revision", "")),
+        sequence_id=record.get("sequence_id"),
+        case_id=record.get("case_id"),
+        stream_id=record.get("stream_id"),
+        source_repository=record.get("source_repository"),
+        source_revision=record.get("source_revision"),
         updates=updates,
-        metadata=record.get("metadata", {}),
+        metadata=require_finite_json_mapping(
+            record.get("metadata"),
+            name="observation-factor stream metadata",
+        ),
         artifact_id=record.get("artifact_id"),
     )
     if validate_bundles:
