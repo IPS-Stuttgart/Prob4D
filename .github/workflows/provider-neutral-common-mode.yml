@@ -1,0 +1,93 @@
+name: Provider-neutral predictions and common-mode controls
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/provider-neutral-common-mode.yml"
+      - "docs/provider-neutral-predictions.md"
+      - "docs/common-mode-visual-bias.md"
+      - "src/prob4d/cli.py"
+      - "src/prob4d/prediction_provider_manifest.py"
+      - "src/prob4d/visual_bias.py"
+      - "src/prob4d/common_mode_stress.py"
+      - "tests/test_cli.py"
+      - "tests/test_prediction_provider_manifest.py"
+      - "tests/test_visual_bias.py"
+      - "tests/test_common_mode_stress.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: provider-neutral-common-mode-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  contracts:
+    name: Neutral manifests, explicit bias, and stress evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out the reviewed revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Install the lightweight development environment
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+          python -m pip install "numpy>=1.24,<2.3"
+          python -m pip check
+
+      - name: Check focused source quality
+        run: |
+          python -m ruff check \
+            src/prob4d/cli.py \
+            src/prob4d/prediction_provider_manifest.py \
+            src/prob4d/visual_bias.py \
+            src/prob4d/common_mode_stress.py \
+            tests/test_cli.py \
+            tests/test_prediction_provider_manifest.py \
+            tests/test_visual_bias.py \
+            tests/test_common_mode_stress.py
+          python -m mypy \
+            src/prob4d/prediction_provider_manifest.py \
+            src/prob4d/visual_bias.py \
+            src/prob4d/common_mode_stress.py
+
+      - name: Run focused and adjacent regressions
+        run: |
+          python -m pytest -q \
+            tests/test_cli.py \
+            tests/test_prediction_provider_manifest.py \
+            tests/test_visual_bias.py \
+            tests/test_common_mode_stress.py \
+            tests/test_source_diagnostics.py \
+            tests/test_data.py \
+            tests/test_data_storage.py
+          python -m compileall -q src/prob4d
+
+      - name: Smoke-test the installed command surface
+        run: |
+          prob4d prediction --help
+          prob4d observation visual-bias --help
+          prob4d diagnostic common-mode-stress \
+            --output "$RUNNER_TEMP/common-mode-stress.json" \
+            --clean-calibration-groups 200 \
+            --bias-calibration-groups 200 \
+            --target-groups 300 \
+            --seed 17
+          test -s "$RUNNER_TEMP/common-mode-stress.json"

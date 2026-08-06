@@ -19,6 +19,11 @@ _ROUTES: Final[dict[Route, tuple[str, str, str]]] = {
         "main",
         "run the pinned recursive-fusion benchmark",
     ),
+    ("diagnostic", "common-mode-stress"): (
+        "prob4d.common_mode_stress",
+        "main",
+        "stress coherent visual bias and explicit shared-bias uncertainty",
+    ),
     ("diagnostic", "cycle-guard-conformal"): (
         "prob4d.cycle_guard_conformal_monte_carlo",
         "main",
@@ -83,6 +88,16 @@ _ROUTES: Final[dict[Route, tuple[str, str, str]]] = {
         "prob4d.provider_v2_cli",
         "main_exploratory",
         "export an explicitly exploratory provider-v2 observation belief",
+    ),
+    ("observation", "visual-bias"): (
+        "prob4d.visual_bias",
+        "main",
+        "validate explicit shared visual-bias nuisance sidecars",
+    ),
+    ("prediction",): (
+        "prob4d.prediction_provider_manifest",
+        "main",
+        "import and validate provider-neutral prediction manifests",
     ),
     ("project", "identity"): (
         "prob4d.project_identity",
