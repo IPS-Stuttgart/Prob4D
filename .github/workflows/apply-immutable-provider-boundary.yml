@@ -18,7 +18,7 @@ permissions:
 
 concurrency:
   group: apply-immutable-provider-boundary-v1
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   apply:
@@ -45,11 +45,13 @@ jobs:
         run: |
           set -euo pipefail
           archive="${RUNNER_TEMP}/immutable-provider-boundary.tar.gz"
+          expected="${RUNNER_TEMP}/expected-paths.txt"
+          actual="${RUNNER_TEMP}/actual-paths.txt"
           cat .github/agent-patch/patch.b64.part* | base64 --decode > "${archive}"
           echo "4a660e7dc643bd56e0e36bb424248ab0d9ab2084c70ea1bd52204d99c7ac7ab0  ${archive}" \
             | sha256sum --check -
 
-          cat > "${RUNNER_TEMP}/expected-paths.txt" <<'EOF'
+          cat > "${expected}" <<'EOF'
           .github/workflows/prediction-provider-contract.yml
           README.md
           docs/architecture.md
@@ -77,12 +79,12 @@ jobs:
           tests/test_prediction_provider.py
           tests/test_prediction_provider_cli.py
           EOF
-          sed -i 's/^          //' "${RUNNER_TEMP}/expected-paths.txt"
-          tar -tzf "${archive}" | sort > "${RUNNER_TEMP}/actual-paths.txt"
-          sort -o "${RUNNER_TEMP}/expected-paths.txt" "${RUNNER_TEMP}/expected-paths.txt"
-          diff -u "${RUNNER_TEMP}/expected-paths.txt" "${RUNNER_TEMP}/actual-paths.txt"
+          sed -i 's/^          //' "${expected}"
+          sort -o "${expected}" "${expected}"
+          tar -tzf "${archive}" | sort > "${actual}"
+          diff -u "${expected}" "${actual}"
 
-          python - "${RUNNER_TEMP}/actual-paths.txt" <<'PY'
+          python - "${actual}" <<'PY'
           from pathlib import PurePosixPath
           import sys
 
@@ -92,9 +94,9 @@ jobs:
                   raise SystemExit(f"unsafe archive member: {raw.strip()}")
           PY
 
+          base_sha="dbf2681a1b146036a5a351987efd0cf0dfdde66e"
+          git reset --hard "${base_sha}"
           tar -xzf "${archive}" -C .
-          rm -rf .github/agent-patch
-          rm -f .github/workflows/apply-immutable-provider-boundary.yml
 
       - name: Validate the exact implementation
         shell: bash
@@ -121,11 +123,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          expected="${RUNNER_TEMP}/expected-paths.txt"
+          changed="${RUNNER_TEMP}/changed-paths.txt"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          base_sha="c15ae7d02064fa15c23ea1e819fa6599d3f03961"
-          git reset --mixed "${base_sha}"
           git add -A
+          git diff --cached --name-only | sort > "${changed}"
+          diff -u "${expected}" "${changed}"
           git diff --cached --check
           git commit -m "Add immutable artifacts and provider-neutral prediction bundles"
           git push --force-with-lease origin "HEAD:agent/immutable-provider-boundary-v1"
