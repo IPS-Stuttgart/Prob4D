@@ -112,4 +112,5 @@ def test_grouped_cli_routes_observation_bias_binding_help(capsys) -> None:
         main(["observation", "bias-binding", "--help"])
     assert binding_exit.value.code == 0
     binding_help = capsys.readouterr().out
-    assert "exact binding between recursive observation factors" in binding_help
+    assert "Build, validate, or replay an exact" in binding_help
+    assert "{build,validate,verify}" in binding_help
