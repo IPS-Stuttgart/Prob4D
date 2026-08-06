@@ -39,6 +39,34 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Normalize recursive row construction for typed repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/prob4d/visual_bias_stream.py")
+          source = path.read_text(encoding="utf-8")
+          old = """        row_updates.append(np.full(nuisance.observation_count, index, dtype=np.int64))
+          row_bias.append(np.asarray(nuisance.row_bias_indices))
+          jacobians.append(np.asarray(nuisance.bias_jacobian))
+          row_start = row_stop
+          previous_update_id = update.update_id
+          """
+          new = """        row_updates.append(
+              np.full(nuisance.observation_count, index, dtype=np.int64)
+          )
+          row_bias.append(np.asarray(nuisance.row_bias_indices))
+          jacobians.append(np.asarray(nuisance.bias_jacobian))
+          row_start = row_stop
+          previous_update_id = update.update_id
+          """
+          if old not in source:
+              raise RuntimeError("recursive row construction changed unexpectedly")
+          path.write_text(source.replace(old, new, 1), encoding="utf-8")
+          PY
+
       - name: Apply the reviewed one-shot repair
         run: python scripts/ci/temporary_patch_recursive_visual_bias.py
 
