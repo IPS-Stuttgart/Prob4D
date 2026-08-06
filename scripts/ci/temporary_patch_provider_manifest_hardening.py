@@ -207,7 +207,7 @@ def _file_signature(path: Path, *, name: str) -> tuple[int, int, int, int]:
         source_path,
         name="MotionCrafter prediction manifest",
     )
-    source_manifest_sha = _sha256_file(source_path)
+    stable_source_manifest_sha = _sha256_file(source_path)
     verification = verify_motioncrafter_prediction_manifest(
         source_path,
         verify_hashes=True,
@@ -220,7 +220,7 @@ def _file_signature(path: Path, *, name: str) -> tuple[int, int, int, int]:
             name="MotionCrafter prediction manifest",
         )
         != source_before
-        or _sha256_file(source_path) != source_manifest_sha
+        or _sha256_file(source_path) != stable_source_manifest_sha
     ):
         raise ValueError("MotionCrafter prediction manifest changed during import")
     record = load_json_object(source_path, name="MotionCrafter prediction manifest")
@@ -230,7 +230,7 @@ def _file_signature(path: Path, *, name: str) -> tuple[int, int, int, int]:
             name="MotionCrafter prediction manifest",
         )
         != source_before
-        or _sha256_file(source_path) != source_manifest_sha
+        or _sha256_file(source_path) != stable_source_manifest_sha
     ):
         raise ValueError("MotionCrafter prediction manifest changed during import")
 ''',
@@ -274,7 +274,21 @@ def _file_signature(path: Path, *, name: str) -> tuple[int, int, int, int]:
 ''',
         name="MotionCrafter payload-load block",
     )
-    source = source.replace("    source_manifest_sha = _sha256_file(source_path)\n", "", 1)
+    source = _replace_once(
+        source,
+        '''    source_manifest_sha = _sha256_file(source_path)
+    manifest = PredictionProviderManifestV1(
+''',
+        '''    manifest = PredictionProviderManifestV1(
+''',
+        name="legacy source-manifest hash assignment",
+    )
+    source = _replace_once(
+        source,
+        '            "source_manifest_sha256": source_manifest_sha,\n',
+        '            "source_manifest_sha256": stable_source_manifest_sha,\n',
+        name="source-manifest metadata binding",
+    )
     source = _replace_once(
         source,
         '''    save_prediction_provider_manifest(output_path, manifest)
@@ -286,7 +300,7 @@ def _file_signature(path: Path, *, name: str) -> tuple[int, int, int, int]:
             name="MotionCrafter prediction manifest",
         )
         != source_before
-        or _sha256_file(source_path) != source_manifest_sha
+        or _sha256_file(source_path) != stable_source_manifest_sha
     ):
         raise ValueError("MotionCrafter prediction manifest changed during import")
     save_prediction_provider_manifest(output_path, manifest)
