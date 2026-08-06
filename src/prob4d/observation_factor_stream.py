@@ -12,7 +12,8 @@ import hashlib
 import json
 import os
 import tempfile
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -102,14 +103,68 @@ def _sha256_json(value: Mapping[str, Any]) -> str:
 
 
 def _sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
+    return _sha256_bytes(_read_bytes(path, name="stream member"))
+
+
+def _sha256_bytes(payload: bytes) -> str:
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _read_bytes(path: Path, *, name: str) -> bytes:
     try:
-        with path.open("rb") as stream:
-            for block in iter(lambda: stream.read(1024 * 1024), b""):
-                digest.update(block)
+        return path.read_bytes()
     except OSError as error:
-        raise ValueError(f"cannot read stream member {path.name!r}") from error
-    return digest.hexdigest()
+        raise ValueError(f"cannot read {name} {path.name!r}") from error
+
+
+def _load_json_bytes(payload: bytes, *, name: str) -> dict[str, Any]:
+    def object_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, item in pairs:
+            if key in result:
+                raise ValueError(f"{name} contains duplicate JSON object key {key!r}")
+            result[key] = item
+        return result
+
+    def reject_constant(token: str) -> Any:
+        raise ValueError(f"{name} contains non-finite JSON number {token!r}")
+
+    try:
+        value = json.loads(
+            payload.decode("utf-8"),
+            object_pairs_hook=object_pairs,
+            parse_constant=reject_constant,
+        )
+    except UnicodeDecodeError as error:
+        raise ValueError(f"{name} must contain UTF-8 JSON") from error
+    except json.JSONDecodeError as error:
+        raise ValueError(f"{name} must contain valid JSON") from error
+    if not isinstance(value, dict):
+        raise ValueError(f"{name} must contain one JSON object")
+    return value
+
+
+@contextmanager
+def _exclusive_stream_lock(path: Path) -> Iterator[None]:
+    lock = path.with_name(f".{path.name}.lock")
+    try:
+        descriptor = os.open(
+            lock,
+            os.O_CREAT | os.O_EXCL | os.O_WRONLY,
+            0o600,
+        )
+    except FileExistsError as error:
+        raise FileExistsError(
+            f"observation-factor stream is already being written: {path}"
+        ) from error
+    try:
+        with os.fdopen(descriptor, "w", encoding="ascii") as handle:
+            handle.write(f"{os.getpid()}\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        yield
+    finally:
+        lock.unlink(missing_ok=True)
 
 
 def _require_nonnegative_integer(value: object, *, name: str) -> int:
@@ -159,9 +214,7 @@ def _observation_identity_summary(
             persistent_identities.add(persistent)
             observation_identities.append(observation)
     if len(set(observation_identities)) != len(observation_identities):
-        raise ValueError(
-            "an observation-factor stream update contains duplicate frame identities"
-        )
+        raise ValueError("an observation-factor stream update contains duplicate frame identities")
     ordered = sorted(observation_identities)
     digest = hashlib.sha256(_canonical_json({"observations": ordered})).hexdigest()
     return len(persistent_identities), len(observation_identities), digest
@@ -451,7 +504,7 @@ def _bundle_update(
     *,
     stream_directory: Path,
     update_index: int,
-    admitted_frame_start: int,
+    admitted_frame_start: int | None,
     previous_update_id: str | None,
 ) -> ObservationFactorStreamUpdateV1:
     manifest = bundle_manifest_path.resolve()
@@ -460,7 +513,15 @@ def _bundle_update(
         root=stream_directory,
         name="bundle_manifest_path",
     )
-    record = load_json_object(manifest, name="observation-factor bundle manifest")
+    manifest_bytes = _read_bytes(
+        manifest,
+        name="observation-factor bundle manifest",
+    )
+    manifest_sha = _sha256_bytes(manifest_bytes)
+    record = _load_json_bytes(
+        manifest_bytes,
+        name="observation-factor bundle manifest",
+    )
     if record.get("schema") != OBSERVATION_FACTOR_SCHEMA:
         raise ValueError("stream updates require an observation-factor bundle")
     schema_version = require_exact_integer(
@@ -470,7 +531,10 @@ def _bundle_update(
     )
     if schema_version != OBSERVATION_FACTOR_SCHEMA_VERSION:
         raise ValueError("stream updates require observation-factor schema v4")
-    covariance = require_mapping(record.get("gauge_covariance"), name="gauge_covariance")
+    covariance = require_mapping(
+        record.get("gauge_covariance"),
+        name="gauge_covariance",
+    )
     require_exact_fields(
         covariance,
         _GAUGE_COVARIANCE_FIELDS,
@@ -495,7 +559,11 @@ def _bundle_update(
         record.get("payload"),
         name="observation-factor bundle payload record",
     )
-    require_exact_fields(payload_record, _PAYLOAD_FIELDS, name="payload record")
+    require_exact_fields(
+        payload_record,
+        _PAYLOAD_FIELDS,
+        name="payload record",
+    )
     if payload_record.get("allow_pickle") is not False:
         raise ValueError("observation-factor payload must disable pickle")
     payload_relative = _safe_relative_path(
@@ -511,20 +579,37 @@ def _bundle_update(
         payload_record.get("sha256"),
         name="observation-factor payload SHA-256",
     )
-    if _sha256_file(payload_path) != payload_sha:
+    payload_bytes = _read_bytes(
+        payload_path,
+        name="observation-factor payload",
+    )
+    if _sha256_bytes(payload_bytes) != payload_sha:
         raise ValueError("observation-factor payload checksum mismatch")
 
-    bundle = load_observation_factor_bundle(manifest)
+    with tempfile.TemporaryDirectory(prefix="prob4d-stream-bundle-") as temporary:
+        snapshot_manifest = Path(temporary) / manifest.name
+        snapshot_manifest.write_bytes(manifest_bytes)
+        snapshot_payload = snapshot_manifest.parent / Path(*PurePosixPath(payload_relative).parts)
+        snapshot_payload.parent.mkdir(parents=True, exist_ok=True)
+        snapshot_payload.write_bytes(payload_bytes)
+        bundle = load_observation_factor_bundle(snapshot_manifest)
+
     frame_indices = [factor.frame_index for factor in bundle.factors]
     if not frame_indices:
         raise ValueError("stream updates require at least one factor")
-    if min(frame_indices) < admitted_frame_start:
+    effective_start = (
+        min(frame_indices)
+        if admitted_frame_start is None
+        else _require_nonnegative_integer(
+            admitted_frame_start,
+            name="admitted_frame_start",
+        )
+    )
+    if min(frame_indices) < effective_start:
         raise ValueError("stream update reintroduces an already admitted frame")
     if max(frame_indices) >= bundle.causal_frame_stop:
         raise ValueError("stream update crosses its exclusive causal frame stop")
-    persistent_count, observation_count, identity_sha = _observation_identity_summary(
-        bundle
-    )
+    persistent_count, observation_count, identity_sha = _observation_identity_summary(bundle)
     case_id = bundle.case_id
     stream_id = bundle.stream_id
     if case_id is None or stream_id is None:
@@ -532,10 +617,10 @@ def _bundle_update(
 
     return ObservationFactorStreamUpdateV1(
         update_index=update_index,
-        admitted_frame_start=admitted_frame_start,
+        admitted_frame_start=effective_start,
         causal_frame_stop=bundle.causal_frame_stop,
         bundle_manifest_path=relative_manifest,
-        bundle_manifest_sha256=_sha256_file(manifest),
+        bundle_manifest_sha256=manifest_sha,
         bundle_payload_sha256=payload_sha,
         bundle_sequence_id=bundle.sequence_id,
         case_id=case_id,
@@ -567,14 +652,14 @@ def append_observation_factor_bundle(
     if stream is None:
         update_index = 0
         previous_update_id = None
-        if admitted_frame_start is None:
-            preview = load_observation_factor_bundle(manifest)
-            admitted_start = min(factor.frame_index for factor in preview.factors)
-        else:
-            admitted_start = _require_nonnegative_integer(
+        admitted_start = (
+            None
+            if admitted_frame_start is None
+            else _require_nonnegative_integer(
                 admitted_frame_start,
                 name="admitted_frame_start",
             )
+        )
     else:
         update_index = len(stream.updates)
         previous_update_id = stream.updates[-1].update_id
@@ -641,34 +726,60 @@ def write_observation_factor_stream(
     stream: ObservationFactorStreamV1,
     path: str | Path,
 ) -> Path:
-    """Atomically persist an idempotent append-only stream manifest."""
+    """Persist an idempotent append-only stream under an exclusive lock."""
 
     output = Path(path)
     output.parent.mkdir(parents=True, exist_ok=True)
-    if output.exists():
-        existing = load_observation_factor_stream(output, validate_bundles=False)
-        _require_append_only_rewrite(existing, stream)
+    with _exclusive_stream_lock(output):
+        existing_bytes: bytes | None = None
+        if output.exists():
+            existing_bytes = _read_bytes(
+                output,
+                name="observation-factor stream manifest",
+            )
+            existing = load_observation_factor_stream(
+                output,
+                validate_bundles=False,
+            )
+            _require_append_only_rewrite(existing, stream)
 
-    serialized = (
-        json.dumps(stream.to_record(), indent=2, sort_keys=True, allow_nan=False)
-        + "\n"
-    )
-    descriptor, temporary_name = tempfile.mkstemp(
-        prefix=f".{output.name}.",
-        suffix=".tmp",
-        dir=output.parent,
-        text=True,
-    )
-    temporary = Path(temporary_name)
-    try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            handle.write(serialized)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, output)
-    except Exception:
-        temporary.unlink(missing_ok=True)
-        raise
+        serialized = (
+            json.dumps(
+                stream.to_record(),
+                indent=2,
+                sort_keys=True,
+                allow_nan=False,
+            )
+            + "\n"
+        )
+        descriptor, temporary_name = tempfile.mkstemp(
+            prefix=f".{output.name}.",
+            suffix=".tmp",
+            dir=output.parent,
+            text=True,
+        )
+        temporary = Path(temporary_name)
+        try:
+            with os.fdopen(
+                descriptor,
+                "w",
+                encoding="utf-8",
+            ) as handle:
+                handle.write(serialized)
+                handle.flush()
+                os.fsync(handle.fileno())
+            if existing_bytes is None:
+                os.link(temporary, output)
+            else:
+                current_bytes = _read_bytes(
+                    output,
+                    name="observation-factor stream manifest",
+                )
+                if current_bytes != existing_bytes:
+                    raise RuntimeError("observation-factor stream changed during publication")
+                os.replace(temporary, output)
+        finally:
+            temporary.unlink(missing_ok=True)
     return output
 
 
@@ -694,9 +805,7 @@ def load_observation_factor_stream(
     raw_updates = record.get("updates")
     if type(raw_updates) is not list or not raw_updates:
         raise ValueError("observation-factor stream has no updates")
-    updates = tuple(
-        ObservationFactorStreamUpdateV1.from_record(value) for value in raw_updates
-    )
+    updates = tuple(ObservationFactorStreamUpdateV1.from_record(value) for value in raw_updates)
     stream = ObservationFactorStreamV1(
         sequence_id=record.get("sequence_id"),
         case_id=record.get("case_id"),

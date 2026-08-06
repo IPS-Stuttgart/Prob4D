@@ -8,6 +8,7 @@ from typing import Any
 
 import pytest
 
+import prob4d.observation_factor_stream as stream_module
 from prob4d.observation_factor_stream import (
     ObservationFactorStreamUpdateV1,
     ObservationFactorStreamV1,
@@ -185,3 +186,38 @@ def test_rejects_unknown_stream_or_update_fields(tmp_path: Path) -> None:
     update_path.write_text(json.dumps(record), encoding="utf-8")
     with pytest.raises(ValueError, match="stream update fields changed"):
         load_observation_factor_stream(update_path, validate_bundles=False)
+
+
+def test_writer_lock_rejects_a_concurrent_library_writer(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "stream.json"
+    lock = path.with_name(f".{path.name}.lock")
+    lock.write_text("competing writer\n", encoding="utf-8")
+
+    with pytest.raises(FileExistsError, match="already being written"):
+        write_observation_factor_stream(_stream(), path)
+
+    assert not path.exists()
+    assert lock.read_text(encoding="utf-8") == "competing writer\n"
+
+
+def test_first_publication_never_overwrites_a_racing_destination(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "stream.json"
+    original_link = stream_module.os.link
+
+    def racing_link(source: object, destination: object) -> None:
+        Path(destination).write_text(
+            "competing writer\n",
+            encoding="utf-8",
+        )
+        original_link(source, destination)
+
+    monkeypatch.setattr(stream_module.os, "link", racing_link)
+    with pytest.raises(FileExistsError):
+        write_observation_factor_stream(_stream(), path)
+
+    assert path.read_text(encoding="utf-8") == "competing writer\n"
