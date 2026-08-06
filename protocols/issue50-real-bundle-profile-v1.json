@@ -1,0 +1,196 @@
+{
+  "claim_boundary": "Frozen engineering memory and numerical-parity comparison only. The source is nonprotected calibration data and the disjoint baseline is used only as a common internal reference. No reconstruction-accuracy, uncertainty-calibration, provider-competence, BayesianPhysTwin, Causal4D, deployment-safety, or state-of-the-art claim is permitted.",
+  "completion_gate": {
+    "comparison_chunk_elements": 1048576,
+    "material_benefit": {
+      "minimum_absolute_loading_peak_rss_reduction_bytes": 67108864,
+      "minimum_absolute_peak_rss_reduction_bytes": 134217728,
+      "minimum_relative_loading_peak_rss_reduction": 0.1,
+      "minimum_relative_peak_rss_reduction": 0.1
+    },
+    "numerical_tolerance": {
+      "artifact_float32_atol": 0.0,
+      "float64_atol": 0.0
+    },
+    "valid_negative_result_closes_issue": true
+  },
+  "environment": {
+    "cuda_visible_devices": "0",
+    "direct_inference_requirements_path": "environments/motioncrafter-inference.txt",
+    "python": "3.12",
+    "thread_limits": {
+      "MKL_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1",
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1"
+    },
+    "torch": "2.11.0+cu128",
+    "torchvision": "0.26.0+cu128"
+  },
+  "estimator": {
+    "alignment": {
+      "covariance_cluster_size": 32,
+      "fallback_policy": "pointwise",
+      "maximum_correspondences": 100000,
+      "seed_rule": "moving_window_canonical_index"
+    },
+    "fusion": {
+      "gauge_solution": "fixed_lag",
+      "method": "covariance_intersection",
+      "tile_size": 16384
+    },
+    "gauge": {
+      "covariance_intersection_grid_size": 21,
+      "estimator": "sequential_then_fixed_lag",
+      "fixed_lag": 4
+    },
+    "uncertainty": {
+      "calibration_mode": "uncalibrated_fixed_model",
+      "depth_disagreement_model": {
+        "disagreement_gain": 0.5,
+        "lateral_depth_coefficient": 2.5e-05,
+        "lateral_floor": 2.5e-05,
+        "lateral_scale": 1.0,
+        "parallel_depth_coefficient": 0.00025,
+        "parallel_floor": 0.00025,
+        "parallel_scale": 1.0
+      },
+      "flow_uncertainty": "reuse_point_structured_covariance"
+    }
+  },
+  "estimator_base_revision": "bfe1b1b87323751fe9013f8d667fa0bb5f605a69",
+  "evaluation": {
+    "align_scale_translation": true,
+    "boundary_frames": [
+      17,
+      34
+    ],
+    "chunk_size": 65536,
+    "reference": "motioncrafter_disjoint_baseline_internal_parity_reference_only",
+    "truth_or_target_claim": false
+  },
+  "execution_order": [
+    "eager_npz",
+    "mmap_npy"
+  ],
+  "inference": {
+    "call_count": 5,
+    "decode_chunk_size": 25,
+    "frame_start": 0,
+    "frame_stop_exclusive": 59,
+    "frame_stride": 1,
+    "guidance_scale": 1.0,
+    "height": 320,
+    "low_memory_usage": false,
+    "model_type": "determ",
+    "num_inference_steps": 5,
+    "overlap": 8,
+    "seed": 20260806,
+    "seed_policy": "derived-per-call",
+    "width": 640,
+    "window_plan": [
+      {
+        "source_frame_start": 0,
+        "source_frame_stop_exclusive": 25,
+        "window_id": "window_0000"
+      },
+      {
+        "source_frame_start": 17,
+        "source_frame_stop_exclusive": 42,
+        "window_id": "window_0001"
+      },
+      {
+        "source_frame_start": 34,
+        "source_frame_stop_exclusive": 59,
+        "window_id": "window_0002"
+      }
+    ],
+    "window_size": 25
+  },
+  "lock_id": "a047aab96b785a7bbe56bff7c602a6b90c729ec4ac5cdd291cf1309ac1c53585",
+  "model_cache": {
+    "hub_root": "/home/github-runner/.cache/huggingface/hub",
+    "models": {
+      "base_pipeline": {
+        "layout_sha256": "e4371a51d12c91a6d3a532e016f1edfb0996e194f71ebca79b36195326381367",
+        "logical_bytes": 1459751989,
+        "repository": "stabilityai/stable-video-diffusion-img2vid-xt",
+        "revision": "9e43909513c6714f1bc78bcb44d96e733cd242aa",
+        "snapshot_path": "/home/github-runner/.cache/huggingface/hub/models--stabilityai--stable-video-diffusion-img2vid-xt/snapshots/9e43909513c6714f1bc78bcb44d96e733cd242aa"
+      },
+      "image_vae": {
+        "layout_sha256": "0f53524b3f2aa8a1d24280e15c3a45a62fb792bdb15e4774653904e329ade57e",
+        "logical_bytes": 167335889,
+        "repository": "stable-diffusion-v1-5/stable-diffusion-v1-5",
+        "revision": "451f4fe16113bff5a5d2269ed5ad43b0592e9a14",
+        "snapshot_path": "/home/github-runner/.cache/huggingface/hub/models--stable-diffusion-v1-5--stable-diffusion-v1-5/snapshots/451f4fe16113bff5a5d2269ed5ad43b0592e9a14"
+      },
+      "motioncrafter": {
+        "layout_sha256": "e029d83d2002b9eca0d3120a33a9d9cc2bec156de349d0a54a051733f6dd1d42",
+        "logical_bytes": 3718798582,
+        "repository": "TencentARC/MotionCrafter",
+        "revision": "fc7b18d5657184607bf4501b02d64ada7540b4e3",
+        "snapshot_path": "/home/github-runner/.cache/huggingface/hub/models--TencentARC--MotionCrafter/snapshots/fc7b18d5657184607bf4501b02d64ada7540b4e3"
+      }
+    },
+    "offline_required": true
+  },
+  "motioncrafter_source": {
+    "clean_checkout_required": true,
+    "repository": "TencentARC/MotionCrafter",
+    "revision": "9cb4e9679f5f34e249945544052464ef46324bc2",
+    "url": "https://github.com/TencentARC/MotionCrafter.git"
+  },
+  "provider_export": {
+    "compressed": false,
+    "fusion_method": "covariance_intersection",
+    "include_covariance": true,
+    "method_id": "prob4d_ci_smoothed_uncalibrated"
+  },
+  "schema": "prob4d.issue50-real-bundle-profile-lock",
+  "selection_evidence": {
+    "model_cache_inventory": {
+      "artifact_id": 8960077083,
+      "artifact_sha256": "6cf3ea68cc7c077ffe1dbbb04eec155e4ff80fadee857e5dbb0b32847a96cc63",
+      "workflow_run_id": "31082572241"
+    },
+    "nonprotected_source_inventory": {
+      "artifact_id": 8959146563,
+      "artifact_sha256": "acd20c8029526a7f9269738a63fb33f4b8d36637ab99c228375b07b622dad51d",
+      "workflow_run_id": "31079782549"
+    },
+    "source_runtime_inventory": {
+      "artifact_id": 8959078673,
+      "artifact_sha256": "4fe0b2129ccd0cad3fbedeb867689258fdb3cd80e31138588f97ba44d3d05403",
+      "workflow_run_id": "31079782517"
+    }
+  },
+  "source_video": {
+    "bytes": 2668281,
+    "container": {
+      "avg_frame_rate": "30/1",
+      "codec_name": "h264",
+      "duration_seconds": 2.7,
+      "frame_count": 81,
+      "height": 720,
+      "width": 1280
+    },
+    "dataset": "Deform360",
+    "path": "/mnt/lexar4tb/datasets/deform360/contact-trust-calibration-v1/002-rope-silk-ep0008/episode_0000/brics-odroid-007_cam0/undistorted.mp4",
+    "protected_target_or_confirmation_data": false,
+    "role": "nonprotected_calibration_source",
+    "sequence": "contact-trust-calibration-v1/002-rope-silk-ep0008/episode_0000/brics-odroid-007_cam0",
+    "sha256": "f764b6648bb6557eec2a3efe84afd16915b7a8994404645756a13f2cedbd1af0"
+  },
+  "storage": {
+    "backends": [
+      "eager_npz",
+      "mmap_npy"
+    ],
+    "dense_storage_dtype": "float32",
+    "full_member_hash_verification": true,
+    "mmap_store_schema": "prob4d.prediction-bundle-store",
+    "mmap_store_version": 1
+  },
+  "version": 1
+}
