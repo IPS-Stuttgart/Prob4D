@@ -231,7 +231,11 @@ def test_payload_mutation_during_import_is_rejected(
     original = provider_import.PredictionWindow.from_npz
     mutated = False
 
-    def mutating_loader(path: str | Path, *args: object, **kwargs: object) -> PredictionWindow:
+    def mutating_loader(
+        path: str | Path,
+        *args: object,
+        **kwargs: object,
+    ) -> PredictionWindow:
         nonlocal mutated
         window = original(path, *args, **kwargs)
         if not mutated:
@@ -260,7 +264,11 @@ def test_payload_is_parsed_from_a_private_exact_byte_snapshot(
     original = provider_import.PredictionWindow.from_npz
     parsed_paths: list[Path] = []
 
-    def observing_loader(path: str | Path, *args: object, **kwargs: object) -> PredictionWindow:
+    def observing_loader(
+        path: str | Path,
+        *args: object,
+        **kwargs: object,
+    ) -> PredictionWindow:
         parsed_paths.append(Path(path).resolve())
         return original(path, *args, **kwargs)
 
