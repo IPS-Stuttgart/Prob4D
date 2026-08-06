@@ -1,0 +1,174 @@
+name: Temporary publish independent-anchor common-bias product
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/temporary-publish-anchor-common-bias.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: temporary-publish-anchor-common-bias
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out trusted default-branch control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+
+      - name: Check out exact staged product archive
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: db4020efa6b1a93caa1bce448e7f4324af6e0de4
+          path: _staging/anchor-study
+          persist-credentials: false
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Reconstruct the declared product on its exact scientific base
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          archive="${RUNNER_TEMP}/anchor-common-bias-product.tar.gz"
+          cat _staging/anchor-study/.github/anchor-common-bias-publish/product.tar.gz.b64.part* \
+            | base64 --decode > "${archive}"
+          echo "975a50935f505bbfa2972566bd6bafe22f2f5b097daef87b463e208ce9c08184  ${archive}" \
+            | sha256sum --check --strict
+          ARCHIVE="${archive}" python - <<'PY'
+          import os
+          import tarfile
+          from pathlib import PurePosixPath
+
+          expected = {
+              "docs/anchor-common-bias-study.md",
+              "protocols/anchor-common-bias-study-v1.json",
+              "src/prob4d/anchor_common_bias_study.py",
+              "tests/test_anchor_common_bias_study.py",
+          }
+          with tarfile.open(os.environ["ARCHIVE"], "r:gz") as handle:
+              members = handle.getmembers()
+              names = [member.name for member in members]
+              if set(names) != expected or len(names) != len(expected):
+                  raise SystemExit(f"product path set changed: {sorted(names)}")
+              for member in members:
+                  path = PurePosixPath(member.name)
+                  if path.is_absolute() or ".." in path.parts:
+                      raise SystemExit(f"unsafe product path: {member.name}")
+                  if not member.isfile() or member.issym() or member.islnk():
+                      raise SystemExit(f"non-regular product member: {member.name}")
+          PY
+          git reset --hard 35681c4b5b4f47a28e8b99e240a1b3109e0c95ef
+          tar -xzf "${archive}" -C .
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/prob4d/cli.py")
+          text = path.read_text(encoding="utf-8")
+          marker = '''    ("diagnostic", "cross-provider-guard"): (
+        "prob4d.cross_provider_guard",
+        "main",
+        "calibrate provider corroboration without independence assumptions",
+    ),
+'''
+          addition = '''    ("diagnostic", "anchor-common-bias"): (
+        "prob4d.anchor_common_bias_study",
+        "main",
+        "quantify independent-anchor power against shared visual bias",
+    ),
+'''
+          if addition not in text:
+              if text.count(marker) != 1:
+                  raise SystemExit("cross-provider CLI route boundary changed")
+              text = text.replace(marker, marker + addition, 1)
+          path.write_text(text, encoding="utf-8")
+          PY
+
+      - name: Validate source, protocol, and frozen full study
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]" "numpy>=1.24,<2.3"
+          python -m ruff check --fix --select I001 \
+            src/prob4d/cli.py \
+            src/prob4d/anchor_common_bias_study.py \
+            tests/test_anchor_common_bias_study.py
+          python -m ruff format \
+            src/prob4d/cli.py \
+            src/prob4d/anchor_common_bias_study.py \
+            tests/test_anchor_common_bias_study.py
+          python -m ruff check \
+            src/prob4d/cli.py \
+            src/prob4d/anchor_common_bias_study.py \
+            tests/test_anchor_common_bias_study.py
+          python -m ruff format --check \
+            src/prob4d/cli.py \
+            src/prob4d/anchor_common_bias_study.py \
+            tests/test_anchor_common_bias_study.py
+          python -m mypy src/prob4d/anchor_common_bias_study.py
+          python -m pytest -q -p no:cacheprovider \
+            tests/test_anchor_common_bias_study.py \
+            tests/test_cli.py
+          python -m compileall -q src/prob4d
+          python -m pip check
+          prob4d diagnostic anchor-common-bias --help
+          mkdir -p "${RUNNER_TEMP}/anchor-study"
+          prob4d diagnostic anchor-common-bias \
+            --source-revision "35681c4b5b4f47a28e8b99e240a1b3109e0c95ef" \
+            --output-json "${RUNNER_TEMP}/anchor-study/report.json" \
+            --output-markdown "${RUNNER_TEMP}/anchor-study/report.md"
+          REPORT="${RUNNER_TEMP}/anchor-study/report.json" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          report = json.loads(Path(os.environ["REPORT"]).read_text(encoding="utf-8"))
+          assert report["schema"] == "prob4d.anchor-common-bias-study"
+          assert report["schema_version"] == 1
+          assert all(report["registered_gates"].values())
+          assert report["registered_decision"] == "pass-independent-anchor-mechanism-study"
+          assert any("controlled Gaussian mechanism" in item for item in report["claim_boundary"])
+          PY
+
+      - name: Publish one ordinary product commit
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf _staging build dist *.egg-info src/*.egg-info
+          paths=(
+            docs/anchor-common-bias-study.md
+            protocols/anchor-common-bias-study-v1.json
+            src/prob4d/anchor_common_bias_study.py
+            src/prob4d/cli.py
+            tests/test_anchor_common_bias_study.py
+          )
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- "${paths[@]}"
+          mapfile -t staged < <(git diff --cached --name-only)
+          test "${#staged[@]}" -eq 5
+          git diff --cached --check
+          git commit -m "Quantify independent-anchor power against shared visual bias"
+          git remote set-url origin \
+            "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push \
+            --force-with-lease=refs/heads/agent/anchor-common-bias-study-v1:db4020efa6b1a93caa1bce448e7f4324af6e0de4 \
+            origin HEAD:agent/anchor-common-bias-study-v1
