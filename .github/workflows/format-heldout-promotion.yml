@@ -1,10 +1,11 @@
 name: Format held-out promotion sources
 
 on:
-  push:
-    branches: [agent/format-heldout-promotion-v1]
+  pull_request:
+    branches: [main]
     paths:
       - ".github/workflows/format-heldout-promotion.yml"
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -15,6 +16,9 @@ concurrency:
 
 jobs:
   format:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -25,6 +29,13 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
           clean: true
+
+      - name: Rebase onto current main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git rebase origin/main
 
       - name: Set up Python 3.12
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -87,4 +98,4 @@ jobs:
             .github/workflows/format-heldout-promotion.yml
           git diff --cached --check
           git commit -m "Format held-out promotion contracts"
-          git push origin HEAD:agent/format-heldout-promotion-v1
+          git push --force-with-lease origin HEAD:agent/format-heldout-promotion-v1
