@@ -106,9 +106,7 @@ def _visual_bias_stream(
         else tuple(_sha(character) for character in identity_characters)
     )
     nuisances = []
-    for index, (count, identity_sha256) in enumerate(
-        zip(counts, identities, strict=True)
-    ):
+    for index, (count, identity_sha256) in enumerate(zip(counts, identities, strict=True)):
         jacobian = np.zeros((count, 3, 1), dtype=np.float64)
         jacobian[:, 0, 0] = index + 1.0
         nuisances.append(
@@ -120,9 +118,7 @@ def _visual_bias_stream(
                 row_bias_indices=np.zeros(count, dtype=np.int64),
                 bias_jacobian=jacobian,
                 joint_bias_covariance=np.asarray([[4.0]], dtype=np.float64),
-                orthogonalization_semantics=(
-                    "conditional-whitened-global-gauge-projection-v1"
-                ),
+                orthogonalization_semantics=("conditional-whitened-global-gauge-projection-v1"),
                 maximum_gauge_projection=1e-14,
                 gauge_projection_tolerance=1e-10,
                 metadata={"uses_truth": False},
@@ -154,11 +150,14 @@ def test_binding_captures_exact_cross_stream_correspondence() -> None:
     assert binding.causal_frame_stop == 10
     assert [update.observation_count for update in binding.updates] == [2, 3]
     assert binding.updates[1].previous_update_id == binding.updates[0].update_id
-    assert verify_observation_bias_binding(
-        binding,
-        observation_stream,
-        visual_bias_stream,
-    ) is binding
+    assert (
+        verify_observation_bias_binding(
+            binding,
+            observation_stream,
+            visual_bias_stream,
+        )
+        is binding
+    )
 
 
 def test_binding_rejects_wrong_observation_update_reference() -> None:
