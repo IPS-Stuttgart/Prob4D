@@ -74,7 +74,7 @@ example is retained at
 [`examples/provider-neutral-import-spec.json`](examples/provider-neutral-import-spec.json).
 
 ```bash
-prob4d prediction import-spec \
+python -m prob4d.prediction_provider_import \
   outputs/sequence-a/provider-import.json \
   outputs/sequence-a/provider-neutral.json
 
@@ -94,8 +94,9 @@ The specification and all payloads must share a confined bundle root with the
 output manifest. Absolute paths, parent traversal, symlink traversal, duplicate
 JSON keys, non-finite values, unknown fields, malformed identities, frame-lineage
 mismatches, and caller attempts to set importer-owned metadata fail closed.
-Payloads and the specification are hashed and statted before and after loading;
-a concurrent mutation therefore cannot be admitted under the earlier identity.
+The importer parses private exact-byte snapshots of the specification and each
+payload, binds identities to those same bytes, and rechecks the source files
+before publishing the canonical manifest.
 
 ## Alternative-provider semantics
 
@@ -119,15 +120,16 @@ fusion weight.
 
 ## Persistence and verification
 
-Canonical manifests are written atomically and idempotently. A writer lock
-serializes concurrent creation, and an existing different manifest is never
-replaced. Validation checks the manifest byte snapshot as well as every payload
-before and after `PredictionWindow` loading, then checks the window ID, frame
-grid, storage precision, and optional-field declarations.
+`save_prediction_provider_manifest` publishes a new manifest atomically and
+accepts an already-present semantically identical manifest as an idempotent
+rewrite. It rejects an already-present different manifest. Callers that permit
+multiple concurrent writers must serialize those writers externally.
 
-This closes a time-of-check/time-of-use gap without changing portable manifest or
-payload identities. The path remains retrieval metadata; the verified byte and
-scientific contracts remain identity-bearing.
+After publication, the generic importer invokes
+`verify_prediction_provider_manifest`. The verifier checks each descriptor's
+payload SHA-256 and byte count, reopens the payload with `allow_pickle=False`, and
+checks the window ID, frame grid, storage precision, and optional-field
+declarations.
 
 ## Python API
 
@@ -144,11 +146,6 @@ from prob4d.prediction_provider_manifest import (
     verify_prediction_provider_manifest,
 )
 ```
-
-`verify_prediction_provider_manifest` checks the content identity and, by
-default, reopens every exact payload byte with `allow_pickle=False`, validates
-its closed versioned `PredictionWindow` schema, and checks window ID, frame grid,
-storage precision, optional field declarations, and snapshot stability.
 
 ## Repository boundary and nonclaims
 
