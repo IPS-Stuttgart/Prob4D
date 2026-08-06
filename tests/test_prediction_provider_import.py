@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Mapping
 from pathlib import Path
 
 import numpy as np
@@ -228,12 +227,16 @@ def test_payload_mutation_during_import_is_rejected(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     specification, output = _two_window_bundle(tmp_path)
+    source_member = specification.parent / "windows/window_0001.npz"
     original = provider_import.PredictionWindow.from_npz
+    mutated = False
 
     def mutating_loader(path: str | Path, *args: object, **kwargs: object) -> PredictionWindow:
+        nonlocal mutated
         window = original(path, *args, **kwargs)
-        member = Path(path)
-        member.write_bytes(member.read_bytes() + b"tamper")
+        if not mutated:
+            source_member.write_bytes(source_member.read_bytes() + b"tamper")
+            mutated = True
         return window
 
     monkeypatch.setattr(
@@ -245,22 +248,49 @@ def test_payload_mutation_during_import_is_rejected(
         import_prediction_provider_specification(specification, output)
 
 
+def test_payload_is_parsed_from_a_private_exact_byte_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    specification, output = _two_window_bundle(tmp_path)
+    source_members = {
+        (specification.parent / "windows/window_0000.npz").resolve(),
+        (specification.parent / "windows/window_0001.npz").resolve(),
+    }
+    original = provider_import.PredictionWindow.from_npz
+    parsed_paths: list[Path] = []
+
+    def observing_loader(path: str | Path, *args: object, **kwargs: object) -> PredictionWindow:
+        parsed_paths.append(Path(path).resolve())
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(
+        provider_import.PredictionWindow,
+        "from_npz",
+        staticmethod(observing_loader),
+    )
+    import_prediction_provider_specification(specification, output)
+
+    assert len(parsed_paths) == 4  # import snapshots plus final manifest verification
+    assert all(path not in source_members for path in parsed_paths[:2])
+    assert all(path.name == "prediction-window.npz" for path in parsed_paths[:2])
+
+
 def test_specification_mutation_during_import_is_rejected(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     specification, output = _two_window_bundle(tmp_path)
-    original = provider_import.load_json_object
+    original = provider_import._load_json_bytes
 
-    def mutating_loader(path: str | Path, *, name: str) -> Mapping[str, object]:
-        record = original(path, name=name)
-        member = Path(path)
-        value = json.loads(member.read_text(encoding="utf-8"))
+    def mutating_loader(payload: bytes, *, name: str) -> dict[str, object]:
+        record = original(payload, name=name)
+        value = json.loads(specification.read_text(encoding="utf-8"))
         value["sequence_id"] = "changed"
-        member.write_text(json.dumps(value), encoding="utf-8")
+        specification.write_text(json.dumps(value), encoding="utf-8")
         return record
 
-    monkeypatch.setattr(provider_import, "load_json_object", mutating_loader)
+    monkeypatch.setattr(provider_import, "_load_json_bytes", mutating_loader)
     with pytest.raises(ValueError, match="changed during import"):
         import_prediction_provider_specification(specification, output)
 
@@ -294,3 +324,22 @@ def test_symlink_payload_is_rejected(tmp_path: Path) -> None:
             specification,
             root / "provider-neutral.json",
         )
+
+
+def test_symlink_specification_and_output_are_rejected(tmp_path: Path) -> None:
+    specification, output = _two_window_bundle(tmp_path)
+    specification_link = tmp_path / "provider-import-link.json"
+    output_target = tmp_path / "existing-output.json"
+    output_target.write_text("do not replace\n", encoding="utf-8")
+    output_link = tmp_path / "provider-output-link.json"
+    try:
+        specification_link.symlink_to(specification)
+        output_link.symlink_to(output_target)
+    except OSError:
+        pytest.skip("symlinks are unavailable")
+
+    with pytest.raises(ValueError, match="specification is a symbolic link"):
+        import_prediction_provider_specification(specification_link, output)
+    with pytest.raises(ValueError, match="output manifest is a symbolic link"):
+        import_prediction_provider_specification(specification, output_link)
+    assert output_target.read_text(encoding="utf-8") == "do not replace\n"
