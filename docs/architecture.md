@@ -19,6 +19,12 @@ Prob4D must not depend on Bayesian-PhysTwin or Causal4D at runtime. Those
 repositories may validate neutral artifacts independently, but should not import
 Prob4D experiment helpers or underscore-prefixed modules.
 
+Provider-specific input manifests are normalized through `prob4d.source` before
+estimator logic. `Windowed4DSourceManifestV1` records source revisions, model and
+payload identities, window geometry, temporal lineage, stochastic policy, and
+array semantics without rewriting historical MotionCrafter manifests. See
+[the provider-neutral source contract](source-provider-contract.md).
+
 ## Stable provider surfaces
 
 `prob4d.provider_v1` is frozen for existing experiments and exact reproduction. It
@@ -42,6 +48,10 @@ CLI compatibility. `prob4d.provider_v2.prob4d_provider_manifest()` emits the
 version-2 Python capability descriptor. The grouped `prob4d` CLI is the
 discoverable command surface; legacy `prob4d-*` commands remain available for
 frozen run manifests.
+
+`prob4d.contracts` is the focused provider-neutral import surface for portable
+observation beliefs, factor bundles, factor streams, and provider attestations.
+It deliberately excludes experiment runners and estimator variants.
 
 ## Causal information boundary
 

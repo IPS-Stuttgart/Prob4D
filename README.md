@@ -11,6 +11,12 @@ shared-backbone estimates using covariance intersection. For Bayesian-PhysTwin,
 it also exports causally sealed metric observations with explicit covariance,
 reliability, dependence, and source-lineage semantics.
 
+Provider-specific prediction manifests can be normalized without payload loading
+via the stable [`prob4d.source`](docs/source-provider-contract.md) boundary. The
+current MotionCrafter adapter is additive; frozen manifests and provider-v1/v2
+observation artifacts retain their existing identities. Portable downstream
+contracts are collected under `prob4d.contracts`.
+
 ## Ablation
 
 The experiment runner evaluates seven variants:

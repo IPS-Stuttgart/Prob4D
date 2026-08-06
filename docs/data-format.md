@@ -1,5 +1,14 @@
 # Data Format
 
+## Provider-neutral source view
+
+`prob4d.source` can normalize a provider-specific prediction manifest into a
+content-addressed `Windowed4DSourceManifestV1` before payload loading. The
+current MotionCrafter adapter retains historical `predictions.json` bytes and
+maps provider revision, model-set identity, stochastic policy, temporal lineage,
+window bounds, and optional member hashes into one neutral input descriptor.
+See [the provider-neutral source contract](source-provider-contract.md).
+
 ## Prediction Manifest
 
 `prob4d-motioncrafter` writes a versioned `predictions.json`:

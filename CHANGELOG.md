@@ -6,6 +6,12 @@ All notable changes to Prob4D are documented here.
 
 ### Added
 
+- A provider-neutral `prob4d.source` boundary with a content-addressed
+  `Windowed4DSourceManifestV1`, strict MotionCrafter adapter, immutable source
+  and payload identities, append-only persistence, and explicit provenance-only
+  readiness semantics for future 4-D prediction providers.
+- A focused `prob4d.contracts` import facade for portable observation, factor,
+  stream, and provider-attestation contracts without estimator experiments.
 - A target-free, content-addressed held-out provider promotion protocol that
   freezes complete object/session splits, source/model/calibration identities,
   seven required comparison roles, BayesianPhysTwin guard settings, bootstrap

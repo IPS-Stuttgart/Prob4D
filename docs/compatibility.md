@@ -8,6 +8,8 @@ frozen evidence even when package-version ranges are compatible.
 
 | Surface | Version | Intended use |
 | --- | ---: | --- |
+| `prob4d.source.Windowed4DSourceManifestV1` | 1 | Provider-neutral input normalization |
+| `prob4d.contracts` | additive facade | Portable cross-repository contracts |
 | `prob4d.provider_v1` | 1 | Frozen reproduction and provider-v1 compatibility |
 | `prob4d.provider_v2` | 2 | New calibrated or explicitly exploratory development |
 | `phys4d.observation_belief` | 1 | Portable fused observation container |
@@ -73,6 +75,8 @@ manifests, artifacts, and protocol identifiers.
 
 ## Upgrade rules
 
+- A breaking source-window, lineage, coordinate, or identity interpretation
+  requires a new windowed 4-D source-contract version.
 - A breaking Python signature requires a new provider module.
 - A breaking Prob4D-specific interpretation of an observation artifact requires
   a new causal-stream contract version.
