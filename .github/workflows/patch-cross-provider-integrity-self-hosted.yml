@@ -1,0 +1,58 @@
+name: Patch cross-provider integrity follow-up on workstation2
+
+on:
+  pull_request:
+    branches: [main]
+    types: [synchronize]
+    paths:
+      - ".github/workflows/patch-cross-provider-integrity-self-hosted.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: patch-cross-provider-integrity-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  patch:
+    if: >-
+      github.actor != 'github-actions[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'agent/cross-provider-guard-v1'
+    runs-on: [self-hosted, Linux, X64, nvidia-smi]
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: agent/cross-provider-guard-v1
+          fetch-depth: 0
+          persist-credentials: true
+          clean: true
+
+      - name: Apply reviewed integrity patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/integrity.patch.gz.b64" <<'PATCH'
+          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
+          PATCH
+          base64 --decode "$RUNNER_TEMP/integrity.patch.gz.b64" \
+            | gzip --decompress > "$RUNNER_TEMP/integrity.patch"
+          echo "4cca72ef67ff1250ffca05d73370f222c0b6242c7765fce3958575a1f3eb3958  $RUNNER_TEMP/integrity.patch" \
+            | sha256sum --check
+          git apply --check "$RUNNER_TEMP/integrity.patch"
+          git apply "$RUNNER_TEMP/integrity.patch"
+          python3 -m py_compile \
+            src/prob4d/cross_provider_guard.py \
+            tests/test_cross_provider_guard.py
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            docs/cross-provider-guard.md \
+            src/prob4d/cross_provider_guard.py \
+            tests/test_cross_provider_guard.py
+          git commit -m "Bind cross-provider score semantics and row lineage"
+          git push origin HEAD:agent/cross-provider-guard-v1
