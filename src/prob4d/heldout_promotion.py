@@ -185,9 +185,7 @@ def _verify(arguments: Sequence[str]) -> int:
     if parsed.evidence_card is not None:
         observed_evidence = load_promotion_evidence_card(parsed.evidence_card)
         if observed_evidence != replayed_evidence:
-            raise ValueError(
-                "promotion evidence card does not match deterministic replay"
-            )
+            raise ValueError("promotion evidence card does not match deterministic replay")
     print(
         json.dumps(
             {
