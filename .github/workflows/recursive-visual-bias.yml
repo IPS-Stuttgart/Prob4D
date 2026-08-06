@@ -6,9 +6,12 @@ on:
     paths:
       - ".github/workflows/recursive-visual-bias.yml"
       - "docs/recursive-visual-bias.md"
+      - "scripts/ci/check_sdist.py"
       - "src/prob4d/cli.py"
+      - "src/prob4d/visual_bias.py"
       - "src/prob4d/visual_bias_stream.py"
       - "tests/test_cli.py"
+      - "tests/test_visual_bias.py"
       - "tests/test_visual_bias_stream.py"
   workflow_dispatch:
 
