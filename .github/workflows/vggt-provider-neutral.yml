@@ -26,7 +26,7 @@ jobs:
   contract:
     name: Integrity, causal lineage, and installed CLI
     if: github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-slim
+    runs-on: [self-hosted, Linux, X64, nvidia-smi]
     timeout-minutes: 20
     steps:
       - name: Check out exact pull-request head
