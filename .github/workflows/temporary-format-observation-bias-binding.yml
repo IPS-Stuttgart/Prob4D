@@ -1,18 +1,25 @@
 name: Temporary observation-bias binding formatter
 
 on:
-  push:
-    branches: [agent/bind-observation-bias-streams]
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/temporary-format-observation-bias-binding.yml"
+      - "src/prob4d/cli.py"
+      - "src/prob4d/observation_bias_binding.py"
+      - "tests/test_cli.py"
+      - "tests/test_observation_bias_binding.py"
 
 permissions:
   contents: write
 
 concurrency:
-  group: temporary-observation-bias-binding-formatter
+  group: temporary-observation-bias-binding-formatter-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   format-test-and-push:
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
