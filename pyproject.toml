@@ -72,6 +72,7 @@ prob4d-phystwin-uncertainty = "prob4d.phystwin_uncertainty:main"
 prob4d-sintel-uncertainty = "prob4d.sintel_uncertainty:main"
 prob4d-validate-observation = "prob4d.observation_validation:main"
 prob4d-vggt-baseline = "prob4d.vggt_baseline:main"
+prob4d-visual-bias-calibration = "prob4d.visual_bias_calibration:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
