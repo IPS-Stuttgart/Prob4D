@@ -55,6 +55,7 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install -e ".[dev]"
+          python -m pip install "numpy>=1.24,<2.3"
           python -m pip check
 
       - name: Check focused source quality
