@@ -29,6 +29,11 @@ _ROUTES: Final[dict[Route, tuple[str, str, str]]] = {
         "main",
         "calibrate provider corroboration without independence assumptions",
     ),
+    ("diagnostic", "anchor-common-bias"): (
+        "prob4d.anchor_common_bias_study",
+        "main",
+        "quantify independent-anchor power against shared visual bias",
+    ),
     ("diagnostic", "cycle-guard-conformal"): (
         "prob4d.cycle_guard_conformal_monte_carlo",
         "main",

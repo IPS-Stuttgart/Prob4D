@@ -1,0 +1,43 @@
+{
+  "schema": "prob4d.anchor-common-bias-study-protocol",
+  "schema_version": 1,
+  "protocol_id": "anchor-common-bias-study-v1",
+  "information_order": {
+    "calibration_groups_are_disjoint_from_target_groups": true,
+    "target_outcomes_used_for_threshold_selection": false,
+    "statistical_unit": "complete-simulated-object-or-session-group",
+    "row_or_frame_level_exchangeability_claimed": false
+  },
+  "design": {
+    "seed": 20260806,
+    "calibration_groups": 800,
+    "target_groups_per_arm": 1000,
+    "rows_per_group": 256,
+    "dimension": 3,
+    "miscoverage": 0.05,
+    "row_quantile": 0.95,
+    "provider_sigma": 1.0,
+    "provider_cross_correlation": 0.75,
+    "provider_specific_bias_sigma": 1.0,
+    "shared_bias_sigma": 1.5,
+    "shared_bias_row_fraction": 0.25,
+    "anchor_drift_sigma": 1.0,
+    "anchor_sigma_ratios": [0.25, 0.5, 1.0, 2.0],
+    "anchor_support_fractions": [0.05, 0.1, 0.2, 0.4, 1.0],
+    "reference_anchor_sigma_ratio": 0.5,
+    "reference_anchor_support_fraction": 0.2
+  },
+  "registered_gates": {
+    "differential_clean_false_rejection_max": 0.08,
+    "provider_specific_detection_min": 0.95,
+    "differential_shared_bias_rejection_max": 0.1,
+    "reference_anchor_clean_false_rejection_max": 0.08,
+    "reference_anchor_shared_bias_detection_min": 0.9,
+    "reference_anchor_drift_rejection_min": 0.95
+  },
+  "valid_terminal_decisions": [
+    "pass-independent-anchor-mechanism-study",
+    "completed-negative-independent-anchor-mechanism-study"
+  ],
+  "claim_boundary": "controlled mechanism and acquisition-design evidence only"
+}
