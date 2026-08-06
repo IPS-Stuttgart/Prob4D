@@ -181,7 +181,7 @@ def _atomic_write_npz(path: Path, arrays: Mapping[str, np.ndarray]) -> None:
     )
     try:
         with os.fdopen(descriptor, "wb") as stream:
-            np.savez_compressed(stream, **arrays)
+            np.savez_compressed(stream, **dict(arrays))  # type: ignore[arg-type]
             stream.flush()
             os.fsync(stream.fileno())
         os.replace(temporary_name, path)
@@ -541,7 +541,7 @@ class VisualBiasNuisanceV1:
     def global_design(self) -> FloatArray:
         """Return the explicit block-sparse design with shape (3N, S*R)."""
 
-        result = np.zeros(
+        result: FloatArray = np.zeros(
             (3 * self.observation_count, self.latent_dimension),
             dtype=np.float64,
         )
@@ -567,11 +567,14 @@ class VisualBiasNuisanceV1:
         threshold = tolerance * max(maximum, 1.0)
         keep = eigenvalues > threshold
         if not np.any(keep):
-            result = np.zeros((self.observation_count, 3, 0), dtype=np.float64)
-            result.setflags(write=False)
-            return result
+            empty: FloatArray = np.zeros(
+            (self.observation_count, 3, 0),
+            dtype=np.float64,
+        )
+            empty.setflags(write=False)
+            return empty
         root = eigenvectors[:, keep] * np.sqrt(eigenvalues[keep])[None, :]
-        result = np.empty(
+        result: FloatArray = np.empty(
             (self.observation_count, 3, int(np.count_nonzero(keep))),
             dtype=np.float64,
         )

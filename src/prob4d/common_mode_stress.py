@@ -433,7 +433,7 @@ def run_common_mode_stress(
     naive_visual_variance = independent_mean_variance
     aware_visual_variance = independent_mean_variance + calibrated_bias_variance
     if aware_visual_variance <= 0.0:
-        aware_visual_variance = np.finfo(np.float64).tiny
+        aware_visual_variance = float(np.finfo(np.float64).tiny)
     methods = {
         "naive-independent": _evaluate_method(
             truth=target_truth,

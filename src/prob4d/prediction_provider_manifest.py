@@ -532,13 +532,19 @@ class PredictionProviderManifestV1:
         payloads = tuple(self.payloads)
         if any(not isinstance(item, PredictionPayloadDescriptorV1) for item in payloads):
             raise TypeError("payloads must contain PredictionPayloadDescriptorV1 values")
-        for name, values in {
-            "payload paths": [item.path for item in payloads],
-            "payload IDs": [item.payload_id for item in payloads],
-            "window IDs": [item.window_id for item in payloads],
-        }.items():
-            if len(set(values)) != len(values):
-                raise ValueError(f"{name} must be unique")
+        payload_paths = [item.path for item in payloads]
+        if len(set(payload_paths)) != len(payload_paths):
+            raise ValueError("payload paths must be unique")
+        payload_ids: list[str] = []
+        for item in payloads:
+            if item.payload_id is None:
+                raise ValueError("payload IDs must be materialized")
+            payload_ids.append(item.payload_id)
+        if len(set(payload_ids)) != len(payload_ids):
+            raise ValueError("payload IDs must be unique")
+        window_ids = [item.window_id for item in payloads]
+        if len(set(window_ids)) != len(window_ids):
+            raise ValueError("window IDs must be unique")
         if flow_semantics == "absent" and any(item.has_scene_flow for item in payloads):
             raise ValueError("manifest flow semantics contradict payload contents")
         if flow_semantics != "absent" and not all(
