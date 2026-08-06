@@ -118,24 +118,27 @@ jobs:
               ),
           )
           for marker, addition in insertions:
+              if addition in text:
+                  continue
               if marker not in text:
                   raise SystemExit(f"provider release-audit marker changed: {marker!r}")
-              if addition in text:
-                  raise SystemExit(f"provider release-audit addition duplicated: {addition!r}")
               text = text.replace(marker, marker + addition, 1)
           check.write_text(text, encoding="utf-8")
 
           cli = Path("_current/provider/tests/test_cli.py")
           text = cli.read_text(encoding="utf-8")
           marker = '    assert "validate" in output\n'
-          if marker not in text or '    assert "runtime" in output\n' in text:
-              raise SystemExit("provider CLI assertion boundary changed")
-          text = text.replace(marker, marker + '    assert "runtime" in output\n', 1)
+          addition = '    assert "runtime" in output\n'
+          if addition not in text:
+              if marker not in text:
+                  raise SystemExit("provider CLI assertion boundary changed")
+              text = text.replace(marker, marker + addition, 1)
           marker = "\ndef test_grouped_cli_routes_vggt_import_help(capsys) -> None:\n"
           test = '''\n\ndef test_grouped_cli_routes_provider_runtime_help(capsys) -> None:\n    with pytest.raises(SystemExit) as exit_info:\n        main(["prediction", "runtime", "--help"])\n    assert exit_info.value.code == 0\n    output = capsys.readouterr().out\n    assert "causally selected provider-neutral" in output\n    assert "inspect" in output\n    assert "fuse-exploratory" in output\n'''
-          if marker not in text or "test_grouped_cli_routes_provider_runtime_help" in text:
-              raise SystemExit("provider CLI test insertion boundary changed")
-          text = text.replace(marker, test + marker, 1)
+          if "test_grouped_cli_routes_provider_runtime_help" not in text:
+              if marker not in text:
+                  raise SystemExit("provider CLI test insertion boundary changed")
+              text = text.replace(marker, test + marker, 1)
           cli.write_text(text, encoding="utf-8")
           PY
 
