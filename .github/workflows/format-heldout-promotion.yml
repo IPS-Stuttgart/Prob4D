@@ -1,10 +1,6 @@
 name: Format held-out promotion sources
 
 on:
-  push:
-    branches: [agent/format-heldout-promotion-v1]
-    paths:
-      - ".github/workflows/format-heldout-promotion.yml"
   pull_request:
     branches: [main]
     paths:
@@ -12,34 +8,27 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: format-heldout-promotion
-  cancel-in-progress: false
+  group: format-heldout-promotion-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   format:
     if: >-
-      github.event_name != 'pull_request' ||
+      github.event_name == 'workflow_dispatch' ||
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Check out formatting branch
+      - name: Check out exact reviewed head
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: agent/format-heldout-promotion-v1
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
-          persist-credentials: true
+          persist-credentials: false
           clean: true
-
-      - name: Rebase onto current main
-        shell: bash
-        run: |
-          set -euo pipefail
-          git fetch origin main
-          git rebase origin/main
 
       - name: Set up Python 3.12
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -87,19 +76,27 @@ jobs:
             tests/test_material_identity_cli.py
           python -m compileall -q src/prob4d
 
-      - name: Publish ordinary formatting commit
+      - name: Stage exact formatted product
         shell: bash
         run: |
           set -euo pipefail
-          rm -f .github/workflows/format-heldout-promotion.yml
-          git diff --check
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add \
-            src/prob4d/heldout_promotion.py \
-            src/prob4d/promotion_evidence.py \
-            tests/test_promotion_evidence.py \
-            .github/workflows/format-heldout-promotion.yml
-          git diff --cached --check
-          git commit -m "Format held-out promotion contracts"
-          git push --force-with-lease origin HEAD:agent/format-heldout-promotion-v1
+          product="${RUNNER_TEMP}/formatted-heldout-promotion"
+          mkdir -p \
+            "${product}/src/prob4d" \
+            "${product}/tests"
+          cp src/prob4d/heldout_promotion.py "${product}/src/prob4d/"
+          cp src/prob4d/promotion_evidence.py "${product}/src/prob4d/"
+          cp tests/test_promotion_evidence.py "${product}/tests/"
+          (
+            cd "${product}"
+            find . -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum > SHA256SUMS
+            sha256sum --check --strict SHA256SUMS
+          )
+
+      - name: Upload validated formatted product
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: formatted-heldout-promotion
+          path: ${{ runner.temp }}/formatted-heldout-promotion
+          if-no-files-found: error
+          retention-days: 14
