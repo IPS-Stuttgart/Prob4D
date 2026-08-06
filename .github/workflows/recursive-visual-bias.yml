@@ -26,7 +26,10 @@ env:
 jobs:
   contracts:
     name: Shared prior, append-only lineage, and portable payload
-    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Linux, X64, nvidia-smi]
     timeout-minutes: 30
     steps:
       - name: Check out the reviewed revision
@@ -40,9 +43,18 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Isolate the self-hosted Python environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          environment="$RUNNER_TEMP/prob4d-recursive-visual-bias"
+          python -m venv --clear "$environment"
+          "$environment/bin/python" -m ensurepip --upgrade
+          "$environment/bin/python" -m pip install --upgrade pip
+          echo "$environment/bin" >> "$GITHUB_PATH"
+
       - name: Install the lightweight development environment
         run: |
-          python -m pip install --upgrade pip
           python -m pip install -e ".[dev]"
           python -m pip install "numpy>=1.24,<2.3"
           python -m pip check
