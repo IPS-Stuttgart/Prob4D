@@ -98,6 +98,8 @@ jobs:
           git diff --exit-code
           test -z "$(git status --porcelain=v1)"
 
+  # This job reads only the committed names/metadata Stage-0 selection artifact.
+  # It never downloads or opens selected camera, tactile, robot, or outcome payloads.
   authoritative-selection:
     name: Replay committed BayesianPhysTwin Stage-0 selection
     needs: contract
