@@ -24,6 +24,14 @@ def _help_parser() -> argparse.ArgumentParser:
         help="convert an integrity-bound official VGGT sample",
     )
     subparsers.add_parser(
+        "import-generic",
+        help="import external canonical PredictionWindow payloads",
+    )
+    subparsers.add_parser(
+        "scaffold-generic",
+        help="create a no-clobber external-provider import scaffold",
+    )
+    subparsers.add_parser(
         "validate",
         help="strictly validate a neutral manifest and its payloads",
     )
@@ -46,6 +54,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         from .vggt_provider_adapter import main as vggt_main
 
         return int(vggt_main(arguments[1:]))
+    if arguments[0] == "import-generic":
+        from .prediction_provider_import import main as generic_main
+
+        return int(generic_main(arguments[1:]))
+    if arguments[0] == "scaffold-generic":
+        from .prediction_provider_scaffold import main as scaffold_main
+
+        return int(scaffold_main(arguments[1:]))
     if arguments[0] == "runtime":
         from .provider_runtime import main as runtime_main
 

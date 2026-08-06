@@ -1,0 +1,61 @@
+{
+  "schema": "prob4d.prediction-provider-import-spec",
+  "schema_version": 1,
+  "sequence_id": "sequence-a",
+  "provider_family": "Example4D",
+  "provider_repository": "example/Example4D",
+  "provider_revision": "0123456789abcdef0123456789abcdef01234567",
+  "provider_run_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "model_set_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "loader_id": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "coordinate_semantics": "window-local-sim3",
+  "point_semantics": "dense-point-map",
+  "flow_semantics": "forward-point-displacement",
+  "ray_semantics": "absent",
+  "source_dependency_semantics": "per-output-exclusive-source-frame-interval-v1",
+  "payloads": [
+    {
+      "product_role": "independent-window",
+      "window_id": "window_0000",
+      "path": "windows/window_0000.npz",
+      "view_id": "camera-0",
+      "stochastic_member_id": "example4d-seed-17-window-0000",
+      "dependence_group_ids": [
+        "model-set:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "input-video:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "stochastic-member:17"
+      ],
+      "frame_lineage": [
+        {
+          "output_frame_id": 0,
+          "source_frame_start": 0,
+          "source_frame_stop_exclusive": 3,
+          "contributor_ids": [
+            "window_0000"
+          ]
+        },
+        {
+          "output_frame_id": 1,
+          "source_frame_start": 0,
+          "source_frame_stop_exclusive": 3,
+          "contributor_ids": [
+            "window_0000"
+          ]
+        },
+        {
+          "output_frame_id": 2,
+          "source_frame_start": 0,
+          "source_frame_stop_exclusive": 3,
+          "contributor_ids": [
+            "window_0000"
+          ]
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "uses_truth": false,
+    "uses_downstream_physical_innovation": false,
+    "adapter_version": "example4d-prob4d-v1"
+  }
+}
