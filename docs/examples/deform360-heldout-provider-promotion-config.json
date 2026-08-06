@@ -1,0 +1,127 @@
+{
+  "arms": [
+    {
+      "arm_id": "fallback",
+      "metadata": {},
+      "provider_method_id": null,
+      "query_method_id": "bpt-physical-fallback",
+      "role": "physical_fallback",
+      "sensor_assisted": false
+    },
+    {
+      "arm_id": "framewise",
+      "metadata": {},
+      "provider_method_id": "prob4d-framewise-explicit-joint-gauge",
+      "query_method_id": "bpt-framewise-explicit-joint-gauge",
+      "role": "framewise_explicit_joint_gauge",
+      "sensor_assisted": false
+    },
+    {
+      "arm_id": "identity",
+      "metadata": {},
+      "provider_method_id": "prob4d-cross-window-identity-mixture",
+      "query_method_id": "bpt-cross-window-identity-mixture",
+      "role": "cross_window_identity_marginalized",
+      "sensor_assisted": false
+    },
+    {
+      "arm_id": "persistent",
+      "metadata": {},
+      "provider_method_id": "prob4d-persistent-explicit-joint-gauge",
+      "query_method_id": "bpt-persistent-explicit-joint-gauge",
+      "role": "persistent_explicit_joint_gauge",
+      "sensor_assisted": false
+    },
+    {
+      "arm_id": "rowwise",
+      "metadata": {},
+      "provider_method_id": "prob4d-persistent-rowwise-gauge",
+      "query_method_id": "bpt-persistent-rowwise-gauge",
+      "role": "rowwise_gauge_marginalized",
+      "sensor_assisted": false
+    },
+    {
+      "arm_id": "sensor-anchor",
+      "metadata": {
+        "claim_label": "sensor-assisted"
+      },
+      "provider_method_id": "prob4d-independent-contact-anchor",
+      "query_method_id": "bpt-visuotactile-explicit-joint-gauge",
+      "role": "sensor_assisted",
+      "sensor_assisted": true
+    },
+    {
+      "arm_id": "visual",
+      "metadata": {},
+      "provider_method_id": "last-frame-visual-baseline",
+      "query_method_id": "bpt-last-residual-visual-baseline",
+      "role": "visual_baseline",
+      "sensor_assisted": false
+    }
+  ],
+  "bayesian_phystwin_repository": "IPS-Stuttgart/BayesianPhysTwin",
+  "bayesian_phystwin_revision": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "bootstrap_resamples": 10000,
+  "bootstrap_seed": 20260805,
+  "calibration_group_ids": [
+    "026-sock-cloth",
+    "031-cotton-cloth",
+    "036-napkin-cloth",
+    "058-roll-napkin",
+    "152-slime",
+    "153-cake",
+    "167-glove-gray-cloth",
+    "186-monster",
+    "193-frog",
+    "198-kneepad-cloth"
+  ],
+  "development_group_ids": [
+    "development-object-01",
+    "development-object-02"
+  ],
+  "experiment_id": "deform360-official-hub-prob4d-provider-v1",
+  "frozen_artifact_ids": {
+    "bayesian_guard_configuration": "6666666666666666666666666666666666666666666666666666666666666666",
+    "cohort_binding": "7777777777777777777777777777777777777777777777777777777777777777",
+    "gauge_calibration": "1111111111111111111111111111111111111111111111111111111111111111",
+    "material_identity_calibration": "4444444444444444444444444444444444444444444444444444444444444444",
+    "point_calibration": "2222222222222222222222222222222222222222222222222222222222222222",
+    "provider_configuration": "0000000000000000000000000000000000000000000000000000000000000000",
+    "selection_lock": "5555555555555555555555555555555555555555555555555555555555555555",
+    "source_reliability_calibration": "3333333333333333333333333333333333333333333333333333333333333333"
+  },
+  "harmful_update_margin_mm": 0.0,
+  "maximum_harmful_accepted_updates": 0,
+  "maximum_technical_failures": 0,
+  "maximum_worst_group_regression_mm": 0.0,
+  "metadata": {
+    "cohort_protocol_id": "deform360-official-hub-visuotactile-v1",
+    "split_semantics": "complete-physical-object-v1",
+    "target_access": "sealed-before-confirmation-payload-access"
+  },
+  "minimum_mean_accepted_coverage": 0.9,
+  "minimum_target_group_count": 12,
+  "model_set_id": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "motioncrafter_revision": "cccccccccccccccccccccccccccccccccccccccc",
+  "prediction_run_spec_id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "primary_query_arm_id": "identity",
+  "provider_evaluation_manifest_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  "provider_reference_arm_id": "visual",
+  "query_superiority_margin_mm": 0.25,
+  "source_repository": "IPS-Stuttgart/Prob4D",
+  "source_revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "target_group_ids": [
+    "030-bandage-cloth",
+    "057-kitchen-sponge",
+    "095-watermelon",
+    "102-stress-ball",
+    "105-clay-cloth",
+    "107-mitt-cloth",
+    "115-cotton-gauze-cloth",
+    "155-crystal-slime",
+    "156-mesh-produce-bag-cloth",
+    "166-glove-green-cloth",
+    "187-white-bear",
+    "190-monkey"
+  ]
+}
