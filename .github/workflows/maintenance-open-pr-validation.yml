@@ -26,7 +26,7 @@ jobs:
           clean: true
 
       - name: Check out PR 113 exact head
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
         with:
           repository: IPS-Stuttgart/Prob4D
           ref: 94387ee7352abb1dde0767416e3fc951839056ef
@@ -47,14 +47,14 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
-          cache: pip
 
       - name: Validate PR 113 stream hardening
         shell: bash
         run: |
           set -euo pipefail
           venv="$RUNNER_TEMP/prob4d-pr113-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          python -m venv "$venv"
+          python -m venv --clear "$venv"
+          "$venv/bin/python" -m ensurepip --upgrade
           "$venv/bin/python" -m pip install --upgrade pip
           "$venv/bin/python" -m pip install -e "./_validation/pr113[dev]"
           cd _validation/pr113
@@ -75,7 +75,8 @@ jobs:
         run: |
           set -euo pipefail
           venv="$RUNNER_TEMP/prob4d-pr128-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          python -m venv "$venv"
+          python -m venv --clear "$venv"
+          "$venv/bin/python" -m ensurepip --upgrade
           "$venv/bin/python" -m pip install --upgrade pip
           "$venv/bin/python" -m pip install -e "./_validation/pr128[dev]"
           cd _validation/pr128
