@@ -23,6 +23,7 @@ def test_grouped_cli_lists_explicit_provider_v2_exports(capsys) -> None:
     assert "export-calibrated" in output
     assert "export-exploratory" in output
     assert "export-v1" in output
+    assert "bias-binding" in output
     assert "visual-bias" in output
     assert "visual-bias-stream" in output
 
@@ -104,3 +105,11 @@ def test_grouped_cli_routes_recursive_visual_bias_help(capsys) -> None:
     assert stream_exit.value.code == 0
     stream_help = capsys.readouterr().out
     assert "recursive visual-bias nuisance streams" in stream_help
+
+
+def test_grouped_cli_routes_observation_bias_binding_help(capsys) -> None:
+    with pytest.raises(SystemExit) as binding_exit:
+        main(["observation", "bias-binding", "--help"])
+    assert binding_exit.value.code == 0
+    binding_help = capsys.readouterr().out
+    assert "exact binding between recursive observation factors" in binding_help
