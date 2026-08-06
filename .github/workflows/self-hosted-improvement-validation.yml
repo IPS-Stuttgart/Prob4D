@@ -1,0 +1,236 @@
+name: Validate provider runtime and visual-bias calibration
+
+on:
+  push:
+    branches: [ci/self-hosted-improvement-validation]
+    paths:
+      - ".github/workflows/self-hosted-improvement-validation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: self-hosted-improvement-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+
+jobs:
+  validate:
+    runs-on: [self-hosted, Linux, X64, nvidia-smi]
+    timeout-minutes: 90
+    steps:
+      - name: Check out exact validation harness
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          clean: true
+
+      - name: Check out current main twice
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: bfe1b1b87323751fe9013f8d667fa0bb5f605a69
+          path: _current/provider
+          persist-credentials: false
+          clean: true
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: bfe1b1b87323751fe9013f8d667fa0bb5f605a69
+          path: _current/calibration
+          persist-credentials: false
+          clean: true
+
+      - name: Check out exact staged products
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: a4dfd8b08b63faab3f7a887a5b8f0a2cef2b7041
+          path: _staging/provider
+          persist-credentials: false
+          clean: true
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: 2b5c513521b4a018c7ff43a31f476b776fa845e2
+          path: _staging/calibration
+          persist-credentials: false
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Reconstruct and apply provider runtime to current main
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="${RUNNER_TEMP}/provider-runtime-product.tar.gz"
+          cat _staging/provider/.github/provider-runtime-publish/product.tar.gz.b64.part* \
+            | base64 --decode > "${archive}"
+          echo "e9b3ed05627bccef07331d3c802cc1fdcbc18a3bd7dc08214a93d8a2c8ecc3df  ${archive}" \
+            | sha256sum --check --strict
+          cp _current/provider/scripts/ci/check_sdist.py "${RUNNER_TEMP}/provider-check-sdist.py"
+          cp _current/provider/tests/test_cli.py "${RUNNER_TEMP}/provider-test-cli.py"
+          tar -xzf "${archive}" -C _current/provider
+          cp "${RUNNER_TEMP}/provider-check-sdist.py" _current/provider/scripts/ci/check_sdist.py
+          cp "${RUNNER_TEMP}/provider-test-cli.py" _current/provider/tests/test_cli.py
+          python - <<'PY'
+          from pathlib import Path
+
+          check = Path("_current/provider/scripts/ci/check_sdist.py")
+          text = check.read_text(encoding="utf-8")
+          insertions = (
+              (
+                  '        ".github/workflows/observation-bias-binding.yml",\n',
+                  '        ".github/workflows/provider-runtime.yml",\n',
+              ),
+              (
+                  '        "docs/observation-bias-binding.md",\n',
+                  '        "docs/provider-neutral-runtime.md",\n',
+              ),
+              (
+                  '        "src/prob4d/promotion_evidence.py",\n',
+                  '        "src/prob4d/provider_runtime.py",\n',
+              ),
+              (
+                  '        "tests/test_promotion_evidence.py",\n',
+                  '        "tests/test_provider_runtime.py",\n',
+              ),
+              (
+                  '    "tests/test_provider_manifest.py",\n',
+                  '    "tests/test_provider_runtime.py",\n',
+              ),
+          )
+          for marker, addition in insertions:
+              if marker not in text:
+                  raise SystemExit(f"provider release-audit marker changed: {marker!r}")
+              if addition in text:
+                  raise SystemExit(f"provider release-audit addition duplicated: {addition!r}")
+              text = text.replace(marker, marker + addition, 1)
+          check.write_text(text, encoding="utf-8")
+
+          cli = Path("_current/provider/tests/test_cli.py")
+          text = cli.read_text(encoding="utf-8")
+          marker = '    assert "validate" in output\n'
+          if marker not in text or '    assert "runtime" in output\n' in text:
+              raise SystemExit("provider CLI assertion boundary changed")
+          text = text.replace(marker, marker + '    assert "runtime" in output\n', 1)
+          marker = "\ndef test_grouped_cli_routes_vggt_import_help(capsys) -> None:\n"
+          test = '''\n\ndef test_grouped_cli_routes_provider_runtime_help(capsys) -> None:\n    with pytest.raises(SystemExit) as exit_info:\n        main(["prediction", "runtime", "--help"])\n    assert exit_info.value.code == 0\n    output = capsys.readouterr().out\n    assert "causally selected provider-neutral" in output\n    assert "inspect" in output\n    assert "fuse-exploratory" in output\n'''
+          if marker not in text or "test_grouped_cli_routes_provider_runtime_help" in text:
+              raise SystemExit("provider CLI test insertion boundary changed")
+          text = text.replace(marker, test + marker, 1)
+          cli.write_text(text, encoding="utf-8")
+          PY
+
+      - name: Reconstruct and apply visual-bias calibration to current main
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="${RUNNER_TEMP}/visual-bias-calibration-product.tar.gz"
+          cat _staging/calibration/.github/visual-bias-calibration-publish/product.tar.gz.b64.part* \
+            | base64 --decode > "${archive}"
+          echo "6d1eadc627f8f3dd9d522f45059412e60b82fa1a279a8145f401e5a8dbfdf40c  ${archive}" \
+            | sha256sum --check --strict
+          tar -xzf "${archive}" -C _current/calibration
+
+      - name: Validate provider-neutral runtime integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${RUNNER_TEMP}/provider-runtime-validation"
+          rm -rf "${root}"
+          python -m venv "${root}/venv"
+          "${root}/venv/bin/python" -m pip install --upgrade pip
+          "${root}/venv/bin/python" -m pip install \
+            -e "./_current/provider[dev]" "numpy>=1.24,<2.3"
+          cd _current/provider
+          "${root}/venv/bin/python" -m ruff check \
+            src/prob4d/prediction_cli.py \
+            src/prob4d/provider_runtime.py \
+            tests/test_cli.py \
+            tests/test_provider_runtime.py \
+            scripts/ci/check_sdist.py
+          "${root}/venv/bin/python" -m ruff format --check \
+            src/prob4d/prediction_cli.py \
+            src/prob4d/provider_runtime.py \
+            tests/test_cli.py \
+            tests/test_provider_runtime.py \
+            scripts/ci/check_sdist.py
+          "${root}/venv/bin/python" -m mypy \
+            src/prob4d/prediction_cli.py \
+            src/prob4d/provider_runtime.py
+          "${root}/venv/bin/python" -m pytest -q -p no:cacheprovider \
+            tests/test_provider_runtime.py \
+            tests/test_prediction_provider_manifest.py \
+            tests/test_vggt_provider_adapter.py \
+            tests/test_observation_bias_binding.py \
+            tests/test_fusion.py \
+            tests/test_io.py \
+            tests/test_cli.py \
+            | tee "${root}/pytest.txt"
+          "${root}/venv/bin/python" -m compileall -q src/prob4d
+          "${root}/venv/bin/python" -m pip check
+          rm -rf build dist src/prob4d.egg-info
+          "${root}/venv/bin/python" -m build
+          "${root}/venv/bin/python" -m twine check dist/*
+          archive=$(find dist -maxdepth 1 -name '*.tar.gz' -print -quit)
+          "${root}/venv/bin/python" scripts/ci/check_sdist.py "${archive}"
+          "${root}/venv/bin/prob4d" prediction runtime --help \
+            | tee "${root}/cli.txt"
+
+      - name: Validate visual-bias calibration integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${RUNNER_TEMP}/visual-bias-calibration-validation"
+          rm -rf "${root}"
+          python -m venv "${root}/venv"
+          "${root}/venv/bin/python" -m pip install --upgrade pip
+          "${root}/venv/bin/python" -m pip install \
+            -e "./_current/calibration[dev]" "numpy>=1.24,<2.3"
+          cd _current/calibration
+          "${root}/venv/bin/python" -m ruff check \
+            src/prob4d/visual_bias_calibration.py \
+            tests/test_visual_bias_calibration.py
+          "${root}/venv/bin/python" -m ruff format --check \
+            src/prob4d/visual_bias_calibration.py \
+            tests/test_visual_bias_calibration.py
+          "${root}/venv/bin/python" -m mypy src/prob4d/visual_bias_calibration.py
+          "${root}/venv/bin/python" -m pytest -q -p no:cacheprovider \
+            tests/test_visual_bias_calibration.py \
+            tests/test_visual_bias.py \
+            tests/test_visual_bias_stream.py \
+            tests/test_observation_bias_binding.py \
+            tests/test_immutable_array.py \
+            tests/test_immutable_json.py \
+            | tee "${root}/pytest.txt"
+          "${root}/venv/bin/python" -m compileall -q src/prob4d
+          "${root}/venv/bin/python" -m pip check
+          rm -rf build dist src/prob4d.egg-info
+          "${root}/venv/bin/python" -m build
+          "${root}/venv/bin/python" -m twine check dist/*
+          "${root}/venv/bin/prob4d-visual-bias-calibration" --help \
+            | tee "${root}/cli.txt"
+
+      - name: Upload compact exact-source evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: improvement-validation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/provider-runtime-validation/pytest.txt
+            ${{ runner.temp }}/provider-runtime-validation/cli.txt
+            ${{ runner.temp }}/visual-bias-calibration-validation/pytest.txt
+            ${{ runner.temp }}/visual-bias-calibration-validation/cli.txt
+          if-no-files-found: warn
+          retention-days: 30
