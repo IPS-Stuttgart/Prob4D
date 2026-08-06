@@ -1,5 +1,6 @@
 name: Execute PR 124 provider-manifest repair
 
+# Reviewed execution trigger for the already-approved repair workflow.
 on:
   push:
     branches: [ci/fix-pr-113]
