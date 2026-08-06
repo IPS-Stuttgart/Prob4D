@@ -43,6 +43,20 @@ version-2 Python capability descriptor. The grouped `prob4d` CLI is the
 discoverable command surface; legacy `prob4d-*` commands remain available for
 frozen run manifests.
 
+## Provider-neutral prediction inputs
+
+External 4-D models enter through `ProviderWindowBundleV1`, not by adding a
+runtime dependency from the NumPy estimator to each provider implementation. The
+bundle binds exact `PredictionWindow` archives to provider, model-set, source,
+and complete source-frame-lineage identities. MotionCrafter has a compatibility
+adapter, while another provider can use the strict generic ingest specification.
+See [provider-neutral prediction-window bundles](provider-window-bundle.md).
+
+Bundle validity establishes byte-level interoperability and provenance only. It
+does not establish calibrated uncertainty, provider independence, or downstream
+physical benefit. Those remain separate provider-v2 calibration and held-out
+promotion gates.
+
 ## Causal information boundary
 
 Predictive exports use an exclusive `causal_frame_stop`. A selected window must
@@ -84,12 +98,12 @@ values, such as `rays()`, return copies.
 
 ## Artifact ownership
 
-Prob4D owns MotionCrafter prediction manifests, decoded-window payloads, gauge
-and uncertainty calibration artifacts, portable observation beliefs,
-observation-factor bundles, provider manifests, benchmarks, and run manifests.
-Bayesian-PhysTwin owns physical priors, guarded updates, fallback behavior, and
-accepted twin beliefs. Causal4D owns realized-intervention inference downstream
-of an accepted, content-bound twin belief.
+Prob4D owns provider-window bundles, MotionCrafter prediction manifests,
+decoded-window payloads, gauge and uncertainty calibration artifacts, portable
+observation beliefs, observation-factor bundles, provider manifests, benchmarks,
+and run manifests. Bayesian-PhysTwin owns physical priors, guarded updates,
+fallback behavior, and accepted twin beliefs. Causal4D owns realized-intervention
+inference downstream of an accepted, content-bound twin belief.
 
 The `prob4d-phystwin*` commands are integration experiments, not the stable
 provider interface. Paper-facing tables, figures, and sealed result manifests
