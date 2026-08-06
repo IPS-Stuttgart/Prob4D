@@ -34,72 +34,61 @@ jobs:
 
           path = Path("src/prob4d/provider_bundle.py")
           source = path.read_text(encoding="utf-8")
-          old = '''    root = Path(payload_root)
-              total_bytes = 0
-              for record in bundle.windows:
-                  payload = _resolve_payload_member(
-                      root,
-                      record.relative_path,
-                      name=f"provider window {record.window_id!r}",
-                  )
-                  if payload.stat().st_size != record.payload_byte_count:
-                      raise ValueError(f"payload byte count mismatch for {record.window_id!r}")
-                  if _sha256_file(payload) != record.payload_sha256:
-                      raise ValueError(f"payload SHA-256 mismatch for {record.window_id!r}")
-                  window, archive_schema = _load_prediction_window(
-                      payload,
-                      expected_window_id=record.window_id,
-                      allow_legacy_window_archives=record.archive_schema == LEGACY_ARCHIVE_SCHEMA,
-                  )
-                  actual = ProviderWindowRecordV1(
-                      window_id=window.window_id,
-                      relative_path=record.relative_path,
-                      payload_sha256=record.payload_sha256,
-                      payload_byte_count=record.payload_byte_count,
-                      archive_schema=archive_schema,
-                      source_frame_start=record.source_frame_start,
-                      source_frame_stop_exclusive=record.source_frame_stop_exclusive,
-                      output_frame_start=int(window.frame_indices[0]),
-                      output_frame_stop_exclusive=int(window.frame_indices[-1]) + 1,
-                      frame_count=int(window.frame_indices.size),
-                      height=int(window.shape[1]),
-                      width=int(window.shape[2]),
-                      dense_storage_dtype=window.dense_storage_dtype,
-                      has_scene_flow=window.scene_flow is not None,
-                      has_ray_directions=window.ray_directions is not None,
-                      frame_indices_sha256=_frame_indices_sha256(window.frame_indices),
-                  )
-                  if actual != record:
-                      raise ValueError(f"payload contract mismatch for {record.window_id!r}")
-                  total_bytes += record.payload_byte_count
-          '''.replace("              ", "")
-          new = '''    root = Path(payload_root)
-              total_bytes = 0
-              for record in bundle.windows:
-                  actual = _record_from_payload(
-                      _IngestWindowSpec(
-                          window_id=record.window_id,
-                          relative_path=record.relative_path,
-                          source_frame_start=record.source_frame_start,
-                          source_frame_stop_exclusive=record.source_frame_stop_exclusive,
-                      ),
-                      payload_root=root,
-                      allow_legacy_window_archives=(
-                          record.archive_schema == LEGACY_ARCHIVE_SCHEMA
-                      ),
-                  )
-                  if actual.payload_byte_count != record.payload_byte_count:
-                      raise ValueError(f"payload byte count mismatch for {record.window_id!r}")
-                  if actual.payload_sha256 != record.payload_sha256:
-                      raise ValueError(f"payload SHA-256 mismatch for {record.window_id!r}")
-                  if actual != record:
-                      raise ValueError(f"payload contract mismatch for {record.window_id!r}")
-                  total_bytes += record.payload_byte_count
-          '''.replace("              ", "")
-          if old in source:
-              path.write_text(source.replace(old, new), encoding="utf-8")
-          elif new not in source:
-              raise SystemExit("provider verification block no longer matches either expected form")
+          start_marker = (
+              "    root = Path(payload_root)\n"
+              "    total_bytes = 0\n"
+              "    for record in bundle.windows:\n"
+          )
+          old_marker = "        payload = _resolve_payload_member(\n"
+          new_marker = "        actual = _record_from_payload(\n"
+          end_marker = "        total_bytes += record.payload_byte_count\n"
+          replacement = "\n".join(
+              [
+                  "    root = Path(payload_root)",
+                  "    total_bytes = 0",
+                  "    for record in bundle.windows:",
+                  "        actual = _record_from_payload(",
+                  "            _IngestWindowSpec(",
+                  "                window_id=record.window_id,",
+                  "                relative_path=record.relative_path,",
+                  "                source_frame_start=record.source_frame_start,",
+                  "                source_frame_stop_exclusive=(",
+                  "                    record.source_frame_stop_exclusive",
+                  "                ),",
+                  "            ),",
+                  "            payload_root=root,",
+                  "            allow_legacy_window_archives=(",
+                  "                record.archive_schema == LEGACY_ARCHIVE_SCHEMA",
+                  "            ),",
+                  "        )",
+                  "        if actual.payload_byte_count != record.payload_byte_count:",
+                  "            raise ValueError(",
+                  "                f\"payload byte count mismatch for {record.window_id!r}\"",
+                  "            )",
+                  "        if actual.payload_sha256 != record.payload_sha256:",
+                  "            raise ValueError(",
+                  "                f\"payload SHA-256 mismatch for {record.window_id!r}\"",
+                  "            )",
+                  "        if actual != record:",
+                  "            raise ValueError(",
+                  "                f\"payload contract mismatch for {record.window_id!r}\"",
+                  "            )",
+                  "        total_bytes += record.payload_byte_count",
+                  "",
+              ]
+          )
+          start = source.find(start_marker)
+          if start < 0:
+              raise SystemExit("provider verification start marker is missing")
+          if new_marker in source[start : start + 600]:
+              raise SystemExit(0)
+          if old_marker not in source[start : start + 600]:
+              raise SystemExit("provider verification block has unexpected contents")
+          end = source.find(end_marker, start)
+          if end < 0:
+              raise SystemExit("provider verification end marker is missing")
+          end += len(end_marker)
+          path.write_text(source[:start] + replacement + source[end:], encoding="utf-8")
           PY
           python -m py_compile src/prob4d/provider_bundle.py
       - name: Commit and push source-only repair
