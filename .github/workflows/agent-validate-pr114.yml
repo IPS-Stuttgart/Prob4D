@@ -9,6 +9,7 @@ on:
 permissions:
   contents: write
 
+# Second revision triggers the registered exact-head validator.
 concurrency:
   group: validate-pr114-exact-head
   cancel-in-progress: false
