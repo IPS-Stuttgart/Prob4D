@@ -48,20 +48,22 @@ jobs:
 
           path = Path("src/prob4d/visual_bias_stream.py")
           source = path.read_text(encoding="utf-8")
-          old = """        row_updates.append(np.full(nuisance.observation_count, index, dtype=np.int64))
-          row_bias.append(np.asarray(nuisance.row_bias_indices))
-          jacobians.append(np.asarray(nuisance.bias_jacobian))
-          row_start = row_stop
-          previous_update_id = update.update_id
-          """
-          new = """        row_updates.append(
-              np.full(nuisance.observation_count, index, dtype=np.int64)
+          old = (
+              "        row_updates.append(np.full(nuisance.observation_count, index, dtype=np.int64))\n"
+              "        row_bias.append(np.asarray(nuisance.row_bias_indices))\n"
+              "        jacobians.append(np.asarray(nuisance.bias_jacobian))\n"
+              "        row_start = row_stop\n"
+              "        previous_update_id = update.update_id\n"
           )
-          row_bias.append(np.asarray(nuisance.row_bias_indices))
-          jacobians.append(np.asarray(nuisance.bias_jacobian))
-          row_start = row_stop
-          previous_update_id = update.update_id
-          """
+          new = (
+              "        row_updates.append(\n"
+              "            np.full(nuisance.observation_count, index, dtype=np.int64)\n"
+              "        )\n"
+              "        row_bias.append(np.asarray(nuisance.row_bias_indices))\n"
+              "        jacobians.append(np.asarray(nuisance.bias_jacobian))\n"
+              "        row_start = row_stop\n"
+              "        previous_update_id = update.update_id\n"
+          )
           if old not in source:
               raise RuntimeError("recursive row construction changed unexpectedly")
           path.write_text(source.replace(old, new, 1), encoding="utf-8")
