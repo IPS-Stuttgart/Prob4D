@@ -32,7 +32,7 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' ||
       github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64, nvidia-smi]
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - name: Check out the reviewed revision
@@ -45,16 +45,8 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
-
-      - name: Isolate the self-hosted Python environment
-        shell: bash
-        run: |
-          set -euo pipefail
-          environment="$RUNNER_TEMP/prob4d-recursive-visual-bias"
-          python -m venv --clear "$environment"
-          "$environment/bin/python" -m ensurepip --upgrade
-          "$environment/bin/python" -m pip install --upgrade pip
-          echo "$environment/bin" >> "$GITHUB_PATH"
+          cache: pip
+          cache-dependency-path: pyproject.toml
 
       - name: Install the lightweight development environment
         run: |
@@ -86,5 +78,4 @@ jobs:
           python -m compileall -q src/prob4d
 
       - name: Smoke-test the installed command surface
-        run: |
-          prob4d observation visual-bias-stream --help
+        run: prob4d observation visual-bias-stream --help

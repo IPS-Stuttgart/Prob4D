@@ -9,15 +9,6 @@ on:
       - "src/prob4d/material_identity_mixture.py"
       - "tests/test_material_identity_mixture.py"
   workflow_dispatch:
-    inputs:
-      runner:
-        description: "Runner type"
-        required: true
-        default: github-hosted
-        type: choice
-        options:
-          - github-hosted
-          - self-hosted
 
 permissions:
   contents: read
@@ -33,30 +24,20 @@ env:
 jobs:
   contract:
     name: Local-ID mixture and marginalization contract
-    runs-on: >-
-      ${{
-        inputs.runner == 'self-hosted' &&
-        fromJSON('["self-hosted","Linux","X64","nvidia-smi"]') ||
-        'ubuntu-latest'
-      }}
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - name: Set up hosted Python 3.12
-        if: inputs.runner != 'self-hosted'
+      - name: Set up Python 3.12
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: pyproject.toml
-      - name: Set up self-hosted Python 3.12
-        if: inputs.runner == 'self-hosted'
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: "3.12"
       - name: Install development and compatible typing environment
         run: |
           python -m pip install -e ".[dev]"
