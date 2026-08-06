@@ -1,0 +1,390 @@
+name: Discover frozen real prediction bundle
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/discover-real-profile-bundle.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: discover-real-profile-bundle-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  inventory:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Linux, X64, nvidia-smi]
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact reviewed head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          clean: true
+
+      - name: Inventory real multi-overlap manifests without opening payloads
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="${RUNNER_TEMP}/real-profile-bundle-inventory"
+          mkdir -p "${output}"
+          python3 - "${output}/inventory.json" <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import json
+          import math
+          import os
+          from pathlib import Path, PurePosixPath
+          import sys
+          from typing import Any
+
+          OUTPUT = Path(sys.argv[1])
+          MANIFEST_NAMES = {"predictions.json", "prediction_manifest.json"}
+          PRUNE = {
+              ".cache",
+              ".git",
+              ".mypy_cache",
+              ".pytest_cache",
+              ".ruff_cache",
+              ".venv",
+              "__pycache__",
+              "anaconda3",
+              "env",
+              "envs",
+              "miniconda3",
+              "node_modules",
+              "site-packages",
+              "venv",
+          }
+          MAX_DEPTH = 11
+          MAX_MANIFEST_BYTES = 16 * 1024 * 1024
+          MAX_CANDIDATES = 500
+
+          def reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+              result: dict[str, Any] = {}
+              for key, value in pairs:
+                  if key in result:
+                      raise ValueError(f"duplicate JSON key {key!r}")
+                  result[key] = value
+              return result
+
+          def reject_nonfinite(token: str) -> None:
+              raise ValueError(f"non-finite JSON value {token!r}")
+
+          def sha256(path: Path) -> str:
+              digest = hashlib.sha256()
+              with path.open("rb") as stream:
+                  for block in iter(lambda: stream.read(1024 * 1024), b""):
+                      digest.update(block)
+              return digest.hexdigest()
+
+          def safe_member(root: Path, relative: object) -> Path | None:
+              if not isinstance(relative, str) or not relative or "\\" in relative:
+                  return None
+              pure = PurePosixPath(relative)
+              if pure.is_absolute() or any(part in {"", ".", ".."} for part in pure.parts):
+                  return None
+              candidate = root.joinpath(*pure.parts)
+              try:
+                  resolved = candidate.resolve(strict=False)
+                  resolved.relative_to(root.resolve())
+              except (OSError, ValueError):
+                  return None
+              return candidate
+
+          def intervals(payload: dict[str, Any]) -> tuple[list[tuple[int, int]], list[str]]:
+              result: list[tuple[int, int]] = []
+              errors: list[str] = []
+              windows = payload.get("overlap_windows")
+              if not isinstance(windows, list):
+                  return result, ["overlap_windows is not a list"]
+              for index, item in enumerate(windows):
+                  if not isinstance(item, dict):
+                      errors.append(f"window {index} is not an object")
+                      continue
+                  start = item.get("start_frame")
+                  stop = item.get("stop_frame")
+                  if (
+                      isinstance(start, bool)
+                      or isinstance(stop, bool)
+                      or not isinstance(start, int)
+                      or not isinstance(stop, int)
+                      or start < 0
+                      or stop <= start
+                  ):
+                      errors.append(f"window {index} has invalid source interval")
+                      continue
+                  result.append((start, stop))
+              return result, errors
+
+          def overlap_summary(values: list[tuple[int, int]]) -> dict[str, int | None]:
+              pair_count = 0
+              max_active = 0
+              events: list[tuple[int, int]] = []
+              for index, (start, stop) in enumerate(values):
+                  events.extend(((start, 1), (stop, -1)))
+                  for other_start, other_stop in values[:index]:
+                      if max(start, other_start) < min(stop, other_stop):
+                          pair_count += 1
+              active = 0
+              for _, delta in sorted(events, key=lambda item: (item[0], item[1])):
+                  active += delta
+                  max_active = max(max_active, active)
+              return {
+                  "overlap_pair_count": pair_count,
+                  "maximum_simultaneous_windows": max_active,
+                  "source_frame_start": min((value[0] for value in values), default=None),
+                  "source_frame_stop_exclusive": max(
+                      (value[1] for value in values), default=None
+                  ),
+              }
+
+          def inspect(path: Path, source_root: Path) -> dict[str, Any] | None:
+              try:
+                  stat = path.stat()
+              except OSError:
+                  return None
+              if path.is_symlink() or not path.is_file() or not 0 < stat.st_size <= MAX_MANIFEST_BYTES:
+                  return None
+              try:
+                  payload = json.loads(
+                      path.read_text(encoding="utf-8"),
+                      object_pairs_hook=reject_duplicate_keys,
+                      parse_constant=reject_nonfinite,
+                  )
+              except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
+                  return {
+                      "manifest_path": str(path),
+                      "source_root": str(source_root),
+                      "manifest_bytes": stat.st_size,
+                      "admitted": False,
+                      "reason": f"invalid manifest: {type(error).__name__}",
+                  }
+              if not isinstance(payload, dict):
+                  return None
+              window_intervals, errors = intervals(payload)
+              windows = payload.get("overlap_windows")
+              if not isinstance(windows, list):
+                  return None
+
+              root = path.parent
+              integrity = payload.get("artifact_integrity")
+              members = integrity.get("members") if isinstance(integrity, dict) else None
+              descriptors: dict[str, dict[str, Any]] = {}
+              if isinstance(members, list):
+                  for member in members:
+                      if isinstance(member, dict) and isinstance(member.get("path"), str):
+                          descriptors[member["path"]] = member
+
+              declared_bytes = 0
+              present_bytes = 0
+              missing_members: list[str] = []
+              unsafe_members: list[str] = []
+              byte_mismatches: list[str] = []
+              window_paths: list[str] = []
+              for item in windows:
+                  if not isinstance(item, dict):
+                      continue
+                  relative = item.get("path")
+                  if not isinstance(relative, str):
+                      continue
+                  window_paths.append(relative)
+                  member_path = safe_member(root, relative)
+                  if member_path is None:
+                      unsafe_members.append(relative)
+                      continue
+                  descriptor = descriptors.get(relative)
+                  expected_bytes = descriptor.get("bytes") if isinstance(descriptor, dict) else None
+                  if isinstance(expected_bytes, int) and not isinstance(expected_bytes, bool) and expected_bytes >= 0:
+                      declared_bytes += expected_bytes
+                  try:
+                      member_stat = member_path.stat()
+                  except OSError:
+                      missing_members.append(relative)
+                      continue
+                  if member_path.is_symlink() or not member_path.is_file():
+                      unsafe_members.append(relative)
+                      continue
+                  present_bytes += member_stat.st_size
+                  if isinstance(expected_bytes, int) and member_stat.st_size != expected_bytes:
+                      byte_mismatches.append(relative)
+
+              overlap = overlap_summary(window_intervals)
+              integrity_bound = isinstance(integrity, dict) and isinstance(members, list)
+              lowered = str(path).lower()
+              looks_synthetic = any(token in lowered for token in ("synthetic", "fixture", "pytest", "tmp"))
+              multi_overlap = len(window_intervals) >= 3 and int(overlap["overlap_pair_count"]) >= 2
+              admitted = (
+                  not errors
+                  and multi_overlap
+                  and not missing_members
+                  and not unsafe_members
+                  and not byte_mismatches
+              )
+              score = (
+                  (1000 if admitted else 0)
+                  + (300 if integrity_bound else 0)
+                  + 20 * len(window_intervals)
+                  + 10 * int(overlap["overlap_pair_count"])
+                  + (0 if looks_synthetic else 100)
+                  + int(math.log2(max(declared_bytes, present_bytes, 1)))
+              )
+              config = payload.get("config")
+              return {
+                  "manifest_path": str(path),
+                  "source_root": str(source_root),
+                  "manifest_sha256": sha256(path),
+                  "manifest_bytes": stat.st_size,
+                  "admitted": admitted,
+                  "selection_score": score,
+                  "integrity_bound": integrity_bound,
+                  "looks_synthetic": looks_synthetic,
+                  "window_count": len(window_intervals),
+                  **overlap,
+                  "declared_window_bytes": declared_bytes,
+                  "present_window_bytes": present_bytes,
+                  "missing_members": sorted(missing_members),
+                  "unsafe_members": sorted(unsafe_members),
+                  "byte_mismatches": sorted(byte_mismatches),
+                  "interval_errors": errors,
+                  "window_paths": window_paths,
+                  "motioncrafter_commit": payload.get("motioncrafter_commit"),
+                  "model_set_id": (
+                      config.get("model_source_set_sha256")
+                      if isinstance(config, dict)
+                      else None
+                  ),
+                  "seed_policy": config.get("seed_policy") if isinstance(config, dict) else None,
+                  "dense_payloads_opened": False,
+                  "truth_or_target_opened": False,
+              }
+
+          roots: list[Path] = []
+          candidates = [
+              Path("/mnt/lexar4tb"),
+              Path("/mnt/data"),
+              Path("/data"),
+              Path(os.environ.get("RUNNER_WORKSPACE", "")),
+              Path("/home/github-runner"),
+          ]
+          seen_roots: set[Path] = set()
+          for candidate in candidates:
+              if not str(candidate) or not candidate.exists() or not candidate.is_dir():
+                  continue
+              try:
+                  resolved = candidate.resolve()
+              except OSError:
+                  continue
+              if resolved in seen_roots:
+                  continue
+              seen_roots.add(resolved)
+              roots.append(resolved)
+
+          records: list[dict[str, Any]] = []
+          scanned_files = 0
+          for root in roots:
+              for current, directories, files in os.walk(root, followlinks=False):
+                  current_path = Path(current)
+                  try:
+                      relative_depth = len(current_path.relative_to(root).parts)
+                  except ValueError:
+                      directories[:] = []
+                      continue
+                  directories[:] = sorted(
+                      name
+                      for name in directories
+                      if name not in PRUNE
+                      and not (current_path / name).is_symlink()
+                      and relative_depth < MAX_DEPTH
+                  )
+                  for name in sorted(files):
+                      scanned_files += 1
+                      if name not in MANIFEST_NAMES:
+                          continue
+                      record = inspect(current_path / name, root)
+                      if record is not None:
+                          records.append(record)
+                      if len(records) >= MAX_CANDIDATES:
+                          break
+                  if len(records) >= MAX_CANDIDATES:
+                      break
+              if len(records) >= MAX_CANDIDATES:
+                  break
+
+          records.sort(
+              key=lambda item: (
+                  bool(item.get("admitted")),
+                  int(item.get("selection_score", -1)),
+                  int(item.get("present_window_bytes", 0)),
+                  str(item.get("manifest_path", "")),
+              ),
+              reverse=True,
+          )
+          report = {
+              "schema": "prob4d.real-profile-bundle-inventory",
+              "version": 1,
+              "repository": os.environ.get("GITHUB_REPOSITORY"),
+              "source_revision": os.environ.get("GITHUB_SHA"),
+              "run_id": os.environ.get("GITHUB_RUN_ID"),
+              "runner_name": os.environ.get("RUNNER_NAME"),
+              "roots": [str(value) for value in roots],
+              "scanned_file_entries": scanned_files,
+              "candidate_count": len(records),
+              "admitted_candidate_count": sum(bool(item.get("admitted")) for item in records),
+              "candidates": records,
+              "selection_rule": (
+                  "prefer complete non-synthetic integrity-bound bundles with at least three "
+                  "windows, at least two overlap pairs, and all declared window files present"
+              ),
+              "information_boundary": {
+                  "manifest_bytes_opened": True,
+                  "dense_prediction_payloads_opened": False,
+                  "truth_or_target_outcomes_opened": False,
+                  "member_hashes_recomputed": False,
+              },
+              "claim_boundary": (
+                  "Read-only runner-local feasibility inventory. Selection is not a memory "
+                  "profile, provider-competence result, BayesianPhysTwin result, or Causal4D result."
+              ),
+          }
+          OUTPUT.write_text(
+              json.dumps(report, indent=2, sort_keys=True, allow_nan=False) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          (
+            cd "${output}"
+            sha256sum inventory.json > SHA256SUMS
+          )
+          python3 - "${output}/inventory.json" <<'PY'
+          import json
+          from pathlib import Path
+          import sys
+
+          report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          print(
+              f"candidates={report['candidate_count']} "
+              f"admitted={report['admitted_candidate_count']}"
+          )
+          for candidate in report["candidates"][:10]:
+              print(
+                  candidate.get("admitted"),
+                  candidate.get("selection_score"),
+                  candidate.get("window_count"),
+                  candidate.get("present_window_bytes"),
+                  candidate.get("manifest_path"),
+              )
+          PY
+
+      - name: Upload compact inventory evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: real-profile-bundle-inventory
+          path: ${{ runner.temp }}/real-profile-bundle-inventory
+          if-no-files-found: error
+          retention-days: 14
