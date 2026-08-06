@@ -1,0 +1,189 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index d9d8bad..37a982d 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -6,6 +6,12 @@ All notable changes to Prob4D are documented here.
+ 
+ ### Added
+ 
++- A provider-neutral `prob4d.source` boundary with a content-addressed
++  `Windowed4DSourceManifestV1`, strict MotionCrafter adapter, immutable source
++  and payload identities, append-only persistence, and explicit provenance-only
++  readiness semantics for future 4-D prediction providers.
++- A focused `prob4d.contracts` import facade for portable observation, factor,
++  stream, and provider-attestation contracts without estimator experiments.
+ - A target-free, content-addressed held-out provider promotion protocol that
+   freezes complete object/session splits, source/model/calibration identities,
+   seven required comparison roles, BayesianPhysTwin guard settings, bootstrap
+diff --git a/README.md b/README.md
+index 9a78909..03b0489 100644
+--- a/README.md
++++ b/README.md
+@@ -11,6 +11,12 @@ shared-backbone estimates using covariance intersection. For Bayesian-PhysTwin,
+ it also exports causally sealed metric observations with explicit covariance,
+ reliability, dependence, and source-lineage semantics.
+ 
++Provider-specific prediction manifests can be normalized without payload loading
++via the stable [`prob4d.source`](docs/source-provider-contract.md) boundary. The
++current MotionCrafter adapter is additive; frozen manifests and provider-v1/v2
++observation artifacts retain their existing identities. Portable downstream
++contracts are collected under `prob4d.contracts`.
++
+ ## Ablation
+ 
+ The experiment runner evaluates seven variants:
+diff --git a/docs/architecture.md b/docs/architecture.md
+index 18a7123..684e3b5 100644
+--- a/docs/architecture.md
++++ b/docs/architecture.md
+@@ -19,6 +19,12 @@ Prob4D must not depend on Bayesian-PhysTwin or Causal4D at runtime. Those
+ repositories may validate neutral artifacts independently, but should not import
+ Prob4D experiment helpers or underscore-prefixed modules.
+ 
++Provider-specific input manifests are normalized through `prob4d.source` before
++estimator logic. `Windowed4DSourceManifestV1` records source revisions, model and
++payload identities, window geometry, temporal lineage, stochastic policy, and
++array semantics without rewriting historical MotionCrafter manifests. See
++[the provider-neutral source contract](source-provider-contract.md).
++
+ ## Stable provider surfaces
+ 
+ `prob4d.provider_v1` is frozen for existing experiments and exact reproduction. It
+@@ -43,6 +49,10 @@ version-2 Python capability descriptor. The grouped `prob4d` CLI is the
+ discoverable command surface; legacy `prob4d-*` commands remain available for
+ frozen run manifests.
+ 
++`prob4d.contracts` is the focused provider-neutral import surface for portable
++observation beliefs, factor bundles, factor streams, and provider attestations.
++It deliberately excludes experiment runners and estimator variants.
++
+ ## Causal information boundary
+ 
+ Predictive exports use an exclusive `causal_frame_stop`. A selected window must
+diff --git a/docs/compatibility.md b/docs/compatibility.md
+index c212b24..d7fced9 100644
+--- a/docs/compatibility.md
++++ b/docs/compatibility.md
+@@ -8,6 +8,8 @@ frozen evidence even when package-version ranges are compatible.
+ 
+ | Surface | Version | Intended use |
+ | --- | ---: | --- |
++| `prob4d.source.Windowed4DSourceManifestV1` | 1 | Provider-neutral input normalization |
++| `prob4d.contracts` | additive facade | Portable cross-repository contracts |
+ | `prob4d.provider_v1` | 1 | Frozen reproduction and provider-v1 compatibility |
+ | `prob4d.provider_v2` | 2 | New calibrated or explicitly exploratory development |
+ | `phys4d.observation_belief` | 1 | Portable fused observation container |
+@@ -73,6 +75,8 @@ manifests, artifacts, and protocol identifiers.
+ 
+ ## Upgrade rules
+ 
++- A breaking source-window, lineage, coordinate, or identity interpretation
++  requires a new windowed 4-D source-contract version.
+ - A breaking Python signature requires a new provider module.
+ - A breaking Prob4D-specific interpretation of an observation artifact requires
+   a new causal-stream contract version.
+diff --git a/docs/data-format.md b/docs/data-format.md
+index f83028a..ca9b4d0 100644
+--- a/docs/data-format.md
++++ b/docs/data-format.md
+@@ -1,5 +1,14 @@
+ # Data Format
+ 
++## Provider-neutral source view
++
++`prob4d.source` can normalize a provider-specific prediction manifest into a
++content-addressed `Windowed4DSourceManifestV1` before payload loading. The
++current MotionCrafter adapter retains historical `predictions.json` bytes and
++maps provider revision, model-set identity, stochastic policy, temporal lineage,
++window bounds, and optional member hashes into one neutral input descriptor.
++See [the provider-neutral source contract](source-provider-contract.md).
++
+ ## Prediction Manifest
+ 
+ `prob4d-motioncrafter` writes a versioned `predictions.json`:
+diff --git a/docs/source-provider-contract.md b/docs/source-provider-contract.md
+new file mode 100644
+index 0000000..75676c9
+--- /dev/null
++++ b/docs/source-provider-contract.md
+@@ -0,0 +1,135 @@
++# Provider-neutral windowed 4-D source contract
++
++Prob4D's estimator consumes independently decoded, overlapping 4-D prediction
++windows. MotionCrafter is the first producer, but the estimator-side assumptions
++are not specific to one neural architecture. `prob4d.source` therefore provides
++an additive, content-addressed normalization boundary for MotionCrafter and
++future 4-D providers.
++
++The source contract is deliberately **upstream** of `prob4d.provider_v1` and
++`prob4d.provider_v2`:
++
++```text
++provider-specific prediction manifest
++    -> prob4d.source.Windowed4DSourceManifestV1
++    -> Prob4D source selection, calibration, and fusion
++    -> provider-v2 observation belief or factor bundle
++```
++
++It does not modify existing `predictions.json` files, provider-v1/v2 observation
++artifacts, calibration identities, or frozen run manifests. Adapting a source
++manifest establishes only structural and provenance compatibility. It does not
++establish accuracy, uncertainty calibration, physical-query benefit, or Causal4D
++intervention benefit.
++
++## Stable import surface
++
++```python
++from prob4d.source import (
++    adapt_motioncrafter_prediction_manifest,
++    load_motioncrafter_source_manifest,
++    load_windowed_4d_source_manifest,
++    save_windowed_4d_source_manifest,
++)
++```
++
++`load_motioncrafter_source_manifest` opens only the JSON manifest. Prediction
++payloads remain unopened until a later causal selector admits them.
++
++```python
++source = load_motioncrafter_source_manifest(
++    "outputs/sequence_name/predictions.json"
++)
++
++print(source.source_provider_id)
++print(source.model_set_id)
++print(source.artifact_id)
++print(source.claim_ready_source_identity)
++```
++
++The normalized artifact can be persisted without replacing existing evidence:
++
++```python
++save_windowed_4d_source_manifest(
++    source,
++    "outputs/sequence_name/windowed_4d_source.json",
++)
++reloaded = load_windowed_4d_source_manifest(
++    "outputs/sequence_name/windowed_4d_source.json"
++)
++assert reloaded.artifact_id == source.artifact_id
++```
++
++Saving identical bytes is idempotent. Attempting to reuse the path for different
++content raises `FileExistsError`.
++
++## Schema version 1
++
++`Windowed4DSourceManifestV1` records:
++
++- provider ID and exact provider revision;
++- optional immutable model-set identity;
++- canonical source-manifest SHA-256 and, when loaded from a file, exact file-byte
++  SHA-256;
++- provider-native coordinate frame and length-unit semantics;
++- nominal window size, overlap, and source-frame stride;
++- point, flow, ray, and uncertainty representation semantics;
++- source-only stochastic policy and schedule identity;
++- temporal lineage sufficient to audit output-to-input dependencies;
++- one record per independently decoded window, with absolute source-frame bounds;
++- optional payload SHA-256 and byte coun

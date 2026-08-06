@@ -1,0 +1,6 @@
+port prob4d.contracts as contracts
++    import prob4d.source as source
++
++    assert not hasattr(contracts, "run_experiment")
++    assert not hasattr(contracts, "estimate_causal_multi_edge_gauge_graph")
++    assert not hasattr(source, "MotionCrafterAdapter")

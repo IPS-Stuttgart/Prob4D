@@ -1,0 +1,39 @@
+name: Apply provider-neutral source patch
+
+on:
+  push:
+    branches:
+      - agent/provider-neutral-windowed-4d-source
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-provider-neutral-source-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out staged branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Verify, apply, and publish the clean source commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          patch="$RUNNER_TEMP/provider-neutral-source.patch"
+          cat .github/agent/provider-neutral-source/part-* > "$patch"
+          echo "5c27dcddaa705fab764f7d8a4455f0f9bb26d8218a82e27f8a379ea993a51a58  $patch" | sha256sum -c -
+          git apply --check "$patch"
+          git apply --index "$patch"
+          git rm .github/workflows/apply-provider-neutral-source.yml
+          git rm .github/agent/provider-neutral-source/part-*
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Add provider-neutral 4D source contract"
+          git push origin "HEAD:${GITHUB_REF_NAME}"

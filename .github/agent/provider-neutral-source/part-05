@@ -1,0 +1,194 @@
+_lineage")
++    if raw_temporal_lineage is None:
++        temporal_lineage = frozen_finite_json_mapping(
++            motioncrafter_temporal_lineage_manifest(
++                window_size=window_size,
++                overlap=overlap,
++            ),
++            name="temporal_lineage",
++        )
++        temporal_lineage_source = "reconstructed-from-legacy-config"
++    else:
++        temporal_lineage = _strict_nonempty_mapping(
++            raw_temporal_lineage,
++            name="temporal_lineage",
++        )
++        temporal_lineage_source = "manifest"
++    raw_windows = _strict_list(normalized.get("overlap_windows"), name="overlap_windows")
++    integrity_members = _integrity_members(normalized)
++    integrity_is_bound = "artifact_integrity" in normalized
++    windows: list[Windowed4DSourceWindowV1] = []
++    for index, value in enumerate(raw_windows):
++        record = _strict_mapping(value, name=f"overlap window {index}")
++        window_id = _strict_string(
++            record.get("window_id"),
++            name=f"overlap window {index} window_id",
++        )
++        payload_path = _safe_relative_path(
++            record.get("path"),
++            name=f"overlap window {window_id!r} path",
++        )
++        descriptor = integrity_members.get(payload_path)
++        if integrity_is_bound and descriptor is None:
++            raise ValueError(
++                f"integrity-bound manifest lacks descriptor for window {window_id!r}"
++            )
++        payload_sha256: str | None = None
++        payload_bytes: int | None = None
++        metadata: dict[str, Any] = {}
++        if descriptor is not None:
++            if descriptor.get("kind") != "independently_decoded_overlap_window":
++                raise ValueError(
++                    f"artifact kind changed for overlap window {window_id!r}"
++                )
++            payload_sha256 = _strict_sha256(
++                descriptor.get("sha256"),
++                name=f"overlap window {window_id!r} sha256",
++            )
++            payload_bytes = _strict_integer(
++                descriptor.get("bytes"),
++                name=f"overlap window {window_id!r} bytes",
++                minimum=0,
++            )
++            metadata["source_artifact_kind"] = descriptor["kind"]
++        windows.append(
++            Windowed4DSourceWindowV1(
++                window_id=window_id,
++                payload_path=payload_path,
++                source_frame_start=_strict_integer(
++                    record.get("start_frame"),
++                    name=f"overlap window {window_id!r} start_frame",
++                    minimum=0,
++                ),
++                source_frame_stop_exclusive=_strict_integer(
++                    record.get("stop_frame"),
++                    name=f"overlap window {window_id!r} stop_frame",
++                    minimum=1,
++                ),
++                payload_sha256=payload_sha256,
++                payload_bytes=payload_bytes,
++                metadata=metadata,
++            )
++        )
++    if not windows:
++        raise ValueError("MotionCrafter prediction manifest has no overlap windows")
++*+    schedule = normalized.get("stochastic_seed_schedule")
++    schedule_sha256 = (
++        _sha256_json(_strict_mapping(schedule, name="stochastic_seed_schedule"))
++        if schedule is not None
++        else None
++    )
++    stochastic_policy = {
++        "schema": "prob4d.windowed-4d-stochastic-policy.v1",
++        "provider_schema": seed_report["schema"],
++        "policy": seed_report["policy"],
++        "root_seed": seed_report["root_seed"],
++        "call_count": seed_report["call_count"],
++        "schedule_source": seed_report["source"],
++        "schedule_sha256": schedule_sha256,
++    }
++    disjoint_path = _safe_relative_path(
++        normalized.get("disjoint_baseline"),
++        name="disjoint_baseline",
++    )
++    latent_path = _safe_relative_path(
++        normalized.get("latent_linear_baseline"),
++        name="latent_linear_baseline",
++    )
++    integrity = normalized.get("artifact_integrity")
++    provider_metadata: dict[str, Any] = {
++        "adapter_schema": MOTIONCRAFTER_SOURCE_ADAPTER_SCHEMA,
++        "source_format_version": 1,
++        "disjoint_baseline_path": disjoint_path,
++        "latent_linear_baseline_path": latent_path,
++        "artifact_integrity_bound": integrity is not None,
++        "temporal_lineage_source": temporal_lineage_source,
++    }
++    if integrity is not None:
++        integrity_mapping = _strict_mapping(integrity, name="artifact_integrity")
++        provider_metadata["artifact_integrity_schema"] = integrity_mapping["schema"]
++        run_spec_sha256 = integrity_mapping.get("run_spec_sha256")
++        if run_spec_sha256 is not None:
++            provider_metadata["run_spec_sha256"] = _strict_sha256(
++                run_spec_sha256,
++                name="artifact_integrity.run_spec_sha256",
++            )
++    return Windowed4DSourceManifestV1(
++        source_provider_id="motioncrafter",
++        source_provider_revision=source_revision,
++        model_set_id=_motioncrafter_model_set_id(config),
++        source_manifest_sha256=_sha256_json(normalized),
++        source_manifest_file_sha256=_strict_optional_sha256(
++            source_manifest_file_sha256,
++            name="source_manifest_file_sha256",
++        ),
++        coordinate_frame="window-local-sim3-gauge",
++        length_unit="provider-native-unscaled",
++        geometry=Windowed4DGeometryV1(
++            nominal_window_size=window_size,
++            nominal_overlap=overlap,
++            frame_stride=frame_stride,
++        ),
++        data_semantics=Windowed4DDataSemanticsV1(
++            point_representation="dense-3d-point-map-in-window-gauge",
++            flow_representation="optional-forward-3d-scene-flow-in-window-gauge",
++            ray_representation="optional-calibrated-viewing-direction",
++            uncertainty_representation="not-embedded; calibrated-by-prob4d",
++        ),
++        stochastic_policy=stochastic_policy,
++        temporal_lineage=temporal_lineage,
++        windows=tuple(windows),
++        provider_metadata=provider_metadata,
++    )
++
++*+def load_motioncrafter_source_manifest(
++    path: str | Path,
++) -> Windowed4DSourceManifestV1:
++    """Strictly load and adapt one MotionCrafter source manifest.
++
++    Only the JSON manifest is opened. Prediction payloads remain unopened until a
++    downstream Prob4D source selector admits them.
++    """
++
++    source = Path(path)
++    raw = source.read_bytes()
++    manifest = _load_json_bytes_object(
++        raw,
++        name="MotionCrafter prediction manifest",
++    )
++    return adapt_motioncrafter_prediction_manifest(
++        manifest,
++        source_manifest_file_sha256=hashlib.sha256(raw).hexdigest(),
++    )
++*+def _serialized_source_manifest(artifact: Windowed4DSourceManifestV1) -> bytes:
++    return (
++        json.dumps(artifact.to_dict(), sort_keys=True, indent=2, allow_nan=False) + "\n"
++    ).encode("utf-8")
++*+def save_windowed_4d_source_manifest(
++    artifact: Windowed4DSourceManifestV1,
++    path: str | Path,
++) -> None:
++    """Append-only persistence for a normalized source-manifest artifact."""+
++    target = Path(path)
++    payload = _serialized_source_manifest(artifact)
++    target.parent.mkdir(parents=True, exist_ok=True)
++    if target.exists():
++        if target.read_bytes() == payload:
++            return
++        raise FileExistsError(
++            f"refusing to replace a different windowed 4-D source artifact: {target}"
++        )
++    descriptor = tempfile.NamedTemporaryFile(
++        mode="wb",
++        prefix=f".{target.name}.tmp-",
++        dir=target.parent,
++        delete=False,
++    )
++    temporary = Path(descriptor.name)
++    try:
++        with descriptor:
++            descriptor.write(payload)
++            descriptor.flush()
++            os.fsync(descriptor.fileno())
++        if temporary.read_bytes() != payload:
++            raise OSError
