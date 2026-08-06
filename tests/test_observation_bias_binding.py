@@ -77,7 +77,7 @@ def _observation_stream(
 def _visual_bias_stream(
     observation_stream: ObservationFactorStreamV1,
     *,
-    identity_characters: tuple[str, ...] = ("a", "b"),
+    identity_characters: tuple[str, ...] | None = None,
     observation_counts: tuple[int, ...] | None = None,
     frame_intervals: tuple[tuple[int, int], ...] | None = None,
     factor_update_ids: tuple[str, ...] | None = None,
@@ -100,16 +100,21 @@ def _visual_bias_stream(
         if factor_update_ids is None
         else factor_update_ids
     )
+    identities = (
+        tuple(update.observation_identity_sha256 for update in observation_stream.updates)
+        if identity_characters is None
+        else tuple(_sha(character) for character in identity_characters)
+    )
     nuisances = []
-    for index, (count, identity) in enumerate(
-        zip(counts, identity_characters, strict=True)
+    for index, (count, identity_sha256) in enumerate(
+        zip(counts, identities, strict=True)
     ):
         jacobian = np.zeros((count, 3, 1), dtype=np.float64)
         jacobian[:, 0, 0] = index + 1.0
         nuisances.append(
             VisualBiasNuisanceV1(
                 observation_artifact_id=_sha(chr(ord("7") + index)),
-                observation_identity_sha256=_sha(identity),
+                observation_identity_sha256=identity_sha256,
                 bias_ids=("camera-0",),
                 basis_names=("depth-offset",),
                 row_bias_indices=np.zeros(count, dtype=np.int64),
