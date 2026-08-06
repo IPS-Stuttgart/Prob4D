@@ -1,0 +1,96 @@
+name: Temporary provider manifest hardening on workstation2
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/temporary-provider-manifest-self-hosted.yml"
+      - "scripts/ci/temporary_patch_provider_manifest_hardening.py"
+      - "src/prob4d/prediction_provider_import.py"
+      - "src/prob4d/prediction_provider_manifest.py"
+      - "tests/test_prediction_provider_import.py"
+      - "tests/test_prediction_provider_persistence.py"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: temporary-provider-manifest-self-hosted-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  patch:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'agent/provider-manifest-ingest-hardening'
+    runs-on: [self-hosted, Linux, X64, nvidia-smi]
+    timeout-minutes: 20
+    steps:
+      - name: Check out source branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: agent/provider-manifest-ingest-hardening
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Create an isolated environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          environment="$RUNNER_TEMP/prob4d-provider-manifest-hardening"
+          python3 -m venv --clear "$environment"
+          "$environment/bin/python" -m ensurepip --upgrade
+          "$environment/bin/python" -m pip install --upgrade pip
+          echo "$environment/bin" >> "$GITHUB_PATH"
+
+      - name: Install and apply the source patch
+        run: |
+          python -m pip install -e ".[dev]"
+          python -m pip install "ruff==0.16.1"
+          python scripts/ci/temporary_patch_provider_manifest_hardening.py
+          python -m ruff format \
+            src/prob4d/prediction_provider_import.py \
+            tests/test_prediction_provider_import.py \
+            tests/test_prediction_provider_persistence.py
+          python -m ruff check \
+            src/prob4d/prediction_provider_import.py \
+            src/prob4d/prediction_provider_manifest.py \
+            tests/test_prediction_provider_import.py \
+            tests/test_prediction_provider_manifest.py \
+            tests/test_prediction_provider_persistence.py
+          python -m mypy \
+            src/prob4d/prediction_provider_import.py \
+            src/prob4d/prediction_provider_manifest.py
+          python -m pytest -q \
+            tests/test_cli.py \
+            tests/test_prediction_provider_import.py \
+            tests/test_prediction_provider_manifest.py \
+            tests/test_prediction_provider_persistence.py
+
+      - name: Commit and push reviewed source repair
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- \
+            src/prob4d/prediction_provider_import.py \
+            src/prob4d/prediction_provider_manifest.py \
+            tests/test_prediction_provider_import.py \
+            tests/test_prediction_provider_manifest.py \
+            tests/test_prediction_provider_persistence.py; then
+            echo "canonical manifest hardening is already present"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            src/prob4d/prediction_provider_import.py \
+            src/prob4d/prediction_provider_manifest.py \
+            tests/test_prediction_provider_import.py \
+            tests/test_prediction_provider_manifest.py \
+            tests/test_prediction_provider_persistence.py
+          git commit -m "Harden canonical prediction-provider admission"
+          git push \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            HEAD:refs/heads/agent/provider-manifest-ingest-hardening
