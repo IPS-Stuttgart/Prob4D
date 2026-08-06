@@ -17,6 +17,7 @@ REQUIRED_PATHS = frozenset(
         ".github/dependabot.yml",
         ".github/workflows/ecosystem-release-capsule.yml",
         ".github/workflows/heldout-provider-promotion.yml",
+        ".github/workflows/recursive-visual-bias.yml",
         ".github/workflows/tests.yml",
         "CHANGELOG.md",
         "CITATION.cff",
@@ -32,6 +33,7 @@ REQUIRED_PATHS = frozenset(
         "docs/material-identity-cli.md",
         "docs/prediction-window-storage.md",
         "docs/provider-v2.md",
+        "docs/recursive-visual-bias.md",
         "docs/repository-identity.md",
         "protocols/cycle-guard-conformal-v1.json",
         "protocols/cycle-guard-normalization-v1.json",
@@ -48,6 +50,7 @@ REQUIRED_PATHS = frozenset(
         "src/prob4d/joint_covariance_metrics.py",
         "src/prob4d/material_identity_cli.py",
         "src/prob4d/promotion_evidence.py",
+        "src/prob4d/visual_bias_stream.py",
         "tests/fixtures/prob4d_joint_observation_v1.json",
         "tests/test_data_storage.py",
         "tests/test_ecosystem_release_capsule.py",
@@ -60,6 +63,7 @@ REQUIRED_PATHS = frozenset(
         "tests/test_project_identity.py",
         "tests/test_promotion_evidence.py",
         "tests/test_release_metadata.py",
+        "tests/test_visual_bias_stream.py",
     }
 )
 REPRESENTATIVE_TESTS = (
@@ -75,6 +79,7 @@ REPRESENTATIVE_TESTS = (
     "tests/test_joint_observation_contract_fixture.py",
     "tests/test_project_identity.py",
     "tests/test_release_metadata.py",
+    "tests/test_visual_bias_stream.py",
     "tests/test_github_action_pins.py",
 )
 
