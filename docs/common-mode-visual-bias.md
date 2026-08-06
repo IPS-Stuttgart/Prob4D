@@ -116,6 +116,9 @@ prob4d diagnostic common-mode-stress \
   --output outputs/common-mode-stress/report.json
 ```
 
+A passing registered decision exits with status 0. A valid failed mechanism gate
+still writes its complete report and exits with status 3.
+
 The benchmark uses three disjoint simulated panels:
 
 1. clean calibration fixes disagreement and error thresholds;
