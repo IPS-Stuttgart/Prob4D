@@ -3,7 +3,9 @@ name: Execute PR 124 provider-manifest repair
 on:
   push:
     branches: [ci/fix-pr-124]
-    paths: [.github/workflows/fix-pr-124-provider-manifest.yml]
+    paths:
+      - .github/workflows/fix-pr-124-provider-manifest.yml
+      - .github/repair-trigger-124.txt
   workflow_dispatch:
 
 permissions:
