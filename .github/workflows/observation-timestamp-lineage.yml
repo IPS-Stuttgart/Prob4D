@@ -33,7 +33,7 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' ||
       github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 30
     steps:
       - name: Check out exact reviewed revision
@@ -61,14 +61,16 @@ jobs:
           } >> "${GITHUB_ENV}"
           echo "${root}/venv/bin" >> "${GITHUB_PATH}"
 
-      - name: Install exact source and development checks
+      - name: Install exact source and quality checks
+        shell: bash
         run: |
+          set -euo pipefail
           python -m pip install \
             "pip==25.2" \
             "setuptools==80.9.0" \
             "wheel==0.45.1"
-          python -m pip install -e ".[dev]"
-          python -m pip install "numpy>=1.24,<2.3"
+          python -m pip install -r requirements/ci/quality.txt
+          python -m pip install -e . --no-deps
           python -m pip check
 
       - name: Record exact environment
