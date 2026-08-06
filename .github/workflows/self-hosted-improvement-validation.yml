@@ -5,6 +5,10 @@ on:
     branches: [ci/self-hosted-improvement-validation]
     paths:
       - ".github/workflows/self-hosted-improvement-validation.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/self-hosted-improvement-validation.yml"
   workflow_dispatch:
 
 permissions:
@@ -26,13 +30,16 @@ env:
 
 jobs:
   validate:
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64, nvidia-smi]
     timeout-minutes: 90
     steps:
       - name: Check out exact validation harness
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
           clean: true
 
