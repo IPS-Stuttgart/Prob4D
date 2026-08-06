@@ -1,0 +1,372 @@
+name: Discover legacy and archived real prediction bundles
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/discover-real-profile-bundle-v2.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: discover-real-profile-bundle-v2-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  inventory:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Linux, X64, nvidia-smi]
+    timeout-minutes: 25
+    steps:
+      - name: Check out exact reviewed head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          clean: true
+
+      - name: Discover legacy manifests, NPZ groups, and archives
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="${RUNNER_TEMP}/real-profile-bundle-inventory-v2"
+          mkdir -p "${output}"
+          python3 - "${output}/inventory-v2.json" <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import sys
+          from typing import Any
+          import zipfile
+
+          OUTPUT = Path(sys.argv[1])
+          MAX_DEPTH = 18
+          MAX_JSON_BYTES = 32 * 1024 * 1024
+          MAX_JSON_MATCHES = 2000
+          MAX_ARCHIVES = 500
+          MARKERS = (
+              '"overlap_windows"',
+              '"motioncrafter_commit"',
+              '"artifact_integrity"',
+              '"prediction_manifest_sha256"',
+              '"latent_linear_baseline"',
+              '"disjoint_baseline"',
+          )
+          PATH_TOKENS = (
+              "bundle",
+              "manifest",
+              "motion",
+              "overlap",
+              "pred",
+              "prob4d",
+              "window",
+          )
+          ARCHIVE_SUFFIXES = (".zip", ".tar", ".tar.gz", ".tgz")
+          PRUNE = {
+              ".cache",
+              ".git",
+              ".mypy_cache",
+              ".pytest_cache",
+              ".ruff_cache",
+              ".venv",
+              "__pycache__",
+              "anaconda3",
+              "env",
+              "envs",
+              "miniconda3",
+              "node_modules",
+              "site-packages",
+              "venv",
+          }
+
+          def sha256(path: Path) -> str:
+              digest = hashlib.sha256()
+              with path.open("rb") as stream:
+                  for block in iter(lambda: stream.read(1024 * 1024), b""):
+                      digest.update(block)
+              return digest.hexdigest()
+
+          def duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+              result: dict[str, Any] = {}
+              for key, value in pairs:
+                  if key in result:
+                      raise ValueError(f"duplicate key {key!r}")
+                  result[key] = value
+              return result
+
+          def reject_constant(token: str) -> None:
+              raise ValueError(f"non-finite value {token}")
+
+          roots: list[Path] = []
+          seen: set[Path] = set()
+          for candidate in (
+              Path("/mnt/lexar4tb"),
+              Path("/mnt/data"),
+              Path("/data"),
+              Path(os.environ.get("RUNNER_WORKSPACE", "")),
+              Path("/home/github-runner"),
+              Path("/tmp"),
+          ):
+              if not str(candidate) or not candidate.exists() or not candidate.is_dir():
+                  continue
+              try:
+                  resolved = candidate.resolve()
+              except OSError:
+                  continue
+              if resolved in seen:
+                  continue
+              seen.add(resolved)
+              roots.append(resolved)
+
+          manifest_candidates: list[dict[str, Any]] = []
+          npz_directories: dict[str, dict[str, Any]] = {}
+          archive_candidates: list[dict[str, Any]] = []
+          scanned_files = 0
+          json_files_considered = 0
+          npz_files_considered = 0
+
+          for root in roots:
+              stop_root = False
+              for current, directories, files in os.walk(root, followlinks=False):
+                  current_path = Path(current)
+                  try:
+                      depth = len(current_path.relative_to(root).parts)
+                  except ValueError:
+                      directories[:] = []
+                      continue
+                  directories[:] = sorted(
+                      name
+                      for name in directories
+                      if name not in PRUNE
+                      and not (current_path / name).is_symlink()
+                      and depth < MAX_DEPTH
+                  )
+                  for name in sorted(files):
+                      scanned_files += 1
+                      path = current_path / name
+                      lowered = str(path).lower()
+                      try:
+                          stat = path.stat()
+                      except OSError:
+                          continue
+                      if path.is_symlink() or not path.is_file():
+                          continue
+
+                      if path.suffix.lower() == ".json" and 0 < stat.st_size <= MAX_JSON_BYTES:
+                          if not any(token in lowered for token in PATH_TOKENS):
+                              continue
+                          json_files_considered += 1
+                          try:
+                              with path.open("r", encoding="utf-8") as stream:
+                                  prefix = stream.read(min(stat.st_size, 512 * 1024))
+                          except (OSError, UnicodeError):
+                              continue
+                          matched = [marker for marker in MARKERS if marker in prefix]
+                          if not matched:
+                              continue
+                          record: dict[str, Any] = {
+                              "path": str(path),
+                              "root": str(root),
+                              "bytes": stat.st_size,
+                              "matched_markers": matched,
+                              "dense_payloads_opened": False,
+                              "truth_or_target_opened": False,
+                          }
+                          try:
+                              payload = json.loads(
+                                  path.read_text(encoding="utf-8"),
+                                  object_pairs_hook=duplicate_keys,
+                                  parse_constant=reject_constant,
+                              )
+                              record["sha256"] = sha256(path)
+                              record["top_level_keys"] = (
+                                  sorted(payload) if isinstance(payload, dict) else []
+                              )
+                              if isinstance(payload, dict):
+                                  windows = payload.get("overlap_windows")
+                                  record["overlap_window_count"] = (
+                                      len(windows) if isinstance(windows, list) else None
+                                  )
+                                  record["motioncrafter_commit"] = payload.get(
+                                      "motioncrafter_commit"
+                                  )
+                                  integrity = payload.get("artifact_integrity")
+                                  record["integrity_bound"] = isinstance(integrity, dict)
+                          except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
+                              record["parse_error"] = type(error).__name__
+                          manifest_candidates.append(record)
+                          if len(manifest_candidates) >= MAX_JSON_MATCHES:
+                              stop_root = True
+                              break
+
+                      if path.suffix.lower() == ".npz":
+                          npz_files_considered += 1
+                          key = str(current_path)
+                          group = npz_directories.setdefault(
+                              key,
+                              {
+                                  "directory": key,
+                                  "root": str(root),
+                                  "file_count": 0,
+                                  "bytes": 0,
+                                  "example_names": [],
+                                  "token_name_count": 0,
+                              },
+                          )
+                          group["file_count"] += 1
+                          group["bytes"] += stat.st_size
+                          if len(group["example_names"]) < 20:
+                              group["example_names"].append(name)
+                          if any(token in name.lower() for token in PATH_TOKENS):
+                              group["token_name_count"] += 1
+
+                      if (
+                          len(archive_candidates) < MAX_ARCHIVES
+                          and any(lowered.endswith(suffix) for suffix in ARCHIVE_SUFFIXES)
+                          and any(token in lowered for token in PATH_TOKENS)
+                      ):
+                          archive: dict[str, Any] = {
+                              "path": str(path),
+                              "root": str(root),
+                              "bytes": stat.st_size,
+                              "central_directory_opened": False,
+                              "payload_members_opened": False,
+                          }
+                          if lowered.endswith(".zip"):
+                              try:
+                                  with zipfile.ZipFile(path) as bundle:
+                                      names = bundle.namelist()
+                                  manifest_names = [
+                                      value
+                                      for value in names
+                                      if value.lower().endswith(
+                                          ("predictions.json", "prediction_manifest.json")
+                                      )
+                                  ]
+                                  npz_names = [
+                                      value for value in names if value.lower().endswith(".npz")
+                                  ]
+                                  archive.update(
+                                      {
+                                          "central_directory_opened": True,
+                                          "member_count": len(names),
+                                          "manifest_members": manifest_names[:20],
+                                          "npz_member_count": len(npz_names),
+                                          "example_npz_members": npz_names[:20],
+                                      }
+                                  )
+                              except (OSError, zipfile.BadZipFile, RuntimeError) as error:
+                                  archive["central_directory_error"] = type(error).__name__
+                          archive_candidates.append(archive)
+                  if stop_root:
+                      break
+              if len(manifest_candidates) >= MAX_JSON_MATCHES:
+                  break
+
+          grouped = [
+              value
+              for value in npz_directories.values()
+              if int(value["file_count"]) >= 3
+              and (
+                  int(value["token_name_count"]) >= 1
+                  or any(token in value["directory"].lower() for token in PATH_TOKENS)
+              )
+          ]
+          grouped.sort(
+              key=lambda value: (
+                  int(value["token_name_count"]),
+                  int(value["file_count"]),
+                  int(value["bytes"]),
+              ),
+              reverse=True,
+          )
+          manifest_candidates.sort(
+              key=lambda value: (
+                  value.get("overlap_window_count") or 0,
+                  bool(value.get("integrity_bound")),
+                  int(value.get("bytes", 0)),
+              ),
+              reverse=True,
+          )
+          archive_candidates.sort(
+              key=lambda value: (
+                  len(value.get("manifest_members", [])),
+                  int(value.get("npz_member_count", 0)),
+                  int(value.get("bytes", 0)),
+              ),
+              reverse=True,
+          )
+
+          report = {
+              "schema": "prob4d.real-profile-bundle-inventory",
+              "version": 2,
+              "repository": os.environ.get("GITHUB_REPOSITORY"),
+              "source_revision": os.environ.get("GITHUB_SHA"),
+              "run_id": os.environ.get("GITHUB_RUN_ID"),
+              "runner_name": os.environ.get("RUNNER_NAME"),
+              "roots": [str(value) for value in roots],
+              "scanned_file_entries": scanned_files,
+              "json_files_considered": json_files_considered,
+              "npz_files_considered": npz_files_considered,
+              "manifest_candidate_count": len(manifest_candidates),
+              "npz_directory_candidate_count": len(grouped),
+              "archive_candidate_count": len(archive_candidates),
+              "manifest_candidates": manifest_candidates[:200],
+              "npz_directory_candidates": grouped[:200],
+              "archive_candidates": archive_candidates[:200],
+              "information_boundary": {
+                  "candidate_json_opened": True,
+                  "archive_central_directories_opened": True,
+                  "archive_payload_members_opened": False,
+                  "dense_npz_payloads_opened": False,
+                  "truth_or_target_outcomes_opened": False,
+              },
+              "claim_boundary": (
+                  "Read-only runner-local layout discovery. This does not establish memory, "
+                  "accuracy, uncertainty, physical-query, or intervention performance."
+              ),
+          }
+          OUTPUT.write_text(
+              json.dumps(report, indent=2, sort_keys=True, allow_nan=False) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          (
+            cd "${output}"
+            sha256sum inventory-v2.json > SHA256SUMS
+          )
+          python3 - "${output}/inventory-v2.json" <<'PY'
+          import json
+          from pathlib import Path
+          import sys
+
+          report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          print(
+              "manifests=", report["manifest_candidate_count"],
+              "npz_dirs=", report["npz_directory_candidate_count"],
+              "archives=", report["archive_candidate_count"],
+          )
+          for value in report["manifest_candidates"][:10]:
+              print("MANIFEST", value.get("overlap_window_count"), value["path"])
+          for value in report["npz_directory_candidates"][:10]:
+              print("NPZDIR", value["file_count"], value["bytes"], value["directory"])
+          for value in report["archive_candidates"][:10]:
+              print(
+                  "ARCHIVE",
+                  len(value.get("manifest_members", [])),
+                  value.get("npz_member_count"),
+                  value["path"],
+              )
+          PY
+
+      - name: Upload compact layout evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: real-profile-bundle-inventory-v2
+          path: ${{ runner.temp }}/real-profile-bundle-inventory-v2
+          if-no-files-found: error
+          retention-days: 14
