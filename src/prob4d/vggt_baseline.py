@@ -3,17 +3,29 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
+import os
 import subprocess
 import sys
 import tempfile
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import numpy as np
+
+from .vggt_integrity import (
+    VGGT_REPRESENTATIONS,
+    build_run_record,
+    build_sample_record,
+    checkpoint_identity,
+    describe_prediction_archive,
+    file_sha256,
+    relative_member,
+    save_vggt_run_metadata,
+)
 
 
 @dataclass(frozen=True)
@@ -111,17 +123,12 @@ def git_commit(repository: Path) -> str:
     ).stdout.strip()
 
 
-def file_sha256(path: Path) -> str:
-    """Return a reproducibility checksum for a local checkpoint file."""
-
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def load_vggt(vggt_root: Path, checkpoint: str, device: str) -> tuple[Any, Any, Any, Any]:
+def load_vggt(
+    vggt_root: Path,
+    checkpoint: str,
+    checkpoint_revision: str | None,
+    device: str,
+) -> tuple[Any, Any, Any, Any]:
     """Load official VGGT model and conversion utilities lazily."""
 
     import torch
@@ -132,12 +139,21 @@ def load_vggt(vggt_root: Path, checkpoint: str, device: str) -> tuple[Any, Any, 
     from vggt.utils.load_fn import load_and_preprocess_images
     from vggt.utils.pose_enc import pose_encoding_to_extri_intri
 
-    if Path(checkpoint).is_file():
+    checkpoint_path = Path(checkpoint)
+    if checkpoint_path.is_file():
+        if checkpoint_revision is not None:
+            raise ValueError("--checkpoint-revision is not permitted for a local checkpoint file")
         model = VGGT()
-        state = torch.load(checkpoint, map_location="cpu", weights_only=True)
+        state = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
         model.load_state_dict(state)
     else:
-        model = VGGT.from_pretrained(checkpoint)
+        if checkpoint_revision is None:
+            model = VGGT.from_pretrained(checkpoint)
+        else:
+            model = VGGT.from_pretrained(
+                checkpoint,
+                revision=checkpoint_revision,
+            )
     model.track_head = None
     model.eval().to(device)
     return (
@@ -172,7 +188,11 @@ def infer_sample(
     )
     with (
         torch.inference_mode(),
-        torch.amp.autocast(device_type="cuda", dtype=dtype, enabled=device.startswith("cuda")),
+        torch.amp.autocast(
+            device_type="cuda",
+            dtype=dtype,
+            enabled=device.startswith("cuda"),
+        ),
     ):
         predictions = model(images)
 
@@ -197,79 +217,196 @@ def prediction_path(output_root: Path, sample: Sample, representation: str) -> P
     return output_root / representation / sample.video_path.with_suffix(".npz")
 
 
-def parse_args() -> argparse.Namespace:
+def _archives_equal(first: Path, second: Path) -> bool:
+    expected_fields = {"point_map", "camera_extrinsics", "camera_intrinsics"}
+    try:
+        with np.load(first, allow_pickle=False) as first_archive:
+            with np.load(second, allow_pickle=False) as second_archive:
+                if set(first_archive.files) != expected_fields:
+                    return False
+                if set(second_archive.files) != expected_fields:
+                    return False
+                return all(
+                    np.array_equal(first_archive[name], second_archive[name])
+                    for name in sorted(expected_fields)
+                )
+    except (OSError, ValueError):
+        return False
+
+
+def write_prediction_archive(
+    path: Path,
+    *,
+    point_map: np.ndarray,
+    camera_extrinsics: np.ndarray,
+    camera_intrinsics: np.ndarray,
+) -> None:
+    """Write one prediction archive atomically without replacing different data."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{path.stem}.",
+        suffix=".npz",
+        dir=path.parent,
+    )
+    os.close(descriptor)
+    temporary = Path(temporary_name)
+    try:
+        np.savez_compressed(
+            temporary,
+            point_map=np.asarray(point_map, dtype=np.float16),
+            camera_extrinsics=np.asarray(camera_extrinsics, dtype=np.float32),
+            camera_intrinsics=np.asarray(camera_intrinsics, dtype=np.float32),
+        )
+        if path.exists():
+            if not _archives_equal(path, temporary):
+                raise ValueError(f"refusing to replace different VGGT prediction {path}")
+            return
+        os.replace(temporary, path)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+
+
+def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dataset-root", type=Path, required=True)
     parser.add_argument("--output-root", type=Path, required=True)
     parser.add_argument("--vggt-root", type=Path, required=True)
     parser.add_argument("--checkpoint", default="facebook/VGGT-1B")
+    parser.add_argument(
+        "--checkpoint-revision",
+        help="exact remote checkpoint revision; required unless --checkpoint is a file",
+    )
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--preprocess-mode", choices=("crop", "pad"), default="crop")
     parser.add_argument("--partition-index", type=int, default=0)
     parser.add_argument("--partition-count", type=int, default=1)
     parser.add_argument("--resume", action="store_true")
-    return parser.parse_args()
+    return parser.parse_args(list(argv) if argv is not None else None)
 
 
-def main() -> int:
-    args = parse_args()
+def main(argv: Sequence[str] | None = None) -> int:
+    args = parse_args(argv)
     samples = select_partition(
         read_samples(args.dataset_root), args.partition_index, args.partition_count
     )
-    representations = ("world_points", "depth_unprojected")
+    if not samples:
+        raise ValueError("selected VGGT partition contains no samples")
+    checkpoint_path = Path(args.checkpoint)
+    checkpoint_sha256 = file_sha256(checkpoint_path) if checkpoint_path.is_file() else None
+    if checkpoint_sha256 is not None and args.checkpoint_revision is not None:
+        raise ValueError("--checkpoint-revision is not permitted for a local checkpoint file")
+    integrity_bound = checkpoint_sha256 is not None or args.checkpoint_revision is not None
+    if integrity_bound:
+        checkpoint_identity(
+            checkpoint=args.checkpoint,
+            checkpoint_sha256=checkpoint_sha256,
+            checkpoint_revision=args.checkpoint_revision,
+        )
+    else:
+        print(
+            "warning: remote checkpoint is unpinned; outputs remain a legacy "
+            "exploratory baseline and cannot be imported provider-neutrally",
+            file=sys.stderr,
+            flush=True,
+        )
     model, image_loader, pose_converter, unprojector = load_vggt(
-        args.vggt_root, args.checkpoint, args.device
+        args.vggt_root,
+        args.checkpoint,
+        args.checkpoint_revision,
+        args.device,
     )
+    vggt_revision = git_commit(args.vggt_root)
+    loader_sha256 = file_sha256(Path(__file__).resolve())
     started = time.time()
-    completed: list[str] = []
+    sample_records: list[dict[str, Any]] = []
     for sample_index, sample in enumerate(samples, start=1):
         output_paths = {
-            name: prediction_path(args.output_root, sample, name) for name in representations
+            name: prediction_path(args.output_root, sample, name) for name in VGGT_REPRESENTATIONS
         }
         if args.resume and all(path.exists() for path in output_paths.values()):
-            print(f"[{sample_index}/{len(samples)}] skip {sample.video_path}", flush=True)
-            continue
-        print(f"[{sample_index}/{len(samples)}] infer {sample.video_path}", flush=True)
-        with tempfile.TemporaryDirectory(prefix="prob4d-vggt-") as temporary:
-            frame_paths = extract_video_frames(
-                args.dataset_root / sample.video_path, Path(temporary)
+            print(f"[{sample_index}/{len(samples)}] verify {sample.video_path}", flush=True)
+        else:
+            print(f"[{sample_index}/{len(samples)}] infer {sample.video_path}", flush=True)
+            with tempfile.TemporaryDirectory(prefix="prob4d-vggt-") as temporary:
+                frame_paths = extract_video_frames(
+                    args.dataset_root / sample.video_path, Path(temporary)
+                )
+                arrays = infer_sample(
+                    model=model,
+                    load_and_preprocess_images=image_loader,
+                    pose_encoding_to_extri_intri=pose_converter,
+                    unproject_depth_map_to_point_map=unprojector,
+                    frame_paths=frame_paths,
+                    device=args.device,
+                    preprocess_mode=args.preprocess_mode,
+                )
+            for representation, output_path in output_paths.items():
+                write_prediction_archive(
+                    output_path,
+                    point_map=arrays[representation],
+                    camera_extrinsics=arrays["camera_extrinsics"],
+                    camera_intrinsics=arrays["camera_intrinsics"],
+                )
+        members = [
+            describe_prediction_archive(
+                output_paths[representation],
+                representation=representation,
+                relative_path=relative_member(
+                    output_paths[representation],
+                    root=args.output_root,
+                    name=f"VGGT {representation} prediction path",
+                ),
             )
-            arrays = infer_sample(
-                model=model,
-                load_and_preprocess_images=image_loader,
-                pose_encoding_to_extri_intri=pose_converter,
-                unproject_depth_map_to_point_map=unprojector,
-                frame_paths=frame_paths,
-                device=args.device,
-                preprocess_mode=args.preprocess_mode,
+            for representation in VGGT_REPRESENTATIONS
+        ]
+        sample_records.append(
+            build_sample_record(
+                sample_id=sample.video_path.as_posix(),
+                input_video_path=args.dataset_root / sample.video_path,
+                representations=members,
             )
-        for representation, output_path in output_paths.items():
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            np.savez_compressed(
-                output_path,
-                point_map=arrays[representation].astype(np.float16),
-                camera_extrinsics=arrays["camera_extrinsics"].astype(np.float32),
-                camera_intrinsics=arrays["camera_intrinsics"].astype(np.float32),
-            )
-        completed.append(str(sample.video_path))
+        )
 
-    checkpoint_path = Path(args.checkpoint)
-    metadata = {
-        "method": "VGGT-1B",
-        "official_repository": "https://github.com/facebookresearch/vggt",
-        "vggt_commit": git_commit(args.vggt_root),
-        "checkpoint": args.checkpoint,
-        "checkpoint_sha256": (file_sha256(checkpoint_path) if checkpoint_path.is_file() else None),
-        "dataset_root": str(args.dataset_root.resolve()),
-        "preprocess_mode": args.preprocess_mode,
-        "partition_index": args.partition_index,
-        "partition_count": args.partition_count,
-        "completed": completed,
-        "elapsed_seconds": time.time() - started,
-    }
+    elapsed = time.time() - started
     args.output_root.mkdir(parents=True, exist_ok=True)
     metadata_path = args.output_root / f"run-part-{args.partition_index:02d}.json"
-    metadata_path.write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
+    if integrity_bound:
+        metadata = build_run_record(
+            vggt_commit=vggt_revision,
+            loader_module_sha256=loader_sha256,
+            checkpoint=args.checkpoint,
+            checkpoint_sha256=checkpoint_sha256,
+            checkpoint_revision=args.checkpoint_revision,
+            preprocess_mode=args.preprocess_mode,
+            partition_index=args.partition_index,
+            partition_count=args.partition_count,
+            samples=sample_records,
+            dataset_root=args.dataset_root,
+            output_root=args.output_root,
+            elapsed_seconds=elapsed,
+        )
+        save_vggt_run_metadata(metadata_path, metadata)
+    else:
+        legacy_metadata = {
+            "method": "VGGT-1B",
+            "official_repository": "https://github.com/facebookresearch/vggt",
+            "vggt_commit": vggt_revision,
+            "checkpoint": args.checkpoint,
+            "checkpoint_sha256": None,
+            "dataset_root": str(args.dataset_root.resolve()),
+            "preprocess_mode": args.preprocess_mode,
+            "partition_index": args.partition_index,
+            "partition_count": args.partition_count,
+            "completed": [sample.video_path.as_posix() for sample in samples],
+            "elapsed_seconds": elapsed,
+            "integrity_bound": False,
+        }
+        metadata_path.write_text(
+            json.dumps(legacy_metadata, indent=2) + "\n",
+            encoding="utf-8",
+        )
     print(metadata_path)
     return 0
 
