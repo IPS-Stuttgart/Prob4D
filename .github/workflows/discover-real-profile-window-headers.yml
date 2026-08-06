@@ -1,0 +1,458 @@
+name: Discover real prediction windows from array headers
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/discover-real-profile-window-headers.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: discover-real-profile-window-headers-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  headers:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Linux, X64, nvidia-smi]
+    timeout-minutes: 30
+    steps:
+      - name: Check out exact reviewed head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          clean: true
+
+      - name: Inspect only archive members, NPY headers, and frame IDs
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="${RUNNER_TEMP}/real-profile-window-header-inventory"
+          mkdir -p "${output}"
+          python3 - "${output}/window-header-inventory.json" <<'PY'
+          from __future__ import annotations
+
+          import ast
+          from collections import defaultdict
+          import hashlib
+          import json
+          import math
+          import os
+          from pathlib import Path
+          import re
+          import struct
+          import sys
+          from typing import Any, BinaryIO
+          import zipfile
+
+          OUTPUT = Path(sys.argv[1])
+          REQUIRED = {"frame_indices.npy", "point_map.npy", "valid_mask.npy"}
+          OPTIONAL = {"scene_flow.npy", "deform_mask.npy", "ray_directions.npy"}
+          PRUNE = {
+              ".cache",
+              ".git",
+              ".mypy_cache",
+              ".pytest_cache",
+              ".ruff_cache",
+              ".venv",
+              "__pycache__",
+              "anaconda3",
+              "env",
+              "envs",
+              "miniconda3",
+              "node_modules",
+              "site-packages",
+              "venv",
+          }
+          MAX_DEPTH = 20
+          MAX_ARRAY_ARCHIVES = 40000
+          MAX_FRAME_BYTES = 128 * 1024
+          DESCR = re.compile(r"^([<>=|])([iu])(1|2|4|8)$")
+
+          def sha256(path: Path) -> str:
+              digest = hashlib.sha256()
+              with path.open("rb") as stream:
+                  for block in iter(lambda: stream.read(1024 * 1024), b""):
+                      digest.update(block)
+              return digest.hexdigest()
+
+          def read_header(stream: BinaryIO) -> tuple[tuple[int, ...], str, bool]:
+              if stream.read(6) != b"\x93NUMPY":
+                  raise ValueError("not an NPY member")
+              version = tuple(stream.read(2))
+              if version == (1, 0):
+                  length = struct.unpack("<H", stream.read(2))[0]
+                  encoding = "latin1"
+              elif version in {(2, 0), (3, 0)}:
+                  length = struct.unpack("<I", stream.read(4))[0]
+                  encoding = "utf8" if version == (3, 0) else "latin1"
+              else:
+                  raise ValueError(f"unsupported NPY version {version}")
+              if length <= 0 or length > 1024 * 1024:
+                  raise ValueError("implausible NPY header length")
+              header = ast.literal_eval(stream.read(length).decode(encoding))
+              if not isinstance(header, dict):
+                  raise ValueError("NPY header is not a dictionary")
+              shape = header.get("shape")
+              descr = header.get("descr")
+              fortran = header.get("fortran_order")
+              if (
+                  not isinstance(shape, tuple)
+                  or any(isinstance(value, bool) or not isinstance(value, int) or value < 0 for value in shape)
+                  or not isinstance(descr, str)
+                  or not isinstance(fortran, bool)
+              ):
+                  raise ValueError("invalid NPY header fields")
+              return shape, descr, fortran
+
+          def read_frame_ids(stream: BinaryIO, *, shape: tuple[int, ...], descr: str) -> list[int]:
+              if len(shape) != 1 or shape[0] < 1 or shape[0] > 16384:
+                  raise ValueError("frame_indices shape is invalid")
+              match = DESCR.fullmatch(descr)
+              if match is None:
+                  raise ValueError("frame_indices dtype is not a supported integer")
+              byte_order, kind, width_text = match.groups()
+              width = int(width_text)
+              expected = shape[0] * width
+              if expected > MAX_FRAME_BYTES:
+                  raise ValueError("frame_indices payload exceeds metadata limit")
+              payload = stream.read(expected)
+              if len(payload) != expected or stream.read(1):
+                  raise ValueError("frame_indices payload length changed")
+              prefix = byte_order
+              if prefix == "|":
+                  prefix = "="
+              formats = {
+                  ("i", 1): "b",
+                  ("i", 2): "h",
+                  ("i", 4): "i",
+                  ("i", 8): "q",
+                  ("u", 1): "B",
+                  ("u", 2): "H",
+                  ("u", 4): "I",
+                  ("u", 8): "Q",
+              }
+              values = struct.unpack(prefix + formats[(kind, width)] * shape[0], payload)
+              result = [int(value) for value in values]
+              if any(value < 0 for value in result) or any(
+                  right <= left for left, right in zip(result, result[1:])
+              ):
+                  raise ValueError("frame_indices are not nonnegative and strictly increasing")
+              return result
+
+          def header_from_zip(bundle: zipfile.ZipFile, name: str) -> tuple[tuple[int, ...], str, bool]:
+              with bundle.open(name) as stream:
+                  return read_header(stream)
+
+          def window_from_npz(path: Path, root: Path) -> dict[str, Any] | None:
+              try:
+                  stat = path.stat()
+                  with zipfile.ZipFile(path) as bundle:
+                      names = set(bundle.namelist())
+                      if not REQUIRED.issubset(names):
+                          return None
+                      unknown_nested = [name for name in names if "/" in name]
+                      if unknown_nested:
+                          return None
+                      point_shape, point_dtype, point_fortran = header_from_zip(bundle, "point_map.npy")
+                      mask_shape, mask_dtype, mask_fortran = header_from_zip(bundle, "valid_mask.npy")
+                      frame_info = bundle.getinfo("frame_indices.npy")
+                      if frame_info.file_size > MAX_FRAME_BYTES + 1024 * 1024:
+                          return None
+                      with bundle.open("frame_indices.npy") as stream:
+                          frame_shape, frame_dtype, frame_fortran = read_header(stream)
+                          frame_ids = read_frame_ids(stream, shape=frame_shape, descr=frame_dtype)
+                      optional_headers: dict[str, Any] = {}
+                      for name in sorted(OPTIONAL & names):
+                          shape, dtype, fortran = header_from_zip(bundle, name)
+                          optional_headers[name.removesuffix(".npy")] = {
+                              "shape": list(shape),
+                              "dtype": dtype,
+                              "fortran_order": fortran,
+                          }
+              except (OSError, ValueError, KeyError, zipfile.BadZipFile, RuntimeError, struct.error):
+                  return None
+              if (
+                  len(point_shape) != 4
+                  or point_shape[-1] != 3
+                  or tuple(point_shape[:-1]) != tuple(mask_shape)
+                  or point_shape[0] != len(frame_ids)
+                  or len(mask_shape) != 3
+                  or point_fortran
+                  or mask_fortran
+                  or frame_fortran
+              ):
+                  return None
+              schema = "legacy"
+              try:
+                  with zipfile.ZipFile(path) as bundle:
+                      if {"schema_name.npy", "schema_version.npy", "dense_storage_dtype.npy"}.issubset(
+                          bundle.namelist()
+                      ):
+                          schema = "versioned"
+              except (OSError, zipfile.BadZipFile):
+                  pass
+              return {
+                  "path": str(path),
+                  "root": str(root),
+                  "sha256": sha256(path),
+                  "bytes": stat.st_size,
+                  "schema_class": schema,
+                  "frame_count": len(frame_ids),
+                  "frame_start": frame_ids[0],
+                  "frame_stop_exclusive": frame_ids[-1] + 1,
+                  "frame_stride_set": sorted(
+                      set(right - left for left, right in zip(frame_ids, frame_ids[1:]))
+                  ),
+                  "point_shape": list(point_shape),
+                  "point_dtype": point_dtype,
+                  "valid_mask_dtype": mask_dtype,
+                  "optional_headers": optional_headers,
+                  "archive_member_names": sorted(names),
+                  "dense_geometry_payload_opened": False,
+                  "frame_indices_metadata_opened": True,
+              }
+
+          def window_from_npy_directory(path: Path, root: Path) -> dict[str, Any] | None:
+              required = {name.removesuffix(".npy") for name in REQUIRED}
+              names = {child.name for child in path.iterdir() if child.is_file() and not child.is_symlink()}
+              if not REQUIRED.issubset(names):
+                  return None
+              headers: dict[str, tuple[tuple[int, ...], str, bool]] = {}
+              try:
+                  for name in REQUIRED | (OPTIONAL & names):
+                      with (path / name).open("rb") as stream:
+                          headers[name] = read_header(stream)
+                  with (path / "frame_indices.npy").open("rb") as stream:
+                      frame_shape, frame_dtype, frame_fortran = read_header(stream)
+                      frame_ids = read_frame_ids(stream, shape=frame_shape, descr=frame_dtype)
+              except (OSError, ValueError, struct.error):
+                  return None
+              point_shape, point_dtype, point_fortran = headers["point_map.npy"]
+              mask_shape, mask_dtype, mask_fortran = headers["valid_mask.npy"]
+              if (
+                  len(point_shape) != 4
+                  or point_shape[-1] != 3
+                  or tuple(point_shape[:-1]) != tuple(mask_shape)
+                  or point_shape[0] != len(frame_ids)
+                  or point_fortran
+                  or mask_fortran
+                  or frame_fortran
+              ):
+                  return None
+              member_paths = sorted(path / name for name in names if name.endswith(".npy"))
+              digest = hashlib.sha256()
+              total_bytes = 0
+              for member in member_paths:
+                  member_stat = member.stat()
+                  total_bytes += member_stat.st_size
+                  digest.update(member.name.encode("utf-8") + b"\0")
+                  digest.update(bytes.fromhex(sha256(member)))
+              return {
+                  "path": str(path),
+                  "root": str(root),
+                  "sha256": digest.hexdigest(),
+                  "bytes": total_bytes,
+                  "schema_class": "mmap-window-store",
+                  "frame_count": len(frame_ids),
+                  "frame_start": frame_ids[0],
+                  "frame_stop_exclusive": frame_ids[-1] + 1,
+                  "frame_stride_set": sorted(
+                      set(right - left for left, right in zip(frame_ids, frame_ids[1:]))
+                  ),
+                  "point_shape": list(point_shape),
+                  "point_dtype": point_dtype,
+                  "valid_mask_dtype": mask_dtype,
+                  "archive_member_names": sorted(names),
+                  "dense_geometry_payload_opened": False,
+                  "frame_indices_metadata_opened": True,
+              }
+
+          roots: list[Path] = []
+          seen: set[Path] = set()
+          for candidate in (
+              Path("/mnt/lexar4tb"),
+              Path("/mnt/data"),
+              Path("/data"),
+              Path("/home/github-runner"),
+          ):
+              if not candidate.exists() or not candidate.is_dir():
+                  continue
+              try:
+                  resolved = candidate.resolve()
+              except OSError:
+                  continue
+              if resolved not in seen:
+                  seen.add(resolved)
+                  roots.append(resolved)
+
+          windows: list[dict[str, Any]] = []
+          scanned_npz = 0
+          scanned_directories = 0
+          for root in roots:
+              stop = False
+              for current, directories, files in os.walk(root, followlinks=False):
+                  current_path = Path(current)
+                  scanned_directories += 1
+                  try:
+                      depth = len(current_path.relative_to(root).parts)
+                  except ValueError:
+                      directories[:] = []
+                      continue
+                  directories[:] = sorted(
+                      name
+                      for name in directories
+                      if name not in PRUNE
+                      and not (current_path / name).is_symlink()
+                      and depth < MAX_DEPTH
+                  )
+                  file_set = set(files)
+                  if REQUIRED.issubset(file_set):
+                      candidate = window_from_npy_directory(current_path, root)
+                      if candidate is not None:
+                          windows.append(candidate)
+                  for name in sorted(files):
+                      if not name.lower().endswith(".npz"):
+                          continue
+                      scanned_npz += 1
+                      candidate = window_from_npz(current_path / name, root)
+                      if candidate is not None:
+                          windows.append(candidate)
+                      if scanned_npz >= MAX_ARRAY_ARCHIVES:
+                          stop = True
+                          break
+                  if stop:
+                      break
+              if stop:
+                  break
+
+          groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
+          for window in windows:
+              path = Path(window["path"])
+              group = path.parent if path.is_file() else path.parent
+              groups[str(group)].append(window)
+
+          group_records: list[dict[str, Any]] = []
+          for group_path, members in groups.items():
+              if len(members) < 2:
+                  continue
+              overlap_pairs = 0
+              intervals = [
+                  (int(member["frame_start"]), int(member["frame_stop_exclusive"]))
+                  for member in members
+              ]
+              for index, (start, stop) in enumerate(intervals):
+                  for other_start, other_stop in intervals[:index]:
+                      if max(start, other_start) < min(stop, other_stop):
+                          overlap_pairs += 1
+              shapes = {tuple(member["point_shape"][1:]) for member in members}
+              dtypes = {str(member["point_dtype"]) for member in members}
+              looks_synthetic = any(
+                  token in group_path.lower()
+                  for token in ("pytest", "synthetic", "fixture", "/tmp/", "/tests/")
+              )
+              complete = len(members) >= 3 and overlap_pairs >= 2 and len(shapes) == 1
+              score = (
+                  (10000 if complete and not looks_synthetic else 0)
+                  + 100 * len(members)
+                  + 25 * overlap_pairs
+                  + int(math.log2(max(sum(int(member["bytes"]) for member in members), 1)))
+              )
+              group_records.append(
+                  {
+                      "group_path": group_path,
+                      "complete_multi_overlap_candidate": complete,
+                      "looks_synthetic": looks_synthetic,
+                      "selection_score": score,
+                      "window_count": len(members),
+                      "overlap_pair_count": overlap_pairs,
+                      "point_spatial_shapes": [list(value) for value in sorted(shapes)],
+                      "point_dtypes": sorted(dtypes),
+                      "total_bytes": sum(int(member["bytes"]) for member in members),
+                      "windows": sorted(members, key=lambda value: (value["frame_start"], value["path"])),
+                  }
+              )
+          group_records.sort(
+              key=lambda value: (
+                  bool(value["complete_multi_overlap_candidate"] and not value["looks_synthetic"]),
+                  int(value["selection_score"]),
+                  int(value["total_bytes"]),
+              ),
+              reverse=True,
+          )
+
+          report = {
+              "schema": "prob4d.real-prediction-window-header-inventory",
+              "version": 1,
+              "repository": os.environ.get("GITHUB_REPOSITORY"),
+              "source_revision": os.environ.get("GITHUB_SHA"),
+              "run_id": os.environ.get("GITHUB_RUN_ID"),
+              "runner_name": os.environ.get("RUNNER_NAME"),
+              "roots": [str(value) for value in roots],
+              "scanned_directories": scanned_directories,
+              "scanned_npz_archives": scanned_npz,
+              "prediction_window_count": len(windows),
+              "window_group_count": len(group_records),
+              "complete_nonsynthetic_group_count": sum(
+                  bool(value["complete_multi_overlap_candidate"] and not value["looks_synthetic"])
+                  for value in group_records
+              ),
+              "window_groups": group_records,
+              "ungrouped_windows": [
+                  value
+                  for value in windows
+                  if len(groups[str(Path(value["path"]).parent)]) < 2
+              ][:500],
+              "information_boundary": {
+                  "npz_central_directories_opened": True,
+                  "npy_headers_opened": True,
+                  "frame_indices_metadata_opened": True,
+                  "dense_geometry_or_flow_payloads_opened": False,
+                  "truth_or_target_outcomes_opened": False,
+              },
+              "claim_boundary": (
+                  "Read-only source-layout evidence only. Header classification is not a memory "
+                  "profile, provider result, physical-query result, or intervention result."
+              ),
+          }
+          OUTPUT.write_text(
+              json.dumps(report, indent=2, sort_keys=True, allow_nan=False) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          (
+            cd "${output}"
+            sha256sum window-header-inventory.json > SHA256SUMS
+          )
+          python3 - "${output}/window-header-inventory.json" <<'PY'
+          import json
+          from pathlib import Path
+          import sys
+
+          report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          print(
+              "windows=", report["prediction_window_count"],
+              "groups=", report["window_group_count"],
+              "complete_real=", report["complete_nonsynthetic_group_count"],
+          )
+          for group in report["window_groups"][:15]:
+              print(
+                  group["complete_multi_overlap_candidate"],
+                  group["looks_synthetic"],
+                  group["window_count"],
+                  group["overlap_pair_count"],
+                  group["total_bytes"],
+                  group["group_path"],
+              )
+          PY
+
+      - name: Upload header-only discovery evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: real-profile-window-header-inventory
+          path: ${{ runner.temp }}/real-profile-window-header-inventory
+          if-no-files-found: error
+          retention-days: 14
