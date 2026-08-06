@@ -1,0 +1,121 @@
+name: Apply immutable provider-boundary patch
+
+on:
+  push:
+    branches:
+      - agent/immutable-provider-boundary-v1
+    paths:
+      - .github/workflows/apply-immutable-provider-boundary.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-immutable-provider-boundary-v1
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the staging branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: agent/immutable-provider-boundary-v1
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.12"
+
+      - name: Reconstruct and verify the implementation archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="${RUNNER_TEMP}/immutable-provider-boundary.tar.gz"
+          cat .github/agent-patch/patch.b64.part* | base64 --decode > "${archive}"
+          echo "4a660e7dc643bd56e0e36bb424248ab0d9ab2084c70ea1bd52204d99c7ac7ab0  ${archive}" \
+            | sha256sum --check -
+
+          cat > "${RUNNER_TEMP}/expected-paths.txt" <<'EOF'
+          .github/workflows/prediction-provider-contract.yml
+          README.md
+          docs/architecture.md
+          docs/compatibility.md
+          docs/immutable-artifacts.md
+          docs/prediction-provider.md
+          src/prob4d/__init__.py
+          src/prob4d/_heldout_promotion_diagnosis.py
+          src/prob4d/_immutable_array.py
+          src/prob4d/_immutable_json.py
+          src/prob4d/causal_stream_contract.py
+          src/prob4d/cli.py
+          src/prob4d/data.py
+          src/prob4d/prediction_provider.py
+          src/prob4d/prediction_provider_cli.py
+          src/prob4d/provider_attestation.py
+          src/prob4d/provider_v2_factor_bundle.py
+          src/prob4d/provider_v2_loading.py
+          tests/test_claim_bearing_observation.py
+          tests/test_data.py
+          tests/test_data_immutability.py
+          tests/test_immutable_array.py
+          tests/test_immutable_json.py
+          tests/test_motioncrafter_safe.py
+          tests/test_prediction_provider.py
+          tests/test_prediction_provider_cli.py
+          EOF
+          sed -i 's/^          //' "${RUNNER_TEMP}/expected-paths.txt"
+          tar -tzf "${archive}" | sort > "${RUNNER_TEMP}/actual-paths.txt"
+          sort -o "${RUNNER_TEMP}/expected-paths.txt" "${RUNNER_TEMP}/expected-paths.txt"
+          diff -u "${RUNNER_TEMP}/expected-paths.txt" "${RUNNER_TEMP}/actual-paths.txt"
+
+          python - "${RUNNER_TEMP}/actual-paths.txt" <<'PY'
+          from pathlib import PurePosixPath
+          import sys
+
+          for raw in open(sys.argv[1], encoding="utf-8"):
+              path = PurePosixPath(raw.strip())
+              if path.is_absolute() or ".." in path.parts:
+                  raise SystemExit(f"unsafe archive member: {raw.strip()}")
+          PY
+
+          tar -xzf "${archive}" -C .
+          rm -rf .github/agent-patch
+          rm -f .github/workflows/apply-immutable-provider-boundary.yml
+
+      - name: Validate the exact implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+          python -m compileall -q src tests
+          git diff --check
+
+          python -m pytest -q \
+            tests/test_immutable_array.py \
+            tests/test_immutable_json.py \
+            tests/test_data.py \
+            tests/test_data_immutability.py \
+            tests/test_prediction_provider.py \
+            tests/test_prediction_provider_cli.py \
+            tests/test_motioncrafter_safe.py \
+            tests/test_claim_bearing_observation.py \
+            tests/test_provider_attestation.py \
+            tests/test_provider_v2_factor_bundle.py
+
+      - name: Publish one reviewable implementation commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          base_sha="c15ae7d02064fa15c23ea1e819fa6599d3f03961"
+          git reset --mixed "${base_sha}"
+          git add -A
+          git diff --cached --check
+          git commit -m "Add immutable artifacts and provider-neutral prediction bundles"
+          git push --force-with-lease origin "HEAD:agent/immutable-provider-boundary-v1"
