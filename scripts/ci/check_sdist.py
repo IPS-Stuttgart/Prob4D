@@ -16,13 +16,16 @@ REQUIRED_PATHS = frozenset(
         ".github/CODEOWNERS",
         ".github/dependabot.yml",
         ".github/workflows/ecosystem-release-capsule.yml",
-        ".github/workflows/heldout-provider-promotion.yml",
         ".github/workflows/generic-provider-import.yml",
+        ".github/workflows/heldout-cohort-binding.yml",
+        ".github/workflows/heldout-provider-promotion.yml",
         ".github/workflows/observation-bias-binding.yml",
         ".github/workflows/provider-neutral-common-mode.yml",
         ".github/workflows/provider-runtime.yml",
         ".github/workflows/recursive-visual-bias.yml",
+        ".github/workflows/security-scanning.yml",
         ".github/workflows/tests.yml",
+        ".github/workflows/trusted-self-hosted-validation.yml",
         "CHANGELOG.md",
         "CITATION.cff",
         "CONTRIBUTING.md",
@@ -30,6 +33,7 @@ REQUIRED_PATHS = frozenset(
         "README.md",
         "SECURITY.md",
         "docs/ecosystem-release-capsule.md",
+        "docs/examples/deform360-heldout-provider-promotion-config.json",
         "docs/examples/heldout-provider-promotion-config.json",
         "docs/examples/material-identity-mixture-config.json",
         "docs/examples/provider-neutral-import-spec.json",
@@ -44,17 +48,22 @@ REQUIRED_PATHS = frozenset(
         "docs/provider-v2.md",
         "docs/recursive-visual-bias.md",
         "docs/repository-identity.md",
+        "docs/trusted-self-hosted-validation.md",
         "protocols/cycle-guard-conformal-v1.json",
         "protocols/cycle-guard-normalization-v1.json",
         "requirements/ci/minimum.txt",
         "scripts/ci/build_ecosystem_release_capsule.py",
         "scripts/ci/check_sdist.py",
+        "src/prob4d/_deform360_cohort_binding.py",
+        "src/prob4d/_deform360_cohort_io.py",
+        "src/prob4d/_deform360_cohort_schema.py",
         "src/prob4d/_heldout_promotion_common.py",
         "src/prob4d/_heldout_promotion_diagnosis.py",
         "src/prob4d/_heldout_promotion_evaluation.py",
         "src/prob4d/_heldout_promotion_lock.py",
         "src/prob4d/_heldout_promotion_query.py",
         "src/prob4d/_heldout_promotion_report.py",
+        "src/prob4d/deform360_cohort_binding.py",
         "src/prob4d/heldout_promotion.py",
         "src/prob4d/joint_covariance_metrics.py",
         "src/prob4d/material_identity_cli.py",
@@ -69,6 +78,7 @@ REQUIRED_PATHS = frozenset(
         "tests/fixtures/prob4d_joint_observation_v1.json",
         "tests/test_cli.py",
         "tests/test_data_storage.py",
+        "tests/test_deform360_cohort_binding.py",
         "tests/test_ecosystem_release_capsule.py",
         "tests/test_github_action_pins.py",
         "tests/test_heldout_promotion.py",
@@ -84,12 +94,15 @@ REQUIRED_PATHS = frozenset(
         "tests/test_promotion_evidence.py",
         "tests/test_provider_runtime.py",
         "tests/test_release_metadata.py",
+        "tests/test_security_scanning_workflow_policy.py",
+        "tests/test_trusted_self_hosted_validation_policy.py",
         "tests/test_visual_bias_stream.py",
     }
 )
 REPRESENTATIVE_TESTS = (
     "tests/test_sim3.py",
     "tests/test_data_storage.py",
+    "tests/test_deform360_cohort_binding.py",
     "tests/test_ecosystem_release_capsule.py",
     "tests/test_heldout_promotion.py",
     "tests/test_heldout_promotion_diagnosis.py",
@@ -103,6 +116,8 @@ REPRESENTATIVE_TESTS = (
     "tests/test_joint_observation_contract_fixture.py",
     "tests/test_project_identity.py",
     "tests/test_release_metadata.py",
+    "tests/test_security_scanning_workflow_policy.py",
+    "tests/test_trusted_self_hosted_validation_policy.py",
     "tests/test_visual_bias_stream.py",
     "tests/test_github_action_pins.py",
 )
@@ -121,7 +136,9 @@ def _validated_members(archive: Path) -> tuple[str, tuple[tarfile.TarInfo, ...]]
         if path.is_absolute() or not path.parts or ".." in path.parts:
             raise RuntimeError(f"unsafe source-distribution path: {member.name}")
         roots.add(path.parts[0])
-        if member.issym() or member.islnk() or not (member.isdir() or member.isfile()):
+        if member.issym() or member.islnk() or not (
+            member.isdir() or member.isfile()
+        ):
             raise RuntimeError(
                 "source distribution contains a non-regular member: "
                 f"{member.name}"
