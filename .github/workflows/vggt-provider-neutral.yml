@@ -1,0 +1,95 @@
+name: VGGT provider-neutral boundary
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/vggt-provider-neutral.yml"
+      - "docs/provider-neutral-predictions.md"
+      - "src/prob4d/cli.py"
+      - "src/prob4d/prediction_cli.py"
+      - "src/prob4d/vggt_baseline.py"
+      - "src/prob4d/vggt_integrity.py"
+      - "src/prob4d/vggt_provider_adapter.py"
+      - "tests/test_cli.py"
+      - "tests/test_vggt_baseline.py"
+      - "tests/test_vggt_provider_adapter.py"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vggt-provider-neutral-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    name: Integrity, causal lineage, and installed CLI
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact pull-request head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install development environment
+        run: |
+          set -euo pipefail
+          python -m pip install -e ".[dev]"
+          python -m pip check
+
+      - name: Check focused source quality
+        run: |
+          set -euo pipefail
+          files=(
+            src/prob4d/cli.py
+            src/prob4d/prediction_cli.py
+            src/prob4d/vggt_baseline.py
+            src/prob4d/vggt_integrity.py
+            src/prob4d/vggt_provider_adapter.py
+            tests/test_cli.py
+            tests/test_vggt_baseline.py
+            tests/test_vggt_provider_adapter.py
+          )
+          python -m ruff check -- "${files[@]}"
+          python -m ruff format --check --diff "${files[@]}"
+          python -m mypy \
+            src/prob4d/prediction_cli.py \
+            src/prob4d/vggt_baseline.py \
+            src/prob4d/vggt_integrity.py \
+            src/prob4d/vggt_provider_adapter.py
+
+      - name: Run focused and adjacent tests
+        run: |
+          set -euo pipefail
+          python -m pytest -q \
+            tests/test_cli.py \
+            tests/test_prediction_provider_manifest.py \
+            tests/test_vggt_baseline.py \
+            tests/test_vggt_provider_adapter.py
+          python -m compileall -q src/prob4d
+
+      - name: Build and smoke-test the installed wheel
+        run: |
+          set -euo pipefail
+          wheelhouse="$RUNNER_TEMP/vggt-provider-wheelhouse"
+          python -m build --wheel --outdir "$wheelhouse"
+          wheel="$(find "$wheelhouse" -maxdepth 1 -name '*.whl' -print -quit)"
+          test -n "$wheel"
+          python -m venv "$RUNNER_TEMP/vggt-provider-wheel-venv"
+          installed="$RUNNER_TEMP/vggt-provider-wheel-venv/bin/python"
+          "$installed" -m pip install "$wheel"
+          "$RUNNER_TEMP/vggt-provider-wheel-venv/bin/prob4d" prediction --help
+          "$RUNNER_TEMP/vggt-provider-wheel-venv/bin/prob4d" \
+            prediction import-vggt --help
+          "$installed" -m pip check

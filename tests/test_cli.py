@@ -70,7 +70,18 @@ def test_grouped_cli_routes_provider_neutral_prediction_help(capsys) -> None:
     assert exit_info.value.code == 0
     output = capsys.readouterr().out
     assert "import-motioncrafter" in output
+    assert "import-vggt" in output
     assert "validate" in output
+
+
+def test_grouped_cli_routes_vggt_import_help(capsys) -> None:
+    with pytest.raises(SystemExit) as exit_info:
+        main(["prediction", "import-vggt", "--help"])
+    assert exit_info.value.code == 0
+    output = capsys.readouterr().out
+    assert "integrity-bound VGGT sample" in output
+    assert "--sample-id" in output
+    assert "--prediction-root" in output
 
 
 def test_grouped_cli_routes_common_mode_and_visual_bias_help(capsys) -> None:

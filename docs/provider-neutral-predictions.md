@@ -65,11 +65,65 @@ The imported dependence groups distinguish shared model/input-video dependence
 from stochastic-member identity. Different seeds from the same model are not
 silently described as independent providers.
 
+## Integrity-bound VGGT export and import
+
+The official VGGT baseline now writes a closed version-2 run record. Remote
+checkpoints require an exact immutable revision, which is passed through to
+`VGGT.from_pretrained`; local checkpoints are bound by their file SHA-256. The
+run record additionally binds the exact VGGT checkout, executed Prob4D loader
+module bytes, preprocessing mode, input-video bytes, and every cached prediction
+archive.
+
+```bash
+prob4d vggt baseline \
+  --dataset-root /data/Sintel_video \
+  --output-root outputs/vggt \
+  --vggt-root /opt/vggt \
+  --checkpoint facebook/VGGT-1B \
+  --checkpoint-revision <exact-40-character-revision> \
+  --resume
+```
+
+Convert one registered sample into canonical provider-neutral payloads without
+rerunning the model:
+
+```bash
+prob4d prediction import-vggt \
+  outputs/vggt/run-part-00.json \
+  outputs/vggt/provider/scene-a.json \
+  --sequence-id scene-a \
+  --sample-id scene-a/video.mp4 \
+  --dataset-root /data/Sintel_video \
+  --prediction-root outputs/vggt
+
+prob4d prediction validate \
+  outputs/vggt/provider/scene-a.json
+```
+
+By default the adapter exports both official VGGT point constructions,
+`world_points` and `depth_unprojected`. They receive the same model-set,
+input-video, provider-run, and deterministic-member dependence groups. They are
+alternative constructions from one model execution, not independent sensor
+likelihoods and not two votes for a downstream update.
+
+VGGT processes the complete supplied sequence jointly. Every exported output
+frame therefore records the full sequence as its source interval. For a clip
+starting at absolute frame 109, pass `--frame-start 109`; a causal cutoff admits
+the payload only after the complete supplied clip ends. A predictive experiment
+that needs an earlier cutoff must run VGGT on that prefix rather than relabel a
+full-sequence result as causal.
+
+The adapter declares `sequence-local-sim3`, no scene flow, and no stored camera
+rays. It verifies that the two official constructions share the same frame grid,
+camera extrinsics, and intrinsics before placing them in one manifest. Non-finite
+points are retained as an explicit invalid mask and replaced by zero only in the
+inactive canonical payload entries.
+
 ## Alternative providers
 
-An adapter for VGGT or another 4-D model should emit the same neutral contract
-from independently validated source bytes. It must declare one of the supported
-coordinate semantics:
+Another 4-D model should emit the same neutral contract from independently
+validated source bytes. It must declare one of the supported coordinate
+semantics:
 
 - `window-local-sim3`;
 - `sequence-local-sim3`;
@@ -97,6 +151,7 @@ from prob4d.prediction_provider_manifest import (
     save_prediction_provider_manifest,
     verify_prediction_provider_manifest,
 )
+from prob4d.vggt_provider_adapter import import_vggt_prediction_manifest
 ```
 
 `verify_prediction_provider_manifest` checks the content identity and, by
