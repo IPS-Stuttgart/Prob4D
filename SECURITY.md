@@ -18,7 +18,8 @@ from `main`, verify an open same-repository pull request and its exact current
 `trusted-self-hosted-validation` environment before checkout on the self-hosted host.
 The environment must have an independent required reviewer and no attached secrets or
 write credentials. See `docs/trusted-self-hosted-validation.md` for the complete
-operational and host-hardening requirements.
+operational and host-hardening requirements. Repository setup and acceptance testing are
+tracked in issue #157.
 
 Environment approval is not a sandbox. Suspected access to unrelated runner files,
 credentials, datasets, services, or network resources is a security incident even when
