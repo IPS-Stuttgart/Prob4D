@@ -5,7 +5,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 from prob4d._selection_evidence_common import _sha256_json
 from prob4d.deform360_cohort_binding import (
     BAYESIAN_PHYSTWIN_REPOSITORY,
@@ -76,8 +75,7 @@ def _selection() -> dict[str, object]:
             "object_directory_names_opened": True,
             "object_metadata_json_opened": True,
             "opened_metadata_paths": sorted(
-                str(unit["metadata_path"])
-                for unit in (*calibration, *confirmation)
+                str(unit["metadata_path"]) for unit in (*calibration, *confirmation)
             ),
             "camera_media_opened": False,
             "tactile_arrays_opened": False,
