@@ -40,19 +40,23 @@ jobs:
 
           module = Path("src/prob4d/cross_provider_guard.py")
           text = module.read_text(encoding="utf-8")
-          old = '''        except FileExistsError:
-              if load_json_object(path, name=path.name) != plain_json(record):
-                  raise ValueError(f"concurrent writer published different {path.name!r}")
-          '''
-          new = '''        except FileExistsError as error:
-              if load_json_object(path, name=path.name) != plain_json(record):
-                  raise ValueError(
-                      f"concurrent writer published different {path.name!r}"
-                  ) from error
-          '''
-          if old not in text:
-              raise SystemExit("expected publication exception block changed")
-          module.write_text(text.replace(old, new, 1), encoding="utf-8")
+          old_except = "        except FileExistsError:\n"
+          new_except = "        except FileExistsError as error:\n"
+          old_raise = (
+              "                raise ValueError("
+              "f\"concurrent writer published different {path.name!r}\")\n"
+          )
+          new_raise = (
+              "                raise ValueError(\n"
+              "                    f\"concurrent writer published different "
+              "{path.name!r}\"\n"
+              "                ) from error\n"
+          )
+          if text.count(old_except) != 1 or text.count(old_raise) != 1:
+              raise SystemExit("expected publication exception statements changed")
+          text = text.replace(old_except, new_except, 1)
+          text = text.replace(old_raise, new_raise, 1)
+          module.write_text(text, encoding="utf-8")
 
           tests = Path("tests/test_cross_provider_guard.py")
           text = tests.read_text(encoding="utf-8")
