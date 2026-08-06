@@ -89,7 +89,10 @@ jobs:
           cp tests/test_promotion_evidence.py "${product}/tests/"
           (
             cd "${product}"
-            find . -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum > SHA256SUMS
+            find . -type f ! -name SHA256SUMS -print0 \
+              | LC_ALL=C sort -z \
+              | xargs -0 sha256sum \
+              > SHA256SUMS
             sha256sum --check --strict SHA256SUMS
           )
 
