@@ -365,9 +365,11 @@ def _write_json_once(path: Path, record: Mapping[str, Any]) -> Path:
             os.fsync(stream.fileno())
         try:
             os.link(temporary, path)
-        except FileExistsError:
+        except FileExistsError as error:
             if load_json_object(path, name=path.name) != plain_json(record):
-                raise ValueError(f"concurrent writer published different {path.name!r}")
+                raise ValueError(
+                    f"concurrent writer published different {path.name!r}"
+                ) from error
         _fsync_directory(path.parent)
     finally:
         temporary.unlink(missing_ok=True)

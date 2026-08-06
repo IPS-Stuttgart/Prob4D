@@ -11,7 +11,6 @@ import pytest
 import prob4d.cross_provider_guard as cross_provider
 from prob4d.cli import main as grouped_main
 from prob4d.cross_provider_guard import (
-    CrossProviderCalibrationV1,
     apply_cross_provider_calibration,
     compute_cross_provider_score,
     evaluate_cross_provider_panel,
