@@ -113,7 +113,6 @@ def test_vggt_run_metadata_is_path_and_timing_independent(tmp_path: Path) -> Non
     assert second["run_id"] == first["run_id"]
 
 
-
 def test_legacy_unpinned_metadata_is_not_provider_neutral(tmp_path: Path) -> None:
     path = tmp_path / "legacy.json"
     path.write_text(
@@ -129,6 +128,7 @@ def test_legacy_unpinned_metadata_is_not_provider_neutral(tmp_path: Path) -> Non
     )
     with pytest.raises(ValueError, match="legacy or unpinned"):
         load_vggt_run_metadata(path)
+
 
 def test_import_vggt_writes_shared_dependent_causal_payloads(tmp_path: Path) -> None:
     metadata_path, dataset_root, prediction_root, sample_id = _fixture(tmp_path)
@@ -147,12 +147,8 @@ def test_import_vggt_writes_shared_dependent_causal_payloads(tmp_path: Path) -> 
     assert manifest.provider_family == "VGGT"
     assert manifest.coordinate_semantics == "sequence-local-sim3"
     assert len(manifest.payloads) == 2
-    assert manifest.payloads[0].dependence_group_ids == (
-        manifest.payloads[1].dependence_group_ids
-    )
-    assert manifest.payloads[0].stochastic_member_id == (
-        manifest.payloads[1].stochastic_member_id
-    )
+    assert manifest.payloads[0].dependence_group_ids == (manifest.payloads[1].dependence_group_ids)
+    assert manifest.payloads[0].stochastic_member_id == (manifest.payloads[1].stochastic_member_id)
     assert all(not payload.is_causally_admitted(11) for payload in manifest.payloads)
     assert all(payload.is_causally_admitted(12) for payload in manifest.payloads)
 
@@ -205,9 +201,7 @@ def test_import_rejects_mixed_camera_runs(tmp_path: Path) -> None:
         sample_id=sample_id,
         input_video_path=dataset_root / sample_id,
         representations=[
-            item
-            if item["representation"] == "world_points"
-            else replacement
+            item if item["representation"] == "world_points" else replacement
             for item in run["samples"][0]["representations"]
         ],
     )

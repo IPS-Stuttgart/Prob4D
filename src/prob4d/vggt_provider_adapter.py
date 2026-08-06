@@ -99,9 +99,7 @@ def _write_window_atomically(path: Path, window: PredictionWindow) -> None:
             dense_storage_dtype=window.dense_storage_dtype,
         )
         if not _windows_equal(existing, window):
-            raise ValueError(
-                f"refusing to replace different canonical VGGT payload {path.name!r}"
-            )
+            raise ValueError(f"refusing to replace different canonical VGGT payload {path.name!r}")
         return
     descriptor, temporary_name = tempfile.mkstemp(
         prefix=f".{path.stem}.",
@@ -146,9 +144,7 @@ def import_vggt_prediction_manifest(
     """Import one exact VGGT sample without treating constructions as independent."""
 
     if storage_dtype not in DENSE_STORAGE_DTYPES:
-        raise ValueError(
-            "storage_dtype must be one of " + ", ".join(DENSE_STORAGE_DTYPES)
-        )
+        raise ValueError("storage_dtype must be one of " + ", ".join(DENSE_STORAGE_DTYPES))
     if type(frame_start) is not int or frame_start < 0:
         raise ValueError("frame_start must be a nonnegative integer")
     if not sequence_id:
@@ -170,9 +166,7 @@ def import_vggt_prediction_manifest(
         name: _load_source_arrays(source_paths[name]) for name in selected
     }
     reference_name = selected[0]
-    reference_points, reference_extrinsics, reference_intrinsics = source_arrays[
-        reference_name
-    ]
+    reference_points, reference_extrinsics, reference_intrinsics = source_arrays[reference_name]
     for name in selected[1:]:
         points, extrinsics, intrinsics = source_arrays[name]
         if points.shape != reference_points.shape:
@@ -195,23 +189,17 @@ def import_vggt_prediction_manifest(
         f"input-video:{video_sha256}",
         f"provider-run:{sample_run_id}",
     )
-    deterministic_member = (
-        f"{_STOCHASTIC_DOMAIN}:"
-        + record_id(
-            _STOCHASTIC_DOMAIN,
-            {
-                "sample_run_id": sample_run_id,
-                "model_set_id": model_set_id,
-                "preprocess_mode": run["preprocess_mode"],
-            },
-        )
+    deterministic_member = f"{_STOCHASTIC_DOMAIN}:" + record_id(
+        _STOCHASTIC_DOMAIN,
+        {
+            "sample_run_id": sample_run_id,
+            "model_set_id": model_set_id,
+            "preprocess_mode": run["preprocess_mode"],
+        },
     )
 
     payloads: list[PredictionPayloadDescriptorV1] = []
-    source_members = {
-        str(member["representation"]): member
-        for member in sample["representations"]
-    }
+    source_members = {str(member["representation"]): member for member in sample["representations"]}
     for representation in selected:
         points, _, _ = source_arrays[representation]
         window = _canonical_window(
@@ -220,11 +208,7 @@ def import_vggt_prediction_manifest(
             frame_start=frame_start,
             storage_dtype=storage_dtype,
         )
-        payload_path = (
-            manifest_root
-            / "payloads"
-            / f"{sequence_token}-vggt-{representation}.npz"
-        )
+        payload_path = manifest_root / "payloads" / f"{sequence_token}-vggt-{representation}.npz"
         _write_window_atomically(payload_path, window)
         relative_path = relative_member(
             payload_path,

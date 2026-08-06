@@ -142,9 +142,7 @@ def load_vggt(
     checkpoint_path = Path(checkpoint)
     if checkpoint_path.is_file():
         if checkpoint_revision is not None:
-            raise ValueError(
-                "--checkpoint-revision is not permitted for a local checkpoint file"
-            )
+            raise ValueError("--checkpoint-revision is not permitted for a local checkpoint file")
         model = VGGT()
         state = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
         model.load_state_dict(state)
@@ -199,23 +197,15 @@ def infer_sample(
         predictions = model(images)
 
     image_shape = tuple(images.shape[-2:])
-    extrinsics, intrinsics = pose_encoding_to_extri_intri(
-        predictions["pose_enc"], image_shape
-    )
+    extrinsics, intrinsics = pose_encoding_to_extri_intri(predictions["pose_enc"], image_shape)
     extrinsics_array = extrinsics[0].float().cpu().numpy()
     intrinsics_array = intrinsics[0].float().cpu().numpy()
     direct_points = predictions["world_points"][0].float().cpu().numpy()
     depth = predictions["depth"][0].float().cpu().numpy()
-    unprojected_points = unproject_depth_map_to_point_map(
-        depth, extrinsics_array, intrinsics_array
-    )
+    unprojected_points = unproject_depth_map_to_point_map(depth, extrinsics_array, intrinsics_array)
     return {
-        "world_points": canonicalize_to_first_camera(
-            direct_points, extrinsics_array
-        ),
-        "depth_unprojected": canonicalize_to_first_camera(
-            unprojected_points, extrinsics_array
-        ),
+        "world_points": canonicalize_to_first_camera(direct_points, extrinsics_array),
+        "depth_unprojected": canonicalize_to_first_camera(unprojected_points, extrinsics_array),
         "camera_extrinsics": extrinsics_array,
         "camera_intrinsics": intrinsics_array,
     }
@@ -270,9 +260,7 @@ def write_prediction_archive(
         )
         if path.exists():
             if not _archives_equal(path, temporary):
-                raise ValueError(
-                    f"refusing to replace different VGGT prediction {path}"
-                )
+                raise ValueError(f"refusing to replace different VGGT prediction {path}")
             return
         os.replace(temporary, path)
     finally:
@@ -306,16 +294,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not samples:
         raise ValueError("selected VGGT partition contains no samples")
     checkpoint_path = Path(args.checkpoint)
-    checkpoint_sha256 = (
-        file_sha256(checkpoint_path) if checkpoint_path.is_file() else None
-    )
+    checkpoint_sha256 = file_sha256(checkpoint_path) if checkpoint_path.is_file() else None
     if checkpoint_sha256 is not None and args.checkpoint_revision is not None:
-        raise ValueError(
-            "--checkpoint-revision is not permitted for a local checkpoint file"
-        )
-    integrity_bound = (
-        checkpoint_sha256 is not None or args.checkpoint_revision is not None
-    )
+        raise ValueError("--checkpoint-revision is not permitted for a local checkpoint file")
+    integrity_bound = checkpoint_sha256 is not None or args.checkpoint_revision is not None
     if integrity_bound:
         checkpoint_identity(
             checkpoint=args.checkpoint,
@@ -341,8 +323,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     sample_records: list[dict[str, Any]] = []
     for sample_index, sample in enumerate(samples, start=1):
         output_paths = {
-            name: prediction_path(args.output_root, sample, name)
-            for name in VGGT_REPRESENTATIONS
+            name: prediction_path(args.output_root, sample, name) for name in VGGT_REPRESENTATIONS
         }
         if args.resume and all(path.exists() for path in output_paths.values()):
             print(f"[{sample_index}/{len(samples)}] verify {sample.video_path}", flush=True)

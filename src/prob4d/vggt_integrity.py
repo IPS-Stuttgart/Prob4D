@@ -151,9 +151,7 @@ def checkpoint_identity(
         name="VGGT checkpoint revision",
     )
     if (checksum is None) == (revision is None):
-        raise ValueError(
-            "exactly one of checkpoint_sha256 or checkpoint_revision is required"
-        )
+        raise ValueError("exactly one of checkpoint_sha256 or checkpoint_revision is required")
     if checksum is not None:
         return {"kind": "local-file-sha256", "value": checksum}
     assert revision is not None
@@ -315,10 +313,7 @@ def describe_prediction_archive(
 def member_identity_record(member: Mapping[str, Any]) -> dict[str, Any]:
     """Return path-independent prediction-member identity fields."""
 
-    return {
-        key: member[key]
-        for key in sorted(_MEMBER_FIELDS - {"path"})
-    }
+    return {key: member[key] for key in sorted(_MEMBER_FIELDS - {"path"})}
 
 
 def _validated_member(value: object) -> dict[str, Any]:
@@ -339,9 +334,7 @@ def _validated_member(value: object) -> dict[str, Any]:
             name="VGGT prediction byte_count",
             minimum=1,
         ),
-        "point_shape": list(
-            _require_shape(mapping["point_shape"], name="point_shape", rank=4)
-        ),
+        "point_shape": list(_require_shape(mapping["point_shape"], name="point_shape", rank=4)),
         "point_dtype": require_exact_string(mapping["point_dtype"], name="point_dtype"),
         "camera_extrinsics_shape": list(
             _require_shape(
@@ -398,9 +391,7 @@ def sample_identity_record(sample: Mapping[str, Any]) -> dict[str, Any]:
         "input_video_sha256": sample["input_video_sha256"],
         "input_video_byte_count": sample["input_video_byte_count"],
         "frame_count": sample["frame_count"],
-        "representations": [
-            member_identity_record(member) for member in representations
-        ],
+        "representations": [member_identity_record(member) for member in representations],
     }
 
 
@@ -786,9 +777,7 @@ def verify_sample_files(
     resolved: dict[str, Path] = {}
     for representation in selected:
         if representation not in by_name:
-            raise ValueError(
-                f"VGGT sample lacks representation {representation!r}"
-            )
+            raise ValueError(f"VGGT sample lacks representation {representation!r}")
         member = by_name[representation]
         path = resolve_member(
             Path(output_root),
