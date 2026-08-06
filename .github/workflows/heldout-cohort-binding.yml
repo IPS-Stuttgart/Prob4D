@@ -4,6 +4,9 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - "src/prob4d/_deform360_cohort_binding.py"
+      - "src/prob4d/_deform360_cohort_io.py"
+      - "src/prob4d/_deform360_cohort_schema.py"
       - "src/prob4d/deform360_cohort_binding.py"
       - "src/prob4d/heldout_promotion.py"
       - "tests/test_deform360_cohort_binding.py"
@@ -14,6 +17,9 @@ on:
   push:
     branches: [main]
     paths:
+      - "src/prob4d/_deform360_cohort_binding.py"
+      - "src/prob4d/_deform360_cohort_io.py"
+      - "src/prob4d/_deform360_cohort_schema.py"
       - "src/prob4d/deform360_cohort_binding.py"
       - "src/prob4d/heldout_promotion.py"
       - "tests/test_deform360_cohort_binding.py"
@@ -64,16 +70,25 @@ jobs:
       - name: Check source quality
         run: |
           python -m ruff check \
+            src/prob4d/_deform360_cohort_binding.py \
+            src/prob4d/_deform360_cohort_io.py \
+            src/prob4d/_deform360_cohort_schema.py \
             src/prob4d/deform360_cohort_binding.py \
             src/prob4d/heldout_promotion.py \
             tests/test_deform360_cohort_binding.py \
             tests/test_heldout_promotion.py
           python -m ruff format --check \
+            src/prob4d/_deform360_cohort_binding.py \
+            src/prob4d/_deform360_cohort_io.py \
+            src/prob4d/_deform360_cohort_schema.py \
             src/prob4d/deform360_cohort_binding.py \
             src/prob4d/heldout_promotion.py \
             tests/test_deform360_cohort_binding.py \
             tests/test_heldout_promotion.py
           python -m mypy \
+            src/prob4d/_deform360_cohort_binding.py \
+            src/prob4d/_deform360_cohort_io.py \
+            src/prob4d/_deform360_cohort_schema.py \
             src/prob4d/deform360_cohort_binding.py \
             src/prob4d/heldout_promotion.py
 
