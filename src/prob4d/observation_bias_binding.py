@@ -40,9 +40,7 @@ from .visual_bias_stream import (
 
 OBSERVATION_BIAS_BINDING_SCHEMA: Final = "prob4d.observation-bias-stream-binding"
 OBSERVATION_BIAS_BINDING_VERSION: Final = 1
-OBSERVATION_BIAS_BINDING_UPDATE_SCHEMA: Final = (
-    "prob4d.observation-bias-stream-binding-update.v1"
-)
+OBSERVATION_BIAS_BINDING_UPDATE_SCHEMA: Final = "prob4d.observation-bias-stream-binding-update.v1"
 OBSERVATION_BIAS_BINDING_CLAIM_BOUNDARY: Final = (
     "This artifact proves exact structural agreement between one observation-factor "
     "stream and one persistent visual-bias stream. It does not establish provider "
@@ -241,10 +239,14 @@ class ObservationBiasBindingUpdateV1:
 
         expected = _sha256_json(self.identity_record())
         supplied = self.update_id
-        if supplied is not None and require_sha256(
-            supplied,
-            name="update_id",
-        ) != expected:
+        if (
+            supplied is not None
+            and require_sha256(
+                supplied,
+                name="update_id",
+            )
+            != expected
+        ):
             raise ValueError("observation-bias binding update ID mismatch")
         object.__setattr__(self, "update_id", expected)
 
@@ -394,13 +396,8 @@ class ObservationBiasStreamBindingV1:
 
         if type(self.updates) is not tuple or not self.updates:
             raise ValueError("binding updates must be a nonempty canonical tuple")
-        if any(
-            not isinstance(update, ObservationBiasBindingUpdateV1)
-            for update in self.updates
-        ):
-            raise ValueError(
-                "binding updates must contain ObservationBiasBindingUpdateV1 values"
-            )
+        if any(not isinstance(update, ObservationBiasBindingUpdateV1) for update in self.updates):
+            raise ValueError("binding updates must contain ObservationBiasBindingUpdateV1 values")
         previous: ObservationBiasBindingUpdateV1 | None = None
         for index, update in enumerate(self.updates):
             if update.update_index != index:
@@ -429,10 +426,14 @@ class ObservationBiasStreamBindingV1:
 
         expected = _sha256_json(self.identity_record())
         supplied = self.artifact_id
-        if supplied is not None and require_sha256(
-            supplied,
-            name="artifact_id",
-        ) != expected:
+        if (
+            supplied is not None
+            and require_sha256(
+                supplied,
+                name="artifact_id",
+            )
+            != expected
+        ):
             raise ValueError("observation-bias binding artifact ID mismatch")
         object.__setattr__(self, "artifact_id", expected)
 
@@ -457,9 +458,7 @@ class ObservationBiasStreamBindingV1:
             "stream_id": self.stream_id,
             "source_repository": self.source_repository,
             "source_revision": self.source_revision,
-            "observation_factor_stream_artifact_id": (
-                self.observation_factor_stream_artifact_id
-            ),
+            "observation_factor_stream_artifact_id": (self.observation_factor_stream_artifact_id),
             "visual_bias_stream_artifact_id": self.visual_bias_stream_artifact_id,
             "visual_bias_stream_key": self.visual_bias_stream_key,
             "visual_bias_model_id": self.visual_bias_model_id,
@@ -477,9 +476,7 @@ class ObservationBiasStreamBindingV1:
             "sequence_id": self.sequence_id,
             "case_id": self.case_id,
             "stream_id": self.stream_id,
-            "observation_factor_stream_artifact_id": (
-                self.observation_factor_stream_artifact_id
-            ),
+            "observation_factor_stream_artifact_id": (self.observation_factor_stream_artifact_id),
             "visual_bias_stream_artifact_id": self.visual_bias_stream_artifact_id,
             "visual_bias_model_id": self.visual_bias_model_id,
             "update_count": len(self.updates),
@@ -523,9 +520,7 @@ def build_observation_bias_binding(
         if factor_update_id is None or visual_update_id is None:
             raise ValueError("source stream update lacks a content identity")
         if visual_update.observation_stream_update_id != factor_update_id:
-            raise ValueError(
-                f"visual-bias update {index} references another observation update"
-            )
+            raise ValueError(f"visual-bias update {index} references another observation update")
         if (
             visual_update.frame_start != observation_update.admitted_frame_start
             or visual_update.frame_stop_exclusive != observation_update.causal_frame_stop
@@ -732,10 +727,7 @@ def load_observation_bias_binding(path: str | Path) -> ObservationBiasStreamBind
             record["visual_bias_model_id"],
             name="visual_bias_model_id",
         ),
-        updates=tuple(
-            ObservationBiasBindingUpdateV1.from_record(value)
-            for value in raw_updates
-        ),
+        updates=tuple(ObservationBiasBindingUpdateV1.from_record(value) for value in raw_updates),
         metadata=require_finite_json_mapping(
             record["metadata"],
             name="observation-bias binding metadata",
