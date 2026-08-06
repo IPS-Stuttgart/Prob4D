@@ -68,13 +68,11 @@ def test_license_and_typing_metadata_are_explicit() -> None:
     license_text = (ROOT / "LICENSE").read_text(encoding="utf-8")
     assert license_text.startswith("MIT License\n")
     assert "Copyright (c) 2026 Florian Pfaff" in license_text
-    assert "THE SOFTWARE IS PROVIDED \"AS IS\"" in license_text
+    assert 'THE SOFTWARE IS PROVIDED "AS IS"' in license_text
 
 
 def test_observation_export_documentation_uses_an_explicit_route() -> None:
-    documentation = (ROOT / "docs" / "observation-belief-export.md").read_text(
-        encoding="utf-8"
-    )
+    documentation = (ROOT / "docs" / "observation-belief-export.md").read_text(encoding="utf-8")
     assert "prob4d observation export-calibrated \\" in documentation
     assert "prob4d observation export \\" not in documentation
     assert "prob4d observation export-v1" in documentation
