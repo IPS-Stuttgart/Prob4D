@@ -1,0 +1,1 @@
+Execute the reviewed provider-manifest hardening for PR #124.
