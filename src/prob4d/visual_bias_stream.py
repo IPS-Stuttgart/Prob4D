@@ -17,7 +17,7 @@ import tempfile
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
-from typing import Any, Final, TypeAlias
+from typing import Any, Final, TypeAlias, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -197,7 +197,7 @@ def _atomic_write_npz(path: Path, arrays: Mapping[str, np.ndarray]) -> None:
     )
     try:
         with os.fdopen(descriptor, "wb") as stream:
-            np.savez_compressed(stream, **dict(arrays))
+            np.savez_compressed(stream, **dict(arrays))  # type: ignore[arg-type]
             stream.flush()
             os.fsync(stream.fileno())
         os.replace(temporary_name, path)
@@ -231,13 +231,11 @@ def _validate_joint_covariance(
     value: np.ndarray,
     *,
     latent_dimension: int,
-) -> np.ndarray:
+) -> FloatArray:
     covariance = np.asarray(value)
     expected = (latent_dimension, latent_dimension)
     if covariance.dtype != np.dtype(np.float64) or covariance.shape != expected:
-        raise ValueError(
-            "joint_bias_covariance must be float64 with shape " f"{expected}"
-        )
+        raise ValueError(f"joint_bias_covariance must be float64 with shape {expected}")
     if not np.all(np.isfinite(covariance)):
         raise ValueError("joint_bias_covariance must be finite")
     if not np.allclose(covariance, covariance.T, atol=1e-12, rtol=1e-10):
@@ -247,7 +245,7 @@ def _validate_joint_covariance(
     scale = max(float(np.max(np.abs(eigenvalues))), 1.0)
     if float(np.min(eigenvalues)) < -1e-10 * scale:
         raise ValueError("joint_bias_covariance must be positive semidefinite")
-    return covariance
+    return cast(FloatArray, covariance)
 
 
 def _bias_model_record(
@@ -335,10 +333,14 @@ class VisualBiasStreamUpdateV1:
         object.__setattr__(self, "previous_update_id", previous)
         expected = _sha256_json(self.identity_record())
         supplied = self.update_id
-        if supplied is not None and require_sha256(
-            supplied,
-            name="update_id",
-        ) != expected:
+        if (
+            supplied is not None
+            and require_sha256(
+                supplied,
+                name="update_id",
+            )
+            != expected
+        ):
             raise ValueError("visual-bias stream update ID mismatch")
         object.__setattr__(self, "update_id", expected)
 
@@ -362,24 +364,61 @@ class VisualBiasStreamUpdateV1:
         return {**self.identity_record(), "update_id": self.update_id}
 
     @classmethod
-    def from_record(cls, value: object) -> "VisualBiasStreamUpdateV1":
+    def from_record(cls, value: object) -> VisualBiasStreamUpdateV1:
         mapping = require_mapping(value, name="visual-bias stream update")
         require_exact_fields(mapping, _UPDATE_FIELDS, name="visual-bias stream update")
         if mapping["schema"] != VISUAL_BIAS_STREAM_UPDATE_SCHEMA:
             raise ValueError("unsupported visual-bias stream update schema")
+        previous_value = mapping["previous_update_id"]
+        previous_update_id = (
+            None
+            if previous_value is None
+            else require_sha256(previous_value, name="previous_update_id")
+        )
         return cls(
-            bias_model_id=mapping["bias_model_id"],
-            observation_stream_update_id=mapping["observation_stream_update_id"],
-            visual_bias_artifact_id=mapping["visual_bias_artifact_id"],
-            observation_artifact_id=mapping["observation_artifact_id"],
-            observation_identity_sha256=mapping["observation_identity_sha256"],
-            frame_start=mapping["frame_start"],
-            frame_stop_exclusive=mapping["frame_stop_exclusive"],
-            row_start=mapping["row_start"],
-            row_stop_exclusive=mapping["row_stop_exclusive"],
-            maximum_gauge_projection=mapping["maximum_gauge_projection"],
-            previous_update_id=mapping["previous_update_id"],
-            update_id=mapping["update_id"],
+            bias_model_id=require_sha256(mapping["bias_model_id"], name="bias_model_id"),
+            observation_stream_update_id=require_sha256(
+                mapping["observation_stream_update_id"],
+                name="observation_stream_update_id",
+            ),
+            visual_bias_artifact_id=require_sha256(
+                mapping["visual_bias_artifact_id"],
+                name="visual_bias_artifact_id",
+            ),
+            observation_artifact_id=require_sha256(
+                mapping["observation_artifact_id"],
+                name="observation_artifact_id",
+            ),
+            observation_identity_sha256=require_sha256(
+                mapping["observation_identity_sha256"],
+                name="observation_identity_sha256",
+            ),
+            frame_start=require_exact_integer(
+                mapping["frame_start"],
+                name="frame_start",
+                minimum=0,
+            ),
+            frame_stop_exclusive=require_exact_integer(
+                mapping["frame_stop_exclusive"],
+                name="frame_stop_exclusive",
+                minimum=1,
+            ),
+            row_start=require_exact_integer(
+                mapping["row_start"],
+                name="row_start",
+                minimum=0,
+            ),
+            row_stop_exclusive=require_exact_integer(
+                mapping["row_stop_exclusive"],
+                name="row_stop_exclusive",
+                minimum=1,
+            ),
+            maximum_gauge_projection=_finite_nonnegative_real(
+                mapping["maximum_gauge_projection"],
+                name="maximum_gauge_projection",
+            ),
+            previous_update_id=previous_update_id,
+            update_id=require_sha256(mapping["update_id"], name="update_id"),
         )
 
 
@@ -406,11 +445,17 @@ class VisualBiasNuisanceStreamV1:
         stream_key = require_exact_string(self.stream_key, name="stream_key")
         if type(self.bias_ids) is not tuple or type(self.basis_names) is not tuple:
             raise TypeError("bias_ids and basis_names must be canonical tuples")
-        bias_ids = require_string_sequence(self.bias_ids, name="bias_ids")
-        basis_names = require_string_sequence(self.basis_names, name="basis_names")
-        if len(set(bias_ids)) != len(bias_ids):
+        validated_bias_ids: tuple[str, ...] = require_string_sequence(
+            self.bias_ids,
+            name="bias_ids",
+        )
+        validated_basis_names: tuple[str, ...] = require_string_sequence(
+            self.basis_names,
+            name="basis_names",
+        )
+        if len(set(validated_bias_ids)) != len(validated_bias_ids):
             raise ValueError("bias_ids must be unique")
-        if len(set(basis_names)) != len(basis_names):
+        if len(set(validated_basis_names)) != len(validated_basis_names):
             raise ValueError("basis_names must be unique")
         semantics = require_exact_string(
             self.orthogonalization_semantics,
@@ -433,6 +478,8 @@ class VisualBiasNuisanceStreamV1:
         for attribute in (
             "observation_stream_update_id",
             "visual_bias_artifact_id",
+            "observation_artifact_id",
+            "observation_identity_sha256",
         ):
             values = tuple(getattr(update, attribute) for update in self.updates)
             if len(values) != len(set(values)):
@@ -462,13 +509,16 @@ class VisualBiasNuisanceStreamV1:
             raise ValueError("row_bias_indices must be int64 with one entry per row")
         if np.any(row_update < 0) or np.any(row_update >= len(self.updates)):
             raise ValueError("row_update_indices refer to an unknown update")
-        if np.any(row_bias < 0) or np.any(row_bias >= len(bias_ids)):
+        if np.any(row_bias < 0) or np.any(row_bias >= len(validated_bias_ids)):
             raise ValueError("row_bias_indices refer to an unknown bias ID")
         for index, update in enumerate(self.updates):
-            expected = np.full(
-                update.row_stop_exclusive - update.row_start,
-                index,
-                dtype=np.int64,
+            expected = cast(
+                IntArray,
+                np.full(
+                    update.row_stop_exclusive - update.row_start,
+                    index,
+                    dtype=np.int64,
+                ),
             )
             if not np.array_equal(
                 row_update[update.row_start : update.row_stop_exclusive],
@@ -477,26 +527,24 @@ class VisualBiasNuisanceStreamV1:
                 raise ValueError("row_update_indices contradict update row intervals")
 
         jacobian = np.asarray(self.bias_jacobian)
-        expected_jacobian = (row_count, 3, len(basis_names))
+        expected_jacobian = (row_count, 3, len(validated_basis_names))
         if jacobian.dtype != np.dtype(np.float64) or jacobian.shape != expected_jacobian:
-            raise ValueError(
-                "bias_jacobian must be float64 with shape " f"{expected_jacobian}"
-            )
+            raise ValueError(f"bias_jacobian must be float64 with shape {expected_jacobian}")
         if not np.all(np.isfinite(jacobian)):
             raise ValueError("bias_jacobian must be finite")
-        latent_dimension = len(bias_ids) * len(basis_names)
+        latent_dimension = len(validated_bias_ids) * len(validated_basis_names)
         covariance = _validate_joint_covariance(
             self.joint_bias_covariance,
             latent_dimension=latent_dimension,
         )
-        model_metadata = frozen_finite_json_mapping(
+        validated_model_metadata: Mapping[str, Any] = frozen_finite_json_mapping(
             require_finite_json_mapping(
                 self.model_metadata,
                 name="visual-bias model metadata",
             ),
             name="visual-bias model metadata",
         )
-        metadata = frozen_finite_json_mapping(
+        validated_metadata: Mapping[str, Any] = frozen_finite_json_mapping(
             require_finite_json_mapping(
                 self.metadata,
                 name="visual-bias stream metadata",
@@ -504,18 +552,22 @@ class VisualBiasNuisanceStreamV1:
             name="visual-bias stream metadata",
         )
         model_record = _bias_model_record(
-            bias_ids=bias_ids,
-            basis_names=basis_names,
+            bias_ids=validated_bias_ids,
+            basis_names=validated_basis_names,
             covariance=covariance,
             orthogonalization_semantics=semantics,
             gauge_projection_tolerance=tolerance,
-            model_metadata=model_metadata,
+            model_metadata=validated_model_metadata,
         )
         expected_model_id = _sha256_json(model_record)
-        if self.bias_model_id is not None and require_sha256(
-            self.bias_model_id,
-            name="bias_model_id",
-        ) != expected_model_id:
+        if (
+            self.bias_model_id is not None
+            and require_sha256(
+                self.bias_model_id,
+                name="bias_model_id",
+            )
+            != expected_model_id
+        ):
             raise ValueError("visual-bias model ID mismatch")
         for update in self.updates:
             if update.bias_model_id != expected_model_id:
@@ -527,8 +579,8 @@ class VisualBiasNuisanceStreamV1:
                 raise ValueError("visual-bias update exceeds the shared gauge tolerance")
 
         object.__setattr__(self, "stream_key", stream_key)
-        object.__setattr__(self, "bias_ids", bias_ids)
-        object.__setattr__(self, "basis_names", basis_names)
+        object.__setattr__(self, "bias_ids", validated_bias_ids)
+        object.__setattr__(self, "basis_names", validated_basis_names)
         object.__setattr__(self, "orthogonalization_semantics", semantics)
         object.__setattr__(self, "gauge_projection_tolerance", tolerance)
         object.__setattr__(
@@ -551,14 +603,18 @@ class VisualBiasNuisanceStreamV1:
             "joint_bias_covariance",
             _readonly(covariance, dtype=np.dtype(np.float64)),
         )
-        object.__setattr__(self, "model_metadata", model_metadata)
-        object.__setattr__(self, "metadata", metadata)
+        object.__setattr__(self, "model_metadata", validated_model_metadata)
+        object.__setattr__(self, "metadata", validated_metadata)
         object.__setattr__(self, "bias_model_id", expected_model_id)
         expected_artifact_id = _sha256_json(self.identity_record())
-        if self.artifact_id is not None and require_sha256(
-            self.artifact_id,
-            name="artifact_id",
-        ) != expected_artifact_id:
+        if (
+            self.artifact_id is not None
+            and require_sha256(
+                self.artifact_id,
+                name="artifact_id",
+            )
+            != expected_artifact_id
+        ):
             raise ValueError("visual-bias stream artifact ID mismatch")
         object.__setattr__(self, "artifact_id", expected_artifact_id)
 
@@ -620,9 +676,7 @@ class VisualBiasNuisanceStreamV1:
         width = self.basis_dimension
         for row, bias_index in enumerate(self.row_bias_indices):
             start = int(bias_index) * width
-            result[3 * row : 3 * row + 3, start : start + width] = (
-                self.bias_jacobian[row]
-            )
+            result[3 * row : 3 * row + 3, start : start + width] = self.bias_jacobian[row]
         result.setflags(write=False)
         return result
 
@@ -731,9 +785,9 @@ def build_visual_bias_nuisance_stream(
     model_id = _sha256_json(model_record)
 
     updates: list[VisualBiasStreamUpdateV1] = []
-    row_updates: list[np.ndarray] = []
-    row_bias: list[np.ndarray] = []
-    jacobians: list[np.ndarray] = []
+    row_updates: list[IntArray] = []
+    row_bias: list[IntArray] = []
+    jacobians: list[FloatArray] = []
     row_start = 0
     previous_update_id: str | None = None
     previous_frame_stop: int | None = None
@@ -770,10 +824,17 @@ def build_visual_bias_nuisance_stream(
             previous_update_id=previous_update_id,
         )
         updates.append(update)
-        row_updates.append(np.full(nuisance.observation_count, index, dtype=np.int64))
-        row_bias.append(np.asarray(nuisance.row_bias_indices))
-        jacobians.append(np.asarray(nuisance.bias_jacobian))
+        row_updates.append(
+            cast(
+                IntArray,
+                np.full(nuisance.observation_count, index, dtype=np.int64),
+            )
+        )
+        row_bias.append(cast(IntArray, np.asarray(nuisance.row_bias_indices, dtype=np.int64)))
+        jacobians.append(cast(FloatArray, np.asarray(nuisance.bias_jacobian, dtype=np.float64)))
         row_start = row_stop
+        if update.update_id is None:
+            raise AssertionError("validated visual-bias update lacks an ID")
         previous_update_id = update.update_id
         previous_frame_stop = frame_stop
 
@@ -838,9 +899,7 @@ def append_visual_bias_nuisance(
         observation_stream_update_id,
         name="observation_stream_update_id",
     )
-    if observation_update_id in {
-        update.observation_stream_update_id for update in stream.updates
-    }:
+    if observation_update_id in {update.observation_stream_update_id for update in stream.updates}:
         raise ValueError("observation_stream_update_id is already present")
     sidecar_id = nuisance.artifact_id
     if sidecar_id is None:
@@ -1009,12 +1068,23 @@ def load_visual_bias_nuisance_stream(path: str | Path) -> VisualBiasNuisanceStre
     update_values = record["updates"]
     if not isinstance(update_values, list):
         raise ValueError("updates must be a JSON array")
+    stream_key = require_exact_string(record["stream_key"], name="stream_key")
+    orthogonalization_semantics = require_exact_string(
+        record["orthogonalization_semantics"],
+        name="orthogonalization_semantics",
+    )
+    gauge_projection_tolerance = _positive_real(
+        record["gauge_projection_tolerance"],
+        name="gauge_projection_tolerance",
+    )
+    bias_model_id = require_sha256(record["bias_model_id"], name="bias_model_id")
+    artifact_id = require_sha256(record["artifact_id"], name="artifact_id")
     stream = VisualBiasNuisanceStreamV1(
-        stream_key=record["stream_key"],
+        stream_key=stream_key,
         bias_ids=require_string_sequence(record["bias_ids"], name="bias_ids"),
         basis_names=require_string_sequence(record["basis_names"], name="basis_names"),
-        orthogonalization_semantics=record["orthogonalization_semantics"],
-        gauge_projection_tolerance=record["gauge_projection_tolerance"],
+        orthogonalization_semantics=orthogonalization_semantics,
+        gauge_projection_tolerance=gauge_projection_tolerance,
         updates=tuple(VisualBiasStreamUpdateV1.from_record(value) for value in update_values),
         row_update_indices=row_update,
         row_bias_indices=row_bias,
@@ -1028,8 +1098,8 @@ def load_visual_bias_nuisance_stream(path: str | Path) -> VisualBiasNuisanceStre
             record["metadata"],
             name="visual-bias stream metadata",
         ),
-        bias_model_id=record["bias_model_id"],
-        artifact_id=record["artifact_id"],
+        bias_model_id=bias_model_id,
+        artifact_id=artifact_id,
     )
     if stream.array_descriptors() != dict(arrays_record):
         raise ValueError("visual-bias stream array descriptors changed after validation")

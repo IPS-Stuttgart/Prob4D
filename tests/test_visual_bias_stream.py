@@ -45,9 +45,7 @@ def _nuisance(
         row_bias_indices=row_bias_indices,
         bias_jacobian=bias_jacobian,
         joint_bias_covariance=prior,
-        orthogonalization_semantics=(
-            "conditional-whitened-global-gauge-projection-v1"
-        ),
+        orthogonalization_semantics=("conditional-whitened-global-gauge-projection-v1"),
         maximum_gauge_projection=1e-14,
         gauge_projection_tolerance=1e-10,
         metadata={"source": "calibration-only"},
@@ -120,6 +118,36 @@ def test_builder_rejects_overlapping_frames_and_duplicate_update_ids() -> None:
             stream_key="duplicates",
             nuisances=nuisances,
             observation_stream_update_ids=(_sha("1"), _sha("1")),
+            frame_intervals=((0, 5), (5, 10)),
+        )
+
+
+def test_builder_rejects_replayed_observation_evidence() -> None:
+    first = _nuisance(observation_character="a", identity_character="b")
+    repeated_artifact = _nuisance(
+        observation_character="a",
+        identity_character="d",
+    )
+    with pytest.raises(ValueError, match="observation_artifact_id values must be unique"):
+        build_visual_bias_nuisance_stream(
+            stream_key="replayed-artifact",
+            nuisances=(first, repeated_artifact),
+            observation_stream_update_ids=(_sha("1"), _sha("2")),
+            frame_intervals=((0, 5), (5, 10)),
+        )
+
+    repeated_identity = _nuisance(
+        observation_character="c",
+        identity_character="b",
+    )
+    with pytest.raises(
+        ValueError,
+        match="observation_identity_sha256 values must be unique",
+    ):
+        build_visual_bias_nuisance_stream(
+            stream_key="replayed-identity",
+            nuisances=(first, repeated_identity),
+            observation_stream_update_ids=(_sha("1"), _sha("2")),
             frame_intervals=((0, 5), (5, 10)),
         )
 
