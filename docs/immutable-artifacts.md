@@ -43,6 +43,8 @@ This contract applies to portable or claim-bearing values whose post-validation
 mutation could invalidate provenance or content identity. Large execution-only
 buffers, memory-mapped stores, and private fusion ownership paths retain their
 separate performance contracts and are not silently copied by this change.
+Portable JSON and NPZ schemas remain unchanged; the stronger guarantee applies
+to validated in-memory ownership rather than to a new artifact format.
 
 Passing these integrity checks is not evidence of provider competence,
 uncertainty calibration, physical-state identifiability, BayesianPhysTwin
