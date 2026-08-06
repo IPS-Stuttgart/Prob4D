@@ -1,0 +1,89 @@
+name: Canonicalize observation timestamp lineage
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/temporary-format-observation-timestamp-lineage.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: temporary-format-observation-timestamp-lineage-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  format:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 30
+    steps:
+      - name: Check out exact reviewed PR head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: true
+          clean: true
+
+      - name: Provision Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Create isolated formatter environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${RUNNER_TEMP}/timestamp-format-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          rm -rf "${root}"
+          python -m venv "${root}/venv"
+          echo "${root}/venv/bin" >> "${GITHUB_PATH}"
+          "${root}/venv/bin/python" -m pip install \
+            "pip==25.2" \
+            "setuptools==80.9.0" \
+            "wheel==0.45.1" \
+            "ruff==0.16.1"
+          "${root}/venv/bin/python" -m pip install -e ".[dev]"
+          "${root}/venv/bin/python" -m pip check
+
+      - name: Apply canonical Ruff layout
+        run: |
+          python -m ruff check --fix --select I001 \
+            src/prob4d/observation_timestamp_lineage.py \
+            tests/test_observation_timestamp_lineage.py
+          python -m ruff format \
+            src/prob4d/observation_timestamp_lineage.py \
+            tests/test_observation_timestamp_lineage.py
+          python -m ruff check \
+            src/prob4d/observation_timestamp_lineage.py \
+            tests/test_observation_timestamp_lineage.py
+          python -m ruff format --check \
+            src/prob4d/observation_timestamp_lineage.py \
+            tests/test_observation_timestamp_lineage.py
+          python -m mypy src/prob4d/observation_timestamp_lineage.py
+
+      - name: Run focused and adjacent contracts
+        run: |
+          python -m pytest -q -p no:cacheprovider \
+            tests/test_observation_timestamp_lineage.py \
+            tests/test_observation_factors.py \
+            tests/test_observation_factor_stream.py \
+            tests/test_provider_v2_factor_bundle.py
+          python -m py_compile \
+            src/prob4d/observation_timestamp_lineage.py \
+            tests/test_observation_timestamp_lineage.py
+          test -n "$(git diff -- src/prob4d/observation_timestamp_lineage.py)"
+          test -n "$(git diff -- tests/test_observation_timestamp_lineage.py)"
+
+      - name: Retire formatter and publish validated bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/temporary-format-observation-timestamp-lineage.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "Format observation timestamp lineage contracts"
+          git push origin HEAD:agent/observation-timestamp-lineage-v1
