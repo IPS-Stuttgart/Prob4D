@@ -46,6 +46,9 @@ REQUIRED_PATHS = frozenset(
         "requirements/ci/minimum.txt",
         "scripts/ci/build_ecosystem_release_capsule.py",
         "scripts/ci/check_sdist.py",
+        "src/prob4d/_deform360_cohort_binding.py",
+        "src/prob4d/_deform360_cohort_io.py",
+        "src/prob4d/_deform360_cohort_schema.py",
         "src/prob4d/_heldout_promotion_common.py",
         "src/prob4d/_heldout_promotion_diagnosis.py",
         "src/prob4d/_heldout_promotion_evaluation.py",
@@ -111,8 +114,13 @@ def _validated_members(archive: Path) -> tuple[str, tuple[tarfile.TarInfo, ...]]
         if path.is_absolute() or not path.parts or ".." in path.parts:
             raise RuntimeError(f"unsafe source-distribution path: {member.name}")
         roots.add(path.parts[0])
-        if member.issym() or member.islnk() or not (member.isdir() or member.isfile()):
-            raise RuntimeError(f"source distribution contains a non-regular member: {member.name}")
+        if member.issym() or member.islnk() or not (
+            member.isdir() or member.isfile()
+        ):
+            raise RuntimeError(
+                "source distribution contains a non-regular member: "
+                f"{member.name}"
+            )
         if len(path.parts) > 1:
             relative_paths.add(PurePosixPath(*path.parts[1:]).as_posix())
 
