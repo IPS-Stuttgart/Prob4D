@@ -94,6 +94,11 @@ _ROUTES: Final[dict[Route, tuple[str, str, str]]] = {
         "main",
         "validate explicit shared visual-bias nuisance sidecars",
     ),
+    ("observation", "visual-bias-stream"): (
+        "prob4d.visual_bias_stream",
+        "main",
+        "validate recursive updates that share one visual-bias prior",
+    ),
     ("prediction",): (
         "prob4d.prediction_cli",
         "main",
