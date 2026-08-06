@@ -62,6 +62,7 @@ jobs:
             src/prob4d/vggt_baseline.py
             tests/test_vggt_baseline.py
           )
+          python -m ruff check --fix -- "${files[@]}"
           python -m ruff format -- "${files[@]}"
           python -m ruff check -- "${files[@]}"
           python -m ruff format --check --diff "${files[@]}"
