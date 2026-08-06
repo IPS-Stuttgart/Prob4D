@@ -89,6 +89,11 @@ _ROUTES: Final[dict[Route, tuple[str, str, str]]] = {
         "main_exploratory",
         "export an explicitly exploratory provider-v2 observation belief",
     ),
+    ("observation", "bias-binding"): (
+        "prob4d.observation_bias_binding",
+        "main",
+        "bind recursive observation factors to their visual-bias stream",
+    ),
     ("observation", "visual-bias"): (
         "prob4d.visual_bias",
         "main",
