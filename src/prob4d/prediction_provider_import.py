@@ -12,12 +12,12 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import tempfile
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, Final
 
 from ._strict_json import (
-    load_json_object,
     require_exact_fields,
     require_exact_integer,
     require_exact_string,
@@ -86,28 +86,42 @@ _RESERVED_METADATA_FIELDS: Final = frozenset(
 )
 
 
-def _sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    try:
-        with path.open("rb") as stream:
-            for block in iter(lambda: stream.read(1024 * 1024), b""):
-                digest.update(block)
-    except OSError as error:
-        raise ValueError(f"cannot read import member {path.name!r}") from error
-    return digest.hexdigest()
+def _sha256_bytes(payload: bytes) -> str:
+    return hashlib.sha256(payload).hexdigest()
 
 
-def _file_signature(path: Path) -> tuple[int, int, int, int]:
+def _read_bytes(path: Path, *, name: str) -> bytes:
     try:
-        information = path.stat()
+        return path.read_bytes()
     except OSError as error:
-        raise ValueError(f"cannot stat import member {path.name!r}") from error
-    return (
-        int(information.st_dev),
-        int(information.st_ino),
-        int(information.st_size),
-        int(information.st_mtime_ns),
-    )
+        raise ValueError(f"cannot read {name} {path.name!r}") from error
+
+
+def _load_json_bytes(payload: bytes, *, name: str) -> dict[str, Any]:
+    def object_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, item in pairs:
+            if key in result:
+                raise ValueError(f"{name} contains duplicate JSON object key {key!r}")
+            result[key] = item
+        return result
+
+    def reject_constant(token: str) -> Any:
+        raise ValueError(f"{name} contains non-finite JSON number {token!r}")
+
+    try:
+        value = json.loads(
+            payload.decode("utf-8"),
+            object_pairs_hook=object_pairs,
+            parse_constant=reject_constant,
+        )
+    except UnicodeDecodeError as error:
+        raise ValueError(f"{name} must contain UTF-8 JSON") from error
+    except json.JSONDecodeError as error:
+        raise ValueError(f"{name} must contain valid JSON") from error
+    if not isinstance(value, dict):
+        raise ValueError(f"{name} must contain one JSON object")
+    return value
 
 
 def _snapshot_window(
@@ -115,38 +129,37 @@ def _snapshot_window(
     *,
     expected_window_id: str,
 ) -> tuple[PredictionWindow, str, int]:
-    """Load one canonical payload while rejecting admission-time mutation."""
+    """Parse one canonical payload from the exact bytes bound to its identity."""
 
     if not path.is_file():
         raise ValueError(f"prediction payload {path.name!r} is missing")
-    before = _file_signature(path)
-    initial_sha256 = _sha256_file(path)
-    try:
-        window = PredictionWindow.from_npz(path)
-    except (OSError, KeyError, ValueError) as error:
-        raise ValueError(
-            f"prediction payload {path.name!r} is not a canonical PredictionWindow"
-        ) from error
-    final_sha256 = _sha256_file(path)
-    after = _file_signature(path)
-    if before != after or initial_sha256 != final_sha256:
+    payload = _read_bytes(path, name="prediction payload")
+    sha256 = _sha256_bytes(payload)
+    with tempfile.TemporaryDirectory(prefix="prob4d-provider-import-") as temporary:
+        snapshot = Path(temporary) / "prediction-window.npz"
+        snapshot.write_bytes(payload)
+        try:
+            window = PredictionWindow.from_npz(snapshot)
+        except (OSError, KeyError, ValueError) as error:
+            raise ValueError(
+                f"prediction payload {path.name!r} is not a canonical PredictionWindow"
+            ) from error
+    if _read_bytes(path, name="prediction payload") != payload:
         raise ValueError("prediction payload changed during generic import")
     if window.window_id != expected_window_id:
         raise ValueError("import specification and payload window IDs differ")
-    return window, final_sha256, after[2]
+    return window, sha256, len(payload)
 
 
-def _load_specification(
-    path: Path,
-) -> tuple[Mapping[str, Any], str, tuple[int, int, int, int]]:
-    """Read one strict specification from a stable byte snapshot."""
+def _load_specification(path: Path) -> tuple[Mapping[str, Any], str, bytes]:
+    """Parse one strict specification from its exact identity-bearing bytes."""
 
-    before = _file_signature(path)
-    initial_sha256 = _sha256_file(path)
-    record = load_json_object(path, name="prediction-provider import specification")
-    final_sha256 = _sha256_file(path)
-    after = _file_signature(path)
-    if before != after or initial_sha256 != final_sha256:
+    payload = _read_bytes(path, name="prediction-provider import specification")
+    record = _load_json_bytes(
+        payload,
+        name="prediction-provider import specification",
+    )
+    if _read_bytes(path, name="prediction-provider import specification") != payload:
         raise ValueError("prediction-provider import specification changed during import")
     require_exact_fields(record, _SPEC_FIELDS, name="provider import specification")
     if record["schema"] != PREDICTION_PROVIDER_IMPORT_SPEC_SCHEMA:
@@ -158,7 +171,7 @@ def _load_specification(
     )
     if version != PREDICTION_PROVIDER_IMPORT_SPEC_VERSION:
         raise ValueError("unsupported prediction-provider import specification version")
-    return record, final_sha256, after
+    return record, _sha256_bytes(payload), payload
 
 
 def _lineage_from_specification(
@@ -183,9 +196,15 @@ def import_prediction_provider_specification(
     remain identity-bearing through ``PredictionPayloadDescriptorV1``.
     """
 
-    specification = Path(specification_path).resolve()
-    output = Path(output_path).resolve()
-    record, specification_sha256, specification_signature = _load_specification(
+    specification_input = Path(specification_path)
+    if specification_input.is_symlink():
+        raise ValueError("prediction-provider import specification is a symbolic link")
+    output_input = Path(output_path)
+    if output_input.is_symlink():
+        raise ValueError("prediction-provider output manifest is a symbolic link")
+    specification = specification_input.resolve()
+    output = output_input.resolve()
+    record, specification_sha256, specification_bytes = _load_specification(
         specification
     )
 
@@ -313,9 +332,13 @@ def import_prediction_provider_specification(
         metadata=metadata,
     )
 
-    if _file_signature(specification) != specification_signature:
-        raise ValueError("prediction-provider import specification changed during import")
-    if _sha256_file(specification) != specification_sha256:
+    if (
+        _read_bytes(
+            specification,
+            name="prediction-provider import specification",
+        )
+        != specification_bytes
+    ):
         raise ValueError("prediction-provider import specification changed during import")
     save_prediction_provider_manifest(output, manifest)
     verified, _ = verify_prediction_provider_manifest(output)
