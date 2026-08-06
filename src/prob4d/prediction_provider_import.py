@@ -28,10 +28,6 @@ from ._strict_json import (
     require_string_sequence,
 )
 from .data import PredictionWindow
-from .prediction_provider_io import (
-    save_prediction_provider_manifest,
-    verify_prediction_provider_manifest,
-)
 from .prediction_provider_manifest import (
     PREDICTION_PROVIDER_MANIFEST_VERSION,
     SOURCE_DEPENDENCY_SEMANTICS,
@@ -40,6 +36,8 @@ from .prediction_provider_manifest import (
     PredictionProviderManifestV1,
     _relative_member,
     _resolved_member,
+    save_prediction_provider_manifest,
+    verify_prediction_provider_manifest,
 )
 
 PREDICTION_PROVIDER_IMPORT_SPEC_SCHEMA: Final = (
@@ -162,7 +160,9 @@ def _load_specification(path: Path) -> tuple[Mapping[str, Any], str, bytes]:
         name="prediction-provider import specification",
     )
     if _read_bytes(path, name="prediction-provider import specification") != payload:
-        raise ValueError("prediction-provider import specification changed during import")
+        raise ValueError(
+            "prediction-provider import specification changed during import"
+        )
     require_exact_fields(record, _SPEC_FIELDS, name="provider import specification")
     if record["schema"] != PREDICTION_PROVIDER_IMPORT_SPEC_SCHEMA:
         raise ValueError("unsupported prediction-provider import specification schema")
@@ -341,7 +341,9 @@ def import_prediction_provider_specification(
         )
         != specification_bytes
     ):
-        raise ValueError("prediction-provider import specification changed during import")
+        raise ValueError(
+            "prediction-provider import specification changed during import"
+        )
     save_prediction_provider_manifest(output, manifest)
     verified, _ = verify_prediction_provider_manifest(output)
     return verified
