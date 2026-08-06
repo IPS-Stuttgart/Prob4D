@@ -43,6 +43,10 @@ def test_prediction_window_defensively_copies_and_freezes_arrays() -> None:
     with pytest.raises(ValueError, match="read-only"):
         window.point_map[0, 0, 0, 0] = 2.0
 
+    for array in (window.frame_indices, window.point_map, window.valid_mask):
+        with pytest.raises(ValueError, match="cannot set WRITEABLE flag"):
+            array.setflags(write=True)
+
 
 def test_prediction_window_normalizes_and_freezes_optional_arrays() -> None:
     frames, points, valid = _inputs()
@@ -73,6 +77,11 @@ def test_prediction_window_normalizes_and_freezes_optional_arrays() -> None:
     np.testing.assert_allclose(window.scene_flow, 1.0)
     assert np.all(window.deform_mask)
     assert np.all(np.linalg.norm(window.ray_directions[window.valid_mask], axis=-1) > 0.0)
+
+    for array in (window.scene_flow, window.deform_mask, window.ray_directions):
+        assert array is not None
+        with pytest.raises(ValueError, match="cannot set WRITEABLE flag"):
+            array.setflags(write=True)
 
 
 def test_prediction_window_rejects_nonfinite_active_optional_values() -> None:

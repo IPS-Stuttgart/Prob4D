@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from copy import copy, deepcopy
 from dataclasses import replace
 from pathlib import Path
@@ -128,8 +129,8 @@ def test_observation_metadata_is_recursively_immutable_and_hash_stable() -> None
 
     caller_metadata["caller_owned"]["items"][0]["value"] = 99  # type: ignore[index]
     assert artifact.metadata["caller_owned"]["items"][0]["value"] == 1  # type: ignore[index]
-    assert isinstance(artifact.metadata, dict)
-    assert isinstance(artifact.metadata["nested"]["values"], list)  # type: ignore[index]
+    assert isinstance(artifact.metadata, Mapping)
+    assert isinstance(artifact.metadata["nested"]["values"], Sequence)  # type: ignore[index]
 
     with pytest.raises(TypeError, match="metadata is immutable"):
         artifact.metadata["new"] = "value"  # type: ignore[index]

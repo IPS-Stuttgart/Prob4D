@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any, cast
+
+from ._immutable_json import plain_json
 
 PROVIDER_ATTESTATION_SCHEMA = "prob4d.provider-attestation"
 PROVIDER_ATTESTATION_VERSION = 1
@@ -87,7 +89,7 @@ def _require_string_mapping_keys(
                 name=name,
                 path=f"{path}.{key}",
             )
-    elif isinstance(value, (list, tuple)):
+    elif isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
         for index, item in enumerate(value):
             _require_string_mapping_keys(
                 item,
@@ -102,7 +104,7 @@ def _finite_json_mapping(value: Any, *, name: str) -> dict[str, Any]:
     try:
         normalized = json.loads(
             json.dumps(
-                dict(value),
+                plain_json(value),
                 sort_keys=True,
                 separators=(",", ":"),
                 allow_nan=False,
@@ -144,8 +146,7 @@ def _require_integer(value: Any, *, name: str) -> int:
 def _require_sha256(value: Any, *, name: str) -> str:
     _require(isinstance(value, str), f"{name} must be a string")
     _require(
-        len(value) == 64
-        and all(character in "0123456789abcdef" for character in value),
+        len(value) == 64 and all(character in "0123456789abcdef" for character in value),
         f"{name} must be a lowercase SHA-256 digest",
     )
     return value
@@ -154,8 +155,7 @@ def _require_sha256(value: Any, *, name: str) -> str:
 def _require_revision(value: Any, *, name: str) -> str:
     _require(isinstance(value, str), f"{name} must be a string")
     _require(
-        len(value) in {40, 64}
-        and all(character in "0123456789abcdef" for character in value),
+        len(value) in {40, 64} and all(character in "0123456789abcdef" for character in value),
         f"{name} must be an exact lowercase Git commit",
     )
     return value
@@ -163,7 +163,7 @@ def _require_revision(value: Any, *, name: str) -> str:
 
 def _canonical_json(value: Mapping[str, Any]) -> bytes:
     return json.dumps(
-        dict(value),
+        plain_json(value),
         sort_keys=True,
         separators=(",", ":"),
         allow_nan=False,
@@ -217,12 +217,13 @@ def validate_provider_manifest(
 
     capabilities = normalized.get("capabilities")
     _require(
-        isinstance(capabilities, list)
+        isinstance(capabilities, Sequence)
+        and not isinstance(capabilities, (str, bytes))
         and all(isinstance(item, str) and item for item in capabilities)
         and len(capabilities) == len(set(capabilities)),
         "provider manifest capabilities must be unique nonempty strings",
     )
-    capability_list = cast(list[Any], capabilities)
+    capability_list = cast(Sequence[Any], capabilities)
     _require(
         _REQUIRED_CAPABILITIES.issubset(capability_list),
         "provider manifest lacks required claim-bearing capabilities",
@@ -252,9 +253,7 @@ def validate_provider_manifest(
         "provider-v2 manifest must not default to uncalibrated export",
     )
     _require(
-        limitation_mapping.get(
-            "deployment_environment_revision_is_independent_vcs_evidence"
-        )
+        limitation_mapping.get("deployment_environment_revision_is_independent_vcs_evidence")
         is False,
         "provider manifest misstates deployment revision evidence",
     )

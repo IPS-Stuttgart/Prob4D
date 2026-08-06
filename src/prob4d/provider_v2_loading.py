@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
@@ -25,9 +25,7 @@ def _required_mapping(value: object, *, name: str) -> Mapping[str, object]:
 
 def _require_sha256(value: object, *, name: str) -> str:
     digest = str(value)
-    if len(digest) != 64 or any(
-        character not in "0123456789abcdef" for character in digest
-    ):
+    if len(digest) != 64 or any(character not in "0123456789abcdef" for character in digest):
         raise ValueError(f"{name} must be a lowercase SHA-256 digest")
     return digest
 
@@ -124,9 +122,7 @@ def validate_claim_bearing_observation_belief(
     if metadata.get("gauge_mode") != "sequential":
         raise ValueError("claim-bearing observation requires sequential gauge mode")
     if metadata.get("joint_cross_window_gauge_covariance_represented") is not True:
-        raise ValueError(
-            "claim-bearing observation requires joint cross-window gauge covariance"
-        )
+        raise ValueError("claim-bearing observation requires joint cross-window gauge covariance")
     if metadata.get("metric_anchor_covariance_in_joint_factor") is not True:
         raise ValueError(
             "claim-bearing observation requires metric-anchor covariance in the joint factor"
@@ -148,7 +144,11 @@ def validate_claim_bearing_observation_belief(
     if lineage.get("future_prediction_payloads_opened") != 0:
         raise ValueError("claim-bearing observation opened future prediction payloads")
     selected_windows = lineage.get("selected_windows")
-    if not isinstance(selected_windows, list) or not selected_windows:
+    if (
+        isinstance(selected_windows, (str, bytes))
+        or not isinstance(selected_windows, Sequence)
+        or not selected_windows
+    ):
         raise ValueError("claim-bearing observation requires selected source-window lineage")
     for selected_window in selected_windows:
         window = _required_mapping(selected_window, name="selected source window")
@@ -178,13 +178,9 @@ def validate_claim_bearing_observation_belief(
     if calibration.get("status") != "calibrated":
         raise ValueError("claim-bearing observation requires both covariance calibrations")
     if calibration.get("uncalibrated_exploratory_covariance_allowed") is not False:
-        raise ValueError(
-            "claim-bearing observation cannot allow uncalibrated covariance"
-        )
+        raise ValueError("claim-bearing observation cannot allow uncalibrated covariance")
     if calibration.get("pointwise_covariance_fallback_allowed") is not False:
-        raise ValueError(
-            "claim-bearing observation cannot allow pointwise covariance fallback"
-        )
+        raise ValueError("claim-bearing observation cannot allow pointwise covariance fallback")
     alignment_count = _require_nonnegative_integer(
         calibration.get("alignment_count"),
         name="claim-bearing alignment_count",
@@ -254,9 +250,7 @@ def load_claim_bearing_observation_belief(
 ) -> ValidatedClaimBearingObservation:
     """Load one artifact and require all claim-bearing provider-v2 invariants."""
 
-    return validate_claim_bearing_observation_belief(
-        load_observation_belief_export(path)
-    )
+    return validate_claim_bearing_observation_belief(load_observation_belief_export(path))
 
 
 __all__ = [
