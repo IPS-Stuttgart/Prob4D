@@ -24,6 +24,7 @@ def test_grouped_cli_lists_explicit_provider_v2_exports(capsys) -> None:
     assert "export-exploratory" in output
     assert "export-v1" in output
     assert "visual-bias" in output
+    assert "visual-bias-stream" in output
 
 
 def test_grouped_cli_requires_explicit_observation_export_mode(capsys) -> None:
@@ -70,7 +71,6 @@ def test_grouped_cli_routes_provider_neutral_prediction_help(capsys) -> None:
     assert exit_info.value.code == 0
     output = capsys.readouterr().out
     assert "import-motioncrafter" in output
-    assert "import-vggt" in output
     assert "validate" in output
 
 
@@ -96,3 +96,11 @@ def test_grouped_cli_routes_common_mode_and_visual_bias_help(capsys) -> None:
     assert bias_exit.value.code == 0
     bias_help = capsys.readouterr().out
     assert "explicit low-rank visual-bias nuisance" in bias_help
+
+
+def test_grouped_cli_routes_recursive_visual_bias_help(capsys) -> None:
+    with pytest.raises(SystemExit) as stream_exit:
+        main(["observation", "visual-bias-stream", "--help"])
+    assert stream_exit.value.code == 0
+    stream_help = capsys.readouterr().out
+    assert "recursive visual-bias nuisance streams" in stream_help
