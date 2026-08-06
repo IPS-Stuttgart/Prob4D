@@ -3,6 +3,7 @@ name: Inventory unopened held-out cohort metadata
 on:
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - ".github/workflows/issue-49-protected-cohort-inventory.yml"
 
@@ -161,7 +162,6 @@ jobs:
               stop = False
               for current, directories, files in os.walk(root, followlinks=False):
                   current_path = Path(current)
-                  lowered_current = f"/{str(current_path).lower().strip('/')}/"
                   scanned_entries += len(directories) + len(files)
                   try:
                       relative = current_path.relative_to(root)
