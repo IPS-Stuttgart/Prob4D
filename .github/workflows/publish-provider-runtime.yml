@@ -6,6 +6,11 @@ on:
     paths:
       - ".github/provider-runtime-publish/**"
       - ".github/workflows/publish-provider-runtime.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/provider-runtime-publish/**"
+      - ".github/workflows/publish-provider-runtime.yml"
   workflow_dispatch:
 
 permissions:
@@ -27,14 +32,17 @@ env:
 
 jobs:
   publish:
-    if: github.repository == 'IPS-Stuttgart/Prob4D'
+    if: >-
+      github.repository == 'IPS-Stuttgart/Prob4D' &&
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: [self-hosted, Linux, X64, nvidia-smi]
     timeout-minutes: 60
     steps:
       - name: Check out exact staging revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           clean: true
 
@@ -47,7 +55,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git branch --show-current)" = "agent/provider-neutral-runtime-v1"
+          expected_sha="${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$(git rev-parse HEAD)" = "${expected_sha}"
           staging=".github/provider-runtime-publish"
           archive="${RUNNER_TEMP}/provider-runtime-product.tar.gz"
           cat "${staging}"/product.tar.gz.b64.part* | base64 --decode > "${archive}"
