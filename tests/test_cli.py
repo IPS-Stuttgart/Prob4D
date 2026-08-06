@@ -72,8 +72,27 @@ def test_grouped_cli_routes_provider_neutral_prediction_help(capsys) -> None:
     assert exit_info.value.code == 0
     output = capsys.readouterr().out
     assert "import-motioncrafter" in output
+    assert "import-vggt" in output
+    assert "import-generic" in output
+    assert "scaffold-generic" in output
     assert "validate" in output
     assert "runtime" in output
+
+
+def test_grouped_cli_routes_generic_provider_import_help(capsys) -> None:
+    with pytest.raises(SystemExit) as import_exit:
+        main(["prediction", "import-generic", "--help"])
+    assert import_exit.value.code == 0
+    import_help = capsys.readouterr().out
+    assert "external canonical predictions" in import_help
+    assert "specification" in import_help
+
+    with pytest.raises(SystemExit) as scaffold_exit:
+        main(["prediction", "scaffold-generic", "--help"])
+    assert scaffold_exit.value.code == 0
+    scaffold_help = capsys.readouterr().out
+    assert "no-clobber generic-provider import scaffold" in scaffold_help
+    assert "output_directory" in scaffold_help
 
 
 def test_grouped_cli_routes_provider_runtime_help(capsys) -> None:

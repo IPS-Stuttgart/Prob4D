@@ -17,7 +17,9 @@ REQUIRED_PATHS = frozenset(
         ".github/dependabot.yml",
         ".github/workflows/ecosystem-release-capsule.yml",
         ".github/workflows/heldout-provider-promotion.yml",
+        ".github/workflows/generic-provider-import.yml",
         ".github/workflows/observation-bias-binding.yml",
+        ".github/workflows/provider-neutral-common-mode.yml",
         ".github/workflows/provider-runtime.yml",
         ".github/workflows/recursive-visual-bias.yml",
         ".github/workflows/tests.yml",
@@ -30,12 +32,15 @@ REQUIRED_PATHS = frozenset(
         "docs/ecosystem-release-capsule.md",
         "docs/examples/heldout-provider-promotion-config.json",
         "docs/examples/material-identity-mixture-config.json",
+        "docs/examples/provider-neutral-import-spec.json",
+        "docs/generic-provider-import.md",
         "docs/heldout-provider-promotion.md",
         "docs/joint-covariance-diagnostics.md",
         "docs/material-identity-cli.md",
         "docs/observation-bias-binding.md",
-        "docs/provider-neutral-runtime.md",
         "docs/prediction-window-storage.md",
+        "docs/provider-neutral-predictions.md",
+        "docs/provider-neutral-runtime.md",
         "docs/provider-v2.md",
         "docs/recursive-visual-bias.md",
         "docs/repository-identity.md",
@@ -54,10 +59,15 @@ REQUIRED_PATHS = frozenset(
         "src/prob4d/joint_covariance_metrics.py",
         "src/prob4d/material_identity_cli.py",
         "src/prob4d/observation_bias_binding.py",
+        "src/prob4d/prediction_cli.py",
+        "src/prob4d/prediction_provider_import.py",
+        "src/prob4d/prediction_provider_manifest.py",
+        "src/prob4d/prediction_provider_scaffold.py",
         "src/prob4d/promotion_evidence.py",
         "src/prob4d/provider_runtime.py",
         "src/prob4d/visual_bias_stream.py",
         "tests/fixtures/prob4d_joint_observation_v1.json",
+        "tests/test_cli.py",
         "tests/test_data_storage.py",
         "tests/test_ecosystem_release_capsule.py",
         "tests/test_github_action_pins.py",
@@ -67,6 +77,9 @@ REQUIRED_PATHS = frozenset(
         "tests/test_joint_observation_contract_fixture.py",
         "tests/test_material_identity_cli.py",
         "tests/test_observation_bias_binding.py",
+        "tests/test_prediction_provider_import.py",
+        "tests/test_prediction_provider_manifest.py",
+        "tests/test_prediction_provider_scaffold.py",
         "tests/test_project_identity.py",
         "tests/test_promotion_evidence.py",
         "tests/test_provider_runtime.py",
@@ -83,6 +96,8 @@ REPRESENTATIVE_TESTS = (
     "tests/test_joint_covariance_metrics.py",
     "tests/test_material_identity_cli.py",
     "tests/test_observation_bias_binding.py",
+    "tests/test_prediction_provider_import.py",
+    "tests/test_prediction_provider_scaffold.py",
     "tests/test_promotion_evidence.py",
     "tests/test_provider_manifest.py",
     "tests/test_joint_observation_contract_fixture.py",
@@ -107,7 +122,10 @@ def _validated_members(archive: Path) -> tuple[str, tuple[tarfile.TarInfo, ...]]
             raise RuntimeError(f"unsafe source-distribution path: {member.name}")
         roots.add(path.parts[0])
         if member.issym() or member.islnk() or not (member.isdir() or member.isfile()):
-            raise RuntimeError(f"source distribution contains a non-regular member: {member.name}")
+            raise RuntimeError(
+                "source distribution contains a non-regular member: "
+                f"{member.name}"
+            )
         if len(path.parts) > 1:
             relative_paths.add(PurePosixPath(*path.parts[1:]).as_posix())
 
