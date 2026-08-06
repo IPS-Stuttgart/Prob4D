@@ -1,0 +1,105 @@
+name: Provider window bundle
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/provider-window-bundle.yml"
+      - "src/prob4d/provider_bundle.py"
+      - "src/prob4d/cli.py"
+      - "tests/test_provider_bundle.py"
+      - "tests/test_cli.py"
+      - "docs/provider-window-bundle.md"
+      - "docs/examples/provider-window-ingest-spec.json"
+      - "scripts/ci/check_sdist.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: provider-window-bundle-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUNBUFFERED: "1"
+  SELF_HOSTED_RECOVERY: >-
+    ${{ github.event_name == 'pull_request' &&
+        github.event.pull_request.head.repo.full_name == github.repository &&
+        startsWith(github.head_ref, 'ci/self-hosted-') }}
+
+jobs:
+  contract:
+    name: Provider-neutral bundle contract
+    runs-on: >-
+      ${{ github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository &&
+          startsWith(github.head_ref, 'ci/self-hosted-') &&
+          fromJSON('["self-hosted","Linux","X64","nvidia-smi"]') ||
+          'ubuntu-latest' }}
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Isolate self-hosted environment
+        if: env.SELF_HOSTED_RECOVERY == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          environment="$RUNNER_TEMP/prob4d-provider-window-bundle"
+          python -m venv --clear "$environment"
+          "$environment/bin/python" -m ensurepip --upgrade
+          "$environment/bin/python" -m pip install --upgrade pip
+          echo "$environment/bin" >> "$GITHUB_PATH"
+      - name: Install development environment
+        run: python -m pip install -e ".[dev]"
+      - name: Check focused source quality
+        run: |
+          python -m ruff check \
+            src/prob4d/provider_bundle.py \
+            src/prob4d/cli.py \
+            tests/test_provider_bundle.py \
+            tests/test_cli.py
+          python -m ruff format --check \
+            src/prob4d/provider_bundle.py \
+            src/prob4d/cli.py \
+            tests/test_provider_bundle.py \
+            tests/test_cli.py
+          python -m mypy \
+            src/prob4d/provider_bundle.py \
+            src/prob4d/cli.py
+      - name: Run focused regressions
+        run: >-
+          python -m pytest -q
+          tests/test_provider_bundle.py
+          tests/test_cli.py
+      - name: Build distributions
+        run: python -m build
+      - name: Smoke-test installed wheel
+        shell: bash
+        run: |
+          set -euo pipefail
+          environment="$RUNNER_TEMP/prob4d-provider-window-bundle-wheel"
+          python -m venv --clear "$environment"
+          "$environment/bin/python" -m ensurepip --upgrade
+          "$environment/bin/python" -m pip install dist/*.whl
+          "$environment/bin/python" - <<'PY'
+          import sys
+
+          import prob4d.provider_bundle
+
+          forbidden = {"torch", "diffusers", "decord"}
+          loaded = sorted(forbidden & set(sys.modules))
+          if loaded:
+              raise SystemExit(
+                  f"provider bundle import loaded optional GPU dependencies: {loaded}"
+              )
+          PY
+          "$environment/bin/prob4d" provider --help
