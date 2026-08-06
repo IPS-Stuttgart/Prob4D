@@ -1,92 +1,83 @@
-name: Execute PR 113 repair v2
+name: Execute PR 124 provider-manifest repair
 
 on:
   push:
     branches: [ci/fix-pr-113]
-    paths: [.github/workflows/run-fix-pr-113-via-pr.yml]
-  pull_request:
-    branches: [main]
     paths: [.github/workflows/run-fix-pr-113-via-pr.yml]
 
 permissions:
   contents: write
 
 concurrency:
-  group: execute-pr-113-repair
+  group: execute-pr-124-provider-manifest-repair-approved
   cancel-in-progress: false
 
 jobs:
   execute:
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Check out the execution branch
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ci/fix-pr-113
-          path: executor
-          persist-credentials: false
-          clean: true
-
       - name: Check out the target PR branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: agent/harden-factor-stream-contract
-          path: target
+          ref: agent/provider-manifest-ingest-hardening
           fetch-depth: 0
           persist-credentials: true
           clean: true
 
-      - name: Execute the reviewed repair steps verbatim
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Apply and validate the reviewed repair
         shell: bash
         run: |
           set -euo pipefail
-          python -m pip install pyyaml
-          python - <<'PY'
-          from pathlib import Path
-          import re
-          import subprocess
-          import yaml
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+          python -m pip install "ruff==0.16.1"
+          python scripts/ci/temporary_patch_provider_manifest_hardening.py
+          python -m ruff format \
+            src/prob4d/prediction_provider_import.py \
+            tests/test_prediction_provider_import.py \
+            tests/test_prediction_provider_persistence.py
+          python -m ruff check \
+            src/prob4d/prediction_provider_import.py \
+            src/prob4d/prediction_provider_manifest.py \
+            tests/test_prediction_provider_import.py \
+            tests/test_prediction_provider_manifest.py \
+            tests/test_prediction_provider_persistence.py
+          python -m mypy \
+            src/prob4d/prediction_provider_import.py \
+            src/prob4d/prediction_provider_manifest.py
+          python -m pytest -q \
+            tests/test_cli.py \
+            tests/test_prediction_provider_import.py \
+            tests/test_prediction_provider_manifest.py \
+            tests/test_prediction_provider_persistence.py
+          git diff --check
 
-          workflow = yaml.safe_load(
-              Path("executor/.github/workflows/fix-pr-113-integrity.yml")
-              .read_text(encoding="utf-8")
-          )
-          scripts = [
-              step["run"]
-              for step in workflow["jobs"]["repair"]["steps"]
-              if "run" in step
-          ]
-          if len(scripts) != 3:
-              raise SystemExit(f"unexpected repair step count: {len(scripts)}")
-          for index, script in enumerate(scripts, start=1):
-              if index == 1:
-                  helper = '''
-
-def strip_yaml(value: str) -> str:
-    suffix = "\\n" if value.endswith("\\n") else ""
-    lines = value.splitlines()
-    return "\\n".join(
-        line[10:] if line.startswith("          ") else line
-        for line in lines
-    ) + suffix
-'''
-                  script = script.replace(
-                      "from pathlib import Path\n",
-                      "from pathlib import Path\n" + helper,
-                      1,
-                  )
-                  script = re.sub(
-                      r"(?s)('''.*?''')\.replace\(\" {10}\", \"\"\)",
-                      r"strip_yaml(\1)",
-                      script,
-                  )
-              print(f"::group::reviewed repair step {index}")
-              subprocess.run(
-                  ["bash", "-euo", "pipefail", "-c", script],
-                  cwd="target",
-                  check=True,
-              )
-              print("::endgroup::")
-          PY
+      - name: Commit and push the source-only repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- \
+            src/prob4d/prediction_provider_import.py \
+            src/prob4d/prediction_provider_manifest.py \
+            tests/test_prediction_provider_import.py \
+            tests/test_prediction_provider_manifest.py \
+            tests/test_prediction_provider_persistence.py; then
+            echo "provider-manifest hardening is already present"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            src/prob4d/prediction_provider_import.py \
+            src/prob4d/prediction_provider_manifest.py \
+            tests/test_prediction_provider_import.py \
+            tests/test_prediction_provider_manifest.py \
+            tests/test_prediction_provider_persistence.py
+          git commit -m "Harden canonical prediction-provider admission"
+          git push origin HEAD:agent/provider-manifest-ingest-hardening
