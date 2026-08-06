@@ -1,0 +1,208 @@
+name: Held-out Deform360 cohort binding
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/prob4d/_deform360_cohort_binding.py"
+      - "src/prob4d/_deform360_cohort_io.py"
+      - "src/prob4d/_deform360_cohort_schema.py"
+      - "src/prob4d/deform360_cohort_binding.py"
+      - "src/prob4d/heldout_promotion.py"
+      - "tests/test_deform360_cohort_binding.py"
+      - "tests/test_heldout_promotion.py"
+      - "docs/heldout-provider-promotion.md"
+      - "docs/examples/deform360-heldout-provider-promotion-config.json"
+      - ".github/workflows/heldout-cohort-binding.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/prob4d/_deform360_cohort_binding.py"
+      - "src/prob4d/_deform360_cohort_io.py"
+      - "src/prob4d/_deform360_cohort_schema.py"
+      - "src/prob4d/deform360_cohort_binding.py"
+      - "src/prob4d/heldout_promotion.py"
+      - "tests/test_deform360_cohort_binding.py"
+      - "tests/test_heldout_promotion.py"
+      - "docs/heldout-provider-promotion.md"
+      - "docs/examples/deform360-heldout-provider-promotion-config.json"
+      - ".github/workflows/heldout-cohort-binding.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: heldout-cohort-binding-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+
+jobs:
+  contract:
+    name: Selection identity, information boundary, and promotion binding
+    runs-on: ubuntu-slim
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact reviewed Prob4D source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Install lightweight development environment
+        run: python -m pip install -e ".[dev]" "numpy>=1.24,<2.3"
+
+      - name: Check source quality
+        run: |
+          python -m ruff check \
+            src/prob4d/_deform360_cohort_binding.py \
+            src/prob4d/_deform360_cohort_io.py \
+            src/prob4d/_deform360_cohort_schema.py \
+            src/prob4d/deform360_cohort_binding.py \
+            src/prob4d/heldout_promotion.py \
+            tests/test_deform360_cohort_binding.py \
+            tests/test_heldout_promotion.py
+          python -m ruff format --check \
+            src/prob4d/_deform360_cohort_binding.py \
+            src/prob4d/_deform360_cohort_io.py \
+            src/prob4d/_deform360_cohort_schema.py \
+            src/prob4d/deform360_cohort_binding.py \
+            src/prob4d/heldout_promotion.py \
+            tests/test_deform360_cohort_binding.py \
+            tests/test_heldout_promotion.py
+          python -m mypy \
+            src/prob4d/_deform360_cohort_binding.py \
+            src/prob4d/_deform360_cohort_io.py \
+            src/prob4d/_deform360_cohort_schema.py \
+            src/prob4d/deform360_cohort_binding.py \
+            src/prob4d/heldout_promotion.py
+
+      - name: Run focused and adjacent contracts
+        run: |
+          python -m pytest -q -p no:cacheprovider \
+            tests/test_deform360_cohort_binding.py \
+            tests/test_heldout_promotion.py \
+            tests/test_cli.py
+          python -m compileall -q src/prob4d
+          python -m pip check
+
+      - name: Smoke installed grouped commands
+        run: |
+          prob4d experiment heldout-provider --help
+          prob4d experiment heldout-provider cohort-bind --help
+          prob4d experiment heldout-provider cohort-verify --help
+          prob4d experiment heldout-provider freeze --help
+
+      - name: Verify clean repository state
+        run: |
+          git diff --exit-code
+          test -z "$(git status --porcelain=v1)"
+
+  # This job reads only the committed names/metadata Stage-0 selection artifact.
+  # It never downloads or opens selected camera, tactile, robot, or outcome payloads.
+  authoritative-selection:
+    name: Replay committed BayesianPhysTwin Stage-0 selection
+    needs: contract
+    runs-on: ubuntu-slim
+    timeout-minutes: 20
+    env:
+      BPT_SELECTION_REVISION: 2d52dae9dc2eb0261bc6048eb2e3d5f084e01402
+      BPT_SELECTION_PATH: protocols/locks/deform360_official_hub_visuotactile_v1_selection.json
+    steps:
+      - name: Check out exact reviewed Prob4D source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: prob4d
+          persist-credentials: false
+          clean: true
+
+      - name: Check out exact BayesianPhysTwin selection source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: IPS-Stuttgart/BayesianPhysTwin
+          ref: ${{ env.BPT_SELECTION_REVISION }}
+          path: bayesian-phystwin
+          persist-credentials: false
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Install exact reviewed Prob4D source
+        run: python -m pip install ./prob4d "numpy>=1.24,<2.3"
+
+      - name: Bind and replay the committed Stage-0 selection
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p outputs
+          selection="bayesian-phystwin/${BPT_SELECTION_PATH}"
+          prob4d experiment heldout-provider cohort-bind \
+            "${selection}" \
+            --source-revision "${BPT_SELECTION_REVISION}" \
+            --output outputs/deform360-cohort-binding.json
+          prob4d experiment heldout-provider cohort-verify \
+            outputs/deform360-cohort-binding.json \
+            --selection "${selection}" \
+            | tee outputs/verification.json
+
+      - name: Verify registered identities and object counts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          binding = json.loads(
+              Path("outputs/deform360-cohort-binding.json").read_text(encoding="utf-8")
+          )
+          assert binding["selection_artifact_sha256"] == (
+              "dc1c2d192fbb841d2f0e290d77f21d697983b3f8bfbcae476e71fe902309cd82"
+          )
+          assert binding["content_selection_sha256"] == (
+              "f3d3ac25020ec85cad3fadf097259930437baae2b50b4c7f21f61d4823fc649b"
+          )
+          assert binding["selection_sha256"] == (
+              "b28daf8477e214cb74a4d250ef5eea8f9f1a014aec10487699ac0ce063961222"
+          )
+          assert binding["dataset_resolved_revision"] == (
+              "f804696d7a133908c7497ffdab43819d879b5cbc"
+          )
+          assert binding["processing_revision"] == (
+              "d8522a4403b766aeb387510c04e89032a56fdf35"
+          )
+          assert len(binding["calibration_group_ids"]) == 10
+          assert len(binding["target_group_ids"]) == 12
+          assert not (
+              set(binding["calibration_group_ids"])
+              & set(binding["target_group_ids"])
+          )
+          print(binding["cohort_binding_id"])
+          PY
+
+      - name: Upload compact target-free binding evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        with:
+          name: deform360-cohort-binding-${{ github.run_id }}-${{ github.run_attempt }}
+          path: outputs/
+          if-no-files-found: error
+          retention-days: 30

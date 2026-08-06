@@ -61,6 +61,26 @@ from ._heldout_promotion_report import (
     promotion_report_from_dict,
     write_promotion_report,
 )
+from .deform360_cohort_binding import (
+    DEFORM360_COHORT_BINDING_CLAIM_BOUNDARY,
+    DEFORM360_COHORT_BINDING_SCHEMA,
+    DEFORM360_COHORT_BINDING_VERSION,
+    Deform360CohortUnitV1,
+    Deform360OfficialHubCohortBindingV1,
+    build_deform360_official_hub_cohort_binding,
+    deform360_cohort_binding_from_dict,
+    load_deform360_cohort_binding,
+    validate_deform360_cohort_binding_against_selection,
+    validate_deform360_official_hub_selection,
+    validate_promotion_config_against_deform360_binding,
+    write_deform360_cohort_binding,
+)
+from .deform360_cohort_binding import (
+    bind_cli as _cohort_bind,
+)
+from .deform360_cohort_binding import (
+    verify_cli as _cohort_verify,
+)
 from .promotion_evidence import (
     build_promotion_evidence_card,
     load_promotion_evidence_card,
@@ -74,9 +94,20 @@ def _freeze(arguments: Sequence[str]) -> int:
         description="Seal one target-free held-out provider promotion lock.",
     )
     parser.add_argument("config", type=Path)
+    parser.add_argument(
+        "--cohort-binding",
+        type=Path,
+        help=(
+            "optionally require exact agreement with BayesianPhysTwin's "
+            "official-Hub Deform360 Stage-0 cohort binding"
+        ),
+    )
     parser.add_argument("--output", type=Path, required=True)
     parsed = parser.parse_args(arguments)
     config, _ = _load_json(parsed.config, name="promotion lock configuration")
+    if parsed.cohort_binding is not None:
+        cohort_binding = load_deform360_cohort_binding(parsed.cohort_binding)
+        validate_promotion_config_against_deform360_binding(config, cohort_binding)
     lock = promotion_lock_from_config(config)
     write_promotion_lock(lock, parsed.output)
     print(lock.promotion_lock_id)
@@ -177,7 +208,9 @@ def _verify(arguments: Sequence[str]) -> int:
         provider_report_sha256=hashlib.sha256(provider_bytes).hexdigest(),
     )
     if observed.to_dict() != replayed.to_dict():
-        raise ValueError("held-out promotion report does not match deterministic replay")
+        raise ValueError(
+            "held-out promotion report does not match deterministic replay"
+        )
     replayed_evidence = build_promotion_evidence_card(
         lock.to_dict(),
         observed.to_dict(),
@@ -185,7 +218,9 @@ def _verify(arguments: Sequence[str]) -> int:
     if parsed.evidence_card is not None:
         observed_evidence = load_promotion_evidence_card(parsed.evidence_card)
         if observed_evidence != replayed_evidence:
-            raise ValueError("promotion evidence card does not match deterministic replay")
+            raise ValueError(
+                "promotion evidence card does not match deterministic replay"
+            )
     print(
         json.dumps(
             {
@@ -221,13 +256,23 @@ def _diagnose(arguments: Sequence[str]) -> int:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Run freeze, run, verify, or diagnose for the held-out promotion protocol."""
+    """Run cohort binding, promotion freeze, execution, replay, or diagnosis."""
 
     parser = argparse.ArgumentParser(
         prog="prob4d experiment heldout-provider",
         description=__doc__,
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
+    subparsers.add_parser(
+        "cohort-bind",
+        add_help=False,
+        help="bind the authoritative Deform360 Stage-0 selection",
+    )
+    subparsers.add_parser(
+        "cohort-verify",
+        add_help=False,
+        help="replay the cohort binding and optionally rebind the selection",
+    )
     subparsers.add_parser(
         "freeze",
         add_help=False,
@@ -253,6 +298,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.print_help()
         return 0
     parsed, remaining = parser.parse_known_args(arguments)
+    if parsed.command == "cohort-bind":
+        return _cohort_bind(remaining)
+    if parsed.command == "cohort-verify":
+        return _cohort_verify(remaining)
     if parsed.command == "freeze":
         return _freeze(remaining)
     if parsed.command == "run":
@@ -269,6 +318,9 @@ if __name__ == "__main__":
 
 
 __all__ = [
+    "DEFORM360_COHORT_BINDING_CLAIM_BOUNDARY",
+    "DEFORM360_COHORT_BINDING_SCHEMA",
+    "DEFORM360_COHORT_BINDING_VERSION",
     "HELDOUT_PROMOTION_DIAGNOSIS_SCHEMA",
     "HELDOUT_PROMOTION_DIAGNOSIS_VERSION",
     "HELDOUT_PROMOTION_LOCK_SCHEMA",
@@ -277,16 +329,21 @@ __all__ = [
     "HELDOUT_PROMOTION_REPORT_VERSION",
     "HELDOUT_QUERY_RESULTS_SCHEMA",
     "HELDOUT_QUERY_RESULTS_VERSION",
+    "Deform360CohortUnitV1",
+    "Deform360OfficialHubCohortBindingV1",
     "HeldoutPromotionDiagnosisV1",
     "HeldoutPromotionQueryResultsV1",
     "HeldoutProviderPromotionLockV1",
     "HeldoutProviderPromotionReportV1",
     "PromotionArmV1",
     "PromotionQueryRowV1",
+    "build_deform360_official_hub_cohort_binding",
     "build_promotion_evidence_card",
     "build_query_results",
+    "deform360_cohort_binding_from_dict",
     "diagnose_heldout_promotion",
     "evaluate_heldout_promotion",
+    "load_deform360_cohort_binding",
     "load_promotion_diagnosis",
     "load_promotion_evidence_card",
     "load_promotion_lock",
@@ -298,6 +355,10 @@ __all__ = [
     "promotion_report_from_dict",
     "query_results_from_dict",
     "query_results_from_raw",
+    "validate_deform360_cohort_binding_against_selection",
+    "validate_deform360_official_hub_selection",
+    "validate_promotion_config_against_deform360_binding",
+    "write_deform360_cohort_binding",
     "write_promotion_diagnosis",
     "write_promotion_diagnosis_markdown",
     "write_promotion_evidence_card",
