@@ -1,0 +1,84 @@
+name: Temporary macOS format independent-anchor study
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/prob4d/anchor_common_bias_study.py"
+      - "src/prob4d/_anchor_common_bias_study_impl.py"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: temporary-macos-format-anchor-common-bias-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  format:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'agent/anchor-common-bias-study-v1'
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out exact same-repository PR head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Apply canonical Ruff formatting only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -e ".[dev]" "numpy>=1.24,<2.3"
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          python -m ruff format \
+            src/prob4d/anchor_common_bias_study.py \
+            src/prob4d/_anchor_common_bias_study_impl.py
+          python -m ruff check \
+            src/prob4d/anchor_common_bias_study.py \
+            src/prob4d/_anchor_common_bias_study_impl.py
+          mapfile -t changed < <(git diff --name-only)
+          for path in "${changed[@]}"; do
+            case "${path}" in
+              src/prob4d/anchor_common_bias_study.py|src/prob4d/_anchor_common_bias_study_impl.py) ;;
+              *) echo "unexpected formatter change: ${path}" >&2; exit 1 ;;
+            esac
+          done
+
+      - name: Commit formatting when this is still the current head
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo "Study modules already use canonical formatting."
+            exit 0
+          fi
+          expected="${{ github.event.pull_request.head.sha }}"
+          git fetch origin agent/anchor-common-bias-study-v1
+          current="$(git rev-parse FETCH_HEAD)"
+          if [[ "${current}" != "${expected}" ]]; then
+            echo "Branch advanced from ${expected} to ${current}; another formatter won."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- \
+            src/prob4d/anchor_common_bias_study.py \
+            src/prob4d/_anchor_common_bias_study_impl.py
+          git diff --cached --check
+          git commit -m "Format independent-anchor study"
+          git remote set-url origin \
+            "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push origin HEAD:agent/anchor-common-bias-study-v1
