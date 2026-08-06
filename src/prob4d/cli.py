@@ -95,7 +95,7 @@ _ROUTES: Final[dict[Route, tuple[str, str, str]]] = {
         "validate explicit shared visual-bias nuisance sidecars",
     ),
     ("prediction",): (
-        "prob4d.prediction_provider_io",
+        "prob4d.prediction_provider_manifest",
         "main",
         "import and validate provider-neutral prediction manifests",
     ),
