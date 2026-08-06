@@ -282,6 +282,17 @@ def test_calibration_and_target_rejection_roundtrip(tmp_path: Path) -> None:
     save_cross_provider_calibration(calibration_path, calibration)
     loaded_calibration = load_cross_provider_calibration(calibration_path)
     assert loaded_calibration.artifact_id == calibration.artifact_id
+    assert (
+        cross_provider.main(
+            [
+                "verify-calibration",
+                str(calibration_path),
+                "--panel",
+                str(calibration_panel_path),
+            ]
+        )
+        == 0
+    )
 
     target_npz = tmp_path / "target.npz"
     _matched(target_npz, offset_m=0.05)
@@ -307,6 +318,19 @@ def test_calibration_and_target_rejection_roundtrip(tmp_path: Path) -> None:
     decision_path = tmp_path / "decision.json"
     save_cross_provider_decision(decision_path, decision)
     assert load_cross_provider_decision(decision_path).artifact_id == decision.artifact_id
+    assert (
+        cross_provider.main(
+            [
+                "verify-decision",
+                str(decision_path),
+                "--calibration",
+                str(calibration_path),
+                "--panel",
+                str(target_panel_path),
+            ]
+        )
+        == 0
+    )
 
 
 def test_low_common_support_is_rejected(tmp_path: Path) -> None:
@@ -513,6 +537,42 @@ def test_resigned_provider_contract_tamper_is_rejected(tmp_path: Path) -> None:
     path = tmp_path / "provider-tampered.json"
     path.write_text(json.dumps(record), encoding="utf-8")
     with pytest.raises(ValueError, match="differ from the provider contracts"):
+        load_cross_provider_calibration(path)
+
+
+def test_resigned_source_only_metadata_tamper_is_rejected(tmp_path: Path) -> None:
+    first_path, first, second_path, second = _provider_pair(tmp_path)
+    matched = tmp_path / "matched.npz"
+    _matched(matched)
+    panel_path = tmp_path / "panel.json"
+    _panel(
+        panel_path,
+        purpose="calibration",
+        first_manifest=first_path,
+        second_manifest=second_path,
+        first_payload_id=str(first.payloads[0].payload_id),
+        second_payload_id=str(second.payloads[0].payload_id),
+        matched=matched,
+    )
+    calibration = fit_cross_provider_calibration(
+        evaluate_cross_provider_panel(
+            panel_path,
+            row_quantile=0.95,
+            expected_purpose="calibration",
+        ),
+        miscoverage=0.5,
+        row_quantile=0.95,
+        minimum_support_fraction=0.75,
+    )
+    record = calibration.to_record()
+    metadata = record["metadata"]
+    assert isinstance(metadata, dict)
+    metadata["uses_truth"] = True
+    descriptor = {key: value for key, value in record.items() if key != "artifact_id"}
+    record["artifact_id"] = cross_provider._sha256_json(descriptor)
+    path = tmp_path / "metadata-tampered.json"
+    path.write_text(json.dumps(record), encoding="utf-8")
+    with pytest.raises(ValueError, match="uses_truth=false"):
         load_cross_provider_calibration(path)
 
 

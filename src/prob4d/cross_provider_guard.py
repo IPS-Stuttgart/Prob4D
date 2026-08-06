@@ -1037,6 +1037,8 @@ def evaluate_cross_provider_panel(
             case["second_manifest"],
             name=f"case {case_id!r} second manifest",
         )
+        first_manifest_sha256 = _sha256_file(first_manifest_path)
+        second_manifest_sha256 = _sha256_file(second_manifest_path)
         first_manifest, _ = verify_prediction_provider_manifest(
             first_manifest_path,
             verify_payloads=True,
@@ -1045,6 +1047,10 @@ def evaluate_cross_provider_panel(
             second_manifest_path,
             verify_payloads=True,
         )
+        if _sha256_file(first_manifest_path) != first_manifest_sha256:
+            raise ValueError("first provider manifest changed during verification")
+        if _sha256_file(second_manifest_path) != second_manifest_sha256:
+            raise ValueError("second provider manifest changed during verification")
         if first_manifest.sequence_id != second_manifest.sequence_id:
             raise ValueError("provider manifests refer to different sequences")
         current_first = ProviderContractV1.from_manifest(first_manifest)
@@ -1128,8 +1134,8 @@ def evaluate_cross_provider_panel(
                 second_provider_contract_id=str(current_second.contract_id),
                 first_manifest_artifact_id=first_artifact_id,
                 second_manifest_artifact_id=second_artifact_id,
-                first_manifest_sha256=_sha256_file(first_manifest_path),
-                second_manifest_sha256=_sha256_file(second_manifest_path),
+                first_manifest_sha256=first_manifest_sha256,
+                second_manifest_sha256=second_manifest_sha256,
                 first_provider_run_id=first_manifest.provider_run_id,
                 second_provider_run_id=second_manifest.provider_run_id,
                 first_payload_ids=first_payload_ids,
@@ -1276,7 +1282,7 @@ class CrossProviderCalibrationV1:
         if self.claim_boundary != CROSS_PROVIDER_CLAIM_BOUNDARY:
             raise ValueError("cross-provider claim boundary changed")
         metadata = frozen_finite_json_mapping(
-            require_finite_json_mapping(
+            _required_source_only_metadata(
                 self.metadata,
                 name="cross-provider calibration metadata",
             ),
@@ -1533,7 +1539,7 @@ class CrossProviderDecisionV1:
         if self.claim_boundary != CROSS_PROVIDER_CLAIM_BOUNDARY:
             raise ValueError("cross-provider claim boundary changed")
         metadata = frozen_finite_json_mapping(
-            require_finite_json_mapping(
+            _required_source_only_metadata(
                 self.metadata,
                 name="cross-provider decision metadata",
             ),
@@ -1946,10 +1952,12 @@ def _build_parser() -> argparse.ArgumentParser:
 
     verify_calibration = subparsers.add_parser("verify-calibration")
     verify_calibration.add_argument("calibration")
+    verify_calibration.add_argument("--panel", required=True)
 
     verify_decision = subparsers.add_parser("verify-decision")
     verify_decision.add_argument("decision")
     verify_decision.add_argument("--calibration", required=True)
+    verify_decision.add_argument("--panel", required=True)
 
     stress = subparsers.add_parser("stress")
     stress.add_argument("--output", required=True)
@@ -2017,6 +2025,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     if arguments.command == "verify-calibration":
         calibration = load_cross_provider_calibration(arguments.calibration)
+        panel = evaluate_cross_provider_panel(
+            arguments.panel,
+            row_quantile=calibration.row_quantile,
+            expected_purpose="calibration",
+        )
+        replayed_calibration = fit_cross_provider_calibration(
+            panel,
+            miscoverage=calibration.finite_sample_threshold.miscoverage,
+            row_quantile=calibration.row_quantile,
+            minimum_support_fraction=calibration.minimum_support_fraction,
+        )
+        if replayed_calibration.to_record() != calibration.to_record():
+            raise ValueError("calibration artifact does not match deterministic replay")
         print(
             json.dumps(
                 {
@@ -2030,22 +2051,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         return 0
     if arguments.command == "verify-decision":
+        calibration = load_cross_provider_calibration(arguments.calibration)
         decision = load_cross_provider_decision(arguments.decision)
-        if arguments.calibration is not None:
-            calibration = load_cross_provider_calibration(arguments.calibration)
-            if decision.calibration_artifact_id != calibration.artifact_id:
-                raise ValueError("decision references a different calibration artifact")
-            if decision.first_provider != calibration.first_provider or (
-                decision.second_provider != calibration.second_provider
-            ):
-                raise ValueError("decision provider contracts differ from calibration")
-            if not math.isclose(
-                decision.threshold,
-                calibration.finite_sample_threshold.threshold,
-                rel_tol=0.0,
-                abs_tol=0.0,
-            ):
-                raise ValueError("decision threshold differs from calibration")
+        panel = evaluate_cross_provider_panel(
+            arguments.panel,
+            row_quantile=calibration.row_quantile,
+            expected_purpose="target",
+        )
+        replayed_decision = apply_cross_provider_calibration(calibration, panel)
+        if replayed_decision.to_record() != decision.to_record():
+            raise ValueError("decision artifact does not match deterministic replay")
         print(
             json.dumps(
                 {
