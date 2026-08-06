@@ -1,0 +1,78 @@
+name: Fix PR 113 repair executor
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/agent-fix-pr113-executor.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix-executor:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out target branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: agent/harden-factor-stream-contract
+          fetch-depth: 0
+          persist-credentials: true
+          clean: true
+
+      - name: Replace indentation-sensitive source marker
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path(".github/workflows/agent-execute-pr113-repair.yml")
+          text = path.read_text(encoding="utf-8")
+          start = text.index("          old_initial = dedent(")
+          end_marker = (
+              "          source = source.replace(old_initial, new_initial, 1)\n"
+          )
+          end = text.index(end_marker, start) + len(end_marker)
+          replacement = r'''          old_initial = (
+              "    if stream is None:\n"
+              "        update_index = 0\n"
+              "        previous_update_id = None\n"
+              "        if admitted_frame_start is None:\n"
+              "            preview = load_observation_factor_bundle(manifest)\n"
+              "            admitted_start = min(factor.frame_index for factor in preview.factors)\n"
+              "        else:\n"
+              "            admitted_start = _require_nonnegative_integer(\n"
+              "                admitted_frame_start,\n"
+              "                name=\"admitted_frame_start\",\n"
+              "            )\n"
+          )
+          new_initial = (
+              "    if stream is None:\n"
+              "        update_index = 0\n"
+              "        previous_update_id = None\n"
+              "        admitted_start = (\n"
+              "            None\n"
+              "            if admitted_frame_start is None\n"
+              "            else _require_nonnegative_integer(\n"
+              "                admitted_frame_start,\n"
+              "                name=\"admitted_frame_start\",\n"
+              "            )\n"
+              "        )\n"
+          )
+          if old_initial not in source and new_initial not in source:
+              raise SystemExit("initial stream marker not found")
+          source = source.replace(old_initial, new_initial, 1)
+'''
+          path.write_text(text[:start] + replacement + text[end:], encoding="utf-8")
+          PY
+          rm -f .github/workflows/agent-fix-pr113-executor.yml
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Fix PR 113 repair executor markers"
+          git push origin HEAD:agent/harden-factor-stream-contract
