@@ -1,0 +1,84 @@
+name: Execute PR 124 provider-manifest repair
+
+on:
+  push:
+    branches: [ci/fix-pr-124]
+    paths: [.github/workflows/fix-pr-124-provider-manifest.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: execute-pr-124-provider-manifest-repair
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out the target PR branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: agent/provider-manifest-ingest-hardening
+          fetch-depth: 0
+          persist-credentials: true
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Apply and validate the reviewed repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+          python -m pip install "ruff==0.16.1"
+          python scripts/ci/temporary_patch_provider_manifest_hardening.py
+          python -m ruff format \
+            src/prob4d/prediction_provider_import.py \
+            tests/test_prediction_provider_import.py \
+            tests/test_prediction_provider_persistence.py
+          python -m ruff check \
+            src/prob4d/prediction_provider_import.py \
+            src/prob4d/prediction_provider_manifest.py \
+            tests/test_prediction_provider_import.py \
+            tests/test_prediction_provider_manifest.py \
+            tests/test_prediction_provider_persistence.py
+          python -m mypy \
+            src/prob4d/prediction_provider_import.py \
+            src/prob4d/prediction_provider_manifest.py
+          python -m pytest -q \
+            tests/test_cli.py \
+            tests/test_prediction_provider_import.py \
+            tests/test_prediction_provider_manifest.py \
+            tests/test_prediction_provider_persistence.py
+          git diff --check
+
+      - name: Commit and push the source-only repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- \
+            src/prob4d/prediction_provider_import.py \
+            src/prob4d/prediction_provider_manifest.py \
+            tests/test_prediction_provider_import.py \
+            tests/test_prediction_provider_manifest.py \
+            tests/test_prediction_provider_persistence.py; then
+            echo "provider-manifest hardening is already present"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            src/prob4d/prediction_provider_import.py \
+            src/prob4d/prediction_provider_manifest.py \
+            tests/test_prediction_provider_import.py \
+            tests/test_prediction_provider_manifest.py \
+            tests/test_prediction_provider_persistence.py
+          git commit -m "Harden canonical prediction-provider admission"
+          git push origin HEAD:agent/provider-manifest-ingest-hardening
