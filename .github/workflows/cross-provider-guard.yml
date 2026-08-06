@@ -1,0 +1,205 @@
+name: Cross-provider corroboration guard
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/cross-provider-guard.yml"
+      - "docs/cross-provider-guard.md"
+      - "src/prob4d/cli.py"
+      - "src/prob4d/cross_provider_guard.py"
+      - "tests/test_cross_provider_guard.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cross-provider-guard-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  contract:
+    name: Contract, typing, and adversarial regressions
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Install isolated development environment
+        run: |
+          set -euo pipefail
+          python -m venv --clear "$RUNNER_TEMP/cross-provider-contract-venv"
+          echo "$RUNNER_TEMP/cross-provider-contract-venv/bin" >> "$GITHUB_PATH"
+
+      - name: Install package and compatible NumPy
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+          python -m pip install "numpy>=1.24,<2.3"
+          python -m pip check
+
+      - name: Check focused quality
+        run: |
+          set -euo pipefail
+          files=(
+            src/prob4d/cli.py
+            src/prob4d/cross_provider_guard.py
+            tests/test_cross_provider_guard.py
+          )
+          python -m ruff check -- "${files[@]}"
+          python -m ruff format --check --diff "${files[@]}"
+          python -m mypy --python-version 3.12 \
+            src/prob4d/cross_provider_guard.py
+
+      - name: Run focused and adjacent regressions
+        run: |
+          set -euo pipefail
+          python -m pytest -q \
+            tests/test_cross_provider_guard.py \
+            tests/test_prediction_provider_manifest.py \
+            tests/test_vggt_provider_adapter.py \
+            tests/test_finite_sample_threshold.py
+          python -m compileall -q src/prob4d
+
+      - name: Verify installed grouped command
+        run: |
+          set -euo pipefail
+          prob4d diagnostic cross-provider-guard --help
+
+  stress:
+    name: Fresh-seed provider-specific and shared-bias controls
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Linux, X64, nvidia-smi]
+    timeout-minutes: 45
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Isolate the self-hosted Python environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          environment="$RUNNER_TEMP/prob4d-cross-provider-stress-venv"
+          python -m venv --clear "$environment"
+          "$environment/bin/python" -m ensurepip --upgrade
+          "$environment/bin/python" -m pip install --upgrade pip
+          echo "$environment/bin" >> "$GITHUB_PATH"
+
+      - name: Install lightweight package
+        run: |
+          set -euo pipefail
+          python -m pip install -e .
+          python -m pip check
+
+      - name: Run registered controlled stress
+        run: |
+          set -euo pipefail
+          mkdir -p outputs/cross-provider-guard
+          prob4d diagnostic cross-provider-guard stress \
+            --output outputs/cross-provider-guard/report.json \
+            --calibration-cases 800 \
+            --clean-target-cases 1000 \
+            --corrupted-target-cases 1000 \
+            --shared-bias-target-cases 1000 \
+            --rows-per-case 256 \
+            --seed 20260806 \
+            > outputs/cross-provider-guard/stdout.json
+
+      - name: Validate claim boundary and registered gates
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(
+              Path("outputs/cross-provider-guard/report.json").read_text()
+          )
+          assert all(report["gates"].values())
+          results = report["results"]
+          assert results["provider_specific_corruption_detection_rate"] >= 0.95
+          assert results["clean_false_rejection_rate"] <= 0.08
+          assert results["shared_common_bias_rejection_rate"] <= 0.08
+          claim = report["claim_boundary"]
+          for excluded in (
+              "absolute geometric correctness",
+              "shared-common-bias detection",
+              "BayesianPhysTwin benefit",
+              "Causal4D benefit",
+          ):
+              assert excluded in claim
+          PY
+          sha256sum outputs/cross-provider-guard/* \
+            > outputs/cross-provider-guard/SHA256SUMS
+
+      - name: Publish result summary
+        if: always()
+        run: |
+          if [[ -f outputs/cross-provider-guard/report.json ]]; then
+            python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          from pathlib import Path
+
+          report = json.loads(
+              Path("outputs/cross-provider-guard/report.json").read_text()
+          )
+          result = report["results"]
+          print("## Cross-provider corroboration stress")
+          print()
+          print("| Endpoint | Result |")
+          print("| --- | ---: |")
+          print(
+              "| Clean false rejection | "
+              f"{100 * result['clean_false_rejection_rate']:.2f}% |"
+          )
+          print(
+              "| Provider-specific corruption detection | "
+              f"{100 * result['provider_specific_corruption_detection_rate']:.2f}% |"
+          )
+          print(
+              "| Shared-common-bias rejection | "
+              f"{100 * result['shared_common_bias_rejection_rate']:.2f}% |"
+          )
+          print()
+          print(report["claim_boundary"])
+          PY
+          fi
+
+      - name: Upload controlled evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: cross-provider-guard-${{ github.run_id }}
+          path: outputs/cross-provider-guard
+          if-no-files-found: error
+          retention-days: 30
