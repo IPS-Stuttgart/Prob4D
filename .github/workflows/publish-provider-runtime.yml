@@ -1,0 +1,167 @@
+name: Publish provider-neutral runtime source
+
+on:
+  push:
+    branches: [agent/provider-neutral-runtime-v1]
+    paths:
+      - ".github/provider-runtime-publish/**"
+      - ".github/workflows/publish-provider-runtime.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-provider-runtime-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+
+jobs:
+  publish:
+    if: github.repository == 'IPS-Stuttgart/Prob4D'
+    runs-on: [self-hosted, Linux, X64, nvidia-smi]
+    timeout-minutes: 60
+    steps:
+      - name: Check out exact staging revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Authenticate and reconstruct declared product tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = "agent/provider-neutral-runtime-v1"
+          staging=".github/provider-runtime-publish"
+          archive="${RUNNER_TEMP}/provider-runtime-product.tar.gz"
+          cat "${staging}"/product.tar.gz.b64.part* | base64 --decode > "${archive}"
+          echo "e9b3ed05627bccef07331d3c802cc1fdcbc18a3bd7dc08214a93d8a2c8ecc3df  ${archive}" | sha256sum --check --strict
+          ARCHIVE="${archive}" python - <<'PY'
+          import os
+          import tarfile
+          from pathlib import PurePosixPath
+
+          expected = {
+              ".github/workflows/provider-runtime.yml",
+              "docs/provider-neutral-runtime.md",
+              "scripts/ci/check_sdist.py",
+              "src/prob4d/prediction_cli.py",
+              "src/prob4d/provider_runtime.py",
+              "tests/test_cli.py",
+              "tests/test_provider_runtime.py",
+          }
+          archive = os.environ["ARCHIVE"]
+          with tarfile.open(archive, "r:gz") as handle:
+              members = handle.getmembers()
+              names = [member.name for member in members]
+              if set(names) != expected or len(names) != len(expected):
+                  raise SystemExit(f"product path set changed: {sorted(names)}")
+              for member in members:
+                  path = PurePosixPath(member.name)
+                  if path.is_absolute() or ".." in path.parts:
+                      raise SystemExit(f"unsafe product path: {member.name}")
+                  if not member.isfile() or member.issym() or member.islnk():
+                      raise SystemExit(f"non-regular product member: {member.name}")
+          PY
+
+      - name: Materialize product source on exact base
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="${RUNNER_TEMP}/provider-runtime-product.tar.gz"
+          product="${RUNNER_TEMP}/provider-runtime-product"
+          rm -rf "${product}"
+          mkdir -p "${product}"
+          tar -xzf "${archive}" -C "${product}"
+          git reset --hard e37c3d50d4a07a2c3760389e79d59b0ac9402dc4
+          cp -a "${product}/." .
+
+      - name: Create isolated validation environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          environment="${RUNNER_TEMP}/provider-runtime-publish-venv"
+          python -m venv --clear "${environment}"
+          echo "${environment}/bin" >> "${GITHUB_PATH}"
+
+      - name: Install and canonically format touched Python
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+          python -m ruff check --fix --select I001 \
+            src/prob4d/prediction_cli.py \
+            src/prob4d/provider_runtime.py \
+            tests/test_cli.py \
+            tests/test_provider_runtime.py
+          python -m ruff format \
+            src/prob4d/prediction_cli.py \
+            src/prob4d/provider_runtime.py \
+            tests/test_cli.py \
+            tests/test_provider_runtime.py
+
+      - name: Validate product source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m ruff check \
+            src/prob4d/prediction_cli.py \
+            src/prob4d/provider_runtime.py \
+            tests/test_cli.py \
+            tests/test_provider_runtime.py
+          python -m ruff format --check \
+            src/prob4d/prediction_cli.py \
+            src/prob4d/provider_runtime.py \
+            tests/test_cli.py \
+            tests/test_provider_runtime.py
+          python -m mypy \
+            src/prob4d/prediction_cli.py \
+            src/prob4d/provider_runtime.py
+          python -m pytest -q -p no:cacheprovider \
+            tests/test_provider_runtime.py \
+            tests/test_prediction_provider_manifest.py \
+            tests/test_vggt_provider_adapter.py \
+            tests/test_fusion.py \
+            tests/test_io.py \
+            tests/test_cli.py
+          python -m compileall -q src/prob4d
+          python -m pip check
+          python -m build
+          python -m twine check dist/*
+          archive=$(find dist -maxdepth 1 -name '*.tar.gz' -print -quit)
+          test -n "${archive}"
+          python scripts/ci/check_sdist.py "${archive}"
+          prob4d prediction runtime --help
+
+      - name: Publish one reviewable product commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            .github/workflows/provider-runtime.yml \
+            docs/provider-neutral-runtime.md \
+            scripts/ci/check_sdist.py \
+            src/prob4d/prediction_cli.py \
+            src/prob4d/provider_runtime.py \
+            tests/test_cli.py \
+            tests/test_provider_runtime.py
+          test "$(git diff --cached --name-only | wc -l)" -eq 7
+          git commit -m "Make provider-neutral predictions executable"
+          git push --force-with-lease origin HEAD:agent/provider-neutral-runtime-v1
