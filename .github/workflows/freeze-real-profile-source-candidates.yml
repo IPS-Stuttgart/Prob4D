@@ -1,0 +1,295 @@
+name: Select non-protected real profile source candidates
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/freeze-real-profile-source-candidates.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: freeze-real-profile-source-candidates-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  inventory:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Linux, X64, nvidia-smi]
+    timeout-minutes: 30
+    steps:
+      - name: Check out exact reviewed head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          clean: true
+
+      - name: Rank only development, source, or calibration videos
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="${RUNNER_TEMP}/nonprotected-real-profile-sources"
+          mkdir -p "${output}"
+          python3 - "${output}/candidates.json" <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import shutil
+          import subprocess
+          import sys
+          from typing import Any
+
+          OUTPUT = Path(sys.argv[1])
+          ROOTS = (
+              Path("/mnt/lexar4tb"),
+              Path("/mnt/data"),
+              Path("/data"),
+              Path("/home/github-runner"),
+          )
+          BLOCKED = (
+              "adaptive-confirmation",
+              "confirmation",
+              "heldout",
+              "holdout",
+              "prospective",
+              "reserved",
+              "target",
+          )
+          NEGATIVE = (
+              "/.git/",
+              "/cache/",
+              "/fixture",
+              "/output",
+              "/prediction",
+              "/render",
+              "/synthetic",
+              "/test/",
+              "/tests/",
+              "/tmp/",
+          )
+          POSITIVE = (
+              ("calibration", 1200),
+              ("source", 900),
+              ("development", 800),
+              ("deform360", 500),
+              ("phystwin", 400),
+              ("poke", 350),
+              ("rope", 300),
+              ("cloth", 300),
+              ("fabric", 300),
+              ("sloth", 250),
+              ("sheet", 250),
+          )
+          PRUNE = {
+              ".cache",
+              ".git",
+              ".mypy_cache",
+              ".pytest_cache",
+              ".ruff_cache",
+              ".venv",
+              "__pycache__",
+              "anaconda3",
+              "envs",
+              "miniconda3",
+              "node_modules",
+              "site-packages",
+              "venv",
+          }
+          MAX_DEPTH = 18
+          MAX_CANDIDATES = 20000
+          PROBE_COUNT = 250
+          HASH_COUNT = 100
+
+          def sha256(path: Path) -> str:
+              digest = hashlib.sha256()
+              with path.open("rb") as stream:
+                  for block in iter(lambda: stream.read(4 * 1024 * 1024), b""):
+                      digest.update(block)
+              return digest.hexdigest()
+
+          def score(path: Path, size: int) -> int:
+              lowered = str(path).lower()
+              value = sum(points for token, points in POSITIVE if token in lowered)
+              if "/datasets/" in lowered or "/dataset/" in lowered:
+                  value += 500
+              if path.name.lower() in {"0.mp4", "video.mp4", "color.mp4", "rgb.mp4"}:
+                  value += 120
+              if 1_000_000 <= size <= 4_000_000_000:
+                  value += min(200, size.bit_length() * 6)
+              if any(token in lowered for token in NEGATIVE):
+                  value -= 1000
+              return value
+
+          roots: list[Path] = []
+          seen: set[Path] = set()
+          for candidate in ROOTS:
+              if not candidate.exists() or not candidate.is_dir():
+                  continue
+              try:
+                  resolved = candidate.resolve()
+              except OSError:
+                  continue
+              if resolved not in seen:
+                  seen.add(resolved)
+                  roots.append(resolved)
+
+          candidates: list[dict[str, Any]] = []
+          protected_count = 0
+          scanned_entries = 0
+          for root in roots:
+              stop = False
+              for current, directories, files in os.walk(root, followlinks=False):
+                  current_path = Path(current)
+                  scanned_entries += len(directories) + len(files)
+                  try:
+                      depth = len(current_path.relative_to(root).parts)
+                  except ValueError:
+                      directories[:] = []
+                      continue
+                  directories[:] = sorted(
+                      name
+                      for name in directories
+                      if name not in PRUNE
+                      and not (current_path / name).is_symlink()
+                      and depth < MAX_DEPTH
+                  )
+                  for name in sorted(files):
+                      if not name.lower().endswith((".mp4", ".mov", ".mkv", ".avi")):
+                          continue
+                      path = current_path / name
+                      lowered = str(path).lower()
+                      if any(token in lowered for token in BLOCKED):
+                          protected_count += 1
+                          continue
+                      try:
+                          stat = path.stat()
+                      except OSError:
+                          continue
+                      if path.is_symlink() or not path.is_file() or stat.st_size <= 0:
+                          continue
+                      candidates.append(
+                          {
+                              "path": str(path),
+                              "root": str(root),
+                              "bytes": stat.st_size,
+                              "selection_score": score(path, stat.st_size),
+                          }
+                      )
+                      if len(candidates) >= MAX_CANDIDATES:
+                          stop = True
+                          break
+                  if stop:
+                      break
+              if stop:
+                  break
+
+          candidates.sort(
+              key=lambda value: (
+                  int(value["selection_score"]),
+                  int(value["bytes"]),
+                  str(value["path"]),
+              ),
+              reverse=True,
+          )
+          ffprobe = shutil.which("ffprobe")
+          for index, candidate in enumerate(candidates[:PROBE_COUNT]):
+              if ffprobe is not None:
+                  result = subprocess.run(
+                      [
+                          ffprobe,
+                          "-v",
+                          "error",
+                          "-select_streams",
+                          "v:0",
+                          "-show_entries",
+                          "stream=codec_name,width,height,avg_frame_rate,nb_frames:format=duration",
+                          "-of",
+                          "json",
+                          candidate["path"],
+                      ],
+                      check=False,
+                      capture_output=True,
+                      text=True,
+                      timeout=30,
+                  )
+                  if result.returncode == 0:
+                      try:
+                          candidate["ffprobe"] = json.loads(result.stdout)
+                      except json.JSONDecodeError:
+                          candidate["ffprobe_error"] = "invalid-json"
+                  else:
+                      candidate["ffprobe_error"] = result.stderr.strip()
+              if index < HASH_COUNT:
+                  try:
+                      candidate["sha256"] = sha256(Path(candidate["path"]))
+                  except OSError as error:
+                      candidate["sha256_error"] = type(error).__name__
+
+          report = {
+              "schema": "prob4d.nonprotected-real-profile-source-candidates",
+              "version": 1,
+              "repository": os.environ.get("GITHUB_REPOSITORY"),
+              "source_revision": os.environ.get("GITHUB_SHA"),
+              "run_id": os.environ.get("GITHUB_RUN_ID"),
+              "runner_name": os.environ.get("RUNNER_NAME"),
+              "roots": [str(value) for value in roots],
+              "blocked_path_tokens": list(BLOCKED),
+              "protected_video_count_excluded": protected_count,
+              "scanned_entry_count": scanned_entries,
+              "candidate_count": len(candidates),
+              "candidates": candidates[:500],
+              "information_boundary": {
+                  "protected_video_bytes_opened": False,
+                  "candidate_video_container_metadata_opened": True,
+                  "candidate_video_frames_decoded": False,
+                  "top_candidate_bytes_hashed": HASH_COUNT,
+                  "prediction_or_truth_payloads_opened": False,
+              },
+              "claim_boundary": (
+                  "Source/runtime feasibility evidence only. No provider, memory, physical-query, "
+                  "or intervention performance is measured."
+              ),
+          }
+          OUTPUT.write_text(
+              json.dumps(report, indent=2, sort_keys=True, allow_nan=False) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          (
+            cd "${output}"
+            sha256sum candidates.json > SHA256SUMS
+          )
+          python3 - "${output}/candidates.json" <<'PY'
+          import json
+          from pathlib import Path
+          import sys
+
+          report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          print(
+              "protected_excluded=", report["protected_video_count_excluded"],
+              "eligible=", report["candidate_count"],
+          )
+          for value in report["candidates"][:25]:
+              stream = (value.get("ffprobe", {}).get("streams") or [{}])[0]
+              print(
+                  value["selection_score"],
+                  stream.get("nb_frames"),
+                  stream.get("width"),
+                  stream.get("height"),
+                  value.get("sha256"),
+                  value["path"],
+              )
+          PY
+
+      - name: Upload non-protected candidate evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: nonprotected-real-profile-sources
+          path: ${{ runner.temp }}/nonprotected-real-profile-sources
+          if-no-files-found: error
+          retention-days: 14
