@@ -72,7 +72,9 @@ checkpoints require an exact immutable revision, which is passed through to
 `VGGT.from_pretrained`; local checkpoints are bound by their file SHA-256. The
 run record additionally binds the exact VGGT checkout, executed Prob4D loader
 module bytes, preprocessing mode, input-video bytes, and every cached prediction
-archive.
+archive. Claim-bearing export rejects modified or untracked files in the VGGT
+checkout. With `--resume`, complete cached samples are validated and sealed
+without importing Torch or loading the VGGT model.
 
 ```bash
 prob4d vggt baseline \
