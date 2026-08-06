@@ -1,0 +1,144 @@
+name: Independent-anchor common-bias study
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/prob4d/anchor_common_bias_study.py"
+      - "src/prob4d/_anchor_common_bias_study_impl.py"
+      - "tests/test_anchor_common_bias_study.py"
+      - "docs/anchor-common-bias-study.md"
+      - "protocols/anchor-common-bias-study-v1.json"
+      - "src/prob4d/cli.py"
+      - ".github/workflows/anchor-common-bias-study.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/prob4d/anchor_common_bias_study.py"
+      - "src/prob4d/_anchor_common_bias_study_impl.py"
+      - "tests/test_anchor_common_bias_study.py"
+      - "docs/anchor-common-bias-study.md"
+      - "protocols/anchor-common-bias-study-v1.json"
+      - "src/prob4d/cli.py"
+      - ".github/workflows/anchor-common-bias-study.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: anchor-common-bias-study-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+
+jobs:
+  contract:
+    runs-on: ubuntu-slim
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact reviewed source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install lightweight development environment
+        run: python -m pip install -e ".[dev]" "numpy>=1.24,<2.3"
+      - name: Validate source and focused contract
+        run: |
+          python -m ruff check \
+            src/prob4d/anchor_common_bias_study.py \
+            src/prob4d/_anchor_common_bias_study_impl.py \
+            tests/test_anchor_common_bias_study.py
+          python -m ruff format --check \
+            src/prob4d/anchor_common_bias_study.py \
+            src/prob4d/_anchor_common_bias_study_impl.py \
+            tests/test_anchor_common_bias_study.py
+          python -m mypy src/prob4d/anchor_common_bias_study.py src/prob4d/_anchor_common_bias_study_impl.py
+          python -m pytest -q -p no:cacheprovider \
+            tests/test_anchor_common_bias_study.py \
+            tests/test_cli.py
+          python -m compileall -q src/prob4d
+          python -m pip check
+          prob4d diagnostic anchor-common-bias --help
+
+  registered-study:
+    needs: contract
+    runs-on: ubuntu-slim
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact reviewed source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install package
+        run: python -m pip install -e . "numpy>=1.24,<2.3"
+      - name: Execute frozen calibration-target-separated study
+        shell: bash
+        run: |
+          set -euo pipefail
+          revision="${{ github.event.pull_request.head.sha || github.sha }}"
+          mkdir -p outputs/anchor-common-bias
+          set +e
+          prob4d diagnostic anchor-common-bias \
+            --source-revision "${revision}" \
+            --output-json outputs/anchor-common-bias/report.json \
+            --output-markdown outputs/anchor-common-bias/report.md
+          status=$?
+          set -e
+          test "${status}" -eq 0 -o "${status}" -eq 3
+          echo "study_exit_code=${status}" >> "${GITHUB_ENV}"
+      - name: Replay report identity and registered gates
+        env:
+          EXPECTED_SOURCE_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+
+          from prob4d.anchor_common_bias_study import validate_report
+
+          path = "outputs/anchor-common-bias/report.json"
+          with open(path, encoding="utf-8") as handle:
+              report = json.load(handle)
+          validate_report(report)
+          expected = os.environ["EXPECTED_SOURCE_REVISION"]
+          if report["source_revision"] != expected:
+              raise SystemExit("report source revision does not match exact checkout")
+          failed = [name for name, passed in report["registered_gates"].items() if not passed]
+          if failed:
+              raise SystemExit("registered study gates failed: " + ", ".join(failed))
+          if report["registered_decision"] != "pass-independent-anchor-mechanism-study":
+              raise SystemExit("unexpected registered decision")
+          print(json.dumps({
+              "report_id": report["report_id"],
+              "decision": report["registered_decision"],
+              "reference_anchor_design": report["reference_anchor_design"],
+              "differential_provider_guard": report["differential_provider_guard"],
+          }, indent=2, sort_keys=True))
+          PY
+      - name: Upload compact scientific evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: anchor-common-bias-study-${{ github.run_id }}-${{ github.run_attempt }}
+          path: outputs/anchor-common-bias/
+          if-no-files-found: error
+          retention-days: 30
