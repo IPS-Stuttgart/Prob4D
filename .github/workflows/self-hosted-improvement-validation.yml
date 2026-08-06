@@ -164,6 +164,18 @@ jobs:
           "${root}/venv/bin/python" -m pip install \
             -e "./_current/provider[dev]" "numpy>=1.24,<2.3"
           cd _current/provider
+          "${root}/venv/bin/python" -m ruff check --fix --select I001 \
+            src/prob4d/prediction_cli.py \
+            src/prob4d/provider_runtime.py \
+            tests/test_cli.py \
+            tests/test_provider_runtime.py \
+            scripts/ci/check_sdist.py
+          "${root}/venv/bin/python" -m ruff format \
+            src/prob4d/prediction_cli.py \
+            src/prob4d/provider_runtime.py \
+            tests/test_cli.py \
+            tests/test_provider_runtime.py \
+            scripts/ci/check_sdist.py
           "${root}/venv/bin/python" -m ruff check \
             src/prob4d/prediction_cli.py \
             src/prob4d/provider_runtime.py \
