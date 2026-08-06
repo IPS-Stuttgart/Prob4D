@@ -1,7 +1,7 @@
 """Strict generic import into the canonical prediction-provider manifest.
 
 External providers write canonical :class:`~prob4d.data.PredictionWindow` NPZ
-payloads and a small source specification.  This module validates the exact
+payloads and a small source specification. This module validates the exact
 payload bytes, per-output causal lineage, provider/model identities, dependence
 semantics, and optional fields before materializing the single canonical
 ``PredictionProviderManifestV1`` contract.
@@ -12,7 +12,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, Final
@@ -82,6 +81,7 @@ _RESERVED_METADATA_FIELDS: Final = frozenset(
         "source_adapter",
         "source_import_spec_sha256",
         "source_import_spec_schema_version",
+        "target_manifest_schema_version",
     }
 )
 
@@ -178,7 +178,7 @@ def import_prediction_provider_specification(
     """Validate external canonical payloads and write one neutral manifest.
 
     Payload paths in the source specification are resolved relative to the
-    specification file.  Persisted paths are rewritten relative to the output
+    specification file. Persisted paths are rewritten relative to the output
     manifest, while exact payload bytes and all scientific/provenance semantics
     remain identity-bearing through ``PredictionPayloadDescriptorV1``.
     """
@@ -280,6 +280,7 @@ def import_prediction_provider_specification(
             "source_import_spec_schema_version": (
                 PREDICTION_PROVIDER_IMPORT_SPEC_VERSION
             ),
+            "target_manifest_schema_version": PREDICTION_PROVIDER_MANIFEST_VERSION,
         }
     )
 
