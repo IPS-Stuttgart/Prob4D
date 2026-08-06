@@ -73,7 +73,7 @@ jobs:
           )
           python -m ruff check -- "${files[@]}"
           python -m ruff format --check --diff "${files[@]}"
-          python -m mypy \
+          python -m mypy --python-version 3.12 \
             src/prob4d/prediction_cli.py \
             src/prob4d/vggt_baseline.py \
             src/prob4d/vggt_integrity.py \
