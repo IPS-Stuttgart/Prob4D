@@ -1,0 +1,121 @@
+name: Temporary provider bundle hardening
+
+on:
+  push:
+    branches: [agent/generic-provider-bundle]
+    paths:
+      - ".github/workflows/temporary-provider-bundle-hardening.yml"
+      - "src/prob4d/provider_bundle.py"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: temporary-provider-bundle-hardening
+  cancel-in-progress: false
+
+jobs:
+  patch:
+    runs-on: [self-hosted, Linux, X64, nvidia-smi]
+    timeout-minutes: 10
+    steps:
+      - name: Check out source branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: agent/generic-provider-bundle
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Apply verified admission hardening
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/prob4d/provider_bundle.py")
+          source = path.read_text(encoding="utf-8")
+          old = '''    root = Path(payload_root)
+              total_bytes = 0
+              for record in bundle.windows:
+                  payload = _resolve_payload_member(
+                      root,
+                      record.relative_path,
+                      name=f"provider window {record.window_id!r}",
+                  )
+                  if payload.stat().st_size != record.payload_byte_count:
+                      raise ValueError(f"payload byte count mismatch for {record.window_id!r}")
+                  if _sha256_file(payload) != record.payload_sha256:
+                      raise ValueError(f"payload SHA-256 mismatch for {record.window_id!r}")
+                  window, archive_schema = _load_prediction_window(
+                      payload,
+                      expected_window_id=record.window_id,
+                      allow_legacy_window_archives=record.archive_schema == LEGACY_ARCHIVE_SCHEMA,
+                  )
+                  actual = ProviderWindowRecordV1(
+                      window_id=window.window_id,
+                      relative_path=record.relative_path,
+                      payload_sha256=record.payload_sha256,
+                      payload_byte_count=record.payload_byte_count,
+                      archive_schema=archive_schema,
+                      source_frame_start=record.source_frame_start,
+                      source_frame_stop_exclusive=record.source_frame_stop_exclusive,
+                      output_frame_start=int(window.frame_indices[0]),
+                      output_frame_stop_exclusive=int(window.frame_indices[-1]) + 1,
+                      frame_count=int(window.frame_indices.size),
+                      height=int(window.shape[1]),
+                      width=int(window.shape[2]),
+                      dense_storage_dtype=window.dense_storage_dtype,
+                      has_scene_flow=window.scene_flow is not None,
+                      has_ray_directions=window.ray_directions is not None,
+                      frame_indices_sha256=_frame_indices_sha256(window.frame_indices),
+                  )
+                  if actual != record:
+                      raise ValueError(f"payload contract mismatch for {record.window_id!r}")
+                  total_bytes += record.payload_byte_count
+          '''.replace("              ", "")
+          new = '''    root = Path(payload_root)
+              total_bytes = 0
+              for record in bundle.windows:
+                  actual = _record_from_payload(
+                      _IngestWindowSpec(
+                          window_id=record.window_id,
+                          relative_path=record.relative_path,
+                          source_frame_start=record.source_frame_start,
+                          source_frame_stop_exclusive=record.source_frame_stop_exclusive,
+                      ),
+                      payload_root=root,
+                      allow_legacy_window_archives=(
+                          record.archive_schema == LEGACY_ARCHIVE_SCHEMA
+                      ),
+                  )
+                  if actual.payload_byte_count != record.payload_byte_count:
+                      raise ValueError(f"payload byte count mismatch for {record.window_id!r}")
+                  if actual.payload_sha256 != record.payload_sha256:
+                      raise ValueError(f"payload SHA-256 mismatch for {record.window_id!r}")
+                  if actual != record:
+                      raise ValueError(f"payload contract mismatch for {record.window_id!r}")
+                  total_bytes += record.payload_byte_count
+          '''.replace("              ", "")
+          if old in source:
+              path.write_text(source.replace(old, new), encoding="utf-8")
+          elif new not in source:
+              raise SystemExit("provider verification block no longer matches either expected form")
+          PY
+          python -m py_compile src/prob4d/provider_bundle.py
+      - name: Commit and push source-only repair
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- src/prob4d/provider_bundle.py; then
+            echo "hardening already applied"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/prob4d/provider_bundle.py
+          git commit -m "Harden provider payload revalidation"
+          git push \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            HEAD:refs/heads/agent/generic-provider-bundle
