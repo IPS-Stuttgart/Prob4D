@@ -29,6 +29,78 @@ jobs:
           ref: agent/recursive-visual-bias-stream
           fetch-depth: 0
 
+      - name: Apply reviewed contract hardening
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          source_path = Path("src/prob4d/visual_bias_stream.py")
+          source = source_path.read_text(encoding="utf-8")
+          replacements = {
+              "np.savez_compressed(stream, **dict(arrays))\n": (
+                  "np.savez_compressed(stream, **dict(arrays))  # type: ignore[arg-type]\n"
+              ),
+              "        for attribute in (\n"
+              "            \"observation_stream_update_id\",\n"
+              "            \"visual_bias_artifact_id\",\n"
+              "        ):\n": (
+                  "        for attribute in (\n"
+                  "            \"observation_stream_update_id\",\n"
+                  "            \"visual_bias_artifact_id\",\n"
+                  "            \"observation_artifact_id\",\n"
+                  "            \"observation_identity_sha256\",\n"
+                  "        ):\n"
+              ),
+              "            expected = np.full(\n": "            expected: IntArray = np.full(\n",
+          }
+          for old, new in replacements.items():
+              if old not in source:
+                  raise RuntimeError(f"expected source fragment is missing: {old!r}")
+              source = source.replace(old, new, 1)
+          source_path.write_text(source, encoding="utf-8")
+
+          test_path = Path("tests/test_visual_bias_stream.py")
+          tests = test_path.read_text(encoding="utf-8")
+          marker = "\ndef test_append_preserves_retained_update_chain() -> None:\n"
+          regression = '''
+
+def test_builder_rejects_replayed_observation_evidence() -> None:
+    first = _nuisance(observation_character="a", identity_character="b")
+    repeated_artifact = _nuisance(
+        observation_character="a",
+        identity_character="d",
+    )
+    with pytest.raises(ValueError, match="observation_artifact_id values must be unique"):
+        build_visual_bias_nuisance_stream(
+            stream_key="replayed-artifact",
+            nuisances=(first, repeated_artifact),
+            observation_stream_update_ids=(_sha("1"), _sha("2")),
+            frame_intervals=((0, 5), (5, 10)),
+        )
+
+    repeated_identity = _nuisance(
+        observation_character="c",
+        identity_character="b",
+    )
+    with pytest.raises(
+        ValueError,
+        match="observation_identity_sha256 values must be unique",
+    ):
+        build_visual_bias_nuisance_stream(
+            stream_key="replayed-identity",
+            nuisances=(first, repeated_identity),
+            observation_stream_update_ids=(_sha("1"), _sha("2")),
+            frame_intervals=((0, 5), (5, 10)),
+        )
+'''
+          if marker not in tests:
+              raise RuntimeError("test insertion marker is missing")
+          tests = tests.replace(marker, regression + marker, 1)
+          test_path.write_text(tests, encoding="utf-8")
+          PY
+
       - name: Set up Python 3.12
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
@@ -95,5 +167,5 @@ jobs:
             src/prob4d/visual_bias_stream.py \
             tests/test_cli.py \
             tests/test_visual_bias_stream.py
-          git commit -m "Format recursive visual-bias stream"
+          git commit -m "Harden recursive visual-bias stream"
           git push origin HEAD:agent/recursive-visual-bias-stream
