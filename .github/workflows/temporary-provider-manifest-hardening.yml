@@ -1,0 +1,446 @@
+name: Temporary provider manifest hardening
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/temporary-provider-manifest-hardening.yml"
+      - "src/prob4d/prediction_provider_import.py"
+      - "src/prob4d/prediction_provider_manifest.py"
+      - "tests/test_prediction_provider_import.py"
+      - "tests/test_prediction_provider_manifest.py"
+      - "tests/test_prediction_provider_persistence.py"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: temporary-provider-manifest-hardening-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  patch:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'agent/provider-manifest-ingest-hardening'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: agent/provider-manifest-ingest-hardening
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install focused development environment
+        run: |
+          python -m pip install -e ".[dev]"
+          python -m pip install "ruff==0.16.1"
+
+      - name: Apply canonical manifest hardening
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/prob4d/prediction_provider_manifest.py")
+          source = path.read_text(encoding="utf-8")
+
+          if "def _file_signature(" not in source:
+              marker = "\n\ndef _require_boolean(value: object, *, name: str) -> bool:\n"
+              if marker not in source:
+                  raise SystemExit("file-signature insertion marker is missing")
+              helper = '''
+
+          def _file_signature(path: Path, *, name: str) -> tuple[int, int, int, int]:
+              try:
+                  information = path.stat()
+              except OSError as error:
+                  raise ValueError(f"cannot stat {name}") from error
+              return (
+                  int(information.st_dev),
+                  int(information.st_ino),
+                  int(information.st_size),
+                  int(information.st_mtime_ns),
+              )
+          '''.replace("          ", "")
+              source = source.replace(marker, helper + marker, 1)
+
+          save_start = source.index("def save_prediction_provider_manifest(")
+          save_stop = source.index("\n\ndef load_prediction_provider_manifest(", save_start)
+          save_block = '''def save_prediction_provider_manifest(
+              path: str | Path,
+              manifest: PredictionProviderManifestV1,
+          ) -> Path:
+              """Persist one manifest atomically under a fail-closed writer lock."""
+
+              destination = Path(path)
+              if destination.is_symlink():
+                  raise ValueError("prediction-provider manifest destination is a symbolic link")
+              destination.parent.mkdir(parents=True, exist_ok=True)
+              record = manifest.to_record()
+              content = json.dumps(record, indent=2, sort_keys=True, allow_nan=False) + "\n"
+              lock_path = destination.with_name(f".{destination.name}.lock")
+              try:
+                  lock_descriptor = os.open(
+                      lock_path,
+                      os.O_CREAT | os.O_EXCL | os.O_WRONLY,
+                      0o600,
+                  )
+              except FileExistsError as error:
+                  raise FileExistsError(
+                      f"prediction-provider manifest writer is already active: {lock_path}"
+                  ) from error
+              try:
+                  with os.fdopen(lock_descriptor, "w", encoding="utf-8") as lock_stream:
+                      lock_stream.write(f"{os.getpid()}\n")
+                      lock_stream.flush()
+                      os.fsync(lock_stream.fileno())
+                  if destination.is_symlink():
+                      raise ValueError(
+                          "prediction-provider manifest destination is a symbolic link"
+                      )
+                  if destination.exists():
+                      existing = load_prediction_provider_manifest(destination)
+                      if existing.to_record() != record:
+                          raise ValueError(
+                              "refusing to replace a different prediction-provider manifest"
+                          )
+                      return destination
+                  _atomic_write_text(destination, content)
+                  return destination
+              finally:
+                  try:
+                      lock_path.unlink()
+                  except FileNotFoundError:
+                      pass
+                  _fsync_directory(destination.parent)
+          '''.replace("          ", "")
+          source = source[:save_start] + save_block + source[save_stop:]
+
+          verify_start = source.index("def verify_prediction_provider_manifest(")
+          verify_stop = source.index("\n\ndef _motioncrafter_seed_members(", verify_start)
+          verify_block = '''def verify_prediction_provider_manifest(
+              path: str | Path,
+              *,
+              verify_payloads: bool = True,
+              causal_frame_stop: int | None = None,
+          ) -> tuple[PredictionProviderManifestV1, dict[str, object]]:
+              """Validate one stable manifest snapshot and its exact payload bytes."""
+
+              manifest_path = Path(path).resolve()
+              manifest_before = _file_signature(
+                  manifest_path,
+                  name="prediction-provider manifest",
+              )
+              manifest_sha256 = _sha256_file(manifest_path)
+              manifest = load_prediction_provider_manifest(manifest_path)
+              if (
+                  _file_signature(
+                      manifest_path,
+                      name="prediction-provider manifest",
+                  )
+                  != manifest_before
+                  or _sha256_file(manifest_path) != manifest_sha256
+              ):
+                  raise ValueError(
+                      "prediction-provider manifest changed during verification"
+                  )
+
+              verified_payloads = 0
+              verified_bytes = 0
+              if verify_payloads:
+                  for index, descriptor in enumerate(manifest.payloads):
+                      member = _resolved_member(
+                          manifest_path.parent,
+                          descriptor.path,
+                          name=f"prediction payload {index} path",
+                      )
+                      if not member.is_file():
+                          raise ValueError(
+                              f"prediction payload {descriptor.path!r} is missing"
+                          )
+                      member_before = _file_signature(
+                          member,
+                          name=f"prediction payload {descriptor.path!r}",
+                      )
+                      member_sha256 = _sha256_file(member)
+                      if member_before[2] != descriptor.byte_count:
+                          raise ValueError(
+                              "prediction payload byte count mismatch for "
+                              f"{descriptor.path!r}"
+                          )
+                      if member_sha256 != descriptor.sha256:
+                          raise ValueError(
+                              "prediction payload SHA-256 mismatch for "
+                              f"{descriptor.path!r}"
+                          )
+                      window = PredictionWindow.from_npz(
+                          member,
+                          dense_storage_dtype=descriptor.dense_storage_dtype,
+                      )
+                      member_after = _file_signature(
+                          member,
+                          name=f"prediction payload {descriptor.path!r}",
+                      )
+                      if (
+                          member_after != member_before
+                          or _sha256_file(member) != member_sha256
+                      ):
+                          raise ValueError(
+                              "prediction payload changed during verification: "
+                              f"{descriptor.path!r}"
+                          )
+                      if window.window_id != descriptor.window_id:
+                          raise ValueError("prediction payload window identity changed")
+                      if tuple(int(value) for value in window.frame_indices) != (
+                          descriptor.output_frame_ids
+                      ):
+                          raise ValueError(
+                              "prediction payload output-frame identities changed"
+                          )
+                      if (window.scene_flow is not None) != descriptor.has_scene_flow:
+                          raise ValueError(
+                              "prediction payload scene-flow declaration changed"
+                          )
+                      if (
+                          window.ray_directions is not None
+                      ) != descriptor.has_ray_directions:
+                          raise ValueError("prediction payload ray declaration changed")
+                      if window.dense_storage_dtype != descriptor.dense_storage_dtype:
+                          raise ValueError(
+                              "prediction payload dense storage dtype changed"
+                          )
+                      verified_payloads += 1
+                      verified_bytes += member_before[2]
+
+              if (
+                  _file_signature(
+                      manifest_path,
+                      name="prediction-provider manifest",
+                  )
+                  != manifest_before
+                  or _sha256_file(manifest_path) != manifest_sha256
+              ):
+                  raise ValueError(
+                      "prediction-provider manifest changed during verification"
+                  )
+              report = {
+                  **manifest.summary(causal_frame_stop=causal_frame_stop),
+                  "payloads_verified": verify_payloads,
+                  "verified_payload_count": verified_payloads,
+                  "verified_payload_bytes": verified_bytes,
+              }
+              return manifest, report
+          '''.replace("          ", "")
+          source = source[:verify_start] + verify_block + source[verify_stop:]
+
+          old_import_start = '''    source_path = Path(source_manifest_path).resolve()
+              verification = verify_motioncrafter_prediction_manifest(
+                  source_path,
+                  verify_hashes=True,
+              )
+              if verification.get("integrity_bound") is not True:
+                  raise ValueError("provider-neutral import requires an integrity-bound bundle")
+              record = load_json_object(source_path, name="MotionCrafter prediction manifest")
+          '''.replace("          ", "")
+          new_import_start = '''    source_path = Path(source_manifest_path).resolve()
+              source_before = _file_signature(
+                  source_path,
+                  name="MotionCrafter prediction manifest",
+              )
+              source_manifest_sha = _sha256_file(source_path)
+              verification = verify_motioncrafter_prediction_manifest(
+                  source_path,
+                  verify_hashes=True,
+              )
+              if verification.get("integrity_bound") is not True:
+                  raise ValueError("provider-neutral import requires an integrity-bound bundle")
+              if (
+                  _file_signature(
+                      source_path,
+                      name="MotionCrafter prediction manifest",
+                  )
+                  != source_before
+                  or _sha256_file(source_path) != source_manifest_sha
+              ):
+                  raise ValueError(
+                      "MotionCrafter prediction manifest changed during import"
+                  )
+              record = load_json_object(source_path, name="MotionCrafter prediction manifest")
+              if (
+                  _file_signature(
+                      source_path,
+                      name="MotionCrafter prediction manifest",
+                  )
+                  != source_before
+                  or _sha256_file(source_path) != source_manifest_sha
+              ):
+                  raise ValueError(
+                      "MotionCrafter prediction manifest changed during import"
+                  )
+          '''.replace("          ", "")
+          if old_import_start in source:
+              source = source.replace(old_import_start, new_import_start, 1)
+          elif new_import_start not in source:
+              raise SystemExit("MotionCrafter import-start block changed unexpectedly")
+
+          old_payload_load = '''        payload_path = _resolved_member(
+              source_root,
+              relative,
+              name=f"MotionCrafter window {window_id!r} path",
+          )
+          prediction = PredictionWindow.from_npz(payload_path)
+          if prediction.window_id != window_id:
+          '''.replace("          ", "")
+          new_payload_load = '''        payload_path = _resolved_member(
+              source_root,
+              relative,
+              name=f"MotionCrafter window {window_id!r} path",
+          )
+          payload_before = _file_signature(
+              payload_path,
+              name=f"MotionCrafter window {window_id!r} payload",
+          )
+          payload_sha256 = _sha256_file(payload_path)
+          if payload_before[2] != byte_count:
+              raise ValueError("MotionCrafter payload byte count changed during import")
+          if payload_sha256 != sha256:
+              raise ValueError("MotionCrafter payload SHA-256 changed during import")
+          prediction = PredictionWindow.from_npz(payload_path)
+          if (
+              _file_signature(
+                  payload_path,
+                  name=f"MotionCrafter window {window_id!r} payload",
+              )
+              != payload_before
+              or _sha256_file(payload_path) != payload_sha256
+          ):
+              raise ValueError("MotionCrafter payload changed during import")
+          if prediction.window_id != window_id:
+          '''.replace("          ", "")
+          if old_payload_load in source:
+              source = source.replace(old_payload_load, new_payload_load, 1)
+          elif new_payload_load not in source:
+              raise SystemExit("MotionCrafter payload-load block changed unexpectedly")
+
+          source = source.replace(
+              "    source_manifest_sha = _sha256_file(source_path)\n",
+              "",
+              1,
+          )
+          old_save = '''    save_prediction_provider_manifest(output_path, manifest)
+              return manifest
+          '''.replace("          ", "")
+          new_save = '''    if (
+              _file_signature(
+                  source_path,
+                  name="MotionCrafter prediction manifest",
+              )
+              != source_before
+              or _sha256_file(source_path) != source_manifest_sha
+          ):
+              raise ValueError("MotionCrafter prediction manifest changed during import")
+          save_prediction_provider_manifest(output_path, manifest)
+          return manifest
+          '''.replace("          ", "")
+          if old_save in source:
+              source = source.replace(old_save, new_save, 1)
+          elif new_save not in source:
+              raise SystemExit("MotionCrafter import-save block changed unexpectedly")
+
+          parser_marker = '''    import_parser = subparsers.add_parser(
+              "import-motioncrafter",
+              help="convert an integrity-bound MotionCrafter bundle",
+          )
+          '''.replace("          ", "")
+          parser_addition = '''    specification_parser = subparsers.add_parser(
+              "import-spec",
+              help="import canonical windows from a strict external-provider specification",
+          )
+          specification_parser.add_argument("specification")
+          specification_parser.add_argument("output")
+
+          '''.replace("          ", "")
+          if '"import-spec"' not in source:
+              if parser_marker not in source:
+                  raise SystemExit("prediction parser insertion marker is missing")
+              source = source.replace(
+                  parser_marker,
+                  parser_addition + parser_marker,
+                  1,
+              )
+
+          main_marker = '''    if arguments.command == "import-motioncrafter":
+              manifest = import_motioncrafter_prediction_manifest(
+          '''.replace("          ", "")
+          main_addition = '''    if arguments.command == "import-spec":
+              from .prediction_provider_import import (
+                  import_prediction_provider_specification,
+              )
+
+              manifest = import_prediction_provider_specification(
+                  arguments.specification,
+                  arguments.output,
+              )
+              print(json.dumps(manifest.summary(), indent=2, sort_keys=True))
+              return 0
+          '''.replace("          ", "")
+          if 'arguments.command == "import-spec"' not in source:
+              if main_marker not in source:
+                  raise SystemExit("prediction main insertion marker is missing")
+              source = source.replace(main_marker, main_addition + main_marker, 1)
+
+          path.write_text(source, encoding="utf-8")
+          PY
+
+          python -m ruff format \
+            src/prob4d/prediction_provider_import.py \
+            src/prob4d/prediction_provider_manifest.py \
+            tests/test_prediction_provider_import.py \
+            tests/test_prediction_provider_manifest.py \
+            tests/test_prediction_provider_persistence.py
+          python -m ruff check \
+            src/prob4d/prediction_provider_import.py \
+            src/prob4d/prediction_provider_manifest.py \
+            tests/test_prediction_provider_import.py \
+            tests/test_prediction_provider_manifest.py \
+            tests/test_prediction_provider_persistence.py
+          python -m mypy \
+            src/prob4d/prediction_provider_import.py \
+            src/prob4d/prediction_provider_manifest.py
+          python -m pytest -q \
+            tests/test_cli.py \
+            tests/test_prediction_provider_import.py \
+            tests/test_prediction_provider_manifest.py \
+            tests/test_prediction_provider_persistence.py
+
+      - name: Commit and push reviewed source repair
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- \
+            src/prob4d/prediction_provider_import.py \
+            src/prob4d/prediction_provider_manifest.py \
+            tests/test_prediction_provider_import.py \
+            tests/test_prediction_provider_manifest.py \
+            tests/test_prediction_provider_persistence.py; then
+            echo "canonical manifest hardening is already present"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            src/prob4d/prediction_provider_import.py \
+            src/prob4d/prediction_provider_manifest.py \
+            tests/test_prediction_provider_import.py \
+            tests/test_prediction_provider_manifest.py \
+            tests/test_prediction_provider_persistence.py
+          git commit -m "Harden canonical prediction-provider admission"
+          git push \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            HEAD:refs/heads/agent/provider-manifest-ingest-hardening
