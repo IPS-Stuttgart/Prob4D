@@ -1,6 +1,12 @@
 name: Apply immutable provider-boundary patch
 
 on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize]
+    paths:
+      - ".github/agent-patch/**"
+      - ".github/workflows/apply-immutable-provider-boundary.yml"
   push:
     branches:
       - agent/immutable-provider-boundary-v1
@@ -16,6 +22,10 @@ concurrency:
 
 jobs:
   apply:
+    if: >-
+      github.event_name == 'push' ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+       github.event.pull_request.head.ref == 'agent/immutable-provider-boundary-v1')
     runs-on: ubuntu-latest
     steps:
       - name: Check out the staging branch
