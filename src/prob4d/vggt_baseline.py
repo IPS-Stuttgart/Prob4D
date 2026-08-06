@@ -112,7 +112,7 @@ def extract_video_frames(video_path: Path, output_directory: Path) -> list[Path]
 
 
 def git_commit(repository: Path) -> str:
-    """Return the exact baseline implementation revision."""
+    """Return the exact VGGT source revision."""
 
     return subprocess.run(
         ["git", "rev-parse", "HEAD"],
@@ -121,6 +121,20 @@ def git_commit(repository: Path) -> str:
         capture_output=True,
         text=True,
     ).stdout.strip()
+
+
+def require_clean_git_checkout(repository: Path) -> None:
+    """Reject integrity-bound execution from modified or untracked VGGT source."""
+
+    status = subprocess.run(
+        ["git", "status", "--porcelain=v1", "--untracked-files=all"],
+        cwd=repository,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    if status.strip():
+        raise ValueError("integrity-bound VGGT export requires a clean source checkout")
 
 
 def load_vggt(
@@ -311,14 +325,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             file=sys.stderr,
             flush=True,
         )
-    model, image_loader, pose_converter, unprojector = load_vggt(
-        args.vggt_root,
-        args.checkpoint,
-        args.checkpoint_revision,
-        args.device,
-    )
     vggt_revision = git_commit(args.vggt_root)
+    if integrity_bound:
+        require_clean_git_checkout(args.vggt_root)
     loader_sha256 = file_sha256(Path(__file__).resolve())
+    model_bundle: tuple[Any, Any, Any, Any] | None = None
     started = time.time()
     sample_records: list[dict[str, Any]] = []
     for sample_index, sample in enumerate(samples, start=1):
@@ -329,6 +340,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"[{sample_index}/{len(samples)}] verify {sample.video_path}", flush=True)
         else:
             print(f"[{sample_index}/{len(samples)}] infer {sample.video_path}", flush=True)
+            if model_bundle is None:
+                model_bundle = load_vggt(
+                    args.vggt_root,
+                    args.checkpoint,
+                    args.checkpoint_revision,
+                    args.device,
+                )
+            model, image_loader, pose_converter, unprojector = model_bundle
             with tempfile.TemporaryDirectory(prefix="prob4d-vggt-") as temporary:
                 frame_paths = extract_video_frames(
                     args.dataset_root / sample.video_path, Path(temporary)
