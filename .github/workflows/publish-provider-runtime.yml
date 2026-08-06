@@ -89,7 +89,7 @@ jobs:
                       raise SystemExit(f"non-regular product member: {member.name}")
           PY
 
-      - name: Materialize product source on exact base
+      - name: Materialize product source on exact current base
         shell: bash
         run: |
           set -euo pipefail
@@ -98,7 +98,7 @@ jobs:
           rm -rf "${product}"
           mkdir -p "${product}"
           tar -xzf "${archive}" -C "${product}"
-          git reset --hard e37c3d50d4a07a2c3760389e79d59b0ac9402dc4
+          git reset --hard 1abf2a3cd58f74ab08460a6367c96fada273f452
           cp -a "${product}/." .
 
       - name: Create isolated validation environment
@@ -112,7 +112,7 @@ jobs:
       - name: Install and canonically format touched Python
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[dev]"
+          python -m pip install -e ".[dev]" "numpy>=1.24,<2.3"
           python -m ruff check --fix --select I001 \
             src/prob4d/prediction_cli.py \
             src/prob4d/provider_runtime.py \
