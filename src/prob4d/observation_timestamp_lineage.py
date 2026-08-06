@@ -9,7 +9,7 @@ import tempfile
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 import numpy as np
 
@@ -68,7 +68,9 @@ def _require_nonempty_string(value: object, *, name: str) -> str:
 
 def _require_sha256(value: object, *, name: str) -> str:
     digest = _require_nonempty_string(value, name=name)
-    if len(digest) != 64 or any(character not in "0123456789abcdef" for character in digest):
+    if len(digest) != 64 or any(
+        character not in "0123456789abcdef" for character in digest
+    ):
         raise ValueError(f"{name} must be a lowercase SHA-256 digest")
     return digest
 
@@ -83,12 +85,45 @@ def _require_revision(value: object, *, name: str) -> str:
 
 
 def _require_positive_integer(value: object, *, name: str) -> int:
-    if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, np.integer)):
+    if isinstance(value, (bool, np.bool_)) or not isinstance(
+        value,
+        (int, np.integer),
+    ):
         raise ValueError(f"{name} must be a positive integer")
     result = int(value)
     if result < 1:
         raise ValueError(f"{name} must be a positive integer")
     return result
+
+
+def _require_sequence(value: object, *, name: str) -> Sequence[object]:
+    if isinstance(value, (str, bytes)) or not isinstance(value, Sequence):
+        raise ValueError(f"{name} must be a sequence")
+    return value
+
+
+def _unique_strings(value: object, *, name: str) -> tuple[str, ...]:
+    values = _require_sequence(value, name=name)
+    result = tuple(
+        _require_nonempty_string(item, name=f"{name} entry") for item in values
+    )
+    if not result:
+        raise ValueError(f"{name} must not be empty")
+    if len(set(result)) != len(result):
+        raise ValueError(f"{name} must be unique")
+    return result
+
+
+def _optional_sha256(value: object, *, name: str) -> str | None:
+    if value is None:
+        return None
+    return _require_sha256(value, name=name)
+
+
+def _require_mapping(value: object, *, name: str) -> Mapping[str, Any]:
+    if not isinstance(value, Mapping):
+        raise ValueError(f"{name} must be a mapping")
+    return cast(Mapping[str, Any], value)
 
 
 def _canonical_json(value: Mapping[str, Any]) -> bytes:
@@ -102,17 +137,6 @@ def _canonical_json(value: Mapping[str, Any]) -> bytes:
 
 def _sha256_json(value: Mapping[str, Any]) -> str:
     return hashlib.sha256(_canonical_json(value)).hexdigest()
-
-
-def _unique_strings(values: Sequence[str], *, name: str) -> tuple[str, ...]:
-    if isinstance(values, (str, bytes)) or not isinstance(values, Sequence):
-        raise ValueError(f"{name} must be a sequence")
-    result = tuple(_require_nonempty_string(value, name=f"{name} entry") for value in values)
-    if not result:
-        raise ValueError(f"{name} must not be empty")
-    if len(set(result)) != len(result):
-        raise ValueError(f"{name} must be unique")
-    return result
 
 
 @dataclass(frozen=True, slots=True)
@@ -173,27 +197,30 @@ class ObservationTimestampLineageV1:
             dtype=np.float64,
         )
         expected_shape = (len(factor_ids),)
-        for name, value in (
+        for name, array in (
             ("frame_indices", frame_indices),
             ("timestamps_ns", timestamps),
             ("conditional_timestamp_std_ns", conditional_std),
         ):
-            if value.shape != expected_shape:
+            if array.shape != expected_shape:
                 raise ValueError(f"{name} must have shape {expected_shape}")
         if np.any(frame_indices < 0) or np.any(frame_indices >= causal_frame_stop):
             raise ValueError("frame_indices cross the declared causal frame stop")
         if np.any(timestamps < 0):
             raise ValueError("timestamps_ns must be nonnegative")
         if not np.all(np.isfinite(conditional_std)) or np.any(conditional_std < 0.0):
-            raise ValueError("conditional_timestamp_std_ns must be finite and nonnegative")
-        if self.timestamp_uncertainty_semantics != TIMESTAMP_UNCERTAINTY_SEMANTICS:
-            raise ValueError("timestamp uncertainty semantics changed")
-        shared_prior = self.shared_clock_offset_prior_artifact_id
-        if shared_prior is not None:
-            shared_prior = _require_sha256(
-                shared_prior,
-                name="shared_clock_offset_prior_artifact_id",
+            raise ValueError(
+                "conditional_timestamp_std_ns must be finite and nonnegative"
             )
+        if (
+            self.timestamp_uncertainty_semantics
+            != TIMESTAMP_UNCERTAINTY_SEMANTICS
+        ):
+            raise ValueError("timestamp uncertainty semantics changed")
+        shared_prior = _optional_sha256(
+            self.shared_clock_offset_prior_artifact_id,
+            name="shared_clock_offset_prior_artifact_id",
+        )
         metadata = frozen_finite_json_mapping(
             self.metadata,
             name="observation timestamp metadata",
@@ -212,20 +239,19 @@ class ObservationTimestampLineageV1:
         object.__setattr__(self, "frame_indices", frame_indices)
         object.__setattr__(self, "timestamps_ns", timestamps)
         object.__setattr__(self, "conditional_timestamp_std_ns", conditional_std)
-        object.__setattr__(self, "shared_clock_offset_prior_artifact_id", shared_prior)
+        object.__setattr__(
+            self,
+            "shared_clock_offset_prior_artifact_id",
+            shared_prior,
+        )
         object.__setattr__(self, "metadata", metadata)
 
         expected_id = _sha256_json(self.identity_record())
         supplied_id = self.artifact_id
-        if (
-            supplied_id is not None
-            and _require_sha256(
-                supplied_id,
-                name="artifact_id",
-            )
-            != expected_id
-        ):
-            raise ValueError("observation timestamp lineage artifact ID mismatch")
+        if supplied_id is not None:
+            validated_id = _require_sha256(supplied_id, name="artifact_id")
+            if validated_id != expected_id:
+                raise ValueError("observation timestamp lineage artifact ID mismatch")
         object.__setattr__(self, "artifact_id", expected_id)
 
     def identity_record(self) -> dict[str, Any]:
@@ -246,9 +272,13 @@ class ObservationTimestampLineageV1:
             "factor_ids": list(self.factor_ids),
             "frame_indices": self.frame_indices.tolist(),
             "timestamps_ns": self.timestamps_ns.tolist(),
-            "conditional_timestamp_std_ns": (self.conditional_timestamp_std_ns.tolist()),
+            "conditional_timestamp_std_ns": (
+                self.conditional_timestamp_std_ns.tolist()
+            ),
             "timestamp_uncertainty_semantics": self.timestamp_uncertainty_semantics,
-            "shared_clock_offset_prior_artifact_id": self.shared_clock_offset_prior_artifact_id,
+            "shared_clock_offset_prior_artifact_id": (
+                self.shared_clock_offset_prior_artifact_id
+            ),
             "metadata": plain_json(self.metadata),
         }
 
@@ -258,53 +288,97 @@ class ObservationTimestampLineageV1:
         return {**self.identity_record(), "artifact_id": self.artifact_id}
 
     @classmethod
-    def from_record(cls, value: Mapping[str, Any]) -> ObservationTimestampLineageV1:
+    def from_record(
+        cls,
+        value: Mapping[str, Any],
+    ) -> ObservationTimestampLineageV1:
         """Load and fully revalidate a closed-schema record."""
 
         if set(value) != _FIELDS:
             missing = sorted(_FIELDS - value.keys())
             extra = sorted(value.keys() - _FIELDS)
             raise ValueError(
-                f"observation timestamp lineage fields changed; missing={missing}, extra={extra}"
+                "observation timestamp lineage fields changed; "
+                f"missing={missing}, extra={extra}"
             )
         if value.get("schema") != OBSERVATION_TIMESTAMP_LINEAGE_SCHEMA:
             raise ValueError("unexpected observation timestamp lineage schema")
         if value.get("schema_version") != OBSERVATION_TIMESTAMP_LINEAGE_VERSION:
             raise ValueError("unsupported observation timestamp lineage version")
-        metadata = value["metadata"]
-        if not isinstance(metadata, Mapping):
-            raise ValueError("observation timestamp metadata must be a mapping")
+
         return cls(
-            sequence_id=value["sequence_id"],
-            case_id=value["case_id"],
-            stream_id=value["stream_id"],
-            source_revision=value["source_revision"],
-            source_artifact_sha256=value["source_artifact_sha256"],
-            causal_frame_stop=value["causal_frame_stop"],
-            clock_domain=value["clock_domain"],
-            time_scale=value["time_scale"],
-            timestamp_source=value["timestamp_source"],
-            factor_ids=value["factor_ids"],
-            frame_indices=np.asarray(value["frame_indices"]),
-            timestamps_ns=np.asarray(value["timestamps_ns"]),
+            sequence_id=_require_nonempty_string(
+                value.get("sequence_id"),
+                name="sequence_id",
+            ),
+            case_id=_require_nonempty_string(
+                value.get("case_id"),
+                name="case_id",
+            ),
+            stream_id=_require_nonempty_string(
+                value.get("stream_id"),
+                name="stream_id",
+            ),
+            source_revision=_require_revision(
+                value.get("source_revision"),
+                name="source_revision",
+            ),
+            source_artifact_sha256=_require_sha256(
+                value.get("source_artifact_sha256"),
+                name="source_artifact_sha256",
+            ),
+            causal_frame_stop=_require_positive_integer(
+                value.get("causal_frame_stop"),
+                name="causal_frame_stop",
+            ),
+            clock_domain=_require_nonempty_string(
+                value.get("clock_domain"),
+                name="clock_domain",
+            ),
+            time_scale=_require_nonempty_string(
+                value.get("time_scale"),
+                name="time_scale",
+            ),
+            timestamp_source=_require_nonempty_string(
+                value.get("timestamp_source"),
+                name="timestamp_source",
+            ),
+            factor_ids=_unique_strings(value.get("factor_ids"), name="factor_ids"),
+            frame_indices=np.asarray(value.get("frame_indices")),
+            timestamps_ns=np.asarray(value.get("timestamps_ns")),
             conditional_timestamp_std_ns=np.asarray(
-                value["conditional_timestamp_std_ns"],
+                value.get("conditional_timestamp_std_ns"),
                 dtype=np.float64,
             ),
-            timestamp_uncertainty_semantics=value["timestamp_uncertainty_semantics"],
-            shared_clock_offset_prior_artifact_id=value["shared_clock_offset_prior_artifact_id"],
-            metadata=metadata,
-            artifact_id=value["artifact_id"],
+            timestamp_uncertainty_semantics=_require_nonempty_string(
+                value.get("timestamp_uncertainty_semantics"),
+                name="timestamp_uncertainty_semantics",
+            ),
+            shared_clock_offset_prior_artifact_id=_optional_sha256(
+                value.get("shared_clock_offset_prior_artifact_id"),
+                name="shared_clock_offset_prior_artifact_id",
+            ),
+            metadata=_require_mapping(
+                value.get("metadata"),
+                name="observation timestamp metadata",
+            ),
+            artifact_id=_require_sha256(
+                value.get("artifact_id"),
+                name="artifact_id",
+            ),
         )
 
 
 def validate_timestamp_lineage_for_bundle(
-    lineage: ObservationTimestampLineageV1, bundle: _BundleLike
+    lineage: ObservationTimestampLineageV1,
+    bundle: _BundleLike,
 ) -> None:
     """Require an exact factor-order and causal-identity match."""
 
     case_id = bundle.sequence_id if bundle.case_id is None else str(bundle.case_id)
-    stream_id = bundle.sequence_id if bundle.stream_id is None else str(bundle.stream_id)
+    stream_id = (
+        bundle.sequence_id if bundle.stream_id is None else str(bundle.stream_id)
+    )
     expected_scalars = {
         "sequence_id": bundle.sequence_id,
         "case_id": case_id,
@@ -354,7 +428,9 @@ def load_observation_timestamp_lineage(
         raise ValueError("observation timestamp lineage is invalid JSON") from error
     if not isinstance(value, Mapping):
         raise ValueError("observation timestamp lineage must be a JSON object")
-    return ObservationTimestampLineageV1.from_record(value)
+    return ObservationTimestampLineageV1.from_record(
+        cast(Mapping[str, Any], value)
+    )
 
 
 def write_observation_timestamp_lineage(
@@ -370,7 +446,9 @@ def write_observation_timestamp_lineage(
     if artifact_path.exists():
         existing = load_observation_timestamp_lineage(artifact_path)
         if existing.artifact_id != lineage.artifact_id:
-            raise ValueError("observation timestamp lineage path contains different content")
+            raise ValueError(
+                "observation timestamp lineage path contains different content"
+            )
         return
     payload = (
         json.dumps(
@@ -402,7 +480,8 @@ def write_observation_timestamp_lineage(
             existing = load_observation_timestamp_lineage(artifact_path)
             if existing.artifact_id != lineage.artifact_id:
                 raise ValueError(
-                    "observation timestamp lineage publication raced with different content"
+                    "observation timestamp lineage publication raced "
+                    "with different content"
                 ) from None
     finally:
         temporary_path.unlink(missing_ok=True)
