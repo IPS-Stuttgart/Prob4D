@@ -1,0 +1,147 @@
+name: Source-only visual-bias calibration
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/visual-bias-calibration.yml"
+      - "docs/visual-bias-calibration.md"
+      - "pyproject.toml"
+      - "src/prob4d/visual_bias_calibration.py"
+      - "tests/test_visual_bias_calibration.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: visual-bias-calibration-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+
+jobs:
+  contracts:
+    name: Equal-group fit, replay, and sidecar binding
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out exact reviewed head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Create isolated validation environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${RUNNER_TEMP}/visual-bias-calibration-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          rm -rf "${root}"
+          python -m venv "${root}/venv"
+          echo "${root}/venv/bin" >> "${GITHUB_PATH}"
+          echo "VISUAL_BIAS_CALIBRATION_EVIDENCE=${root}/evidence" >> "${GITHUB_ENV}"
+          mkdir -p "${root}/evidence"
+
+      - name: Install reviewed package and quality tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]" "numpy>=1.24,<2.3"
+          python -m pip check
+
+      - name: Record exact environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "repository=${GITHUB_REPOSITORY}"
+            echo "revision=$(git rev-parse HEAD)"
+            echo "runner_name=${RUNNER_NAME}"
+            echo "runner_os=${RUNNER_OS}"
+            echo "runner_arch=${RUNNER_ARCH}"
+            python --version
+            python -m pip --version
+            python -m pip freeze --all
+          } | tee "${VISUAL_BIAS_CALIBRATION_EVIDENCE}/environment.txt"
+
+      - name: Check source quality and typing
+        run: |
+          python -m ruff check \
+            src/prob4d/visual_bias_calibration.py \
+            tests/test_visual_bias_calibration.py
+          python -m ruff format --check \
+            src/prob4d/visual_bias_calibration.py \
+            tests/test_visual_bias_calibration.py
+          python -m mypy src/prob4d/visual_bias_calibration.py
+
+      - name: Run focused and adjacent regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pytest -q -p no:cacheprovider \
+            tests/test_visual_bias_calibration.py \
+            tests/test_visual_bias.py \
+            tests/test_visual_bias_stream.py \
+            tests/test_observation_bias_binding.py \
+            tests/test_immutable_array.py \
+            tests/test_immutable_json.py \
+            | tee "${VISUAL_BIAS_CALIBRATION_EVIDENCE}/pytest.txt"
+          python -m compileall -q src/prob4d
+          prob4d-visual-bias-calibration --help
+
+      - name: Build and inspect distributions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m build
+          python -m twine check dist/*
+          python - <<'PY'
+          import tarfile
+          import zipfile
+          from pathlib import Path
+
+          wheel = next(Path("dist").glob("*.whl"))
+          sdist = next(Path("dist").glob("*.tar.gz"))
+          required = "prob4d/visual_bias_calibration.py"
+          with zipfile.ZipFile(wheel) as archive:
+              assert required in archive.namelist()
+          with tarfile.open(sdist, "r:gz") as archive:
+              assert any(name.endswith("/src/" + required) for name in archive.getnames())
+          PY
+
+      - name: Verify clean reviewed source
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf build dist src/prob4d.egg-info .mypy_cache .ruff_cache
+          find . -type d -name __pycache__ -prune -exec rm -rf {} +
+          git diff --exit-code
+          test -z "$(git status --porcelain=v1)"
+
+      - name: Upload compact validation evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: visual-bias-calibration-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.VISUAL_BIAS_CALIBRATION_EVIDENCE }}/
+          if-no-files-found: warn
+          retention-days: 30
