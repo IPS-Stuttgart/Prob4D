@@ -68,9 +68,7 @@ def _require_nonempty_string(value: object, *, name: str) -> str:
 
 def _require_sha256(value: object, *, name: str) -> str:
     digest = _require_nonempty_string(value, name=name)
-    if len(digest) != 64 or any(
-        character not in "0123456789abcdef" for character in digest
-    ):
+    if len(digest) != 64 or any(character not in "0123456789abcdef" for character in digest):
         raise ValueError(f"{name} must be a lowercase SHA-256 digest")
     return digest
 
@@ -109,9 +107,7 @@ def _sha256_json(value: Mapping[str, Any]) -> str:
 def _unique_strings(values: Sequence[str], *, name: str) -> tuple[str, ...]:
     if isinstance(values, (str, bytes)) or not isinstance(values, Sequence):
         raise ValueError(f"{name} must be a sequence")
-    result = tuple(
-        _require_nonempty_string(value, name=f"{name} entry") for value in values
-    )
+    result = tuple(_require_nonempty_string(value, name=f"{name} entry") for value in values)
     if not result:
         raise ValueError(f"{name} must not be empty")
     if len(set(result)) != len(result):
@@ -189,13 +185,8 @@ class ObservationTimestampLineageV1:
         if np.any(timestamps < 0):
             raise ValueError("timestamps_ns must be nonnegative")
         if not np.all(np.isfinite(conditional_std)) or np.any(conditional_std < 0.0):
-            raise ValueError(
-                "conditional_timestamp_std_ns must be finite and nonnegative"
-            )
-        if (
-            self.timestamp_uncertainty_semantics
-            != TIMESTAMP_UNCERTAINTY_SEMANTICS
-        ):
+            raise ValueError("conditional_timestamp_std_ns must be finite and nonnegative")
+        if self.timestamp_uncertainty_semantics != TIMESTAMP_UNCERTAINTY_SEMANTICS:
             raise ValueError("timestamp uncertainty semantics changed")
         shared_prior = self.shared_clock_offset_prior_artifact_id
         if shared_prior is not None:
@@ -221,17 +212,19 @@ class ObservationTimestampLineageV1:
         object.__setattr__(self, "frame_indices", frame_indices)
         object.__setattr__(self, "timestamps_ns", timestamps)
         object.__setattr__(self, "conditional_timestamp_std_ns", conditional_std)
-        object.__setattr__(
-            self, "shared_clock_offset_prior_artifact_id", shared_prior
-        )
+        object.__setattr__(self, "shared_clock_offset_prior_artifact_id", shared_prior)
         object.__setattr__(self, "metadata", metadata)
 
         expected_id = _sha256_json(self.identity_record())
         supplied_id = self.artifact_id
-        if supplied_id is not None and _require_sha256(
-            supplied_id,
-            name="artifact_id",
-        ) != expected_id:
+        if (
+            supplied_id is not None
+            and _require_sha256(
+                supplied_id,
+                name="artifact_id",
+            )
+            != expected_id
+        ):
             raise ValueError("observation timestamp lineage artifact ID mismatch")
         object.__setattr__(self, "artifact_id", expected_id)
 
@@ -253,9 +246,7 @@ class ObservationTimestampLineageV1:
             "factor_ids": list(self.factor_ids),
             "frame_indices": self.frame_indices.tolist(),
             "timestamps_ns": self.timestamps_ns.tolist(),
-            "conditional_timestamp_std_ns": (
-                self.conditional_timestamp_std_ns.tolist()
-            ),
+            "conditional_timestamp_std_ns": (self.conditional_timestamp_std_ns.tolist()),
             "timestamp_uncertainty_semantics": self.timestamp_uncertainty_semantics,
             "shared_clock_offset_prior_artifact_id": self.shared_clock_offset_prior_artifact_id,
             "metadata": plain_json(self.metadata),
@@ -274,8 +265,7 @@ class ObservationTimestampLineageV1:
             missing = sorted(_FIELDS - value.keys())
             extra = sorted(value.keys() - _FIELDS)
             raise ValueError(
-                "observation timestamp lineage fields changed; "
-                f"missing={missing}, extra={extra}"
+                f"observation timestamp lineage fields changed; missing={missing}, extra={extra}"
             )
         if value.get("schema") != OBSERVATION_TIMESTAMP_LINEAGE_SCHEMA:
             raise ValueError("unexpected observation timestamp lineage schema")
@@ -302,9 +292,7 @@ class ObservationTimestampLineageV1:
                 dtype=np.float64,
             ),
             timestamp_uncertainty_semantics=value["timestamp_uncertainty_semantics"],
-            shared_clock_offset_prior_artifact_id=value[
-                "shared_clock_offset_prior_artifact_id"
-            ],
+            shared_clock_offset_prior_artifact_id=value["shared_clock_offset_prior_artifact_id"],
             metadata=metadata,
             artifact_id=value["artifact_id"],
         )
@@ -316,9 +304,7 @@ def validate_timestamp_lineage_for_bundle(
     """Require an exact factor-order and causal-identity match."""
 
     case_id = bundle.sequence_id if bundle.case_id is None else str(bundle.case_id)
-    stream_id = (
-        bundle.sequence_id if bundle.stream_id is None else str(bundle.stream_id)
-    )
+    stream_id = bundle.sequence_id if bundle.stream_id is None else str(bundle.stream_id)
     expected_scalars = {
         "sequence_id": bundle.sequence_id,
         "case_id": case_id,
@@ -384,9 +370,7 @@ def write_observation_timestamp_lineage(
     if artifact_path.exists():
         existing = load_observation_timestamp_lineage(artifact_path)
         if existing.artifact_id != lineage.artifact_id:
-            raise ValueError(
-                "observation timestamp lineage path contains different content"
-            )
+            raise ValueError("observation timestamp lineage path contains different content")
         return
     payload = (
         json.dumps(
@@ -418,8 +402,7 @@ def write_observation_timestamp_lineage(
             existing = load_observation_timestamp_lineage(artifact_path)
             if existing.artifact_id != lineage.artifact_id:
                 raise ValueError(
-                    "observation timestamp lineage publication raced "
-                    "with different content"
+                    "observation timestamp lineage publication raced with different content"
                 ) from None
     finally:
         temporary_path.unlink(missing_ok=True)
