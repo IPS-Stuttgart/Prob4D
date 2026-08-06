@@ -11,11 +11,13 @@ on:
       - "scripts/ci/check_sdist.py"
       - "src/prob4d/cli.py"
       - "src/prob4d/prediction_provider_import.py"
+      - "src/prob4d/prediction_provider_io.py"
       - "src/prob4d/prediction_provider_manifest.py"
       - "src/prob4d/visual_bias.py"
       - "src/prob4d/common_mode_stress.py"
       - "tests/test_cli.py"
       - "tests/test_prediction_provider_import.py"
+      - "tests/test_prediction_provider_io.py"
       - "tests/test_prediction_provider_manifest.py"
       - "tests/test_visual_bias.py"
       - "tests/test_common_mode_stress.py"
@@ -61,19 +63,24 @@ jobs:
           python -m ruff check \
             src/prob4d/cli.py \
             src/prob4d/prediction_provider_import.py \
+            src/prob4d/prediction_provider_io.py \
             src/prob4d/prediction_provider_manifest.py \
             src/prob4d/visual_bias.py \
             src/prob4d/common_mode_stress.py \
             tests/test_cli.py \
             tests/test_prediction_provider_import.py \
+            tests/test_prediction_provider_io.py \
             tests/test_prediction_provider_manifest.py \
             tests/test_visual_bias.py \
             tests/test_common_mode_stress.py
           python -m ruff format --check \
             src/prob4d/prediction_provider_import.py \
-            tests/test_prediction_provider_import.py
+            src/prob4d/prediction_provider_io.py \
+            tests/test_prediction_provider_import.py \
+            tests/test_prediction_provider_io.py
           python -m mypy \
             src/prob4d/prediction_provider_import.py \
+            src/prob4d/prediction_provider_io.py \
             src/prob4d/prediction_provider_manifest.py \
             src/prob4d/visual_bias.py \
             src/prob4d/common_mode_stress.py
@@ -83,6 +90,7 @@ jobs:
           python -m pytest -q \
             tests/test_cli.py \
             tests/test_prediction_provider_import.py \
+            tests/test_prediction_provider_io.py \
             tests/test_prediction_provider_manifest.py \
             tests/test_visual_bias.py \
             tests/test_common_mode_stress.py \
@@ -94,7 +102,9 @@ jobs:
       - name: Smoke-test the installed command surface
         run: |
           prob4d prediction --help
-          python -m prob4d.prediction_provider_import --help
+          prob4d prediction import-spec --help
+          prob4d prediction import-motioncrafter --help
+          prob4d prediction validate --help
           prob4d observation visual-bias --help
           prob4d diagnostic common-mode-stress \
             --output "$RUNNER_TEMP/common-mode-stress.json" \
