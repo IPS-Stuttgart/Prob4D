@@ -1,0 +1,68 @@
+name: Prediction-window truth view
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/prediction-window-truth-view.yml"
+      - "docs/prediction-window-truth-view.md"
+      - "src/prob4d/truth_view.py"
+      - "tests/test_truth_view.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prediction-window-truth-view-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out exact reviewed head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install compatible development environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -e ".[dev]"
+          python -m pip install "numpy>=1.24,<2.3"
+          python -m pip check
+
+      - name: Check source quality and typing
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m ruff check src/prob4d/truth_view.py tests/test_truth_view.py
+          python -m ruff format --check src/prob4d/truth_view.py tests/test_truth_view.py
+          python -m mypy src/prob4d/truth_view.py
+
+      - name: Run focused and adjacent metric tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pytest -q \
+            tests/test_truth_view.py \
+            tests/test_metrics.py \
+            tests/test_evaluation_modes.py \
+            tests/test_data_immutability.py \
+            tests/test_prediction_store.py
+          python -m compileall -q src/prob4d
