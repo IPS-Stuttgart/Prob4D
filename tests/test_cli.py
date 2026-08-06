@@ -13,6 +13,15 @@ def test_grouped_cli_lists_provider_and_observation(capsys) -> None:
     assert "identity" in output
 
 
+def test_grouped_cli_lists_provider_bundle_commands(capsys) -> None:
+    assert main(["provider"]) == 0
+    output = capsys.readouterr().out
+    assert "ingest" in output
+    assert "ingest-motioncrafter" in output
+    assert "manifest" in output
+    assert "validate" in output
+
+
 def test_grouped_cli_lists_explicit_provider_v2_exports(capsys) -> None:
     assert main(["observation"]) == 0
     output = capsys.readouterr().out
