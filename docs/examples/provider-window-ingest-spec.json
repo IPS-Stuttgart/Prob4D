@@ -1,0 +1,31 @@
+{
+  "schema_name": "prob4d.provider-window-ingest-spec",
+  "schema_version": 1,
+  "provider_name": "Example4D",
+  "provider_version": "1.2.3",
+  "implementation_identity": "git:0123456789abcdef0123456789abcdef01234567",
+  "model_set_identity": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "source_identity": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "coordinate_semantics": "independent-window-sim3",
+  "frame_index_semantics": "absolute-source-frame",
+  "source_lineage_semantics": "complete-source-interval",
+  "allow_legacy_window_archives": false,
+  "windows": [
+    {
+      "window_id": "window_0000",
+      "path": "windows/window_0000.npz",
+      "source_frame_start": 0,
+      "source_frame_stop_exclusive": 25
+    },
+    {
+      "window_id": "window_0001",
+      "path": "windows/window_0001.npz",
+      "source_frame_start": 17,
+      "source_frame_stop_exclusive": 42
+    }
+  ],
+  "metadata": {
+    "adapter": "example4d-prob4d-v1",
+    "claim_status": "exploratory-until-held-out-provider-promotion"
+  }
+}
