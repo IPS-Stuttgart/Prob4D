@@ -134,9 +134,7 @@ _PAIRED_EFFECT_FIELDS = {
     "group_count",
     "semantics",
 }
-_PAIRED_EFFECT_SEMANTICS = (
-    "paired-target-group-bootstrap-candidate-minus-physical-fallback-v1"
-)
+_PAIRED_EFFECT_SEMANTICS = "paired-target-group-bootstrap-candidate-minus-physical-fallback-v1"
 
 
 def _optional_string(value: Any, *, name: str) -> str | None:
@@ -167,10 +165,7 @@ def _canonical_string_list(
     nonempty: bool = True,
 ) -> list[str]:
     items = _strict_list(value, name=name)
-    result = [
-        _strict_string(item, name=f"{name}[{index}]")
-        for index, item in enumerate(items)
-    ]
+    result = [_strict_string(item, name=f"{name}[{index}]") for index, item in enumerate(items)]
     if nonempty and not result:
         raise ValueError(f"{name} must not be empty")
     if result != sorted(result) or len(set(result)) != len(result):
@@ -214,8 +209,7 @@ def _validate_artifact_ids(value: Any) -> dict[str, str]:
     missing = sorted(_REQUIRED_FROZEN_ARTIFACTS - set(result))
     if missing:
         raise ValueError(
-            "frozen_inputs.frozen_artifact_ids is missing required identities: "
-            f"{missing}"
+            f"frozen_inputs.frozen_artifact_ids is missing required identities: {missing}"
         )
     return result
 
@@ -287,9 +281,7 @@ def _validate_cohort(value: Any) -> tuple[int, list[str]]:
         name="cohort.target_group_ids",
     )
     if target_count != len(target_ids):
-        raise ValueError(
-            "cohort.target_group_count must match cohort.target_group_ids"
-        )
+        raise ValueError("cohort.target_group_count must match cohort.target_group_ids")
     return target_count, target_ids
 
 
@@ -329,17 +321,11 @@ def _validate_arms(value: Any) -> dict[str, Mapping[str, Any]]:
         )
         if role == "physical_fallback":
             if provider_method is not None:
-                raise ValueError(
-                    "the physical fallback arm must not have a provider method"
-                )
+                raise ValueError("the physical fallback arm must not have a provider method")
         elif provider_method is None:
-            raise ValueError(
-                "every non-fallback comparison arm requires a provider method"
-            )
+            raise ValueError("every non-fallback comparison arm requires a provider method")
         if sensor_assisted != (role == "sensor_assisted"):
-            raise ValueError(
-                "sensor_assisted must be true exactly for the sensor-assisted role"
-            )
+            raise ValueError("sensor_assisted must be true exactly for the sensor-assisted role")
         arms.append(arm)
     arm_ids = [str(arm["arm_id"]) for arm in arms]
     if arm_ids != sorted(arm_ids) or len(set(arm_ids)) != len(arm_ids):
@@ -347,13 +333,9 @@ def _validate_arms(value: Any) -> dict[str, Mapping[str, Any]]:
     roles = [str(arm["role"]) for arm in arms]
     for role in _REQUIRED_ARM_ROLES:
         if roles.count(role) != 1:
-            raise ValueError(
-                f"required comparison role {role!r} must occur exactly once"
-            )
+            raise ValueError(f"required comparison role {role!r} must occur exactly once")
     provider_methods = [
-        str(arm["provider_method_id"])
-        for arm in arms
-        if arm["provider_method_id"] is not None
+        str(arm["provider_method_id"]) for arm in arms if arm["provider_method_id"] is not None
     ]
     query_methods = [str(arm["query_method_id"]) for arm in arms]
     if len(provider_methods) != len(set(provider_methods)):
@@ -412,22 +394,16 @@ def _validate_provider_gate(
     )
     _optional_policy_id(provider["decision_policy_id"])
     if group_count != target_count:
-        raise ValueError(
-            "provider_gate.group_count must match cohort.target_group_count"
-        )
+        raise ValueError("provider_gate.group_count must match cohort.target_group_count")
     if case_count < group_count:
-        raise ValueError(
-            "provider_gate.case_count cannot be smaller than its group count"
-        )
+        raise ValueError("provider_gate.case_count cannot be smaller than its group count")
     registered_provider_methods = {
         arm["provider_method_id"]
         for arm in arms_by_id.values()
         if arm["provider_method_id"] is not None
     }
     if reference_method not in registered_provider_methods:
-        raise ValueError(
-            "provider_gate.reference_method is not a registered provider method"
-        )
+        raise ValueError("provider_gate.reference_method is not a registered provider method")
     return passed
 
 
@@ -451,23 +427,17 @@ def _validate_guarded_query(
     if primary_id not in arms_by_id:
         raise ValueError("guarded_query.primary_arm_id is not registered")
     if fallback_id not in arms_by_id:
-        raise ValueError(
-            "guarded_query.physical_fallback_arm_id is not registered"
-        )
+        raise ValueError("guarded_query.physical_fallback_arm_id is not registered")
     primary = arms_by_id[primary_id]
     fallback = arms_by_id[fallback_id]
     if fallback["role"] != "physical_fallback":
-        raise ValueError(
-            "guarded_query.physical_fallback_arm_id has the wrong role"
-        )
+        raise ValueError("guarded_query.physical_fallback_arm_id has the wrong role")
     if primary["role"] in {
         "physical_fallback",
         "sensor_assisted",
         "diagnostic",
     }:
-        raise ValueError(
-            "guarded_query.primary_arm_id must be a non-sensor candidate"
-        )
+        raise ValueError("guarded_query.primary_arm_id must be a non-sensor candidate")
 
     paired = _strict_mapping(
         query["paired_candidate_minus_fallback_mm"],
@@ -491,18 +461,14 @@ def _validate_guarded_query(
         name="guarded_query.paired_candidate_minus_fallback_mm.ci95_upper",
     )
     if lower > upper:
-        raise ValueError(
-            "guarded_query paired interval lower bound exceeds its upper bound"
-        )
+        raise ValueError("guarded_query paired interval lower bound exceeds its upper bound")
     paired_count = _strict_integer(
         paired["group_count"],
         name="guarded_query.paired_candidate_minus_fallback_mm.group_count",
         minimum=1,
     )
     if paired_count != target_count:
-        raise ValueError(
-            "guarded_query paired group count must match the target cohort"
-        )
+        raise ValueError("guarded_query paired group count must match the target cohort")
     semantics = _strict_string(
         paired["semantics"],
         name="guarded_query.paired_candidate_minus_fallback_mm.semantics",
@@ -523,25 +489,19 @@ def _validate_guarded_query(
         name="guarded_query.rejected_update_count",
     )
     if accepted_count + rejected_count != target_count:
-        raise ValueError(
-            "guarded_query accepted and rejected counts must cover the target cohort"
-        )
+        raise ValueError("guarded_query accepted and rejected counts must cover the target cohort")
     harmful_count = _nonnegative_integer(
         query["harmful_accepted_update_count"],
         name="guarded_query.harmful_accepted_update_count",
     )
     if harmful_count > accepted_count:
-        raise ValueError(
-            "guarded_query harmful accepted updates exceed accepted updates"
-        )
+        raise ValueError("guarded_query harmful accepted updates exceed accepted updates")
     technical_count = _nonnegative_integer(
         query["technical_failure_count"],
         name="guarded_query.technical_failure_count",
     )
     if technical_count > rejected_count:
-        raise ValueError(
-            "guarded_query technical failures exceed rejected updates"
-        )
+        raise ValueError("guarded_query technical failures exceed rejected updates")
     _strict_real(
         query["worst_group_regression_mm"],
         name="guarded_query.worst_group_regression_mm",
@@ -600,9 +560,7 @@ def _validate_descriptor(card: Mapping[str, Any]) -> None:
         arms_by_id=arms_by_id,
     )
     if overall_passed != (provider_passed and query_passed):
-        raise ValueError(
-            "overall_passed must equal the conjunction of provider and query gates"
-        )
+        raise ValueError("overall_passed must equal the conjunction of provider and query gates")
     if card["claim_boundary"] != REPORT_CLAIM_BOUNDARY:
         raise ValueError("promotion evidence claim boundary changed")
     non_claims = _canonical_string_list(
@@ -690,9 +648,7 @@ def build_promotion_evidence_card(
         ],
         "frozen_inputs": {
             "prediction_run_spec_id": lock.prediction_run_spec_id,
-            "provider_evaluation_manifest_sha256": (
-                lock.provider_evaluation_manifest_sha256
-            ),
+            "provider_evaluation_manifest_sha256": (lock.provider_evaluation_manifest_sha256),
             "frozen_artifact_ids": dict(lock.frozen_artifact_ids),
             "provider_report_sha256": report.provider_report_sha256,
             "query_results_id": report.query_results_id,
@@ -707,9 +663,7 @@ def build_promotion_evidence_card(
         "guarded_query": {
             "passed": query.get("overall_passed"),
             "primary_arm_id": lock.primary_query_arm_id,
-            "physical_fallback_arm_id": query.get(
-                "physical_fallback_arm_id"
-            ),
+            "physical_fallback_arm_id": query.get("physical_fallback_arm_id"),
             "paired_candidate_minus_fallback_mm": {
                 "mean": paired.get("mean"),
                 "ci95_lower": paired.get("ci95_lower"),
@@ -720,24 +674,12 @@ def build_promotion_evidence_card(
             "mean_query_rmse_mm": primary.get("mean_query_rmse_mm"),
             "accepted_update_count": primary.get("accepted_update_count"),
             "rejected_update_count": primary.get("rejected_update_count"),
-            "harmful_accepted_update_count": primary.get(
-                "harmful_accepted_update_count"
-            ),
-            "technical_failure_count": primary.get(
-                "technical_failure_count"
-            ),
-            "worst_group_regression_mm": primary.get(
-                "worst_group_regression_mm"
-            ),
-            "mean_accepted_coverage": primary.get(
-                "mean_accepted_coverage"
-            ),
-            "mean_accepted_width_mm": primary.get(
-                "mean_accepted_width_mm"
-            ),
-            "exact_fallback_failure_count": query.get(
-                "exact_fallback_failure_count"
-            ),
+            "harmful_accepted_update_count": primary.get("harmful_accepted_update_count"),
+            "technical_failure_count": primary.get("technical_failure_count"),
+            "worst_group_regression_mm": primary.get("worst_group_regression_mm"),
+            "mean_accepted_coverage": primary.get("mean_accepted_coverage"),
+            "mean_accepted_width_mm": primary.get("mean_accepted_width_mm"),
+            "exact_fallback_failure_count": query.get("exact_fallback_failure_count"),
         },
         "claim_boundary": REPORT_CLAIM_BOUNDARY,
         "explicit_non_claims": list(sorted(_NON_CLAIMS)),
@@ -754,11 +696,7 @@ def promotion_evidence_card_from_dict(value: object) -> dict[str, Any]:
         card["evidence_card_id"],
         name="evidence_card_id",
     )
-    descriptor = {
-        key: item
-        for key, item in card.items()
-        if key != "evidence_card_id"
-    }
+    descriptor = {key: item for key, item in card.items() if key != "evidence_card_id"}
     if supplied != _sha256_json(descriptor):
         raise ValueError("promotion evidence card ID mismatch")
     return dict(card)
@@ -799,18 +737,9 @@ def render_promotion_evidence_markdown(card: Mapping[str, Any]) -> str:
             "| Guarded-query result | Value |",
             "| --- | ---: |",
             f"| Primary arm | `{query['primary_arm_id']}` |",
-            (
-                "| Mean candidate-minus-fallback RMSE | "
-                f"{float(paired['mean']):.6g} mm |"
-            ),
-            (
-                "| Harmful accepted updates | "
-                f"{query['harmful_accepted_update_count']} |"
-            ),
-            (
-                "| Exact fallback failures | "
-                f"{query['exact_fallback_failure_count']} |"
-            ),
+            (f"| Mean candidate-minus-fallback RMSE | {float(paired['mean']):.6g} mm |"),
+            (f"| Harmful accepted updates | {query['harmful_accepted_update_count']} |"),
+            (f"| Exact fallback failures | {query['exact_fallback_failure_count']} |"),
             "",
             str(value["claim_boundary"]),
             "",

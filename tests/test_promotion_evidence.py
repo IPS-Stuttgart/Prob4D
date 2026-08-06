@@ -202,11 +202,7 @@ def _report_pair() -> tuple[dict[str, Any], dict[str, Any]]:
 
 
 def _resign(card: dict[str, Any]) -> None:
-    descriptor = {
-        key: value
-        for key, value in card.items()
-        if key != "evidence_card_id"
-    }
+    descriptor = {key: value for key, value in card.items() if key != "evidence_card_id"}
     payload = json.dumps(
         descriptor,
         sort_keys=True,
@@ -225,10 +221,7 @@ def test_evidence_card_is_compact_content_addressed_and_round_trips(
     assert card["schema_name"] == PROMOTION_EVIDENCE_CARD_SCHEMA
     assert card["repositories"]["prob4d"]["revision"] == "a" * 40
     assert card["cohort"]["target_group_count"] == 2
-    assert (
-        card["guarded_query"]["paired_candidate_minus_fallback_mm"]["mean"]
-        == -1.0
-    )
+    assert card["guarded_query"]["paired_candidate_minus_fallback_mm"]["mean"] == -1.0
     assert card["guarded_query"]["harmful_accepted_update_count"] == 0
 
     json_path = tmp_path / "evidence.json"
