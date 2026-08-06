@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   validate:
-    name: Exact-head validation on workstation2
+    name: Validate PR 113 merge tree on workstation2
     runs-on: [self-hosted, Linux, X64, nvidia-smi]
     timeout-minutes: 120
     steps:
@@ -25,21 +25,12 @@ jobs:
           persist-credentials: false
           clean: true
 
-      - name: Check out PR 113 exact head
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
-        with:
-          repository: IPS-Stuttgart/Prob4D
-          ref: 94387ee7352abb1dde0767416e3fc951839056ef
-          path: _validation/pr113
-          persist-credentials: false
-          clean: true
-
-      - name: Check out PR 128 exact head
+      - name: Check out PR 113 merge tree
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: IPS-Stuttgart/Prob4D
-          ref: 78f7a76e9b5770143f97f204ccd559ea467817b2
-          path: _validation/pr128
+          ref: refs/pull/113/merge
+          path: _validation/pr113
           persist-credentials: false
           clean: true
 
@@ -57,6 +48,8 @@ jobs:
           "$venv/bin/python" -m ensurepip --upgrade
           "$venv/bin/python" -m pip install --upgrade pip
           "$venv/bin/python" -m pip install -e "./_validation/pr113[dev]"
+          "$venv/bin/python" -m pip install "numpy>=1.24,<2.3"
+          "$venv/bin/python" -m pip check
           cd _validation/pr113
           "$venv/bin/python" -m ruff check \
             src/prob4d/observation_factor_stream.py \
@@ -66,30 +59,10 @@ jobs:
             src/prob4d/observation_factor_stream.py \
             tests/test_observation_factor_stream_bundle_strict.py \
             tests/test_observation_factor_stream_strict.py
-          "$venv/bin/python" -m mypy src/prob4d/observation_factor_stream.py
+          "$venv/bin/python" -m mypy --python-version 3.12 \
+            src/prob4d/observation_factor_stream.py
           "$venv/bin/python" -m pytest -q
-          echo "PR113 94387ee7352abb1dde0767416e3fc951839056ef passed" >> "$RUNNER_TEMP/prob4d-open-pr-validation.txt"
-
-      - name: Validate PR 128 generic provider importer
-        shell: bash
-        run: |
-          set -euo pipefail
-          venv="$RUNNER_TEMP/prob4d-pr128-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          python -m venv --clear "$venv"
-          "$venv/bin/python" -m ensurepip --upgrade
-          "$venv/bin/python" -m pip install --upgrade pip
-          "$venv/bin/python" -m pip install -e "./_validation/pr128[dev]"
-          cd _validation/pr128
-          "$venv/bin/python" -m ruff check \
-            src/prob4d/prediction_provider_import.py \
-            tests/test_prediction_provider_import.py
-          "$venv/bin/python" -m ruff format --check \
-            src/prob4d/prediction_provider_import.py \
-            tests/test_prediction_provider_import.py
-          "$venv/bin/python" -m mypy src/prob4d/prediction_provider_import.py
-          "$venv/bin/python" -m pytest -q
-          "$venv/bin/python" -m build --wheel --outdir "$RUNNER_TEMP/prob4d-pr128-wheelhouse"
-          echo "PR128 78f7a76e9b5770143f97f204ccd559ea467817b2 passed" >> "$RUNNER_TEMP/prob4d-open-pr-validation.txt"
+          git rev-parse HEAD | sed 's/^/PR113 merge tree /' | tee "$RUNNER_TEMP/prob4d-open-pr-validation.txt"
 
       - name: Upload compact validation summary
         if: always()
