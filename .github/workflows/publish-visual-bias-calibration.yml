@@ -1,0 +1,170 @@
+name: Publish source-only visual-bias calibration
+
+on:
+  push:
+    branches: [agent/source-visual-bias-calibration-v1]
+    paths:
+      - ".github/visual-bias-calibration-publish/**"
+      - ".github/workflows/publish-visual-bias-calibration.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/visual-bias-calibration-publish/**"
+      - ".github/workflows/publish-visual-bias-calibration.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-visual-bias-calibration-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+
+jobs:
+  publish:
+    if: >-
+      github.repository == 'IPS-Stuttgart/Prob4D' &&
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out exact staging revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          clean: true
+          persist-credentials: false
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Authenticate and reconstruct declared product tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          staging_sha="${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$(git rev-parse HEAD)" = "${staging_sha}"
+          echo "STAGING_SHA=${staging_sha}" >> "${GITHUB_ENV}"
+          archive="${RUNNER_TEMP}/visual-bias-calibration-product.tar.gz"
+          cat .github/visual-bias-calibration-publish/product.tar.gz.b64.part* \
+            | base64 --decode > "${archive}"
+          echo "6d1eadc627f8f3dd9d522f45059412e60b82fa1a279a8145f401e5a8dbfdf40c  ${archive}" \
+            | sha256sum --check --strict
+          ARCHIVE="${archive}" python - <<'PY'
+          import os
+          import tarfile
+          from pathlib import PurePosixPath
+
+          expected = {
+              ".github/workflows/visual-bias-calibration.yml",
+              "docs/visual-bias-calibration.md",
+              "pyproject.toml",
+              "src/prob4d/visual_bias_calibration.py",
+              "tests/test_visual_bias_calibration.py",
+          }
+          archive = os.environ["ARCHIVE"]
+          with tarfile.open(archive, "r:gz") as handle:
+              members = handle.getmembers()
+              names = [member.name for member in members]
+              if set(names) != expected or len(names) != len(expected):
+                  raise SystemExit(f"product path set changed: {sorted(names)}")
+              for member in members:
+                  path = PurePosixPath(member.name)
+                  if path.is_absolute() or ".." in path.parts:
+                      raise SystemExit(f"unsafe product path: {member.name}")
+                  if not member.isfile() or member.issym() or member.islnk():
+                      raise SystemExit(f"non-regular product member: {member.name}")
+          PY
+
+      - name: Materialize product source on exact current base
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="${RUNNER_TEMP}/visual-bias-calibration-product.tar.gz"
+          product="${RUNNER_TEMP}/visual-bias-calibration-product"
+          rm -rf "${product}"
+          mkdir -p "${product}"
+          tar -xzf "${archive}" -C "${product}"
+          git reset --hard 1abf2a3cd58f74ab08460a6367c96fada273f452
+          cp -a "${product}/." .
+
+      - name: Create isolated validation environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          environment="${RUNNER_TEMP}/visual-bias-calibration-publish-venv"
+          python -m venv --clear "${environment}"
+          echo "${environment}/bin" >> "${GITHUB_PATH}"
+
+      - name: Install and canonically format touched Python
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]" "numpy>=1.24,<2.3"
+          python -m ruff check --fix --select I001 \
+            src/prob4d/visual_bias_calibration.py \
+            tests/test_visual_bias_calibration.py
+          python -m ruff format \
+            src/prob4d/visual_bias_calibration.py \
+            tests/test_visual_bias_calibration.py
+
+      - name: Validate product source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m ruff check \
+            src/prob4d/visual_bias_calibration.py \
+            tests/test_visual_bias_calibration.py
+          python -m ruff format --check \
+            src/prob4d/visual_bias_calibration.py \
+            tests/test_visual_bias_calibration.py
+          python -m mypy src/prob4d/visual_bias_calibration.py
+          python -m pytest -q -p no:cacheprovider \
+            tests/test_visual_bias_calibration.py \
+            tests/test_visual_bias.py \
+            tests/test_visual_bias_stream.py \
+            tests/test_immutable_array.py \
+            tests/test_immutable_json.py
+          python -m compileall -q src/prob4d
+          python -m pip check
+          python -m build
+          python -m twine check dist/*
+          archive=$(find dist -maxdepth 1 -name '*.tar.gz' -print -quit)
+          test -n "${archive}"
+          python scripts/ci/check_sdist.py "${archive}"
+          prob4d-visual-bias-calibration --help
+
+      - name: Publish one reviewable product commit
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            .github/workflows/visual-bias-calibration.yml \
+            docs/visual-bias-calibration.md \
+            pyproject.toml \
+            src/prob4d/visual_bias_calibration.py \
+            tests/test_visual_bias_calibration.py
+          test "$(git diff --cached --name-only | wc -l)" -eq 5
+          git commit -m "Calibrate coherent visual bias from source groups"
+          git remote set-url origin \
+            "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push \
+            --force-with-lease=refs/heads/agent/source-visual-bias-calibration-v1:${STAGING_SHA} \
+            origin HEAD:agent/source-visual-bias-calibration-v1
