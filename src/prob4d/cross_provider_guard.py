@@ -51,21 +51,15 @@ BoolArray: TypeAlias = NDArray[np.bool_]
 
 CROSS_PROVIDER_PANEL_SCHEMA: Final = "prob4d.cross-provider-panel"
 CROSS_PROVIDER_PANEL_VERSION: Final = 1
-CROSS_PROVIDER_CALIBRATION_SCHEMA: Final = (
-    "prob4d.cross-provider-corroboration-calibration"
-)
+CROSS_PROVIDER_CALIBRATION_SCHEMA: Final = "prob4d.cross-provider-corroboration-calibration"
 CROSS_PROVIDER_CALIBRATION_VERSION: Final = 1
 CROSS_PROVIDER_DECISION_SCHEMA: Final = "prob4d.cross-provider-corroboration-decision"
 CROSS_PROVIDER_DECISION_VERSION: Final = 1
-CROSS_PROVIDER_SCORE_SEMANTICS: Final = (
-    "rowwise-normalized-mahalanobis-higher-quantile-v1"
-)
+CROSS_PROVIDER_SCORE_SEMANTICS: Final = "rowwise-normalized-mahalanobis-higher-quantile-v1"
 UNKNOWN_DEPENDENCE_COVARIANCE_SEMANTICS: Final = (
     "young-inequality-difference-covariance-upper-bound-v1"
 )
-EXPLICIT_CROSS_COVARIANCE_SEMANTICS: Final = (
-    "explicit-cross-covariance-difference-v1"
-)
+EXPLICIT_CROSS_COVARIANCE_SEMANTICS: Final = "explicit-cross-covariance-difference-v1"
 COVARIANCE_MODES: Final = (
     UNKNOWN_DEPENDENCE_COVARIANCE_SEMANTICS,
     EXPLICIT_CROSS_COVARIANCE_SEMANTICS,
@@ -78,9 +72,7 @@ CROSS_PROVIDER_CLAIM_BOUNDARY: Final = (
     "remain separate requirements."
 )
 
-_PANEL_FIELDS: Final = frozenset(
-    {"schema", "schema_version", "purpose", "cases", "metadata"}
-)
+_PANEL_FIELDS: Final = frozenset({"schema", "schema_version", "purpose", "cases", "metadata"})
 _CASE_FIELDS: Final = frozenset(
     {
         "case_id",
@@ -167,9 +159,7 @@ _CALIBRATION_FIELDS: Final = frozenset(
         "claim_boundary",
     }
 )
-_DECISION_CASE_FIELDS: Final = frozenset(
-    {"score", "admitted", "rejection_reasons"}
-)
+_DECISION_CASE_FIELDS: Final = frozenset({"score", "admitted", "rejection_reasons"})
 _DECISION_FIELDS: Final = frozenset(
     {
         "schema",
@@ -235,9 +225,7 @@ def _load_json_bytes_object(payload: bytes, *, name: str) -> dict[str, Any]:
         result: dict[str, Any] = {}
         for key, item in pairs:
             if key in result:
-                raise _DuplicateKeyError(
-                    f"{name} contains duplicate JSON object key {key!r}"
-                )
+                raise _DuplicateKeyError(f"{name} contains duplicate JSON object key {key!r}")
             result[key] = item
         return result
 
@@ -367,9 +355,7 @@ def _write_json_once(path: Path, record: Mapping[str, Any]) -> Path:
             os.link(temporary, path)
         except FileExistsError as error:
             if load_json_object(path, name=path.name) != plain_json(record):
-                raise ValueError(
-                    f"concurrent writer published different {path.name!r}"
-                ) from error
+                raise ValueError(f"concurrent writer published different {path.name!r}") from error
         _fsync_directory(path.parent)
     finally:
         temporary.unlink(missing_ok=True)
@@ -379,8 +365,7 @@ def _write_json_once(path: Path, record: Mapping[str, Any]) -> Path:
 def _strict_sha_sequence(value: object, *, name: str) -> tuple[str, ...]:
     values = require_string_sequence(value, name=name)
     result = tuple(
-        require_sha256(item, name=f"{name}[{index}]")
-        for index, item in enumerate(values)
+        require_sha256(item, name=f"{name}[{index}]") for index, item in enumerate(values)
     )
     if len(set(result)) != len(result):
         raise ValueError(f"{name} must be unique")
@@ -422,10 +407,14 @@ class ProviderContractV1:
         object.__setattr__(self, "coordinate_semantics", coordinate)
         object.__setattr__(self, "point_semantics", point)
         expected = _sha256_json(self.identity_record())
-        if self.contract_id is not None and require_sha256(
-            self.contract_id,
-            name="contract_id",
-        ) != expected:
+        if (
+            self.contract_id is not None
+            and require_sha256(
+                self.contract_id,
+                name="contract_id",
+            )
+            != expected
+        ):
             raise ValueError("provider contract ID mismatch")
         object.__setattr__(self, "contract_id", expected)
 
@@ -559,9 +548,7 @@ def _validated_matched_arrays(
         if raw_cross.dtype != np.dtype(np.float64) or raw_cross.shape != (
             expected_covariance_shape
         ):
-            raise ValueError(
-                "cross_covariance_m2 must be float64 with shape (N, 3, 3)"
-            )
+            raise ValueError("cross_covariance_m2 must be float64 with shape (N, 3, 3)")
         if not np.all(np.isfinite(raw_cross)):
             raise ValueError("cross_covariance_m2 must be finite")
         cross = raw_cross
@@ -584,10 +571,9 @@ def _difference_covariance_unknown_dependence(
     if np.any(first_trace <= 0.0) or np.any(second_trace <= 0.0):
         raise ValueError("provider covariance traces must be positive")
     beta = np.sqrt(second_trace / first_trace)
-    return (
-        (1.0 + beta)[..., None, None] * first_covariance
-        + (1.0 + 1.0 / beta)[..., None, None] * second_covariance
-    )
+    return (1.0 + beta)[..., None, None] * first_covariance + (1.0 + 1.0 / beta)[
+        ..., None, None
+    ] * second_covariance
 
 
 def compute_cross_provider_score(
@@ -802,9 +788,7 @@ class CrossProviderCaseScoreV1:
             "alignment_artifact_id": self.alignment_artifact_id,
             "row_identity_sha256": self.row_identity_sha256,
             "coordinate_frame_id": self.coordinate_frame_id,
-            "shared_input_dependence_group_id": (
-                self.shared_input_dependence_group_id
-            ),
+            "shared_input_dependence_group_id": (self.shared_input_dependence_group_id),
             "covariance_mode": self.covariance_mode,
             "row_count": self.row_count,
             "valid_count": self.valid_count,
@@ -846,9 +830,7 @@ class CrossProviderCaseScoreV1:
             alignment_artifact_id=mapping["alignment_artifact_id"],
             row_identity_sha256=mapping["row_identity_sha256"],
             coordinate_frame_id=mapping["coordinate_frame_id"],
-            shared_input_dependence_group_id=mapping[
-                "shared_input_dependence_group_id"
-            ],
+            shared_input_dependence_group_id=mapping["shared_input_dependence_group_id"],
             covariance_mode=mapping["covariance_mode"],
             row_count=mapping["row_count"],
             valid_count=mapping["valid_count"],
@@ -907,9 +889,7 @@ def _shared_input_group(
     first_payloads: Sequence[PredictionPayloadDescriptorV1],
     second_payloads: Sequence[PredictionPayloadDescriptorV1],
 ) -> str:
-    shared = _common_dependence_groups(first_payloads) & _common_dependence_groups(
-        second_payloads
-    )
+    shared = _common_dependence_groups(first_payloads) & _common_dependence_groups(second_payloads)
     input_groups = sorted(group for group in shared if group.startswith("input-video:"))
     if len(input_groups) != 1:
         raise ValueError(
@@ -949,8 +929,7 @@ def _load_matched_observations(
             extra = sorted(fields - _MATCHED_REQUIRED_FIELDS - _MATCHED_OPTIONAL_FIELDS)
             if missing or extra:
                 raise ValueError(
-                    "matched-observation fields changed; "
-                    f"missing={missing}, extra={extra}"
+                    f"matched-observation fields changed; missing={missing}, extra={extra}"
                 )
             embedded_alignment = np.asarray(archive["alignment_artifact_id"])
             embedded_rows = np.asarray(archive["row_identity_sha256"])
@@ -965,15 +944,11 @@ def _load_matched_observations(
                 (embedded_frame, coordinate_frame_id, "coordinate_frame_id"),
             ):
                 if value.shape != () or value.dtype.kind != "U":
-                    raise ValueError(
-                        f"matched-observation {name} must be a Unicode scalar"
-                    )
+                    raise ValueError(f"matched-observation {name} must be a Unicode scalar")
                 if str(value.item()) != expected:
                     raise ValueError(f"matched-observation {name} mismatch")
             cross = (
-                archive["cross_covariance_m2"]
-                if "cross_covariance_m2" in archive.files
-                else None
+                archive["cross_covariance_m2"] if "cross_covariance_m2" in archive.files else None
             )
             return compute_cross_provider_score(
                 archive["first_points_m"],
@@ -1214,14 +1189,10 @@ def _threshold_from_record(value: object) -> FiniteSampleUpperThreshold:
         calibration_count=mapping["calibration_count"],
         order_statistic_rank=mapping["order_statistic_rank"],
         threshold=mapping["threshold"],
-        guaranteed_miscoverage_upper_bound=mapping[
-            "guaranteed_miscoverage_upper_bound"
-        ],
+        guaranteed_miscoverage_upper_bound=mapping["guaranteed_miscoverage_upper_bound"],
         canonical_scores_sha256=mapping["canonical_scores_sha256"],
     )
-    if mapping["exchangeability_boundary"] != threshold.to_dict()[
-        "exchangeability_boundary"
-    ]:
+    if mapping["exchangeability_boundary"] != threshold.to_dict()["exchangeability_boundary"]:
         raise ValueError("finite-sample exchangeability boundary changed")
     return threshold
 
@@ -1276,9 +1247,7 @@ class CrossProviderCalibrationV1:
         cases = tuple(self.calibration_cases)
         if any(not isinstance(item, CrossProviderCaseScoreV1) for item in cases):
             raise TypeError("calibration_cases contain an invalid score")
-        if tuple(sorted(item.case_id for item in cases)) != tuple(
-            item.case_id for item in cases
-        ):
+        if tuple(sorted(item.case_id for item in cases)) != tuple(item.case_id for item in cases):
             raise ValueError("calibration cases must be ordered by case_id")
         if len({item.case_id for item in cases}) != len(cases):
             raise ValueError("calibration case IDs must be unique")
@@ -1295,9 +1264,7 @@ class CrossProviderCalibrationV1:
         ):
             raise ValueError("calibration cases differ from the provider contracts")
         if any(item.support_fraction < minimum_support for item in cases):
-            raise ValueError(
-                "clean calibration case falls below minimum common support"
-            )
+            raise ValueError("clean calibration case falls below minimum common support")
         refit = fit_finite_sample_upper_threshold(
             np.asarray([item.case_score for item in cases], dtype=np.float64),
             miscoverage=self.finite_sample_threshold.miscoverage,
@@ -1322,10 +1289,14 @@ class CrossProviderCalibrationV1:
         object.__setattr__(self, "calibration_cases", cases)
         object.__setattr__(self, "metadata", metadata)
         expected = _sha256_json(self.identity_record())
-        if self.artifact_id is not None and require_sha256(
-            self.artifact_id,
-            name="artifact_id",
-        ) != expected:
+        if (
+            self.artifact_id is not None
+            and require_sha256(
+                self.artifact_id,
+                name="artifact_id",
+            )
+            != expected
+        ):
             raise ValueError("cross-provider calibration artifact ID mismatch")
         object.__setattr__(self, "artifact_id", expected)
 
@@ -1339,9 +1310,7 @@ class CrossProviderCalibrationV1:
             "score_semantics": self.score_semantics,
             "row_quantile": self.row_quantile,
             "minimum_support_fraction": self.minimum_support_fraction,
-            "calibration_panel_source_sha256": (
-                self.calibration_panel_source_sha256
-            ),
+            "calibration_panel_source_sha256": (self.calibration_panel_source_sha256),
             "calibration_panel_semantic_id": self.calibration_panel_semantic_id,
             "calibration_cases": [item.to_record() for item in self.calibration_cases],
             "finite_sample_threshold": self.finite_sample_threshold.to_dict(),
@@ -1370,18 +1339,12 @@ class CrossProviderCalibrationV1:
             score_semantics=mapping["score_semantics"],
             row_quantile=mapping["row_quantile"],
             minimum_support_fraction=mapping["minimum_support_fraction"],
-            calibration_panel_source_sha256=mapping[
-                "calibration_panel_source_sha256"
-            ],
-            calibration_panel_semantic_id=mapping[
-                "calibration_panel_semantic_id"
-            ],
+            calibration_panel_source_sha256=mapping["calibration_panel_source_sha256"],
+            calibration_panel_semantic_id=mapping["calibration_panel_semantic_id"],
             calibration_cases=tuple(
                 CrossProviderCaseScoreV1.from_record(item) for item in raw_cases
             ),
-            finite_sample_threshold=_threshold_from_record(
-                mapping["finite_sample_threshold"]
-            ),
+            finite_sample_threshold=_threshold_from_record(mapping["finite_sample_threshold"]),
             metadata=require_finite_json_mapping(
                 mapping["metadata"],
                 name="cross-provider calibration metadata",
@@ -1541,17 +1504,23 @@ class CrossProviderDecisionV1:
                 raise ValueError("decision rejection reasons contradict the frozen guard")
         accepted = sum(item.admitted for item in cases)
         rejected = len(cases) - accepted
-        if require_exact_integer(
-            self.accepted_count,
-            name="accepted_count",
-            minimum=0,
-        ) != accepted:
+        if (
+            require_exact_integer(
+                self.accepted_count,
+                name="accepted_count",
+                minimum=0,
+            )
+            != accepted
+        ):
             raise ValueError("accepted_count differs from decision cases")
-        if require_exact_integer(
-            self.rejected_count,
-            name="rejected_count",
-            minimum=0,
-        ) != rejected:
+        if (
+            require_exact_integer(
+                self.rejected_count,
+                name="rejected_count",
+                minimum=0,
+            )
+            != rejected
+        ):
             raise ValueError("rejected_count differs from decision cases")
         all_admitted = _exact_boolean(
             self.all_cases_admitted,
@@ -1582,10 +1551,14 @@ class CrossProviderDecisionV1:
         object.__setattr__(self, "all_cases_admitted", all_admitted)
         object.__setattr__(self, "metadata", metadata)
         expected = _sha256_json(self.identity_record())
-        if self.artifact_id is not None and require_sha256(
-            self.artifact_id,
-            name="artifact_id",
-        ) != expected:
+        if (
+            self.artifact_id is not None
+            and require_sha256(
+                self.artifact_id,
+                name="artifact_id",
+            )
+            != expected
+        ):
             raise ValueError("cross-provider decision artifact ID mismatch")
         object.__setattr__(self, "artifact_id", expected)
 
@@ -1803,10 +1776,7 @@ def _simulate_case_score(
     first = truth + shared_bias + generator.normal(0.0, noise_std_m, size=(rows, 3))
     provider_bias = generator.normal(0.0, provider_specific_bias_std_m, size=(1, 3))
     second = (
-        truth
-        + shared_bias
-        + provider_bias
-        + generator.normal(0.0, noise_std_m, size=(rows, 3))
+        truth + shared_bias + provider_bias + generator.normal(0.0, noise_std_m, size=(rows, 3))
     )
     covariance = np.repeat(
         (noise_std_m**2 * np.eye(3, dtype=np.float64))[None],
@@ -1910,12 +1880,8 @@ def run_cross_provider_guard_stress(
     common_bias_rejection = float(np.mean(common_bias_scores > limit))
     tolerance = 0.03
     gates = {
-        "clean_false_rejection_at_most_alpha_plus_0_03": (
-            clean_rejection <= alpha + tolerance
-        ),
-        "provider_specific_corruption_detection_at_least_0_95": (
-            corrupted_detection >= 0.95
-        ),
+        "clean_false_rejection_at_most_alpha_plus_0_03": (clean_rejection <= alpha + tolerance),
+        "provider_specific_corruption_detection_at_least_0_95": (corrupted_detection >= 0.95),
         "shared_common_bias_not_misrepresented_as_detected": (
             common_bias_rejection <= alpha + tolerance
         ),

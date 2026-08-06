@@ -129,11 +129,7 @@ def _matched(
         rows,
         axis=0,
     )
-    valid = (
-        np.ones(rows, dtype=bool)
-        if valid_mask is None
-        else np.asarray(valid_mask, dtype=bool)
-    )
+    valid = np.ones(rows, dtype=bool) if valid_mask is None else np.asarray(valid_mask, dtype=bool)
     arrays: dict[str, np.ndarray] = {
         "first_points_m": first,
         "second_points_m": second,
@@ -216,17 +212,13 @@ def _provider_pair(
         root,
         name="vggt",
         family="MotionCrafter" if same_contract else "VGGT",
-        repository=(
-            "TencentARC/MotionCrafter" if same_contract else "facebookresearch/vggt"
-        ),
+        repository=("TencentARC/MotionCrafter" if same_contract else "facebookresearch/vggt"),
         revision="2" * 40 if same_contract else "6" * 40,
         run_id="7" * 64,
         model_set_id="4" * 64 if same_contract else "8" * 64,
         loader_id="5" * 64 if same_contract else "9" * 64,
         video_sha256=(video_sha if second_video_sha256 is None else second_video_sha256),
-        coordinate_semantics=(
-            "window-local-sim3" if same_contract else "sequence-local-sim3"
-        ),
+        coordinate_semantics=("window-local-sim3" if same_contract else "sequence-local-sim3"),
     )
     return first_path, first, second_path, second
 
@@ -514,9 +506,7 @@ def test_resigned_provider_contract_tamper_is_rejected(tmp_path: Path) -> None:
     provider = record["first_provider"]
     assert isinstance(provider, dict)
     provider["provider_family"] = "DifferentProvider"
-    contract_descriptor = {
-        key: value for key, value in provider.items() if key != "contract_id"
-    }
+    contract_descriptor = {key: value for key, value in provider.items() if key != "contract_id"}
     provider["contract_id"] = cross_provider._sha256_json(contract_descriptor)
     descriptor = {key: value for key, value in record.items() if key != "artifact_id"}
     record["artifact_id"] = cross_provider._sha256_json(descriptor)
