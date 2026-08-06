@@ -65,10 +65,42 @@ The imported dependence groups distinguish shared model/input-video dependence
 from stochastic-member identity. Different seeds from the same model are not
 silently described as independent providers.
 
-## Alternative providers
+## Importing another provider
 
-An adapter for VGGT or another 4-D model should emit the same neutral contract
-from independently validated source bytes. It must declare one of the supported
+An external provider can use the same canonical contract without adding its
+runtime or model-loading stack to Prob4D. It must write versioned
+`PredictionWindow` NPZ payloads and a strict import specification. A complete
+example is retained at
+[`examples/provider-neutral-import-spec.json`](examples/provider-neutral-import-spec.json).
+
+```bash
+python -m prob4d.prediction_provider_import \
+  outputs/sequence-a/provider-import.json \
+  outputs/sequence-a/provider-neutral.json
+
+prob4d prediction validate \
+  outputs/sequence-a/provider-neutral.json \
+  --causal-frame-stop 134
+```
+
+The specification declares the provider repository and revision, provider-run,
+model-set and loader identities, coordinate and field semantics, dependence
+groups, and one complete source-frame interval for every output frame. Prob4D
+derives each payload SHA-256, byte count, storage precision, and optional-field
+presence from the canonical NPZ bytes rather than accepting those values from the
+caller.
+
+The specification and all payloads must share a confined bundle root with the
+output manifest. Absolute paths, parent traversal, symlink traversal, duplicate
+JSON keys, non-finite values, unknown fields, malformed identities, frame-lineage
+mismatches, and caller attempts to set importer-owned metadata fail closed.
+The importer parses private exact-byte snapshots of the specification and each
+payload, binds identities to those same bytes, and rechecks the source files
+before publishing the canonical manifest.
+
+## Alternative-provider semantics
+
+An adapter for VGGT or another 4-D model must declare one of the supported
 coordinate semantics:
 
 - `window-local-sim3`;
@@ -86,9 +118,25 @@ shared-dependence fields. Such disagreement remains a source-calibrated
 reliability feature; it is not automatically an independent likelihood or a
 fusion weight.
 
+## Persistence and verification
+
+`save_prediction_provider_manifest` publishes a new manifest atomically and
+accepts an already-present semantically identical manifest as an idempotent
+rewrite. It rejects an already-present different manifest. Callers that permit
+multiple concurrent writers must serialize those writers externally.
+
+After publication, the generic importer invokes
+`verify_prediction_provider_manifest`. The verifier checks each descriptor's
+payload SHA-256 and byte count, reopens the payload with `allow_pickle=False`, and
+checks the window ID, frame grid, storage precision, and optional-field
+declarations.
+
 ## Python API
 
 ```python
+from prob4d.prediction_provider_import import (
+    import_prediction_provider_specification,
+)
 from prob4d.prediction_provider_manifest import (
     PredictionFrameLineageV1,
     PredictionPayloadDescriptorV1,
@@ -98,11 +146,6 @@ from prob4d.prediction_provider_manifest import (
     verify_prediction_provider_manifest,
 )
 ```
-
-`verify_prediction_provider_manifest` checks the content identity and, by
-default, reopens every exact payload byte with `allow_pickle=False`, validates
-its closed versioned `PredictionWindow` schema, and checks window ID, frame grid,
-storage precision, and optional field declarations.
 
 ## Repository boundary and nonclaims
 
