@@ -20,14 +20,29 @@ from ._finite_sample_capability_records import (
 
 
 class CapabilityState(Protocol):
-    promotion_lock_id: str
-    cohort_binding_id: str | None
-    calibration_group_ids: tuple[str, ...]
-    target_group_ids: tuple[str, ...]
-    requested_coverages: tuple[float, ...]
-    bootstrap_resamples: int
-    calibration_strata: tuple[CalibrationStratumV1, ...]
-    lock_minimum_mean_accepted_coverage: float | None
+    @property
+    def promotion_lock_id(self) -> str: ...
+
+    @property
+    def cohort_binding_id(self) -> str | None: ...
+
+    @property
+    def calibration_group_ids(self) -> tuple[str, ...]: ...
+
+    @property
+    def target_group_ids(self) -> tuple[str, ...]: ...
+
+    @property
+    def requested_coverages(self) -> tuple[float, ...]: ...
+
+    @property
+    def bootstrap_resamples(self) -> int: ...
+
+    @property
+    def calibration_strata(self) -> tuple[CalibrationStratumV1, ...]: ...
+
+    @property
+    def lock_minimum_mean_accepted_coverage(self) -> float | None: ...
 
 
 def populations(state: CapabilityState) -> tuple[dict[str, object], ...]:
