@@ -49,8 +49,7 @@ class GaugeTreePriorMethods:
     @property
     def parent_gauge_ids(self) -> tuple[str | None, ...]:
         return (None,) + tuple(
-            self.gauge_ids[int(self.parent_indices[index])]
-            for index in range(1, self.gauge_count)
+            self.gauge_ids[int(self.parent_indices[index])] for index in range(1, self.gauge_count)
         )
 
     @property
