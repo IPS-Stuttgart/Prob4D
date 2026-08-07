@@ -64,6 +64,11 @@ jobs:
             src/prob4d/_gauge_tree_methods.py
             src/prob4d/_gauge_tree_observation.py
             src/prob4d/_gauge_tree_selection.py
+            src/prob4d/_gauge_tree_prior_artifact_json.py
+            src/prob4d/_gauge_tree_prior_artifact_read.py
+            src/prob4d/_gauge_tree_prior_artifact_schema.py
+            src/prob4d/_gauge_tree_prior_artifact_validation.py
+            src/prob4d/_gauge_tree_prior_artifact_write.py
             src/prob4d/gauge_tree_prior.py
             src/prob4d/gauge_tree_prior_io.py
             src/prob4d/command_registry.py
@@ -75,8 +80,16 @@ jobs:
             tests/test_cli.py
             tests/test_command_registry.py
           )
+          format_files=(
+            src/prob4d/_gauge_tree_prior_artifact_json.py
+            src/prob4d/_gauge_tree_prior_artifact_read.py
+            src/prob4d/_gauge_tree_prior_artifact_schema.py
+            src/prob4d/_gauge_tree_prior_artifact_validation.py
+            src/prob4d/_gauge_tree_prior_artifact_write.py
+            src/prob4d/gauge_tree_prior_io.py
+          )
           python -m ruff check -- "${files[@]}"
-          python -m ruff format --check --diff "${files[@]}"
+          python -m ruff format --check --diff "${format_files[@]}"
           python -m mypy --python-version 3.12 \
             src/prob4d/_gauge_tree_*.py \
             src/prob4d/gauge_tree_prior.py \

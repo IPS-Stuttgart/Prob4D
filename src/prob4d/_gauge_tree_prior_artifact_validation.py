@@ -71,11 +71,17 @@ def validate_prior_record(value: Any) -> Mapping[str, Any]:
     exact_fields(prior, PRIOR_FIELDS, name="prior")
     if prior["schema"] != GAUGE_TREE_PRIOR_SCHEMA:
         raise ValueError("prior.schema mismatch")
-    if exact_integer(prior["version"], name="prior.version") != GAUGE_TREE_PRIOR_VERSION:
+    if (
+        exact_integer(prior["version"], name="prior.version")
+        != GAUGE_TREE_PRIOR_VERSION
+    ):
         raise ValueError("prior.version mismatch")
     if prior["representation_semantics"] != GAUGE_TREE_PRIOR_SEMANTICS:
         raise ValueError("prior representation semantics mismatch")
-    if exact_integer(prior["gauge_dimension"], name="prior.gauge_dimension") != GAUGE_DIMENSION:
+    if (
+        exact_integer(prior["gauge_dimension"], name="prior.gauge_dimension")
+        != GAUGE_DIMENSION
+    ):
         raise ValueError("prior gauge dimension mismatch")
     gauge_ids = json_list(prior["gauge_ids"], name="prior.gauge_ids")
     if not gauge_ids or any(
