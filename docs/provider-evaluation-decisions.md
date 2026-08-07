@@ -120,6 +120,61 @@ The command returns:
 The JSON, CSV, and Markdown outputs are written before exit code 3 is returned, so a
 well-powered negative or underpowered result remains inspectable and archivable.
 
+## Target-authorized physical-cohort execution
+
+A claim-bearing physical-cohort evaluation must additionally supply the frozen
+promotion lock and metadata-only target-provider admission:
+
+```bash
+prob4d evaluate provider protocols/provider-evaluation-v2.json \
+  --promotion-lock promotion-lock.json \
+  --target-provider-admission target-provider-admission.json \
+  --bootstrap-resamples 10000 \
+  --seed 20260805 \
+  --output-dir outputs/provider-evaluation \
+  --require-decision-pass
+```
+
+The provider-evaluation manifest SHA is itself frozen inside the promotion lock.
+The target admission then binds that lock. Therefore the admission ID must **not**
+be placed inside manifest metadata: that would create a circular identity in which
+the manifest SHA determines the lock, the lock determines the admission, and the
+admission would determine the manifest SHA.
+
+The target-authorized route breaks this cycle with a separate content-addressed
+`target_admission_authorization` receipt. Before target paths are resolved or
+artifact contents are opened, it validates:
+
+- exact provider-evaluation manifest bytes against the lock;
+- the complete decision policy, target groups, method set, reference method, and
+  minimum independent-group count;
+- exact bootstrap resamples and seed;
+- the admission against the promotion lock, cohort binding, provider revision,
+  model set, run spec, and target groups; and
+- the prohibition on legacy artifacts and target-outcome access during
+  authorization.
+
+Only after those checks pass does the evaluator materialize a private execution
+manifest derived from the exact snapshotted bytes. Relative truth and prediction
+paths are rewritten to absolute paths so their original manifest-directory
+semantics survive the private snapshot. No estimator, metric, decision rule, or
+scientific value is changed.
+
+A target-authorized report uses schema version 4 and retains:
+
+- `source_manifest_sha256` for the exact frozen input bytes;
+- the unchanged manifest metadata, which must not contain the admission ID;
+- the complete decision and case records; and
+- the content-addressed `target_admission_authorization` receipt binding the lock,
+  admission, cohort, manifest, registered groups and methods, case count,
+  reference, decision minimum, bootstrap settings, and
+  `target_outcomes_opened_during_authorization=false`.
+
+The held-out promotion runner replays that receipt and separately requires the
+BayesianPhysTwin query results to carry
+`metadata.target_provider_admission_id`. Missing, circular, or mismatched result
+custody fails closed before the two decisions are combined.
+
 ## Information boundary
 
 The policy, split, grouping unit, reference method, metric directions, criteria,
