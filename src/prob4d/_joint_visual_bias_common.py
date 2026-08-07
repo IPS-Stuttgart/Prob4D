@@ -187,18 +187,18 @@ def _metadata(
 ) -> Mapping[str, Any]:
     def reserved_keys(current: object) -> set[str]:
         if isinstance(current, Mapping):
-            result = _RESERVED_METADATA_KEYS & set(current)
+            mapping_result: set[str] = set(_RESERVED_METADATA_KEYS & set(current))
             for nested in current.values():
-                result |= reserved_keys(nested)
-            return result
+                mapping_result |= reserved_keys(nested)
+            return mapping_result
         if isinstance(current, Sequence) and not isinstance(
             current,
             (str, bytes, bytearray),
         ):
-            result: set[str] = set()
+            sequence_result: set[str] = set()
             for nested in current:
-                result |= reserved_keys(nested)
-            return result
+                sequence_result |= reserved_keys(nested)
+            return sequence_result
         return set()
 
     collisions = sorted(reserved_keys(value))
