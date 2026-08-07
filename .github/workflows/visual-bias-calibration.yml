@@ -5,9 +5,13 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/visual-bias-calibration.yml"
+      - "docs/joint-visual-bias-calibration.md"
       - "docs/visual-bias-calibration.md"
       - "pyproject.toml"
+      - "src/prob4d/_joint_visual_bias_*.py"
+      - "src/prob4d/joint_visual_bias_calibration.py"
       - "src/prob4d/visual_bias_calibration.py"
+      - "tests/test_joint_visual_bias_calibration.py"
       - "tests/test_visual_bias_calibration.py"
   workflow_dispatch:
 
@@ -86,18 +90,28 @@ jobs:
       - name: Check source quality and typing
         run: |
           python -m ruff check \
+            src/prob4d/_joint_visual_bias_*.py \
+            src/prob4d/joint_visual_bias_calibration.py \
             src/prob4d/visual_bias_calibration.py \
+            tests/test_joint_visual_bias_calibration.py \
             tests/test_visual_bias_calibration.py
           python -m ruff format --check \
+            src/prob4d/_joint_visual_bias_*.py \
+            src/prob4d/joint_visual_bias_calibration.py \
             src/prob4d/visual_bias_calibration.py \
+            tests/test_joint_visual_bias_calibration.py \
             tests/test_visual_bias_calibration.py
-          python -m mypy src/prob4d/visual_bias_calibration.py
+          python -m mypy \
+            src/prob4d/_joint_visual_bias_*.py \
+            src/prob4d/joint_visual_bias_calibration.py \
+            src/prob4d/visual_bias_calibration.py
 
       - name: Run focused and adjacent regressions
         shell: bash
         run: |
           set -euo pipefail
           python -m pytest -q -p no:cacheprovider \
+            tests/test_joint_visual_bias_calibration.py \
             tests/test_visual_bias_calibration.py \
             tests/test_visual_bias.py \
             tests/test_visual_bias_stream.py \
@@ -121,11 +135,48 @@ jobs:
 
           wheel = next(Path("dist").glob("*.whl"))
           sdist = next(Path("dist").glob("*.tar.gz"))
-          required = "prob4d/visual_bias_calibration.py"
+          required_modules = (
+              "prob4d/_joint_visual_bias_calibration.py",
+              "prob4d/_joint_visual_bias_common.py",
+              "prob4d/_joint_visual_bias_group.py",
+              "prob4d/_joint_visual_bias_layout.py",
+              "prob4d/joint_visual_bias_calibration.py",
+              "prob4d/visual_bias_calibration.py",
+          )
           with zipfile.ZipFile(wheel) as archive:
-              assert required in archive.namelist()
+              names = set(archive.namelist())
+              assert all(required in names for required in required_modules)
           with tarfile.open(sdist, "r:gz") as archive:
-              assert any(name.endswith("/src/" + required) for name in archive.getnames())
+              names = archive.getnames()
+              assert all(
+                  any(name.endswith("/src/" + required) for name in names)
+                  for required in required_modules
+              )
+              assert any(
+                  name.endswith("/docs/joint-visual-bias-calibration.md")
+                  for name in names
+              )
+              assert any(
+                  name.endswith("/tests/test_joint_visual_bias_calibration.py")
+                  for name in names
+              )
+          PY
+
+      - name: Smoke-test joint layout from installed package
+        run: |
+          python - <<'PY'
+          from prob4d.joint_visual_bias_calibration import JointVisualBiasLayoutV1
+
+          layout = JointVisualBiasLayoutV1(
+              camera_ids=("camera-0", "camera-1"),
+              shared_basis_names=("shared-depth",),
+              camera_basis_names=("camera-depth",),
+          )
+          assert layout.basis_names == (
+              "shared::shared-depth",
+              "camera::camera-depth::camera-0",
+              "camera::camera-depth::camera-1",
+          )
           PY
 
       - name: Verify clean reviewed source
