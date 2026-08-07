@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 import pytest
+
 from prob4d._selection_evidence_common import _sha256_json
 from prob4d.deform360_cohort_binding import (
     BAYESIAN_PHYSTWIN_REPOSITORY,
@@ -50,12 +51,10 @@ def _rehash_selection(value: dict[str, object]) -> None:
 
 def _selection() -> dict[str, object]:
     calibration = [
-        _unit("calibration", index, "sheet" if index < 5 else "volumetric")
-        for index in range(10)
+        _unit("calibration", index, "sheet" if index < 5 else "volumetric") for index in range(10)
     ]
     confirmation = [
-        _unit("confirmation", index, "sheet" if index < 6 else "volumetric")
-        for index in range(12)
+        _unit("confirmation", index, "sheet" if index < 6 else "volumetric") for index in range(12)
     ]
     value: dict[str, object] = {
         "available_raw_object_count": 192,
@@ -353,6 +352,4 @@ def test_grouped_bind_verify_and_promotion_freeze(tmp_path: Path) -> None:
     promotion_lock = load_promotion_lock(promotion_lock_path)
     assert promotion_lock.calibration_group_ids == binding.calibration_group_ids
     assert promotion_lock.target_group_ids == binding.target_group_ids
-    assert promotion_lock.frozen_artifact_ids["cohort_binding"] == (
-        binding.cohort_binding_id
-    )
+    assert promotion_lock.frozen_artifact_ids["cohort_binding"] == (binding.cohort_binding_id)

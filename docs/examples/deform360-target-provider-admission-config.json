@@ -1,0 +1,84 @@
+{
+  "entries": [
+    {
+      "causal_frame_stop": 134,
+      "expected_sequence_id": "030-bandage-cloth-episode-0",
+      "group_id": "030-bandage-cloth",
+      "manifest_path": "target-provider-manifests/030-bandage-cloth.json"
+    },
+    {
+      "causal_frame_stop": 134,
+      "expected_sequence_id": "057-kitchen-sponge-episode-0",
+      "group_id": "057-kitchen-sponge",
+      "manifest_path": "target-provider-manifests/057-kitchen-sponge.json"
+    },
+    {
+      "causal_frame_stop": 134,
+      "expected_sequence_id": "095-watermelon-episode-0",
+      "group_id": "095-watermelon",
+      "manifest_path": "target-provider-manifests/095-watermelon.json"
+    },
+    {
+      "causal_frame_stop": 134,
+      "expected_sequence_id": "102-stress-ball-episode-0",
+      "group_id": "102-stress-ball",
+      "manifest_path": "target-provider-manifests/102-stress-ball.json"
+    },
+    {
+      "causal_frame_stop": 134,
+      "expected_sequence_id": "105-clay-cloth-episode-0",
+      "group_id": "105-clay-cloth",
+      "manifest_path": "target-provider-manifests/105-clay-cloth.json"
+    },
+    {
+      "causal_frame_stop": 134,
+      "expected_sequence_id": "107-mitt-cloth-episode-0",
+      "group_id": "107-mitt-cloth",
+      "manifest_path": "target-provider-manifests/107-mitt-cloth.json"
+    },
+    {
+      "causal_frame_stop": 134,
+      "expected_sequence_id": "115-cotton-gauze-cloth-episode-0",
+      "group_id": "115-cotton-gauze-cloth",
+      "manifest_path": "target-provider-manifests/115-cotton-gauze-cloth.json"
+    },
+    {
+      "causal_frame_stop": 134,
+      "expected_sequence_id": "155-crystal-slime-episode-0",
+      "group_id": "155-crystal-slime",
+      "manifest_path": "target-provider-manifests/155-crystal-slime.json"
+    },
+    {
+      "causal_frame_stop": 134,
+      "expected_sequence_id": "156-mesh-produce-bag-cloth-episode-0",
+      "group_id": "156-mesh-produce-bag-cloth",
+      "manifest_path": "target-provider-manifests/156-mesh-produce-bag-cloth.json"
+    },
+    {
+      "causal_frame_stop": 134,
+      "expected_sequence_id": "166-glove-green-cloth-episode-0",
+      "group_id": "166-glove-green-cloth",
+      "manifest_path": "target-provider-manifests/166-glove-green-cloth.json"
+    },
+    {
+      "causal_frame_stop": 134,
+      "expected_sequence_id": "187-white-bear-episode-0",
+      "group_id": "187-white-bear",
+      "manifest_path": "target-provider-manifests/187-white-bear.json"
+    },
+    {
+      "causal_frame_stop": 134,
+      "expected_sequence_id": "190-monkey-episode-0",
+      "group_id": "190-monkey",
+      "manifest_path": "target-provider-manifests/190-monkey.json"
+    }
+  ],
+  "metadata": {
+    "information_order": "manifest-metadata-before-target-outcomes",
+    "payload_access": "none"
+  },
+  "prediction_run_spec_id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "schema_name": "prob4d.heldout-target-provider-admission-config",
+  "schema_version": 1,
+  "target_outcomes_used": false
+}
