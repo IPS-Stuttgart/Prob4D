@@ -94,6 +94,8 @@ Loading rejects:
 - absolute, nested, traversal, or backslash-separated member paths;
 - symbolic-link manifest, directory, or payload components;
 - source mutation while a file is read;
+- a manifest larger than 1 MiB or an NPY member whose declared/actual size
+  exceeds the exact array bytes plus a 64 KiB header allowance;
 - file hash, byte-count, dtype, shape, or canonical-array mismatch;
 - object arrays, pickled data, malformed NPY data, and trailing bytes;
 - changed gauge order, tree semantics, sparse-prior identity, or source binding;
