@@ -40,9 +40,7 @@ from .prediction_provider_manifest import (
     load_prediction_provider_manifest,
 )
 
-TARGET_PROVIDER_ADMISSION_CONFIG_SCHEMA = (
-    "prob4d.heldout-target-provider-admission-config"
-)
+TARGET_PROVIDER_ADMISSION_CONFIG_SCHEMA = "prob4d.heldout-target-provider-admission-config"
 TARGET_PROVIDER_ADMISSION_CONFIG_VERSION = 1
 TARGET_PROVIDER_ADMISSION_SCHEMA = "prob4d.heldout-target-provider-admission"
 TARGET_PROVIDER_ADMISSION_VERSION = 1
@@ -561,9 +559,7 @@ def target_provider_admission_from_dict(
         ray_semantics=mapping["ray_semantics"],
         source_dependency_semantics=mapping["source_dependency_semantics"],
         target_outcomes_used=mapping["target_outcomes_used"],
-        entries=tuple(
-            TargetProviderManifestAdmissionV1.from_dict(item) for item in raw_entries
-        ),
+        entries=tuple(TargetProviderManifestAdmissionV1.from_dict(item) for item in raw_entries),
         metadata=_strict_mapping(mapping["metadata"], name="target admission metadata"),
     )
     supplied = _strict_digest(
@@ -635,9 +631,7 @@ def _entry_from_manifest(
     manifest: PredictionProviderManifestV1,
 ) -> TargetProviderManifestAdmissionV1:
     if manifest.sequence_id != request.expected_sequence_id:
-        raise ValueError(
-            f"provider sequence changed for target group {request.group_id!r}"
-        )
+        raise ValueError(f"provider sequence changed for target group {request.group_id!r}")
     admitted = manifest.admitted_payloads(request.causal_frame_stop)
     if not admitted:
         raise ValueError(
