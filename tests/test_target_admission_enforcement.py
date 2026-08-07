@@ -281,5 +281,5 @@ def test_heldout_run_and_verify_route_through_admission_enforcement() -> None:
 
     assert source.count('"--target-provider-admission"') == 2
     assert source.count("load_target_admission_for_execution(") == 2
-    assert "query_metadata=raw_query.get(\"metadata\")" in source
+    assert 'query_metadata=raw_query.get("metadata")' in source
     assert "query_metadata=query_results.metadata" in source
