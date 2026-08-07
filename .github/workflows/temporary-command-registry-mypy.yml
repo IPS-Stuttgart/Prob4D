@@ -33,56 +33,32 @@ jobs:
 
           path = Path('src/prob4d/_anchor_common_bias_study_impl.py')
           text = path.read_text(encoding='utf-8')
-          old_integer = '''        for name, value in integer_fields.items():
-              if isinstance(value, bool) or not isinstance(value, int):
-                  raise TypeError(f"{name} must be an integer")
-          '''
-          new_integer = '''        for integer_name, integer_value in integer_fields.items():
-              if isinstance(integer_value, bool) or not isinstance(integer_value, int):
-                  raise TypeError(f"{integer_name} must be an integer")
-          '''
-          old_scalar = '''        for name, value in {
-              "miscoverage": self.miscoverage,
-              "row_quantile": self.row_quantile,
-              "provider_sigma": self.provider_sigma,
-              "provider_cross_correlation": self.provider_cross_correlation,
-              "provider_specific_bias_sigma": self.provider_specific_bias_sigma,
-              "shared_bias_sigma": self.shared_bias_sigma,
-              "shared_bias_row_fraction": self.shared_bias_row_fraction,
-              "anchor_drift_sigma": self.anchor_drift_sigma,
-              "reference_anchor_sigma_ratio": self.reference_anchor_sigma_ratio,
-              "reference_anchor_support_fraction": self.reference_anchor_support_fraction,
-          }.items():
-              if isinstance(value, bool) or not isinstance(value, (int, float)):
-                  raise TypeError(f"{name} must be a real scalar")
-              if not math.isfinite(float(value)):
-                  raise ValueError(f"{name} must be finite")
-          '''
-          new_scalar = '''        for scalar_name, scalar_value in {
-              "miscoverage": self.miscoverage,
-              "row_quantile": self.row_quantile,
-              "provider_sigma": self.provider_sigma,
-              "provider_cross_correlation": self.provider_cross_correlation,
-              "provider_specific_bias_sigma": self.provider_specific_bias_sigma,
-              "shared_bias_sigma": self.shared_bias_sigma,
-              "shared_bias_row_fraction": self.shared_bias_row_fraction,
-              "anchor_drift_sigma": self.anchor_drift_sigma,
-              "reference_anchor_sigma_ratio": self.reference_anchor_sigma_ratio,
-              "reference_anchor_support_fraction": self.reference_anchor_support_fraction,
-          }.items():
-              if isinstance(scalar_value, bool) or not isinstance(scalar_value, (int, float)):
-                  raise TypeError(f"{scalar_name} must be a real scalar")
-              if not math.isfinite(float(scalar_value)):
-                  raise ValueError(f"{scalar_name} must be finite")
-          '''
-          if text.count(old_integer) != 1 or text.count(old_scalar) != 1:
-              raise SystemExit('expected validation blocks were not found exactly once')
-          path.write_text(
-              text.replace(old_integer, new_integer).replace(old_scalar, new_scalar),
-              encoding='utf-8',
+          replacements = (
+              ('for name, value in integer_fields.items():',
+               'for integer_name, integer_value in integer_fields.items():'),
+              ('if isinstance(value, bool) or not isinstance(value, int):',
+               'if isinstance(integer_value, bool) or not isinstance(integer_value, int):'),
+              ('raise TypeError(f"{name} must be an integer")',
+               'raise TypeError(f"{integer_name} must be an integer")'),
+              ('for name, value in {', 'for scalar_name, scalar_value in {'),
+              ('if isinstance(value, bool) or not isinstance(value, (int, float)):',
+               'if isinstance(scalar_value, bool) or not isinstance(scalar_value, (int, float)):'),
+              ('raise TypeError(f"{name} must be a real scalar")',
+               'raise TypeError(f"{scalar_name} must be a real scalar")'),
+              ('if not math.isfinite(float(value)):',
+               'if not math.isfinite(float(scalar_value)):'),
+              ('raise ValueError(f"{name} must be finite")',
+               'raise ValueError(f"{scalar_name} must be finite")'),
           )
+          for old, new in replacements:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'expected exactly one occurrence of {old!r}, found {count}')
+              text = text.replace(old, new)
+          path.write_text(text, encoding='utf-8')
           PY
           python -m pip install 'mypy==2.3.0' 'ruff==0.16.1'
+          python -m ruff format src/prob4d/_anchor_common_bias_study_impl.py
           python -m ruff check src/prob4d/_anchor_common_bias_study_impl.py
           python -m ruff format --check src/prob4d/_anchor_common_bias_study_impl.py
           python -m mypy src/prob4d/anchor_common_bias_study.py src/prob4d/_anchor_common_bias_study_impl.py
