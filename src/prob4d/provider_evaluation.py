@@ -28,13 +28,12 @@ from ._provider_evaluation_output import write_provider_evaluation_outputs
 from .metrics import DEFAULT_EVALUATION_CHUNK_SIZE
 from .provider_evaluation_target_authorization import (
     PROVIDER_EVALUATION_TARGET_AUTHORIZATION_FIELD,
+    PROVIDER_EVALUATION_TARGET_AUTHORIZED_REPORT_VERSION,
     ProviderEvaluationManifestSnapshotV1,
     build_provider_evaluation_target_authorization,
     load_provider_evaluation_manifest_snapshot,
 )
 from .target_provider_admission import load_target_provider_admission
-
-PROVIDER_EVALUATION_TARGET_AUTHORIZED_REPORT_VERSION = 4
 
 
 def _load_authorized_plan(
