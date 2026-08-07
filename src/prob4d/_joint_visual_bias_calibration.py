@@ -68,9 +68,7 @@ def joint_visual_bias_layout_from_calibration(
         raise ValueError("joint visual-bias calibration has no group artifact identities")
     normalized_group_ids: list[str] = []
     for group_id, artifact_id in group_ids.items():
-        normalized_group_ids.append(
-            _nonempty_string(group_id, name="joint visual-bias group ID")
-        )
+        normalized_group_ids.append(_nonempty_string(group_id, name="joint visual-bias group ID"))
         _sha256(
             artifact_id,
             name=f"joint visual-bias group artifact ID for {group_id!r}",
@@ -102,12 +100,8 @@ def joint_visual_bias_selection_summary(
         "layout_id": layout.layout_id,
         "selected_rank": calibration.selected_rank,
         "selected_basis_names": list(calibration.selected_basis_names),
-        "selected_shared_basis_names": list(
-            layout.shared_basis_names[:selected_shared]
-        ),
-        "complete_camera_basis_names": list(
-            layout.camera_basis_names[:complete_modes]
-        ),
+        "selected_shared_basis_names": list(layout.shared_basis_names[:selected_shared]),
+        "complete_camera_basis_names": list(layout.camera_basis_names[:complete_modes]),
         "partial_camera_basis_name": partial_mode,
         "partial_camera_ids": list(partial_cameras),
         "complete_camera_mode_boundary": partial_mode is None,
@@ -153,9 +147,7 @@ def fit_joint_visual_bias_calibration(
         "schema_version": 1,
         "layout": layout.to_dict(),
         "layout_id": layout.layout_id,
-        "group_artifact_ids": {
-            group.group_id: group.group_artifact_id for group in ordered
-        },
+        "group_artifact_ids": {group.group_id: group.group_artifact_id for group in ordered},
         "allow_partial_camera_mode": allow_partial_camera_mode,
         "uses_target_outcomes": False,
         "uses_downstream_physical_innovation": False,
