@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 import pytest
+
 from prob4d._deform360_cohort_schema import (
     BAYESIAN_PHYSTWIN_REPOSITORY,
     DEFORM360_SELECTION_PATH,
@@ -89,10 +90,34 @@ def _binding() -> Deform360OfficialHubCohortBindingV1:
 def _arms() -> tuple[PromotionArmV1, ...]:
     values = (
         ("fallback", "physical_fallback", None, "bpt-fallback", False),
-        ("framewise", "framewise_explicit_joint_gauge", "provider-framewise", "bpt-framewise", False),
-        ("identity", "cross_window_identity_marginalized", "provider-identity", "bpt-identity", False),
-        ("persistent", "persistent_explicit_joint_gauge", "provider-persistent", "bpt-persistent", False),
-        ("rowwise", "rowwise_gauge_marginalized", "provider-rowwise", "bpt-rowwise", False),
+        (
+            "framewise",
+            "framewise_explicit_joint_gauge",
+            "provider-framewise",
+            "bpt-framewise",
+            False,
+        ),
+        (
+            "identity",
+            "cross_window_identity_marginalized",
+            "provider-identity",
+            "bpt-identity",
+            False,
+        ),
+        (
+            "persistent",
+            "persistent_explicit_joint_gauge",
+            "provider-persistent",
+            "bpt-persistent",
+            False,
+        ),
+        (
+            "rowwise",
+            "rowwise_gauge_marginalized",
+            "provider-rowwise",
+            "bpt-rowwise",
+            False,
+        ),
         ("sensor", "sensor_assisted", "provider-sensor", "bpt-sensor", True),
         ("visual", "visual_baseline", "provider-visual", "bpt-visual", False),
     )
@@ -277,7 +302,9 @@ def test_admission_opens_no_dense_prediction_payload(tmp_path: Path) -> None:
     assert not any(tmp_path.rglob("*.npz"))
 
 
-def test_admission_rejects_target_use_missing_groups_and_sequence_drift(tmp_path: Path) -> None:
+def test_admission_rejects_target_use_missing_groups_and_sequence_drift(
+    tmp_path: Path,
+) -> None:
     binding = _binding()
     lock = _lock(binding)
     config = _config(tmp_path, binding)
