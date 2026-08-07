@@ -171,9 +171,7 @@ def test_generic_import_roundtrip_and_canonical_order(tmp_path: Path) -> None:
         "window_0000",
         "window_0001",
     ]
-    assert manifest.metadata["source_adapter"] == (
-        "prob4d-external-provider-import-spec-v1"
-    )
+    assert manifest.metadata["source_adapter"] == ("prob4d-external-provider-import-spec-v1")
     assert manifest.metadata["source_import_spec_sha256"] == _sha256(specification)
     assert manifest.metadata["source_import_spec_schema_version"] == (
         PREDICTION_PROVIDER_IMPORT_SPEC_VERSION
