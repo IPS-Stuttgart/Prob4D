@@ -178,9 +178,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = _build_parser().parse_args(list(argv) if argv is not None else None)
-    specification, readme = scaffold_prediction_provider_import(
-        arguments.output_directory
-    )
+    specification, readme = scaffold_prediction_provider_import(arguments.output_directory)
     print(
         json.dumps(
             {
