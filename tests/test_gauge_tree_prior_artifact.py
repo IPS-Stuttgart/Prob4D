@@ -95,6 +95,29 @@ def test_publication_is_idempotent_and_refuses_different_content(tmp_path: Path)
         write_gauge_tree_prior_artifact(_prior(offset=0.01), path)
 
 
+def test_manifest_rejects_unbounded_npy_header_claim(tmp_path: Path) -> None:
+    manifest_path = tmp_path / "prior.json"
+    write_gauge_tree_prior_artifact(_prior(), manifest_path)
+    record = json.loads(manifest_path.read_text(encoding="utf-8"))
+    member = record["parent_indices"]
+    data_bytes = 4 * np.dtype("<i8").itemsize
+    member["byte_count"] = data_bytes + 65_537
+    _rewrite_manifest(manifest_path, record)
+
+    with pytest.raises(ValueError, match="bounded NPY header"):
+        load_gauge_tree_prior_artifact(manifest_path)
+
+
+def test_loader_rejects_oversized_payload_before_decoding(tmp_path: Path) -> None:
+    manifest_path = tmp_path / "prior.json"
+    loaded = write_gauge_tree_prior_artifact(_prior(), manifest_path)
+    member_path = tmp_path / loaded.manifest.transition_matrices.path
+    member_path.write_bytes(member_path.read_bytes() + b"x" * 70_000)
+
+    with pytest.raises(ValueError, match="maximum byte count"):
+        load_gauge_tree_prior_artifact(manifest_path)
+
+
 def test_loader_rejects_payload_byte_tampering(tmp_path: Path) -> None:
     loaded = write_gauge_tree_prior_artifact(_prior(), tmp_path / "prior.json")
     payload = tmp_path / loaded.manifest.transition_matrices.path
