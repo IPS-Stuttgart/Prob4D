@@ -160,6 +160,17 @@ def test_loader_rejects_manifest_identity_tampering(tmp_path: Path) -> None:
         load_gauge_tree_prior_artifact(manifest_path)
 
 
+def test_loader_rejects_boolean_schema_version(tmp_path: Path) -> None:
+    manifest_path = tmp_path / "prior.json"
+    write_gauge_tree_prior_artifact(_prior(), manifest_path)
+    record = json.loads(manifest_path.read_text(encoding="utf-8"))
+    record["schema_version"] = True
+    _rewrite_manifest(manifest_path, record)
+
+    with pytest.raises(ValueError, match="schema_version must be a positive integer"):
+        load_gauge_tree_prior_artifact(manifest_path)
+
+
 def test_loader_rejects_unknown_fields_and_duplicate_keys(tmp_path: Path) -> None:
     manifest_path = tmp_path / "prior.json"
     write_gauge_tree_prior_artifact(_prior(), manifest_path)
