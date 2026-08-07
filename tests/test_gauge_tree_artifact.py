@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import io
 import json
 from pathlib import Path
 
@@ -151,3 +153,31 @@ def test_symlinked_root_and_member_are_rejected(tmp_path: Path) -> None:
     member.symlink_to(external)
     with pytest.raises(ValueError, match="members must not be symlinks"):
         load_gauge_tree_prior_artifact(root)
+
+
+def test_member_size_and_npy_header_are_bounded_before_array_loading(tmp_path: Path) -> None:
+    root = tmp_path / "prior"
+    write_gauge_tree_prior_artifact(_prior(), root)
+    manifest_path = root / GAUGE_TREE_ARTIFACT_MANIFEST
+    manifest = _manifest(root)
+    transition = manifest["members"]["transition_matrices"]
+    transition["bytes"] += 5000
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    with pytest.raises(ValueError, match="serialized byte count"):
+        load_gauge_tree_prior_artifact(root)
+
+    write_root = tmp_path / "header-prior"
+    write_gauge_tree_prior_artifact(_prior(), write_root)
+    manifest_path = write_root / GAUGE_TREE_ARTIFACT_MANIFEST
+    manifest = _manifest(write_root)
+    transition = manifest["members"]["transition_matrices"]
+    wrong = np.zeros((4, 1, 49), dtype=np.float64)
+    stream = io.BytesIO()
+    np.save(stream, wrong, allow_pickle=False)
+    payload = stream.getvalue()
+    (write_root / "transition_matrices.npy").write_bytes(payload)
+    transition["bytes"] = len(payload)
+    transition["sha256"] = hashlib.sha256(payload).hexdigest()
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    with pytest.raises(ValueError, match="NPY header shape"):
+        load_gauge_tree_prior_artifact(write_root)
