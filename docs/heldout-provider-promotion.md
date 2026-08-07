@@ -112,6 +112,17 @@ revisions; immutable model and run-spec identities; the provider-evaluation
 manifest; all calibration, cohort, selection, and guard artifacts; the bootstrap
 unit and seed; and every decision margin.
 
+The provider-evaluation manifest SHA is upstream of the lock and must not include
+the later target-admission ID. The identity order is:
+
+```text
+provider-evaluation manifest -> promotion lock -> target-provider admission
+```
+
+Inserting the admission ID into the frozen manifest would create a circular
+content identity. The provider evaluator instead creates a separate authorization
+receipt after the lock and admission are available.
+
 Exactly one arm is required for each registered role:
 
 1. unchanged physical fallback;
@@ -128,10 +139,38 @@ method because it is not a visual observation source.
 
 ### 2. Run once on the frozen target
 
-First run `prob4d evaluate provider` with a decision-bearing schema-v2 manifest.
-The resulting provider report must be schema version 3, use common support,
-reject legacy artifacts, use no oracle alignment, and match the frozen target
-groups, methods, reference, bootstrap count, seed, and manifest digest exactly.
+After target-provider manifests are produced, first create and replay the
+metadata-only admission described in `docs/target-provider-admission.md`. This
+step opens neither dense provider predictions nor target outcomes.
+
+Then run the provider evaluator with the exact promotion lock and admission:
+
+```bash
+prob4d evaluate provider provider-evaluation-v2.json \
+  --promotion-lock promotion-lock.json \
+  --target-provider-admission target-provider-admission.json \
+  --bootstrap-resamples 10000 \
+  --seed 20260805 \
+  --output-dir outputs/provider \
+  --require-decision-pass
+```
+
+Before resolving or opening truth and prediction artifacts, the evaluator:
+
+- snapshots and strictly parses the exact provider-evaluation manifest bytes;
+- rejects duplicate keys, non-finite values, oracle-aligned decisions, circular
+  admission metadata, malformed policies, and source mutation;
+- requires exact manifest SHA, target groups, methods, reference, decision
+  minimum, bootstrap count, and seed agreement with the lock;
+- requires exact admission agreement with the lock and cohort; and
+- forbids legacy artifacts.
+
+The resulting provider report must be schema version 4. It retains the complete
+preregistered decision and a content-addressed
+`target_admission_authorization` receipt proving that the manifest, lock,
+admission, cohort, groups, methods, and execution settings agreed before target
+artifact I/O. Common support, no oracle alignment, exact frozen target groups,
+methods, reference, bootstrap count, seed, and manifest digest remain mandatory.
 
 BayesianPhysTwin then writes one raw row for every target-group/arm pair:
 
@@ -154,7 +193,9 @@ BayesianPhysTwin then writes one raw row for every target-group/arm pair:
       "metadata": {}
     }
   ],
-  "metadata": {}
+  "metadata": {
+    "target_provider_admission_id": "<target-admission SHA-256>"
+  }
 }
 ```
 
@@ -168,11 +209,17 @@ Seal and evaluate the complete matrix:
 
 ```bash
 prob4d experiment heldout-provider run promotion-lock.json \
+  --target-provider-admission target-provider-admission.json \
   --provider-report outputs/provider/provider_evaluation.json \
   --query-results query-results.raw.json \
   --output-dir outputs/promotion \
   --require-pass
 ```
+
+Before combining decisions, the runner independently replays the provider
+authorization receipt and requires the query stream to name the same admission.
+A schema-v3 provider report, a provider manifest containing the circular admission
+field, or a query stream using another admission fails closed.
 
 The command refuses an output directory containing any retained output, so a
 repeated invocation cannot silently replace an opened result. It writes:
@@ -200,16 +247,18 @@ code 3.
 
 ```bash
 prob4d experiment heldout-provider verify promotion-lock.json \
+  --target-provider-admission target-provider-admission.json \
   --provider-report outputs/provider/provider_evaluation.json \
   --query-results outputs/promotion/query_results.sealed.json \
   --report outputs/promotion/promotion_report.json \
   --evidence-card outputs/promotion/promotion_evidence_card.json
 ```
 
-Verification revalidates every claim-bearing artifact, recomputes the
-deterministic report, and optionally requires the retained evidence card to match
-its replay. Any changed row, method set, target group, fallback identity,
-bootstrap setting, report field, or evidence-card field fails closed.
+Verification revalidates every claim-bearing artifact, replays the provider's
+pre-I/O authorization receipt, recomputes the deterministic report, and optionally
+requires the retained evidence card to match its replay. Any changed admission,
+row, method set, target group, fallback identity, bootstrap setting, report field,
+or evidence-card field fails closed.
 
 The diagnosis is derived only from the retained report and can be regenerated
 independently for an older report:

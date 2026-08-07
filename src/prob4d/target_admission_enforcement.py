@@ -10,13 +10,15 @@ from ._heldout_promotion_common import (
     _strict_mapping,
 )
 from ._heldout_promotion_lock import HeldoutProviderPromotionLockV1
+from .provider_evaluation_target_authorization import (
+    TARGET_PROVIDER_ADMISSION_METADATA_KEY,
+    validate_provider_evaluation_target_authorization,
+)
 from .target_provider_admission import (
     HeldoutTargetProviderAdmissionV1,
     load_target_provider_admission,
     validate_target_provider_admission_against_lock,
 )
-
-TARGET_PROVIDER_ADMISSION_METADATA_KEY = "target_provider_admission_id"
 
 
 def _metadata_admission_id(value: object, *, name: str) -> str:
@@ -43,18 +45,12 @@ def validate_target_admission_execution_binding(
     if cohort_binding_id is None:
         raise ValueError("target admission may only be used with a cohort-bound promotion lock")
     validate_target_provider_admission_against_lock(admission, lock)
+    validate_provider_evaluation_target_authorization(provider_report, lock, admission)
     expected = admission.target_provider_admission_id
-    provider_mapping = _strict_mapping(provider_report, name="provider evaluation report")
-    provider_id = _metadata_admission_id(
-        provider_mapping.get("manifest_metadata"),
-        name="provider report manifest_metadata",
-    )
     query_id = _metadata_admission_id(
         query_metadata,
         name="promotion query metadata",
     )
-    if provider_id != expected:
-        raise ValueError("provider report uses another target provider admission")
     if query_id != expected:
         raise ValueError("promotion query results use another target provider admission")
 
