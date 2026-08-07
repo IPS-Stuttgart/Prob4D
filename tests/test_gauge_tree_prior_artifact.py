@@ -9,13 +9,19 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from prob4d import (
+    gauge_tree_prior_artifact_id,
+    load_gauge_tree_prior,
+    write_gauge_tree_prior,
+)
 from prob4d._gauge_tree_common import canonical_json_sha256
+from prob4d.cli import main as grouped_main
 from prob4d.gauge_tree_prior import GaugeTreeSquareRootPriorV1
 from prob4d.gauge_tree_prior_artifact import (
     GAUGE_TREE_PRIOR_STORAGE_SEMANTICS,
     artifact_summary,
     load_gauge_tree_prior_artifact,
-    main,
+    main as artifact_main,
     write_gauge_tree_prior_artifact,
 )
 
@@ -84,6 +90,17 @@ def test_artifact_identity_and_manifest_bytes_are_location_independent(
     assert sorted(path.name for path in first_path.parent.glob("*.npy")) == sorted(
         path.name for path in second_path.parent.glob("*.npy")
     )
+
+
+def test_public_artifact_identity_matches_published_manifest(tmp_path: Path) -> None:
+    prior = _prior()
+    expected = gauge_tree_prior_artifact_id(prior)
+    published = write_gauge_tree_prior(prior, tmp_path / "prior.json")
+    reloaded = load_gauge_tree_prior(tmp_path / "prior.json")
+
+    assert published.manifest.artifact_id == expected
+    assert reloaded.prior_id == prior.prior_id
+    np.testing.assert_array_equal(reloaded.parent_indices, prior.parent_indices)
 
 
 def test_publication_is_idempotent_and_refuses_different_content(tmp_path: Path) -> None:
@@ -256,11 +273,87 @@ def test_validation_cli_reports_compact_summary(
     manifest_path = tmp_path / "prior.json"
     write_gauge_tree_prior_artifact(_prior(gauge_count=5), manifest_path)
 
-    assert main([str(manifest_path), "--json"]) == 0
+    assert artifact_main([str(manifest_path), "--json"]) == 0
     summary = json.loads(capsys.readouterr().out)
     assert summary["valid"] is True
     assert summary["gauge_count"] == 5
     assert summary["factor_storage_nbytes"] < summary["dense_covariance_nbytes"]
+
+
+def test_grouped_cli_verifies_and_materializes_dense_covariance(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    prior = _prior(gauge_count=5)
+    manifest_path = tmp_path / "prior.json"
+    dense_path = tmp_path / "dense.npy"
+    write_gauge_tree_prior_artifact(prior, manifest_path)
+
+    assert grouped_main(["gauge", "prior", "verify", str(manifest_path), "--json"]) == 0
+    verify_summary = json.loads(capsys.readouterr().out)
+    assert verify_summary["artifact_id"] == gauge_tree_prior_artifact_id(prior)
+
+    assert (
+        grouped_main(
+            [
+                "gauge",
+                "prior",
+                "materialize",
+                str(manifest_path),
+                str(dense_path),
+                "--maximum-gauges",
+                "5",
+                "--json",
+            ]
+        )
+        == 0
+    )
+    materialized = json.loads(capsys.readouterr().out)
+    assert materialized["dense_output"] == str(dense_path)
+    np.testing.assert_allclose(
+        np.load(dense_path, allow_pickle=False),
+        prior.materialize_dense_covariance(maximum_gauges=5),
+        atol=0.0,
+        rtol=0.0,
+    )
+
+    assert (
+        grouped_main(
+            [
+                "gauge",
+                "prior",
+                "materialize",
+                str(manifest_path),
+                str(dense_path),
+            ]
+        )
+        == 2
+    )
+    assert "refusing to replace dense output" in capsys.readouterr().err
+
+
+def test_grouped_dense_materialization_obeys_gauge_limit(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    manifest_path = tmp_path / "prior.json"
+    write_gauge_tree_prior_artifact(_prior(gauge_count=4), manifest_path)
+
+    assert (
+        grouped_main(
+            [
+                "gauge",
+                "prior",
+                "materialize",
+                str(manifest_path),
+                str(tmp_path / "dense.npy"),
+                "--maximum-gauges",
+                "3",
+            ]
+        )
+        == 2
+    )
+    assert "limited to 3 gauges" in capsys.readouterr().err
 
 
 def test_validation_cli_fails_closed_for_invalid_artifact(
@@ -270,5 +363,5 @@ def test_validation_cli_fails_closed_for_invalid_artifact(
     manifest_path = tmp_path / "invalid.json"
     manifest_path.write_text("{}", encoding="utf-8")
 
-    assert main([str(manifest_path)]) == 2
+    assert artifact_main([str(manifest_path)]) == 2
     assert "invalid gauge-tree prior artifact" in capsys.readouterr().err
