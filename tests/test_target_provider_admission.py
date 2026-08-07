@@ -60,12 +60,10 @@ def _unit(prefix: str, index: int, stratum: str) -> Deform360CohortUnitV1:
 
 def _binding() -> Deform360OfficialHubCohortBindingV1:
     calibration = tuple(
-        _unit("calibration", index, "sheet" if index < 5 else "volumetric")
-        for index in range(10)
+        _unit("calibration", index, "sheet" if index < 5 else "volumetric") for index in range(10)
     )
     target = tuple(
-        _unit("target", index, "sheet" if index < 6 else "volumetric")
-        for index in range(12)
+        _unit("target", index, "sheet" if index < 6 else "volumetric") for index in range(12)
     )
     return Deform360OfficialHubCohortBindingV1(
         source_repository=BAYESIAN_PHYSTWIN_REPOSITORY,
