@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import PurePosixPath
@@ -22,6 +23,7 @@ GAUGE_TREE_PRIOR_ARTIFACT_VERSION: Final = 1
 GAUGE_TREE_PRIOR_STORAGE_SEMANTICS: Final = (
     "content-addressed-non-pickled-npy-members-v1"
 )
+MAX_NPY_HEADER_BYTES: Final = 65_536
 MEMBER_NAMES: Final = (
     "parent_indices",
     "transition_matrices",
@@ -181,38 +183,33 @@ class GaugeTreePriorArrayMemberV1:
     content_sha256: str
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "path", _validate_member_path(self.path))
-        object.__setattr__(
-            self,
-            "byte_count",
-            require_positive_integer(
-                self.byte_count,
-                name="array member byte_count",
-            ),
+        path = _validate_member_path(self.path)
+        byte_count = require_positive_integer(
+            self.byte_count,
+            name="array member byte_count",
         )
-        object.__setattr__(
-            self,
-            "file_sha256",
-            validate_digest(self.file_sha256, name="array member file_sha256"),
+        file_digest = validate_digest(
+            self.file_sha256,
+            name="array member file_sha256",
         )
-        object.__setattr__(
-            self,
-            "dtype",
-            _validate_dtype(self.dtype, name="array member dtype"),
+        dtype = _validate_dtype(self.dtype, name="array member dtype")
+        shape = _require_shape(self.shape, name="array member shape")
+        content_digest = validate_digest(
+            self.content_sha256,
+            name="array member content_sha256",
         )
-        object.__setattr__(
-            self,
-            "shape",
-            _require_shape(self.shape, name="array member shape"),
-        )
-        object.__setattr__(
-            self,
-            "content_sha256",
-            validate_digest(
-                self.content_sha256,
-                name="array member content_sha256",
-            ),
-        )
+        data_byte_count = math.prod(shape) * np.dtype(dtype).itemsize
+        if byte_count <= data_byte_count:
+            raise ValueError("array member byte_count omits its NPY header")
+        if byte_count > data_byte_count + MAX_NPY_HEADER_BYTES:
+            raise ValueError("array member byte_count exceeds the bounded NPY header")
+
+        object.__setattr__(self, "path", path)
+        object.__setattr__(self, "byte_count", byte_count)
+        object.__setattr__(self, "file_sha256", file_digest)
+        object.__setattr__(self, "dtype", dtype)
+        object.__setattr__(self, "shape", shape)
+        object.__setattr__(self, "content_sha256", content_digest)
 
     def to_record(self) -> dict[str, object]:
         return {
