@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
@@ -115,6 +116,37 @@ def test_loader_rejects_oversized_payload_before_decoding(tmp_path: Path) -> Non
     member_path.write_bytes(member_path.read_bytes() + b"x" * 70_000)
 
     with pytest.raises(ValueError, match="maximum byte count"):
+        load_gauge_tree_prior_artifact(manifest_path)
+
+
+def test_loader_rejects_large_header_shape_before_array_allocation(
+    tmp_path: Path,
+) -> None:
+    manifest_path = tmp_path / "prior.json"
+    write_gauge_tree_prior_artifact(_prior(), manifest_path)
+
+    buffer = io.BytesIO()
+    np.lib.format.write_array_header_1_0(
+        buffer,
+        {
+            "descr": "<i8",
+            "fortran_order": False,
+            "shape": (10**12,),
+        },
+    )
+    payload = buffer.getvalue()
+    digest = hashlib.sha256(payload).hexdigest()
+    new_name = f"gauge-tree-prior-parent-indices-{digest}.npy"
+    (tmp_path / new_name).write_bytes(payload)
+
+    record = json.loads(manifest_path.read_text(encoding="utf-8"))
+    member = record["parent_indices"]
+    member["path"] = new_name
+    member["byte_count"] = len(payload)
+    member["file_sha256"] = digest
+    _rewrite_manifest(manifest_path, record)
+
+    with pytest.raises(ValueError, match="NPY header shape mismatch"):
         load_gauge_tree_prior_artifact(manifest_path)
 
 
