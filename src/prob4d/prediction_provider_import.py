@@ -40,9 +40,7 @@ from .prediction_provider_manifest import (
     verify_prediction_provider_manifest,
 )
 
-PREDICTION_PROVIDER_IMPORT_SPEC_SCHEMA: Final = (
-    "prob4d.prediction-provider-import-spec"
-)
+PREDICTION_PROVIDER_IMPORT_SPEC_SCHEMA: Final = "prob4d.prediction-provider-import-spec"
 PREDICTION_PROVIDER_IMPORT_SPEC_VERSION: Final = 1
 
 _SPEC_FIELDS: Final = frozenset(
@@ -160,9 +158,7 @@ def _load_specification(path: Path) -> tuple[Mapping[str, Any], str, bytes]:
         name="prediction-provider import specification",
     )
     if _read_bytes(path, name="prediction-provider import specification") != payload:
-        raise ValueError(
-            "prediction-provider import specification changed during import"
-        )
+        raise ValueError("prediction-provider import specification changed during import")
     require_exact_fields(record, _SPEC_FIELDS, name="provider import specification")
     if record["schema"] != PREDICTION_PROVIDER_IMPORT_SPEC_SCHEMA:
         raise ValueError("unsupported prediction-provider import specification schema")
@@ -206,9 +202,7 @@ def import_prediction_provider_specification(
         raise ValueError("prediction-provider output manifest is a symbolic link")
     specification = specification_input.resolve()
     output = output_input.resolve()
-    record, specification_sha256, specification_bytes = _load_specification(
-        specification
-    )
+    record, specification_sha256, specification_bytes = _load_specification(specification)
 
     raw_payloads = record["payloads"]
     if not isinstance(raw_payloads, list) or not raw_payloads:
@@ -247,9 +241,7 @@ def import_prediction_provider_specification(
         )
         output_frame_ids = tuple(int(value) for value in window.frame_indices)
         if tuple(item.output_frame_id for item in lineage) != output_frame_ids:
-            raise ValueError(
-                "provider import frame lineage differs from payload frame identities"
-            )
+            raise ValueError("provider import frame lineage differs from payload frame identities")
         dependence_groups = require_string_sequence(
             payload_record["dependence_group_ids"],
             name=f"provider import payload {index} dependence_group_ids",
@@ -291,16 +283,12 @@ def import_prediction_provider_specification(
     )
     conflicting = sorted(_RESERVED_METADATA_FIELDS.intersection(metadata))
     if conflicting:
-        raise ValueError(
-            "provider import metadata uses reserved fields: " + ", ".join(conflicting)
-        )
+        raise ValueError("provider import metadata uses reserved fields: " + ", ".join(conflicting))
     metadata.update(
         {
             "source_adapter": "prob4d-external-provider-import-spec-v1",
             "source_import_spec_sha256": specification_sha256,
-            "source_import_spec_schema_version": (
-                PREDICTION_PROVIDER_IMPORT_SPEC_VERSION
-            ),
+            "source_import_spec_schema_version": (PREDICTION_PROVIDER_IMPORT_SPEC_VERSION),
             "target_manifest_schema_version": PREDICTION_PROVIDER_MANIFEST_VERSION,
         }
     )
@@ -341,9 +329,7 @@ def import_prediction_provider_specification(
         )
         != specification_bytes
     ):
-        raise ValueError(
-            "prediction-provider import specification changed during import"
-        )
+        raise ValueError("prediction-provider import specification changed during import")
     save_prediction_provider_manifest(output, manifest)
     verified, _ = verify_prediction_provider_manifest(output)
     return verified
