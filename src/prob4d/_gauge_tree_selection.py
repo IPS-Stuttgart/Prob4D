@@ -39,8 +39,11 @@ def cross_covariance(
     left = positions(all_gauge_ids, left_gauge_ids, name="left_gauge_ids")
     right = positions(all_gauge_ids, right_gauge_ids, name="right_gauge_ids")
     column_count = GAUGE_DIMENSION * len(right)
-    basis = np.zeros((len(parents), GAUGE_DIMENSION, column_count), dtype=np.float64)
-    identity = np.eye(GAUGE_DIMENSION, dtype=np.float64)
+    basis: FloatArray = np.zeros(
+        (len(parents), GAUGE_DIMENSION, column_count),
+        dtype=np.float64,
+    )
+    identity: FloatArray = np.eye(GAUGE_DIMENSION, dtype=np.float64)
     for offset, position in enumerate(right):
         start = GAUGE_DIMENSION * offset
         basis[position, :, start : start + GAUGE_DIMENSION] = identity
