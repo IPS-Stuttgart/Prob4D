@@ -39,9 +39,7 @@ from .target_provider_admission import (
 
 TARGET_PROVIDER_ADMISSION_METADATA_KEY = "target_provider_admission_id"
 PROVIDER_EVALUATION_TARGET_AUTHORIZATION_FIELD = "target_admission_authorization"
-PROVIDER_EVALUATION_TARGET_AUTHORIZATION_SCHEMA = (
-    "prob4d.provider-evaluation-target-authorization"
-)
+PROVIDER_EVALUATION_TARGET_AUTHORIZATION_SCHEMA = "prob4d.provider-evaluation-target-authorization"
 PROVIDER_EVALUATION_TARGET_AUTHORIZATION_VERSION = 1
 PROVIDER_EVALUATION_TARGET_AUTHORIZED_REPORT_VERSION = 4
 PROVIDER_EVALUATION_TARGET_AUTHORIZATION_CLAIM_BOUNDARY = (
@@ -252,8 +250,7 @@ def load_provider_evaluation_manifest_snapshot(
     version = _strict_integer(manifest["schema_version"], name="schema_version", minimum=1)
     if version != PROVIDER_EVALUATION_DECISION_VERSION:
         raise ValueError(
-            "target-authorized provider evaluation requires a decision-bearing "
-            "schema-v2 manifest"
+            "target-authorized provider evaluation requires a decision-bearing schema-v2 manifest"
         )
     primary_mode_value = _strict_string(manifest["primary_mode"], name="primary_mode")
     if primary_mode_value == "oracle_aligned":
@@ -452,10 +449,7 @@ def validate_provider_evaluation_target_authorization(
     )
     if version != PROVIDER_EVALUATION_TARGET_AUTHORIZATION_VERSION:
         raise ValueError("unsupported provider target authorization version")
-    if (
-        authorization["claim_boundary"]
-        != PROVIDER_EVALUATION_TARGET_AUTHORIZATION_CLAIM_BOUNDARY
-    ):
+    if authorization["claim_boundary"] != PROVIDER_EVALUATION_TARGET_AUTHORIZATION_CLAIM_BOUNDARY:
         raise ValueError("provider target authorization claim boundary changed")
     supplied_id = _strict_digest(
         authorization["provider_evaluation_target_authorization_id"],
@@ -482,15 +476,21 @@ def validate_provider_evaluation_target_authorization(
     for field_name, expected in expected_pairs.items():
         if authorization[field_name] != expected:
             raise ValueError(f"provider target authorization changed {field_name}")
-    if _canonical_strings(
-        authorization["target_group_ids"],
-        name="provider target authorization target_group_ids",
-    ) != lock.target_group_ids:
+    if (
+        _canonical_strings(
+            authorization["target_group_ids"],
+            name="provider target authorization target_group_ids",
+        )
+        != lock.target_group_ids
+    ):
         raise ValueError("provider target authorization changed target groups")
-    if _canonical_strings(
-        authorization["registered_method_ids"],
-        name="provider target authorization registered_method_ids",
-    ) != lock.provider_method_ids:
+    if (
+        _canonical_strings(
+            authorization["registered_method_ids"],
+            name="provider target authorization registered_method_ids",
+        )
+        != lock.provider_method_ids
+    ):
         raise ValueError("provider target authorization changed registered methods")
 
     report_manifest_sha = _strict_digest(
