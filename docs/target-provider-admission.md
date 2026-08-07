@@ -112,21 +112,71 @@ identity, and requires exact equality with the retained artifact. Moving or
 rewriting a provider manifest, changing its formatting bytes, changing a cutoff,
 or changing any semantic identity invalidates replay.
 
+## Acyclic provider-evaluation authorization
+
+The provider-evaluation manifest is frozen **before** the promotion lock, because
+its exact SHA-256 is an identity-bearing lock field. The target-provider admission
+is created **after** that lock and therefore depends on the lock identity.
+Consequently, the admission ID must not be inserted back into the frozen provider
+evaluation manifest: doing so would create the impossible identity cycle
+
+```text
+provider manifest SHA -> promotion lock ID -> target admission ID -> provider manifest SHA
+```
+
+The provider evaluator instead receives the lock and admission as separate command
+arguments. It parses the exact manifest bytes into a target-free structural
+snapshot, validates all identities and registered groups/methods, and creates a
+content-addressed authorization receipt before resolving or opening truth and
+prediction artifacts:
+
+```bash
+prob4d evaluate provider provider-evaluation-v2.json \
+  --promotion-lock promotion-lock.json \
+  --target-provider-admission target-provider-admission.json \
+  --bootstrap-resamples 10000 \
+  --seed 20260805 \
+  --output-dir outputs/provider \
+  --require-decision-pass
+```
+
+For this target-authorized route, the evaluator requires:
+
+- a decision-bearing schema-v2 provider-evaluation manifest;
+- exact manifest-byte agreement with the promotion lock;
+- exact target-group, provider-method, reference-method, minimum-group-count,
+  bootstrap-resample, and bootstrap-seed agreement;
+- exact target-admission agreement with the lock, cohort, provider revision,
+  model set, run spec, and target groups;
+- `allow_legacy_artifacts=false`; and
+- no `target_provider_admission_id` inside manifest metadata.
+
+The resulting provider report is schema version 4 and contains the top-level
+`target_admission_authorization` receipt. That receipt binds the manifest SHA,
+promotion-lock ID, target-admission ID, cohort-binding ID, target groups,
+registered methods, reference, case count, decision minimum, bootstrap settings,
+and the explicit statement
+`target_outcomes_opened_during_authorization=false`.
+
+The evaluator executes a private manifest generated from the exact snapshotted
+bytes. Only path representation changes: relative target paths are rewritten to
+absolute paths preserving the original manifest's directory semantics. The
+original manifest bytes are checked again before publication. A malformed policy,
+identity mismatch, circular metadata field, or changed source manifest fails
+before a claim-bearing provider report is written.
+
 ## Mandatory result-stream binding
 
 A cohort-bound held-out promotion cannot run merely because a valid admission
-artifact exists. The provider evaluation report and BayesianPhysTwin query-result
-stream must independently name the same admission ID:
+artifact exists. The two result streams bind the admission in different,
+acyclic locations:
 
-```json
-{
-  "target_provider_admission_id": "<SHA-256 from target-provider-admission.json>"
-}
-```
+- the provider report carries the content-addressed
+  `target_admission_authorization` receipt described above; and
+- the raw and sealed BayesianPhysTwin query results carry
+  `metadata.target_provider_admission_id`.
 
-The provider report places this field in top-level `manifest_metadata`. The raw
-and sealed query result place it in top-level `metadata`. The held-out execution
-must then supply the retained artifact explicitly:
+The held-out execution must supply the retained admission explicitly:
 
 ```bash
 prob4d experiment heldout-provider run promotion-lock.json \
@@ -142,18 +192,18 @@ prob4d experiment heldout-provider verify promotion-lock.json \
   --report outputs/promotion/promotion_report.json
 ```
 
-Before query rows are sealed or provider gates are evaluated, `run` requires:
+Before query rows are sealed or provider gates are combined, `run` requires:
 
 - a promotion lock with the same frozen cohort-binding identity;
 - an admission bound to the exact promotion-lock identity, source revision,
   prediction run spec, provider revision, model set, and target groups;
-- the provider report's `manifest_metadata.target_provider_admission_id` to equal
-  the retained admission identity; and
-- the query stream's `metadata.target_provider_admission_id` to equal that same
-  identity.
+- a schema-v4 provider report whose authorization receipt deterministically
+  replays to that lock and admission; and
+- the query stream's `metadata.target_provider_admission_id` to equal the same
+  retained admission identity.
 
 `verify` replays the same checks against the sealed query results. Missing,
-malformed, or mismatched admission identities fail closed. A symbolic-link
+malformed, circular, or mismatched identities fail closed. A symbolic-link
 admission path is inadmissible.
 
 Controlled and synthetic promotion locks without a frozen `cohort_binding` retain
@@ -164,8 +214,8 @@ protocol.
 ## Claim boundary
 
 A passing admission and execution binding prove only that the exact target
-manifest metadata and both result streams agree with the frozen lock and cohort
-under the declared information order. They do not establish that payload bytes
-are correct, that the provider is competent, that uncertainty is calibrated,
-that BayesianPhysTwin improves, that Causal4D improves, or that any method is safe
-or state of the art.
+manifest metadata, provider authorization, and both result streams agree with the
+frozen lock and cohort under the declared information order. They do not establish
+that payload bytes are correct, that the provider is competent, that uncertainty
+is calibrated, that BayesianPhysTwin improves, that Causal4D improves, or that any
+method is safe or state of the art.
