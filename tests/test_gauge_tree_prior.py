@@ -37,9 +37,7 @@ def _explicit_dense(prior: GaugeTreeSquareRootPriorV1) -> np.ndarray:
         state[0] = innovation[0]
         for child in range(1, prior.gauge_count):
             parent = int(prior.parent_indices[child])
-            state[child] = (
-                prior.transition_matrices[child] @ state[parent] + innovation[child]
-            )
+            state[child] = prior.transition_matrices[child] @ state[parent] + innovation[child]
         transform[:, column] = state.reshape(-1)
     block_covariance = np.zeros((prior.dimension, prior.dimension), dtype=np.float64)
     for index, scale in enumerate(prior.innovation_scale_tril):
