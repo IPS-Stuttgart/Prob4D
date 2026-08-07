@@ -10,12 +10,12 @@ import numpy as np
 
 from ._immutable_array import immutable_array, immutable_integer_array
 from ._joint_visual_bias_common import (
-    FloatArray,
+    _LAYOUT_FIELDS,
     JOINT_VISUAL_BIAS_BASIS_ORDER,
     JOINT_VISUAL_BIAS_CLAIM_BOUNDARY,
     JOINT_VISUAL_BIAS_LAYOUT_SCHEMA,
     JOINT_VISUAL_BIAS_LAYOUT_VERSION,
-    _LAYOUT_FIELDS,
+    FloatArray,
     _float64_array,
     _json_nonempty_string_tuple,
     _json_string_tuple,
@@ -175,5 +175,6 @@ def expand_joint_visual_bias_jacobian(
             mask = indices == camera_index
             expanded[mask, :, column] = camera[mask, :, mode_index]
     return cast(FloatArray, immutable_array(expanded, dtype=np.float64))
+
 
 __all__ = ["JointVisualBiasLayoutV1", "expand_joint_visual_bias_jacobian"]
