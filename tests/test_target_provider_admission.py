@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+import prob4d.target_provider_admission as target_admission
 from prob4d._deform360_cohort_schema import (
     BAYESIAN_PHYSTWIN_REPOSITORY,
     DEFORM360_SELECTION_PATH,
@@ -298,6 +299,56 @@ def test_admission_opens_no_dense_prediction_payload(tmp_path: Path) -> None:
 
     assert len(admission.entries) == 12
     assert not any(tmp_path.rglob("*.npz"))
+
+
+def test_manifest_is_parsed_from_a_private_exact_byte_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    binding = _binding()
+    lock = _lock(binding)
+    config = _config(tmp_path, binding)
+    source_paths = {
+        (tmp_path / "manifests" / f"{group_id}.json").resolve()
+        for group_id in binding.target_group_ids
+    }
+    original = target_admission.load_prediction_provider_manifest
+    parsed_paths: list[Path] = []
+
+    def observing_loader(path: str | Path) -> PredictionProviderManifestV1:
+        parsed_paths.append(Path(path).resolve())
+        return original(path)
+
+    monkeypatch.setattr(target_admission, "load_prediction_provider_manifest", observing_loader)
+    build_target_provider_admission(lock, binding, config, request_root=tmp_path)
+
+    assert len(parsed_paths) == len(binding.target_group_ids)
+    assert all(path not in source_paths for path in parsed_paths)
+    assert all(path.name == "provider-manifest.json" for path in parsed_paths)
+
+
+def test_manifest_mutation_during_admission_is_rejected(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    binding = _binding()
+    lock = _lock(binding)
+    config = _config(tmp_path, binding)
+    source = tmp_path / "manifests" / f"{binding.target_group_ids[0]}.json"
+    original = target_admission.load_prediction_provider_manifest
+    mutated = False
+
+    def mutating_loader(path: str | Path) -> PredictionProviderManifestV1:
+        nonlocal mutated
+        manifest = original(path)
+        if not mutated:
+            source.write_bytes(source.read_bytes() + b"\n")
+            mutated = True
+        return manifest
+
+    monkeypatch.setattr(target_admission, "load_prediction_provider_manifest", mutating_loader)
+    with pytest.raises(ValueError, match="changed during target admission"):
+        build_target_provider_admission(lock, binding, config, request_root=tmp_path)
 
 
 def test_admission_rejects_target_use_missing_groups_and_sequence_drift(
