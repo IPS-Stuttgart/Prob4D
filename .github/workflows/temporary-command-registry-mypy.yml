@@ -1,0 +1,96 @@
+name: Temporary command-registry MyPy fix
+
+on:
+  push:
+    branches:
+      - agent/command-registry-v1
+    paths:
+      - .github/workflows/temporary-command-registry-mypy.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: agent/command-registry-v1
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12'
+      - name: Rename reused validation variables and verify
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/prob4d/_anchor_common_bias_study_impl.py')
+          text = path.read_text(encoding='utf-8')
+          old_integer = '''        for name, value in integer_fields.items():
+              if isinstance(value, bool) or not isinstance(value, int):
+                  raise TypeError(f"{name} must be an integer")
+          '''
+          new_integer = '''        for integer_name, integer_value in integer_fields.items():
+              if isinstance(integer_value, bool) or not isinstance(integer_value, int):
+                  raise TypeError(f"{integer_name} must be an integer")
+          '''
+          old_scalar = '''        for name, value in {
+              "miscoverage": self.miscoverage,
+              "row_quantile": self.row_quantile,
+              "provider_sigma": self.provider_sigma,
+              "provider_cross_correlation": self.provider_cross_correlation,
+              "provider_specific_bias_sigma": self.provider_specific_bias_sigma,
+              "shared_bias_sigma": self.shared_bias_sigma,
+              "shared_bias_row_fraction": self.shared_bias_row_fraction,
+              "anchor_drift_sigma": self.anchor_drift_sigma,
+              "reference_anchor_sigma_ratio": self.reference_anchor_sigma_ratio,
+              "reference_anchor_support_fraction": self.reference_anchor_support_fraction,
+          }.items():
+              if isinstance(value, bool) or not isinstance(value, (int, float)):
+                  raise TypeError(f"{name} must be a real scalar")
+              if not math.isfinite(float(value)):
+                  raise ValueError(f"{name} must be finite")
+          '''
+          new_scalar = '''        for scalar_name, scalar_value in {
+              "miscoverage": self.miscoverage,
+              "row_quantile": self.row_quantile,
+              "provider_sigma": self.provider_sigma,
+              "provider_cross_correlation": self.provider_cross_correlation,
+              "provider_specific_bias_sigma": self.provider_specific_bias_sigma,
+              "shared_bias_sigma": self.shared_bias_sigma,
+              "shared_bias_row_fraction": self.shared_bias_row_fraction,
+              "anchor_drift_sigma": self.anchor_drift_sigma,
+              "reference_anchor_sigma_ratio": self.reference_anchor_sigma_ratio,
+              "reference_anchor_support_fraction": self.reference_anchor_support_fraction,
+          }.items():
+              if isinstance(scalar_value, bool) or not isinstance(scalar_value, (int, float)):
+                  raise TypeError(f"{scalar_name} must be a real scalar")
+              if not math.isfinite(float(scalar_value)):
+                  raise ValueError(f"{scalar_name} must be finite")
+          '''
+          if text.count(old_integer) != 1 or text.count(old_scalar) != 1:
+              raise SystemExit('expected validation blocks were not found exactly once')
+          path.write_text(
+              text.replace(old_integer, new_integer).replace(old_scalar, new_scalar),
+              encoding='utf-8',
+          )
+          PY
+          python -m pip install 'mypy==2.3.0' 'ruff==0.16.1'
+          python -m ruff check src/prob4d/_anchor_common_bias_study_impl.py
+          python -m ruff format --check src/prob4d/_anchor_common_bias_study_impl.py
+          python -m mypy src/prob4d/anchor_common_bias_study.py src/prob4d/_anchor_common_bias_study_impl.py
+      - name: Commit variable-renaming fix
+        run: |
+          set -euo pipefail
+          git add src/prob4d/_anchor_common_bias_study_impl.py
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Avoid MyPy loop-variable type reuse'
+          git push origin HEAD:agent/command-registry-v1
