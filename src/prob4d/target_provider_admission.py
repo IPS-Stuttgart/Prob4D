@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import tempfile
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
@@ -152,6 +153,20 @@ def _manifest_bytes(path: Path) -> bytes:
         return path.read_bytes()
     except OSError as error:
         raise ValueError(f"cannot read provider manifest {path}") from error
+
+
+def _snapshot_manifest(path: Path) -> tuple[PredictionProviderManifestV1, str]:
+    """Parse one provider manifest from a private exact-byte snapshot."""
+
+    payload = _manifest_bytes(path)
+    digest = hashlib.sha256(payload).hexdigest()
+    with tempfile.TemporaryDirectory(prefix="prob4d-target-admission-") as temporary:
+        snapshot = Path(temporary) / "provider-manifest.json"
+        snapshot.write_bytes(payload)
+        manifest = load_prediction_provider_manifest(snapshot)
+    if _manifest_bytes(path) != payload:
+        raise ValueError("provider manifest changed during target admission")
+    return manifest, digest
 
 
 def _canonical_strings(value: object, *, name: str) -> tuple[str, ...]:
@@ -626,7 +641,7 @@ def _entry_from_manifest(
     *,
     unit_episode_id: int,
     unit_stratum: Stratum,
-    manifest_path: Path,
+    manifest_sha256: str,
     manifest: PredictionProviderManifestV1,
 ) -> TargetProviderManifestAdmissionV1:
     if manifest.sequence_id != request.expected_sequence_id:
@@ -643,7 +658,7 @@ def _entry_from_manifest(
         episode_id=unit_episode_id,
         stratum=unit_stratum,
         sequence_id=manifest.sequence_id,
-        manifest_sha256=hashlib.sha256(_manifest_bytes(manifest_path)).hexdigest(),
+        manifest_sha256=manifest_sha256,
         manifest_artifact_id=manifest.artifact_id,
         provider_run_id=manifest.provider_run_id,
         causal_frame_stop=request.causal_frame_stop,
@@ -699,7 +714,7 @@ def build_target_provider_admission(
     for request in requests:
         unit = units[request.group_id]
         path = _resolve_member(root, request.manifest_path, name="provider manifest path")
-        manifest = load_prediction_provider_manifest(path)
+        manifest, manifest_sha256 = _snapshot_manifest(path)
         if manifest.provider_revision != lock.motioncrafter_revision:
             raise ValueError("target provider revision differs from promotion lock")
         if manifest.model_set_id != lock.model_set_id:
@@ -715,7 +730,7 @@ def build_target_provider_admission(
                 request,
                 unit_episode_id=unit.episode_id,
                 unit_stratum=unit.stratum,
-                manifest_path=path,
+                manifest_sha256=manifest_sha256,
                 manifest=manifest,
             )
         )
