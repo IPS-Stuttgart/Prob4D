@@ -119,7 +119,10 @@ def diagonal_covariance_blocks(
     transitions: np.ndarray,
     scales: np.ndarray,
 ) -> FloatArray:
-    result = np.empty((len(parents), GAUGE_DIMENSION, GAUGE_DIMENSION), dtype=np.float64)
+    result: FloatArray = np.empty(
+        (len(parents), GAUGE_DIMENSION, GAUGE_DIMENSION),
+        dtype=np.float64,
+    )
     result[0] = scales[0] @ scales[0].T
     for child in range(1, len(parents)):
         parent = int(parents[child])
