@@ -190,6 +190,14 @@ COMMANDS: Final[tuple[CommandSpec, ...]] = (
         "gauge-graph",
     ),
     _command(
+        "gauge-tree-prior-artifact",
+        "gauge prior",
+        "prob4d.gauge_tree_prior:main",
+        "verify or explicitly densify portable sparse gauge-tree priors",
+        S,
+        "gauge-tree",
+    ),
+    _command(
         "joint-covariance",
         "diagnostic joint-covariance",
         "prob4d.joint_covariance_metrics:main",

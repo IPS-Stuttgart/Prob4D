@@ -55,6 +55,20 @@ from .finite_sample_threshold import (
     fit_finite_sample_upper_threshold,
 )
 from .fusion import FusedSequence
+from .gauge_tree_prior import (
+    GAUGE_TREE_PRIOR_SCHEMA,
+    GAUGE_TREE_PRIOR_SEMANTICS,
+    GAUGE_TREE_PRIOR_VERSION,
+    GaugeTreeSquareRootPriorV1,
+)
+from .gauge_tree_prior_io import (
+    GAUGE_TREE_PRIOR_ARTIFACT_CLAIM_BOUNDARY,
+    GAUGE_TREE_PRIOR_ARTIFACT_SCHEMA,
+    GAUGE_TREE_PRIOR_ARTIFACT_VERSION,
+    gauge_tree_prior_artifact_id,
+    load_gauge_tree_prior,
+    write_gauge_tree_prior,
+)
 from .guarded_causal_gauge_graph import (
     GUARDED_CAUSAL_GAUGE_GRAPH_DEPENDENCE,
     GUARDED_CAUSAL_GAUGE_GRAPH_MODE,
@@ -150,6 +164,12 @@ __all__ = [
     "CAUSAL_GAUGE_GRAPH_MODE",
     "GUARDED_CAUSAL_GAUGE_GRAPH_DEPENDENCE",
     "GUARDED_CAUSAL_GAUGE_GRAPH_MODE",
+    "GAUGE_TREE_PRIOR_ARTIFACT_CLAIM_BOUNDARY",
+    "GAUGE_TREE_PRIOR_ARTIFACT_SCHEMA",
+    "GAUGE_TREE_PRIOR_ARTIFACT_VERSION",
+    "GAUGE_TREE_PRIOR_SCHEMA",
+    "GAUGE_TREE_PRIOR_SEMANTICS",
+    "GAUGE_TREE_PRIOR_VERSION",
     "GAUGE_COVARIANCE_CALIBRATION_SCHEMA",
     "GAUGE_COVARIANCE_CALIBRATION_VERSION",
     "GROUP_BALANCED_UPPER_WINSORIZED_RATIOS_V2",
@@ -187,6 +207,7 @@ __all__ = [
     "FiniteSampleUpperThreshold",
     "FusedSequence",
     "GaugeCovarianceCalibrationV1",
+    "GaugeTreeSquareRootPriorV1",
     "GroupBalancedCalibrationReport",
     "JointGaugePosterior",
     "LinearizedObservationFactor",
@@ -225,9 +246,11 @@ __all__ = [
     "fit_finite_sample_upper_threshold",
     "fit_group_balanced_point_uncertainty_calibration",
     "fit_group_balanced_source_reliability",
+    "gauge_tree_prior_artifact_id",
     "group_balanced_point_calibration_metadata",
     "is_prob4d_repository",
     "load_gauge_covariance_calibration",
+    "load_gauge_tree_prior",
     "load_metric_gauge_anchor",
     "load_observation_belief_export",
     "load_observation_factor_bundle",
@@ -248,6 +271,7 @@ __all__ = [
     "tracklets_to_observation_factors",
     "upper_winsorized_mean",
     "validate_prob4d_project_identity",
+    "write_gauge_tree_prior",
     "write_observation_factor_bundle",
     "write_observation_factor_stream",
     "write_prediction_window_store",

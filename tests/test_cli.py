@@ -14,6 +14,7 @@ def test_grouped_cli_lists_provider_and_observation(capsys) -> None:
     assert "experiment" in output
     assert "identity" in output
     assert "prediction" in output
+    assert "gauge" in output
 
 
 def test_grouped_cli_lists_explicit_provider_v2_exports(capsys) -> None:
@@ -144,3 +145,10 @@ def test_grouped_cli_routes_observation_bias_binding_help(capsys) -> None:
     binding_help = capsys.readouterr().out
     assert "Build, validate, or replay an exact" in binding_help
     assert "{build,validate,verify}" in binding_help
+
+
+def test_grouped_cli_routes_sparse_gauge_prior_help(capsys) -> None:
+    assert main(["gauge", "prior", "--help"]) == 0
+    output = capsys.readouterr().out
+    assert "verify" in output
+    assert "materialize" in output

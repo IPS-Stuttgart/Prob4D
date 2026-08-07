@@ -5,10 +5,11 @@ causal spanning-tree gauge posterior. It replaces the dense in-memory
 `7K x 7K` covariance with `O(K)` parent, transition, and innovation factors while
 preserving the exact joint Gaussian statistics.
 
-It does **not** change provider-v2, `ObservationFactorBundle` schema v4, or any
-frozen artifact identity. A future portable provider/artifact version is still
-required before Prob4D can omit the dense prior from serialized claim-bearing
-bundles.
+The prior now also has a portable, checksum-bound artifact that stores only the
+three sparse factor arrays. This does **not** change provider-v2,
+`ObservationFactorBundle` schema v4, or any frozen schema-v4 artifact identity.
+Schema v4 still embeds the dense covariance; a separately versioned factor-bundle
+contract is required before claim-bearing bundles can omit it end to end.
 
 ## Model
 
@@ -98,6 +99,56 @@ tree-structured Gaussian. It must not be forced into this representation; the
 strict converter will reject it when its off-tree conditional structure is
 nonzero.
 
+## Portable sparse-prior artifacts
+
+Write and reload a prior without materializing the dense covariance:
+
+```python
+from prob4d import load_gauge_tree_prior, write_gauge_tree_prior
+
+manifest, payload = write_gauge_tree_prior(
+    prior,
+    "outputs/gauge-prior.json",
+)
+reloaded = load_gauge_tree_prior(manifest)
+assert reloaded.prior_id == prior.prior_id
+```
+
+The manifest has a path-independent `artifact_id` over:
+
+- the unchanged `GaugeTreeSquareRootPriorV1` identity;
+- ordered gauge IDs and causal parent order;
+- exact dtype, shape, and canonical byte digest of every factor array;
+- the representation semantics and optional source dense-covariance digest; and
+- the fixed artifact claim boundary.
+
+The adjacent checksum-bound NPZ contains exactly:
+
+```text
+parent_indices
+transition_matrices
+innovation_scale_tril
+```
+
+Loading rejects duplicate or non-finite JSON, coercive scalar aliases, unexpected
+manifest fields, payload paths outside the manifest tree, checksum changes,
+extra or missing NPZ members, descriptor mismatches, invalid trees, and invalid
+Cholesky factors. `allow_pickle=False` is mandatory. Verification never forms the
+joint covariance.
+
+Use the grouped command for inspection and the explicit compatibility escape
+hatch for bounded dense materialization:
+
+```bash
+prob4d gauge prior verify outputs/gauge-prior.json
+prob4d gauge prior materialize \
+  outputs/gauge-prior.json outputs/gauge-prior-dense.npy \
+  --maximum-gauges 64
+```
+
+Dense output is refused when the prior exceeds `--maximum-gauges`, and an
+existing output is never overwritten.
+
 ## Matrix-free operations
 
 The generative tree gives `Sigma = T D T^T`, where `D` is block diagonal. A
@@ -171,9 +222,10 @@ At 64 gauges this is about 50 KiB instead of 1.53 MiB, before Python-container
 overhead. The advantage grows linearly with `K`. Dense materialization remains
 available only behind an explicit maximum-gauge guard.
 
-This first implementation removes dense prior storage only after direct sparse
-construction or a verified conversion. Serialized schema-v4 bundles still carry
-the dense covariance, so file size and initial load peak are unchanged.
+The portable prior artifact preserves the linear storage advantage across a
+standalone producer/consumer handoff. Serialized schema-v4 observation-factor
+bundles still carry the dense covariance, so their file size and initial load
+peak remain unchanged until an explicitly versioned bundle integration is added.
 
 ## Claim boundary
 

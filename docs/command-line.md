@@ -60,6 +60,23 @@ The old executables remain unchanged. Frozen tags and environments can therefore
 continue to reproduce their historical command lines while new workflows use a
 single discoverable interface.
 
+## Portable sparse gauge priors
+
+The stable sparse-prior artifact command verifies a checksum-bound tree prior
+without forming its dense covariance. Dense materialization is an explicit,
+size-guarded compatibility operation:
+
+```bash
+prob4d gauge prior verify outputs/gauge-prior.json
+prob4d gauge prior materialize \
+  outputs/gauge-prior.json outputs/gauge-prior-dense.npy \
+  --maximum-gauges 64
+```
+
+Use `prob4d commands describe gauge-tree-prior-artifact` to inspect its registry
+metadata. See [the sparse gauge-tree prior contract](sparse-gauge-tree-prior.md)
+for the portable manifest and claim boundary.
+
 ## Lifecycle meanings
 
 **Stable** commands implement supported contracts and ordinary producer,
