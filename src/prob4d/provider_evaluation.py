@@ -17,6 +17,7 @@ from ._provider_evaluation_manifest import (
     PROVIDER_EVALUATION_DECISION_VERSION,
     PROVIDER_EVALUATION_SCHEMA,
     PROVIDER_EVALUATION_VERSION,
+    EvaluationModeName,
     ProviderEvaluationCase,
     ProviderEvaluationDecisionPolicy,
     ProviderEvaluationDecisionRule,
@@ -27,7 +28,7 @@ from ._provider_evaluation_output import write_provider_evaluation_outputs
 from .metrics import DEFAULT_EVALUATION_CHUNK_SIZE
 from .provider_evaluation_target_authorization import (
     PROVIDER_EVALUATION_TARGET_AUTHORIZATION_FIELD,
-    TARGET_PROVIDER_ADMISSION_METADATA_KEY,
+    ProviderEvaluationManifestSnapshotV1,
     build_provider_evaluation_target_authorization,
     load_provider_evaluation_manifest_snapshot,
 )
@@ -46,13 +47,13 @@ def _load_authorized_plan(
     allow_legacy_artifacts: bool,
 ) -> tuple[
     list[ProviderEvaluationCase],
-    str,
+    EvaluationModeName,
     str,
     dict[str, Any],
-    ProviderEvaluationDecisionPolicy | None,
+    ProviderEvaluationDecisionPolicy,
     dict[str, object],
     str,
-    object,
+    ProviderEvaluationManifestSnapshotV1,
 ]:
     """Authorize exact manifest bytes before resolving any target paths."""
 
@@ -71,11 +72,15 @@ def _load_authorized_plan(
         cases, primary_mode, reference_method, metadata, decision_policy = (
             load_provider_evaluation_plan(execution_manifest)
         )
+    if decision_policy is None:
+        raise AssertionError("authorized schema-v2 provider evaluation lost its decision policy")
+    if decision_policy.to_dict() != snapshot.decision_policy.to_dict():
+        raise ValueError("provider decision policy changed during private snapshot loading")
     if metadata != dict(snapshot.metadata):
         raise ValueError("provider-evaluation metadata changed during private snapshot loading")
     if tuple(sorted({case.group_id for case in cases})) != snapshot.target_group_ids:
         raise ValueError("provider-evaluation target groups changed during snapshot loading")
-    observed_methods = tuple(sorted(next(iter(cases)).predictions))
+    observed_methods = tuple(sorted(cases[0].predictions))
     if observed_methods != snapshot.method_ids:
         raise ValueError("provider-evaluation methods changed during snapshot loading")
     return (
@@ -119,19 +124,14 @@ def run_provider_evaluation(
 
     source = Path(manifest_path).resolve()
     target_authorization: dict[str, object] | None = None
-    manifest_snapshot: object | None = None
+    manifest_snapshot: ProviderEvaluationManifestSnapshotV1 | None = None
     if promotion_lock_path is None:
         cases, primary_mode, reference_method, manifest_metadata, decision_policy = (
             load_provider_evaluation_plan(source)
         )
-        if TARGET_PROVIDER_ADMISSION_METADATA_KEY in manifest_metadata:
-            raise ValueError(
-                "provider-evaluation manifest metadata must not contain "
-                "target_provider_admission_id because that creates a circular content "
-                "identity; pass --promotion-lock and --target-provider-admission instead"
-            )
         source_manifest_sha256 = hashlib.sha256(source.read_bytes()).hexdigest()
     else:
+        assert target_provider_admission_path is not None
         (
             cases,
             primary_mode,
