@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from pathlib import Path
 
 import pytest
@@ -7,6 +8,13 @@ import pytest
 from prob4d._heldout_promotion_lock import (
     HeldoutProviderPromotionLockV1,
     promotion_lock_from_config,
+)
+from prob4d._selection_evidence_common import _sha256_json
+from prob4d.provider_evaluation_target_authorization import (
+    PROVIDER_EVALUATION_TARGET_AUTHORIZATION_CLAIM_BOUNDARY,
+    PROVIDER_EVALUATION_TARGET_AUTHORIZATION_FIELD,
+    PROVIDER_EVALUATION_TARGET_AUTHORIZATION_SCHEMA,
+    PROVIDER_EVALUATION_TARGET_AUTHORIZATION_VERSION,
 )
 from prob4d.target_admission_enforcement import (
     TARGET_PROVIDER_ADMISSION_METADATA_KEY,
@@ -150,6 +158,43 @@ def _stream_metadata(admission: HeldoutTargetProviderAdmissionV1) -> dict[str, s
     }
 
 
+def _provider_report(
+    lock: HeldoutProviderPromotionLockV1,
+    admission: HeldoutTargetProviderAdmissionV1,
+    *,
+    authorization_overrides: dict[str, object] | None = None,
+) -> dict[str, object]:
+    descriptor: dict[str, object] = {
+        "schema_name": PROVIDER_EVALUATION_TARGET_AUTHORIZATION_SCHEMA,
+        "schema_version": PROVIDER_EVALUATION_TARGET_AUTHORIZATION_VERSION,
+        "promotion_lock_id": lock.promotion_lock_id,
+        "target_provider_admission_id": admission.target_provider_admission_id,
+        "cohort_binding_id": admission.cohort_binding_id,
+        "source_manifest_sha256": lock.provider_evaluation_manifest_sha256,
+        "target_group_ids": list(lock.target_group_ids),
+        "registered_method_ids": list(lock.provider_method_ids),
+        "reference_method": lock.provider_reference_method_id,
+        "case_count": len(lock.target_group_ids),
+        "decision_minimum_group_count": lock.minimum_target_group_count,
+        "bootstrap_resamples": lock.bootstrap_resamples,
+        "bootstrap_seed": lock.bootstrap_seed,
+        "legacy_artifacts_allowed": False,
+        "target_outcomes_opened_during_authorization": False,
+        "claim_boundary": PROVIDER_EVALUATION_TARGET_AUTHORIZATION_CLAIM_BOUNDARY,
+    }
+    if authorization_overrides is not None:
+        descriptor.update(authorization_overrides)
+    authorization = {
+        **descriptor,
+        "provider_evaluation_target_authorization_id": _sha256_json(descriptor),
+    }
+    return {
+        "source_manifest_sha256": lock.provider_evaluation_manifest_sha256,
+        "manifest_metadata": {},
+        PROVIDER_EVALUATION_TARGET_AUTHORIZATION_FIELD: authorization,
+    }
+
+
 def test_unbound_promotion_preserves_legacy_execution() -> None:
     lock = _lock(cohort_bound=False)
     assert (
@@ -176,7 +221,7 @@ def test_cohort_bound_promotion_requires_exact_admission(tmp_path: Path) -> None
     path = tmp_path / "target-admission.json"
     write_target_provider_admission(admission, path)
     metadata = _stream_metadata(admission)
-    provider_report = {"manifest_metadata": metadata}
+    provider_report = _provider_report(lock, admission)
 
     with pytest.raises(ValueError, match="requires --target-provider-admission"):
         load_target_admission_for_execution(
@@ -202,7 +247,7 @@ def test_provider_and_query_streams_must_bind_the_same_admission(tmp_path: Path)
     write_target_provider_admission(admission, path)
     metadata = _stream_metadata(admission)
 
-    with pytest.raises(ValueError, match="manifest_metadata must bind"):
+    with pytest.raises(ValueError, match="provider target authorization must be an object"):
         load_target_admission_for_execution(
             lock,
             path,
@@ -213,28 +258,45 @@ def test_provider_and_query_streams_must_bind_the_same_admission(tmp_path: Path)
         load_target_admission_for_execution(
             lock,
             path,
-            provider_report={"manifest_metadata": metadata},
+            provider_report=_provider_report(lock, admission),
             query_metadata={},
         )
-    with pytest.raises(ValueError, match="provider report uses another"):
+    with pytest.raises(ValueError, match="changed target_provider_admission_id"):
         load_target_admission_for_execution(
             lock,
             path,
-            provider_report={
-                "manifest_metadata": {
-                    TARGET_PROVIDER_ADMISSION_METADATA_KEY: "0" * 64,
-                }
-            },
+            provider_report=_provider_report(
+                lock,
+                admission,
+                authorization_overrides={"target_provider_admission_id": "0" * 64},
+            ),
             query_metadata=metadata,
         )
     with pytest.raises(ValueError, match="query results use another"):
         load_target_admission_for_execution(
             lock,
             path,
-            provider_report={"manifest_metadata": metadata},
+            provider_report=_provider_report(lock, admission),
             query_metadata={
                 TARGET_PROVIDER_ADMISSION_METADATA_KEY: "0" * 64,
             },
+        )
+
+
+def test_circular_provider_manifest_metadata_is_rejected(tmp_path: Path) -> None:
+    lock = _lock()
+    admission = _admission(lock)
+    path = tmp_path / "target-admission.json"
+    write_target_provider_admission(admission, path)
+    provider_report = _provider_report(lock, admission)
+    provider_report["manifest_metadata"] = _stream_metadata(admission)
+
+    with pytest.raises(ValueError, match="circular target admission field"):
+        load_target_admission_for_execution(
+            lock,
+            path,
+            provider_report=provider_report,
+            query_metadata=_stream_metadata(admission),
         )
 
 
@@ -248,7 +310,7 @@ def test_admission_must_match_the_exact_promotion_lock() -> None:
         validate_target_admission_execution_binding(
             other_lock,
             admission,
-            provider_report={"manifest_metadata": metadata},
+            provider_report=_provider_report(lock, admission),
             query_metadata=metadata,
         )
 
@@ -269,7 +331,7 @@ def test_symlinked_admission_is_rejected(tmp_path: Path) -> None:
         load_target_admission_for_execution(
             lock,
             link,
-            provider_report={"manifest_metadata": metadata},
+            provider_report=_provider_report(lock, admission),
             query_metadata=metadata,
         )
 
