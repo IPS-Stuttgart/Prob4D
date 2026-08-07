@@ -6,7 +6,7 @@ import copy
 import hashlib
 import json
 import tempfile
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -26,6 +26,9 @@ from ._immutable_json import frozen_finite_json_mapping, plain_json
 from ._provider_evaluation_manifest import (
     PROVIDER_EVALUATION_DECISION_VERSION,
     PROVIDER_EVALUATION_SCHEMA,
+    EvaluationModeName,
+    ProviderEvaluationDecisionPolicy,
+    _decision_policy,
     validate_finite_json,
 )
 from ._selection_evidence_common import _sha256_json, _strict_integer
@@ -40,6 +43,7 @@ PROVIDER_EVALUATION_TARGET_AUTHORIZATION_SCHEMA = (
     "prob4d.provider-evaluation-target-authorization"
 )
 PROVIDER_EVALUATION_TARGET_AUTHORIZATION_VERSION = 1
+PROVIDER_EVALUATION_TARGET_AUTHORIZED_REPORT_VERSION = 4
 PROVIDER_EVALUATION_TARGET_AUTHORIZATION_CLAIM_BOUNDARY = (
     "This receipt proves that one exact frozen provider-evaluation manifest, "
     "promotion lock, and target-provider admission were mutually consistent before "
@@ -104,7 +108,7 @@ def _canonical_strings(value: object, *, name: str) -> tuple[str, ...]:
         raise ValueError(f"{name} must be a list of strings")
     result = tuple(
         _strict_string(item, name=f"{name}[{index}]")
-        for index, item in enumerate(cast(list[object] | tuple[object, ...], value))
+        for index, item in enumerate(cast(Sequence[object], value))
     )
     if result != tuple(sorted(result)) or len(result) != len(set(result)):
         raise ValueError(f"{name} must be sorted and unique")
@@ -124,29 +128,35 @@ class ProviderEvaluationManifestSnapshotV1:
     source_payload: bytes
     source_manifest_sha256: str
     manifest: Mapping[str, Any]
-    primary_mode: str
+    primary_mode: EvaluationModeName
     reference_method: str
     case_ids: tuple[str, ...]
     case_group_ids: tuple[str, ...]
     target_group_ids: tuple[str, ...]
     method_ids: tuple[str, ...]
-    decision_minimum_group_count: int
+    decision_policy: ProviderEvaluationDecisionPolicy
     metadata: Mapping[str, Any]
 
     def __post_init__(self) -> None:
-        source = Path(self.source_path).resolve()
+        input_path = Path(self.source_path)
+        if input_path.is_symlink():
+            raise ValueError("provider-evaluation manifest must not be a symbolic link")
+        source = input_path.resolve()
         if not source.is_file():
             raise ValueError("provider-evaluation manifest must be a regular file")
-        object.__setattr__(self, "source_path", source)
-        object.__setattr__(
-            self,
-            "source_manifest_sha256",
-            _strict_digest(
-                self.source_manifest_sha256,
-                name="source_manifest_sha256",
-                pattern=_SHA256,
-            ),
+        if type(self.source_payload) is not bytes:
+            raise ValueError("source_payload must contain exact manifest bytes")
+        digest = _strict_digest(
+            self.source_manifest_sha256,
+            name="source_manifest_sha256",
+            pattern=_SHA256,
         )
+        if hashlib.sha256(self.source_payload).hexdigest() != digest:
+            raise ValueError("source_manifest_sha256 does not match source_payload")
+        if not isinstance(self.decision_policy, ProviderEvaluationDecisionPolicy):
+            raise ValueError("decision_policy must be ProviderEvaluationDecisionPolicy")
+        object.__setattr__(self, "source_path", source)
+        object.__setattr__(self, "source_manifest_sha256", digest)
         object.__setattr__(
             self,
             "manifest",
@@ -245,11 +255,12 @@ def load_provider_evaluation_manifest_snapshot(
             "target-authorized provider evaluation requires a decision-bearing "
             "schema-v2 manifest"
         )
-    primary_mode = _strict_string(manifest["primary_mode"], name="primary_mode")
-    if primary_mode == "oracle_aligned":
+    primary_mode_value = _strict_string(manifest["primary_mode"], name="primary_mode")
+    if primary_mode_value == "oracle_aligned":
         raise ValueError("target-authorized provider evaluation cannot use oracle alignment")
-    if primary_mode not in {"metric", "prefix_aligned"}:
+    if primary_mode_value not in {"metric", "prefix_aligned"}:
         raise ValueError("target-authorized primary_mode must be metric or prefix_aligned")
+    primary_mode = cast(EvaluationModeName, primary_mode_value)
     reference_method = _strict_string(manifest["reference_method"], name="reference_method")
     metadata = _strict_mapping(manifest["metadata"], name="provider-evaluation metadata")
     if TARGET_PROVIDER_ADMISSION_METADATA_KEY in metadata:
@@ -291,7 +302,11 @@ def load_provider_evaluation_manifest_snapshot(
             raise ValueError("provider-evaluation method set changes across cases")
         boundary = _strict_list(case["boundary_frames"], name=f"cases[{index}].boundary_frames")
         boundary_values = tuple(
-            _strict_integer(value, name=f"cases[{index}].boundary_frames", minimum=0)
+            _strict_integer(
+                value,
+                name=f"cases[{index}].boundary_frames",
+                minimum=0,
+            )
             for value in boundary
         )
         if boundary_values != tuple(sorted(set(boundary_values))):
@@ -312,14 +327,10 @@ def load_provider_evaluation_manifest_snapshot(
     if expected_methods is None or reference_method not in expected_methods:
         raise ValueError("reference_method must identify one registered prediction method")
 
-    decision_policy = _strict_mapping(
+    decision_policy = _decision_policy(
         manifest["decision_policy"],
-        name="decision_policy",
-    )
-    minimum_group_count = _strict_integer(
-        decision_policy.get("minimum_group_count"),
-        name="decision_policy.minimum_group_count",
-        minimum=1,
+        methods=expected_methods,
+        reference_method=reference_method,
     )
     return ProviderEvaluationManifestSnapshotV1(
         source_path=source,
@@ -332,7 +343,7 @@ def load_provider_evaluation_manifest_snapshot(
         case_group_ids=tuple(case_group_ids),
         target_group_ids=tuple(sorted(set(case_group_ids))),
         method_ids=expected_methods,
-        decision_minimum_group_count=minimum_group_count,
+        decision_policy=decision_policy,
         metadata=metadata,
     )
 
@@ -365,7 +376,7 @@ def build_provider_evaluation_target_authorization(
         raise ValueError("provider-evaluation methods differ from the promotion lock")
     if snapshot.reference_method != lock.provider_reference_method_id:
         raise ValueError("provider-evaluation reference method differs from the promotion lock")
-    if snapshot.decision_minimum_group_count != lock.minimum_target_group_count:
+    if snapshot.decision_policy.minimum_group_count != lock.minimum_target_group_count:
         raise ValueError("provider decision minimum group count differs from the promotion lock")
     resamples = _strict_integer(
         bootstrap_resamples,
@@ -392,7 +403,7 @@ def build_provider_evaluation_target_authorization(
         "registered_method_ids": list(snapshot.method_ids),
         "reference_method": snapshot.reference_method,
         "case_count": len(snapshot.case_ids),
-        "decision_minimum_group_count": snapshot.decision_minimum_group_count,
+        "decision_minimum_group_count": snapshot.decision_policy.minimum_group_count,
         "bootstrap_resamples": resamples,
         "bootstrap_seed": seed,
         "legacy_artifacts_allowed": legacy,
@@ -414,6 +425,15 @@ def validate_provider_evaluation_target_authorization(
 
     validate_target_provider_admission_against_lock(admission, lock)
     report = _strict_mapping(provider_report, name="provider evaluation report")
+    if report.get("schema_name") != "prob4d.provider-evaluation-report":
+        raise ValueError("provider report has the wrong schema")
+    report_version = _strict_integer(
+        report.get("schema_version"),
+        name="provider report schema_version",
+        minimum=1,
+    )
+    if report_version != PROVIDER_EVALUATION_TARGET_AUTHORIZED_REPORT_VERSION:
+        raise ValueError("cohort-bound provider report must retain target authorization")
     authorization = _strict_mapping(
         report.get(PROVIDER_EVALUATION_TARGET_AUTHORIZATION_FIELD),
         name="provider target authorization",
@@ -472,6 +492,7 @@ def validate_provider_evaluation_target_authorization(
         name="provider target authorization registered_method_ids",
     ) != lock.provider_method_ids:
         raise ValueError("provider target authorization changed registered methods")
+
     report_manifest_sha = _strict_digest(
         report.get("source_manifest_sha256"),
         name="provider report source_manifest_sha256",
@@ -479,6 +500,36 @@ def validate_provider_evaluation_target_authorization(
     )
     if report_manifest_sha != authorization["source_manifest_sha256"]:
         raise ValueError("provider report and target authorization use different manifests")
+    if report.get("reference_method") != authorization["reference_method"]:
+        raise ValueError("provider report and target authorization use different references")
+    if report.get("bootstrap_resamples") != authorization["bootstrap_resamples"]:
+        raise ValueError("provider report and target authorization use different resamples")
+    if report.get("bootstrap_seed") != authorization["bootstrap_seed"]:
+        raise ValueError("provider report and target authorization use different seeds")
+    if report.get("legacy_artifacts_allowed") is not False:
+        raise ValueError("target-authorized provider report cannot admit legacy artifacts")
+
+    raw_records = _strict_list(report.get("cases"), name="provider report cases")
+    case_ids: set[str] = set()
+    observed_groups: set[str] = set()
+    observed_methods: set[str] = set()
+    for index, raw_record in enumerate(raw_records):
+        record = _strict_mapping(raw_record, name=f"provider report cases[{index}]")
+        case_ids.add(_strict_string(record.get("case_id"), name="provider case_id"))
+        observed_groups.add(_strict_string(record.get("group_id"), name="provider group_id"))
+        observed_methods.add(_strict_string(record.get("method_id"), name="provider method_id"))
+    case_count = _strict_integer(
+        authorization["case_count"],
+        name="provider target authorization case_count",
+        minimum=1,
+    )
+    if len(case_ids) != case_count:
+        raise ValueError("provider report case count differs from target authorization")
+    if tuple(sorted(observed_groups)) != lock.target_group_ids:
+        raise ValueError("provider report target groups differ from target authorization")
+    if tuple(sorted(observed_methods)) != lock.provider_method_ids:
+        raise ValueError("provider report methods differ from target authorization")
+
     report_metadata = _strict_mapping(
         report.get("manifest_metadata"),
         name="provider report manifest_metadata",
@@ -495,6 +546,7 @@ __all__ = [
     "PROVIDER_EVALUATION_TARGET_AUTHORIZATION_FIELD",
     "PROVIDER_EVALUATION_TARGET_AUTHORIZATION_SCHEMA",
     "PROVIDER_EVALUATION_TARGET_AUTHORIZATION_VERSION",
+    "PROVIDER_EVALUATION_TARGET_AUTHORIZED_REPORT_VERSION",
     "TARGET_PROVIDER_ADMISSION_METADATA_KEY",
     "ProviderEvaluationManifestSnapshotV1",
     "build_provider_evaluation_target_authorization",
