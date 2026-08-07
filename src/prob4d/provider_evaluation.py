@@ -174,8 +174,7 @@ def run_provider_evaluation(
     if manifest_snapshot is not None:
         manifest_snapshot.assert_source_unchanged()
     clean_records = [
-        {key: value for key, value in record.items() if key != "_numeric"}
-        for record in records
+        {key: value for key, value in record.items() if key != "_numeric"} for record in records
     ]
     schema_version = 2 if decision_policy is None else 3
     if target_authorization is not None:
@@ -277,12 +276,8 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     arguments = parser.parse_args(argv)
-    if (arguments.promotion_lock is None) != (
-        arguments.target_provider_admission is None
-    ):
-        parser.error(
-            "--promotion-lock and --target-provider-admission must be supplied together"
-        )
+    if (arguments.promotion_lock is None) != (arguments.target_provider_admission is None):
+        parser.error("--promotion-lock and --target-provider-admission must be supplied together")
     report = run_provider_evaluation(
         arguments.manifest,
         arguments.output_dir,
@@ -297,9 +292,7 @@ def main(argv: list[str] | None = None) -> int:
     if arguments.require_decision_pass:
         decision = report.get("decision")
         if not isinstance(decision, dict):
-            parser.error(
-                "--require-decision-pass requires a schema-v2 manifest decision_policy"
-            )
+            parser.error("--require-decision-pass requires a schema-v2 manifest decision_policy")
         if decision.get("overall_passed") is not True:
             return 3
     return 0
