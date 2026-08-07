@@ -66,7 +66,10 @@ def dense_factors(
         raise ValueError("joint_covariance must be symmetric")
     if parity_atol < 0.0 or parity_rtol < 0.0:
         raise ValueError("parity tolerances must be nonnegative")
-    transitions = np.zeros((len(ids), GAUGE_DIMENSION, GAUGE_DIMENSION), dtype=np.float64)
+    transitions: np.ndarray = np.zeros(
+        (len(ids), GAUGE_DIMENSION, GAUGE_DIMENSION),
+        dtype=np.float64,
+    )
     scales = np.empty_like(transitions)
     scales[0] = strict_scale_tril(
         symmetric[:GAUGE_DIMENSION, :GAUGE_DIMENSION],
