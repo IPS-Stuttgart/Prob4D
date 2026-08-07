@@ -50,9 +50,7 @@ def test_observation_covariance_action_matches_dense_design() -> None:
     indices = np.asarray([0, 1, 4, 2, 1, 3, 0, 4, 2])
     design = np.zeros((3 * row_count, prior.dimension), dtype=np.float64)
     for row, gauge_index in enumerate(indices):
-        design[3 * row : 3 * (row + 1), 7 * gauge_index : 7 * (gauge_index + 1)] = (
-            jacobian[row]
-        )
+        design[3 * row : 3 * (row + 1), 7 * gauge_index : 7 * (gauge_index + 1)] = jacobian[row]
     value = generator.normal(size=(row_count, 3, 4))
     expected = (design @ dense @ design.T @ value.reshape(3 * row_count, 4)).reshape(
         row_count, 3, 4
@@ -89,15 +87,11 @@ def test_marginal_observation_action_adds_local_covariance_once() -> None:
     nonsymmetric = local.copy()
     nonsymmetric[0, 0, 1] += 0.2
     with pytest.raises(ValueError, match="symmetric"):
-        prior.marginal_observation_covariance_action(
-            jacobian, indices, nonsymmetric, value
-        )
+        prior.marginal_observation_covariance_action(jacobian, indices, nonsymmetric, value)
     indefinite = local.copy()
     indefinite[0] = -np.eye(3)
     with pytest.raises(ValueError, match="positive semidefinite"):
-        prior.marginal_observation_covariance_action(
-            jacobian, indices, indefinite, value
-        )
+        prior.marginal_observation_covariance_action(jacobian, indices, indefinite, value)
 
 
 def test_samples_are_deterministic_and_follow_tree_innovations() -> None:
