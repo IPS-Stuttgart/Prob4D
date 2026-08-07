@@ -97,9 +97,7 @@ class GaugeTreeSquareRootPriorV1(GaugeTreePriorMethods):
             "gauge_ids": list(self.gauge_ids),
             "parent_indices": [int(value) for value in self.parent_indices],
             "transition_matrices": canonical_array_descriptor(self.transition_matrices),
-            "innovation_scale_tril": canonical_array_descriptor(
-                self.innovation_scale_tril
-            ),
+            "innovation_scale_tril": canonical_array_descriptor(self.innovation_scale_tril),
             "source_joint_covariance_sha256": self.source_joint_covariance_sha256,
         }
 
