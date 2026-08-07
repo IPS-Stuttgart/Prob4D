@@ -26,9 +26,55 @@ from ._gauge_tree_artifact_common import (
 )
 from ._gauge_tree_artifact_io import (
     LoadedGaugeTreePriorArtifactV1,
+    _member_from_array,
+    _npy_payload,
     load_gauge_tree_prior_artifact,
     write_gauge_tree_prior_artifact,
 )
+from .gauge_tree_prior import GaugeTreeSquareRootPriorV1
+
+
+def gauge_tree_prior_artifact_id(prior: GaugeTreeSquareRootPriorV1) -> str:
+    """Return the deterministic portable-artifact identity without writing files."""
+
+    if not isinstance(prior, GaugeTreeSquareRootPriorV1):
+        raise TypeError("prior must be a GaugeTreeSquareRootPriorV1")
+    parent_array, parent_payload = _npy_payload(
+        prior.parent_indices,
+        dtype=np.dtype("<i8"),
+    )
+    transition_array, transition_payload = _npy_payload(
+        prior.transition_matrices,
+        dtype=np.dtype("<f8"),
+    )
+    scale_array, scale_payload = _npy_payload(
+        prior.innovation_scale_tril,
+        dtype=np.dtype("<f8"),
+    )
+    manifest = GaugeTreePriorArtifactV1(
+        prior_id=prior.prior_id,
+        gauge_ids=prior.gauge_ids,
+        representation_semantics=prior.representation_semantics,
+        source_joint_covariance_sha256=prior.source_joint_covariance_sha256,
+        parent_indices=_member_from_array(
+            "parent-indices",
+            parent_array,
+            parent_payload,
+        ),
+        transition_matrices=_member_from_array(
+            "transition-matrices",
+            transition_array,
+            transition_payload,
+        ),
+        innovation_scale_tril=_member_from_array(
+            "innovation-scale-tril",
+            scale_array,
+            scale_payload,
+        ),
+    )
+    if manifest.artifact_id is None:
+        raise RuntimeError("gauge-tree artifact identity was not derived")
+    return manifest.artifact_id
 
 
 def artifact_summary(
@@ -208,6 +254,7 @@ __all__ = [
     "GaugeTreePriorArtifactV1",
     "LoadedGaugeTreePriorArtifactV1",
     "artifact_summary",
+    "gauge_tree_prior_artifact_id",
     "load_gauge_tree_prior_artifact",
     "main",
     "write_gauge_tree_prior_artifact",
