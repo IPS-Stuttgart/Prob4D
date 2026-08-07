@@ -1,0 +1,72 @@
+name: Sparse gauge-tree prior
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/sparse-gauge-tree-prior.yml"
+      - "docs/sparse-gauge-tree-prior.md"
+      - "docs/sparse-observation-factor-stack.md"
+      - "src/prob4d/_immutable_array.py"
+      - "src/prob4d/gauge_tree_prior.py"
+      - "src/prob4d/sparse_observation_factors.py"
+      - "tests/test_gauge_tree_prior.py"
+      - "tests/test_sparse_observation_factors.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sparse-gauge-tree-prior-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact reviewed head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install development environment
+        run: |
+          set -euo pipefail
+          python -m pip install --no-cache-dir -e ".[dev]"
+          python -m pip check
+
+      - name: Check focused quality
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=(
+            src/prob4d/gauge_tree_prior.py
+            tests/test_gauge_tree_prior.py
+          )
+          python -m ruff check -- "${files[@]}"
+          python -m ruff format --check --diff "${files[@]}"
+          python -m mypy --python-version 3.12 src/prob4d/gauge_tree_prior.py
+
+      - name: Run focused and adjacent tests
+        run: |
+          set -euo pipefail
+          python -m pytest -q \
+            tests/test_gauge_tree_prior.py \
+            tests/test_sparse_observation_factors.py \
+            tests/test_observation_factors.py \
+            tests/test_provider_v2_factor_bundle.py
+          python -m compileall -q src/prob4d tests
