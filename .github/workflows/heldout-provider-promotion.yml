@@ -14,17 +14,22 @@ on:
       - "docs/material-identity-cli.md"
       - "docs/material-identity-marginalization.md"
       - "docs/material-identity-stream.md"
+      - "docs/target-provider-admission.md"
       - "src/prob4d/cli.py"
       - "src/prob4d/heldout_promotion.py"
       - "src/prob4d/_heldout_promotion_*.py"
       - "src/prob4d/promotion_evidence.py"
       - "src/prob4d/material_identity_cli.py"
+      - "src/prob4d/target_admission_enforcement.py"
+      - "src/prob4d/target_provider_admission.py"
       - "scripts/ci/check_sdist.py"
       - "tests/test_cli.py"
       - "tests/test_heldout_promotion.py"
       - "tests/test_heldout_promotion_diagnosis.py"
       - "tests/test_promotion_evidence.py"
       - "tests/test_material_identity_cli.py"
+      - "tests/test_target_admission_enforcement.py"
+      - "tests/test_target_provider_admission.py"
   workflow_dispatch:
 
 permissions:
@@ -65,24 +70,34 @@ jobs:
             src/prob4d/_heldout_promotion_*.py \
             src/prob4d/promotion_evidence.py \
             src/prob4d/material_identity_cli.py \
+            src/prob4d/target_admission_enforcement.py \
+            src/prob4d/target_provider_admission.py \
             tests/test_heldout_promotion.py \
             tests/test_heldout_promotion_diagnosis.py \
             tests/test_promotion_evidence.py \
-            tests/test_material_identity_cli.py
+            tests/test_material_identity_cli.py \
+            tests/test_target_admission_enforcement.py \
+            tests/test_target_provider_admission.py
           python -m ruff format --check \
             src/prob4d/heldout_promotion.py \
             src/prob4d/_heldout_promotion_*.py \
             src/prob4d/promotion_evidence.py \
             src/prob4d/material_identity_cli.py \
+            src/prob4d/target_admission_enforcement.py \
+            src/prob4d/target_provider_admission.py \
             tests/test_heldout_promotion.py \
             tests/test_heldout_promotion_diagnosis.py \
             tests/test_promotion_evidence.py \
-            tests/test_material_identity_cli.py
+            tests/test_material_identity_cli.py \
+            tests/test_target_admission_enforcement.py \
+            tests/test_target_provider_admission.py
           python -m mypy \
             src/prob4d/heldout_promotion.py \
             src/prob4d/_heldout_promotion_*.py \
             src/prob4d/promotion_evidence.py \
-            src/prob4d/material_identity_cli.py
+            src/prob4d/material_identity_cli.py \
+            src/prob4d/target_admission_enforcement.py \
+            src/prob4d/target_provider_admission.py
       - name: Run focused regressions
         run: >-
           python -m pytest -q
@@ -93,6 +108,8 @@ jobs:
           tests/test_material_identity_cli.py
           tests/test_material_identity_mixture.py
           tests/test_material_identity_stream.py
+          tests/test_target_admission_enforcement.py
+          tests/test_target_provider_admission.py
       - name: Verify installed grouped commands
         run: |
           prob4d experiment heldout-provider --help
@@ -106,11 +123,15 @@ jobs:
           )
           from prob4d.material_identity_cli import mixture_from_config
           from prob4d.promotion_evidence import PROMOTION_EVIDENCE_CARD_SCHEMA
+          from prob4d.target_admission_enforcement import (
+              TARGET_PROVIDER_ADMISSION_METADATA_KEY,
+          )
 
           assert HELDOUT_PROMOTION_DIAGNOSIS_SCHEMA.startswith("prob4d.")
           assert HELDOUT_PROMOTION_LOCK_SCHEMA.startswith("prob4d.")
           assert HELDOUT_PROMOTION_REPORT_SCHEMA.startswith("prob4d.")
           assert PROMOTION_EVIDENCE_CARD_SCHEMA.startswith("prob4d.")
+          assert TARGET_PROVIDER_ADMISSION_METADATA_KEY == "target_provider_admission_id"
           assert callable(build_promotion_evidence_card)
           assert callable(mixture_from_config)
           PY
