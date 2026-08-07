@@ -7,10 +7,9 @@ on:
       - ".github/workflows/sparse-gauge-tree-prior.yml"
       - "docs/sparse-gauge-tree-prior.md"
       - "docs/sparse-observation-factor-stack.md"
-      - "src/prob4d/_immutable_array.py"
+      - "src/prob4d/_gauge_tree_*.py"
       - "src/prob4d/gauge_tree_prior.py"
-      - "src/prob4d/sparse_observation_factors.py"
-      - "tests/test_gauge_tree_prior.py"
+      - "tests/test_gauge_tree_*.py"
       - "tests/test_sparse_observation_factors.py"
   workflow_dispatch:
 
@@ -54,17 +53,29 @@ jobs:
         run: |
           set -euo pipefail
           files=(
+            src/prob4d/_gauge_tree_algebra.py
+            src/prob4d/_gauge_tree_common.py
+            src/prob4d/_gauge_tree_factorization.py
+            src/prob4d/_gauge_tree_methods.py
+            src/prob4d/_gauge_tree_observation.py
+            src/prob4d/_gauge_tree_selection.py
             src/prob4d/gauge_tree_prior.py
+            tests/test_gauge_tree_contract.py
+            tests/test_gauge_tree_observation.py
             tests/test_gauge_tree_prior.py
           )
           python -m ruff check -- "${files[@]}"
           python -m ruff format --check --diff "${files[@]}"
-          python -m mypy --python-version 3.12 src/prob4d/gauge_tree_prior.py
+          python -m mypy --python-version 3.12 \
+            src/prob4d/_gauge_tree_*.py \
+            src/prob4d/gauge_tree_prior.py
 
       - name: Run focused and adjacent tests
         run: |
           set -euo pipefail
           python -m pytest -q \
+            tests/test_gauge_tree_contract.py \
+            tests/test_gauge_tree_observation.py \
             tests/test_gauge_tree_prior.py \
             tests/test_sparse_observation_factors.py \
             tests/test_observation_factors.py \
