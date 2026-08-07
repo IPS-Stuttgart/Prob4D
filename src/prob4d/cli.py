@@ -10,8 +10,7 @@ from typing import Final
 from .command_registry import COMMANDS, Route
 
 _ROUTES: Final[dict[Route, tuple[str, str, str]]] = {
-    command.route: (command.module, command.function, command.description)
-    for command in COMMANDS
+    command.route: (command.module, command.function, command.description) for command in COMMANDS
 }
 
 
