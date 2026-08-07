@@ -20,7 +20,7 @@ def build_finite_sample_capability(
 ) -> FiniteSampleCapabilityV1:
     """Build a target-free report from one sealed promotion lock."""
 
-    strata = ()
+    strata: tuple[CalibrationStratumV1, ...] = ()
     if calibration_strata is not None:
         strata = tuple(
             CalibrationStratumV1(name, tuple(group_ids))
