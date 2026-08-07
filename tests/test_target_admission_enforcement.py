@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import copy
 from pathlib import Path
 
 import pytest
@@ -15,6 +14,7 @@ from prob4d.provider_evaluation_target_authorization import (
     PROVIDER_EVALUATION_TARGET_AUTHORIZATION_FIELD,
     PROVIDER_EVALUATION_TARGET_AUTHORIZATION_SCHEMA,
     PROVIDER_EVALUATION_TARGET_AUTHORIZATION_VERSION,
+    PROVIDER_EVALUATION_TARGET_AUTHORIZED_REPORT_VERSION,
 )
 from prob4d.target_admission_enforcement import (
     TARGET_PROVIDER_ADMISSION_METADATA_KEY,
@@ -188,9 +188,25 @@ def _provider_report(
         **descriptor,
         "provider_evaluation_target_authorization_id": _sha256_json(descriptor),
     }
+    records = [
+        {
+            "case_id": f"case-{group_id}",
+            "group_id": group_id,
+            "method_id": method_id,
+        }
+        for group_id in lock.target_group_ids
+        for method_id in lock.provider_method_ids
+    ]
     return {
+        "schema_name": "prob4d.provider-evaluation-report",
+        "schema_version": PROVIDER_EVALUATION_TARGET_AUTHORIZED_REPORT_VERSION,
         "source_manifest_sha256": lock.provider_evaluation_manifest_sha256,
+        "reference_method": lock.provider_reference_method_id,
+        "bootstrap_resamples": lock.bootstrap_resamples,
+        "bootstrap_seed": lock.bootstrap_seed,
+        "legacy_artifacts_allowed": False,
         "manifest_metadata": {},
+        "cases": records,
         PROVIDER_EVALUATION_TARGET_AUTHORIZATION_FIELD: authorization,
     }
 
@@ -251,7 +267,10 @@ def test_provider_and_query_streams_must_bind_the_same_admission(tmp_path: Path)
         load_target_admission_for_execution(
             lock,
             path,
-            provider_report={"manifest_metadata": {}},
+            provider_report={
+                "schema_name": "prob4d.provider-evaluation-report",
+                "schema_version": PROVIDER_EVALUATION_TARGET_AUTHORIZED_REPORT_VERSION,
+            },
             query_metadata=metadata,
         )
     with pytest.raises(ValueError, match="query metadata must bind"):
