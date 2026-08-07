@@ -86,6 +86,7 @@ from .promotion_evidence import (
     load_promotion_evidence_card,
     write_promotion_evidence_card,
 )
+from .target_admission_enforcement import load_target_admission_for_execution
 
 
 def _freeze(arguments: Sequence[str]) -> int:
@@ -122,16 +123,30 @@ def _run(arguments: Sequence[str]) -> int:
     parser.add_argument("lock", type=Path)
     parser.add_argument("--provider-report", type=Path, required=True)
     parser.add_argument("--query-results", type=Path, required=True)
+    parser.add_argument(
+        "--target-provider-admission",
+        type=Path,
+        help=(
+            "required for cohort-bound locks; both provider and query metadata "
+            "must bind this exact admission ID"
+        ),
+    )
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--require-pass", action="store_true")
     parsed = parser.parse_args(arguments)
     lock = load_promotion_lock(parsed.lock)
     raw_query, _ = _load_json(parsed.query_results, name="raw promotion query results")
-    query_results = query_results_from_raw(raw_query, lock=lock)
     provider_report, provider_bytes = _load_json(
         parsed.provider_report,
         name="provider evaluation report",
     )
+    load_target_admission_for_execution(
+        lock,
+        parsed.target_provider_admission,
+        provider_report=provider_report,
+        query_metadata=raw_query.get("metadata"),
+    )
+    query_results = query_results_from_raw(raw_query, lock=lock)
     report = evaluate_heldout_promotion(
         lock,
         query_results,
@@ -189,6 +204,14 @@ def _verify(arguments: Sequence[str]) -> int:
     parser.add_argument("--query-results", type=Path, required=True)
     parser.add_argument("--report", type=Path, required=True)
     parser.add_argument(
+        "--target-provider-admission",
+        type=Path,
+        help=(
+            "required for cohort-bound locks; replay provider/query binding to "
+            "this exact admission ID"
+        ),
+    )
+    parser.add_argument(
         "--evidence-card",
         type=Path,
         help="optionally verify the derived paper-facing evidence card",
@@ -199,6 +222,12 @@ def _verify(arguments: Sequence[str]) -> int:
     provider_report, provider_bytes = _load_json(
         parsed.provider_report,
         name="provider evaluation report",
+    )
+    admission = load_target_admission_for_execution(
+        lock,
+        parsed.target_provider_admission,
+        provider_report=provider_report,
+        query_metadata=query_results.metadata,
     )
     observed = load_promotion_report(parsed.report)
     replayed = evaluate_heldout_promotion(
@@ -217,19 +246,16 @@ def _verify(arguments: Sequence[str]) -> int:
         observed_evidence = load_promotion_evidence_card(parsed.evidence_card)
         if observed_evidence != replayed_evidence:
             raise ValueError("promotion evidence card does not match deterministic replay")
-    print(
-        json.dumps(
-            {
-                "promotion_lock_id": lock.promotion_lock_id,
-                "query_results_id": query_results.query_results_id,
-                "report_id": observed.report_id,
-                "evidence_card_id": replayed_evidence["evidence_card_id"],
-                "overall_passed": observed.overall_passed,
-            },
-            sort_keys=True,
-            indent=2,
-        )
-    )
+    summary = {
+        "promotion_lock_id": lock.promotion_lock_id,
+        "query_results_id": query_results.query_results_id,
+        "report_id": observed.report_id,
+        "evidence_card_id": replayed_evidence["evidence_card_id"],
+        "overall_passed": observed.overall_passed,
+    }
+    if admission is not None:
+        summary["target_provider_admission_id"] = admission.target_provider_admission_id
+    print(json.dumps(summary, sort_keys=True, indent=2))
     return 0
 
 

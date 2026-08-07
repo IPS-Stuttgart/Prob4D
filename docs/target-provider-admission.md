@@ -95,11 +95,12 @@ Admission performs this order of operations:
 2. require their calibration/target splits and BayesianPhysTwin source identity to
    agree exactly;
 3. require the lock's frozen cohort-binding ID;
-4. load and validate provider-manifest JSON only;
-5. compare provider revision and model-set identity to the lock;
-6. require the same provider contract across all target objects;
-7. derive causal payload admission from each manifest's frame lineage; and
-8. write one content-addressed no-clobber artifact.
+4. read each provider manifest into a private exact-byte snapshot;
+5. reject source mutation between snapshot creation and completion of admission;
+6. compare provider revision and model-set identity to the lock;
+7. require the same provider contract across all target objects;
+8. derive causal payload admission from each manifest's frame lineage; and
+9. write one content-addressed no-clobber artifact.
 
 The command intentionally does **not** call
 `verify_prediction_provider_manifest`, because that operation opens payload
@@ -111,19 +112,60 @@ identity, and requires exact equality with the retained artifact. Moving or
 rewriting a provider manifest, changing its formatting bytes, changing a cutoff,
 or changing any semantic identity invalidates replay.
 
-## Promotion integration boundary
+## Mandatory result-stream binding
 
-Before generating target provider metrics or guarded BayesianPhysTwin rows, retain
-the admission ID in the target execution ledger and in the metadata of every
-result bundle derived from the admitted manifests. A subsequent integration step
-will make this identifier mandatory on the held-out `run` command; the current
-artifact already provides the strict, replayable source of truth required for
-that gate.
+A cohort-bound held-out promotion cannot run merely because a valid admission
+artifact exists. The provider evaluation report and BayesianPhysTwin query-result
+stream must independently name the same admission ID:
+
+```json
+{
+  "target_provider_admission_id": "<SHA-256 from target-provider-admission.json>"
+}
+```
+
+The provider report places this field in top-level `manifest_metadata`. The raw
+and sealed query result place it in top-level `metadata`. The held-out execution
+must then supply the retained artifact explicitly:
+
+```bash
+prob4d experiment heldout-provider run promotion-lock.json \
+  --target-provider-admission target-provider-admission.json \
+  --provider-report outputs/provider/provider_evaluation.json \
+  --query-results query-results.raw.json \
+  --output-dir outputs/promotion
+
+prob4d experiment heldout-provider verify promotion-lock.json \
+  --target-provider-admission target-provider-admission.json \
+  --provider-report outputs/provider/provider_evaluation.json \
+  --query-results outputs/promotion/query_results.sealed.json \
+  --report outputs/promotion/promotion_report.json
+```
+
+Before query rows are sealed or provider gates are evaluated, `run` requires:
+
+- a promotion lock with the same frozen cohort-binding identity;
+- an admission bound to the exact promotion-lock identity, source revision,
+  prediction run spec, provider revision, model set, and target groups;
+- the provider report's `manifest_metadata.target_provider_admission_id` to equal
+  the retained admission identity; and
+- the query stream's `metadata.target_provider_admission_id` to equal that same
+  identity.
+
+`verify` replays the same checks against the sealed query results. Missing,
+malformed, or mismatched admission identities fail closed. A symbolic-link
+admission path is inadmissible.
+
+Controlled and synthetic promotion locks without a frozen `cohort_binding` retain
+the historical execution path and artifact semantics. Supplying an admission to
+such a lock is rejected rather than silently converting it into a physical-cohort
+protocol.
 
 ## Claim boundary
 
-A passing admission proves only that the exact target manifest metadata agrees
-with the frozen lock and cohort under the declared information order. It does not
-establish that payload bytes are correct, that the provider is competent, that
-uncertainty is calibrated, that BayesianPhysTwin improves, that Causal4D improves,
-or that any method is safe or state of the art.
+A passing admission and execution binding prove only that the exact target
+manifest metadata and both result streams agree with the frozen lock and cohort
+under the declared information order. They do not establish that payload bytes
+are correct, that the provider is competent, that uncertainty is calibrated,
+that BayesianPhysTwin improves, that Causal4D improves, or that any method is safe
+or state of the art.
