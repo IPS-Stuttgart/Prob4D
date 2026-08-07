@@ -19,9 +19,7 @@ IntArray: TypeAlias = NDArray[np.int64]
 JOINT_VISUAL_BIAS_LAYOUT_SCHEMA: Final = "prob4d.joint-visual-bias-layout"
 JOINT_VISUAL_BIAS_LAYOUT_VERSION: Final = 1
 JOINT_VISUAL_BIAS_BASIS_ORDER: Final = "shared-prefix-then-camera-mode-major-v1"
-JOINT_VISUAL_BIAS_COVARIANCE_SEMANTICS: Final = (
-    "complete-joint-selected-coefficient-covariance-v1"
-)
+JOINT_VISUAL_BIAS_COVARIANCE_SEMANTICS: Final = "complete-joint-selected-coefficient-covariance-v1"
 JOINT_VISUAL_BIAS_METADATA_KEY: Final = "joint_visual_bias_layout_v1"
 JOINT_VISUAL_BIAS_CLAIM_BOUNDARY: Final = (
     "Source/calibration-group joint visual-bias design and covariance only. "
@@ -112,9 +110,7 @@ def _layout_component(value: object, *, name: str) -> str:
 
 def _sha256(value: object, *, name: str) -> str:
     digest = _nonempty_string(value, name=name)
-    if len(digest) != 64 or any(
-        character not in "0123456789abcdef" for character in digest
-    ):
+    if len(digest) != 64 or any(character not in "0123456789abcdef" for character in digest):
         raise ValueError(f"{name} must be a lowercase SHA-256 digest")
     return digest
 
@@ -129,8 +125,7 @@ def _string_tuple(
     if type(value) is not tuple:
         raise TypeError(f"{name} must be a canonical tuple")
     result = tuple(
-        _layout_component(item, name=f"{name}[{index}]")
-        for index, item in enumerate(value)
+        _layout_component(item, name=f"{name}[{index}]") for index, item in enumerate(value)
     )
     if len(result) < minimum:
         raise ValueError(f"{name} must contain at least {minimum} values")
@@ -162,8 +157,7 @@ def _json_nonempty_string_tuple(value: object, *, name: str) -> tuple[str, ...]:
     if not isinstance(value, Sequence) or isinstance(value, (str, bytes, bytearray)):
         raise ValueError(f"{name} must be a JSON array of strings")
     result = tuple(
-        _nonempty_string(item, name=f"{name}[{index}]")
-        for index, item in enumerate(value)
+        _nonempty_string(item, name=f"{name}[{index}]") for index, item in enumerate(value)
     )
     if len(set(result)) != len(result):
         raise ValueError(f"{name} must contain unique values")
@@ -211,6 +205,7 @@ def _metadata(
     if collisions:
         raise ValueError(f"{name} uses reserved keys: {collisions}")
     return frozen_finite_json_mapping(value, name=name)
+
 
 __all__ = [
     "FloatArray",
