@@ -125,11 +125,11 @@ class JointVisualBiasLayoutV1:
             ),
             layout_id=_sha256(value["layout_id"], name="layout_id"),
         )
-        expanded = _json_nonempty_string_tuple(
+        expanded_names = _json_nonempty_string_tuple(
             value["expanded_basis_names"],
             name="expanded_basis_names",
         )
-        if layout.basis_names != expanded:
+        if layout.basis_names != expanded_names:
             raise ValueError("joint visual-bias expanded basis names changed")
         return layout
 
@@ -165,7 +165,10 @@ def expand_joint_visual_bias_jacobian(
         name="camera_bias_jacobian",
         shape=(row_count, 3, len(layout.camera_basis_names)),
     )
-    expanded = np.zeros((row_count, 3, layout.basis_dimension), dtype=np.float64)
+    expanded = cast(
+        FloatArray,
+        np.zeros((row_count, 3, layout.basis_dimension), dtype=np.float64),
+    )
     shared_count = len(layout.shared_basis_names)
     if shared_count:
         expanded[:, :, :shared_count] = shared
