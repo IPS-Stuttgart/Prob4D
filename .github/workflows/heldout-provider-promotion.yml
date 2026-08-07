@@ -14,12 +14,15 @@ on:
       - "docs/material-identity-cli.md"
       - "docs/material-identity-marginalization.md"
       - "docs/material-identity-stream.md"
+      - "docs/provider-evaluation-decisions.md"
       - "docs/target-provider-admission.md"
       - "src/prob4d/cli.py"
       - "src/prob4d/heldout_promotion.py"
       - "src/prob4d/_heldout_promotion_*.py"
       - "src/prob4d/promotion_evidence.py"
       - "src/prob4d/material_identity_cli.py"
+      - "src/prob4d/provider_evaluation.py"
+      - "src/prob4d/provider_evaluation_target_authorization.py"
       - "src/prob4d/target_admission_enforcement.py"
       - "src/prob4d/target_provider_admission.py"
       - "scripts/ci/check_sdist.py"
@@ -28,6 +31,7 @@ on:
       - "tests/test_heldout_promotion_diagnosis.py"
       - "tests/test_promotion_evidence.py"
       - "tests/test_material_identity_cli.py"
+      - "tests/test_provider_evaluation_target_authorization.py"
       - "tests/test_target_admission_enforcement.py"
       - "tests/test_target_provider_admission.py"
   workflow_dispatch:
@@ -63,6 +67,7 @@ jobs:
         run: |
           python -m pip install -e ".[dev]"
           python -m pip install "numpy>=1.24,<2.3"
+          python -m pip check
       - name: Check focused source quality
         run: |
           python -m ruff check \
@@ -70,12 +75,15 @@ jobs:
             src/prob4d/_heldout_promotion_*.py \
             src/prob4d/promotion_evidence.py \
             src/prob4d/material_identity_cli.py \
+            src/prob4d/provider_evaluation.py \
+            src/prob4d/provider_evaluation_target_authorization.py \
             src/prob4d/target_admission_enforcement.py \
             src/prob4d/target_provider_admission.py \
             tests/test_heldout_promotion.py \
             tests/test_heldout_promotion_diagnosis.py \
             tests/test_promotion_evidence.py \
             tests/test_material_identity_cli.py \
+            tests/test_provider_evaluation_target_authorization.py \
             tests/test_target_admission_enforcement.py \
             tests/test_target_provider_admission.py
           python -m ruff format --check \
@@ -83,12 +91,15 @@ jobs:
             src/prob4d/_heldout_promotion_*.py \
             src/prob4d/promotion_evidence.py \
             src/prob4d/material_identity_cli.py \
+            src/prob4d/provider_evaluation.py \
+            src/prob4d/provider_evaluation_target_authorization.py \
             src/prob4d/target_admission_enforcement.py \
             src/prob4d/target_provider_admission.py \
             tests/test_heldout_promotion.py \
             tests/test_heldout_promotion_diagnosis.py \
             tests/test_promotion_evidence.py \
             tests/test_material_identity_cli.py \
+            tests/test_provider_evaluation_target_authorization.py \
             tests/test_target_admission_enforcement.py \
             tests/test_target_provider_admission.py
           python -m mypy \
@@ -96,6 +107,8 @@ jobs:
             src/prob4d/_heldout_promotion_*.py \
             src/prob4d/promotion_evidence.py \
             src/prob4d/material_identity_cli.py \
+            src/prob4d/provider_evaluation.py \
+            src/prob4d/provider_evaluation_target_authorization.py \
             src/prob4d/target_admission_enforcement.py \
             src/prob4d/target_provider_admission.py
       - name: Run focused regressions
@@ -108,6 +121,7 @@ jobs:
           tests/test_material_identity_cli.py
           tests/test_material_identity_mixture.py
           tests/test_material_identity_stream.py
+          tests/test_provider_evaluation_target_authorization.py
           tests/test_target_admission_enforcement.py
           tests/test_target_provider_admission.py
       - name: Verify installed grouped commands
@@ -123,6 +137,10 @@ jobs:
           )
           from prob4d.material_identity_cli import mixture_from_config
           from prob4d.promotion_evidence import PROMOTION_EVIDENCE_CARD_SCHEMA
+          from prob4d.provider_evaluation_target_authorization import (
+              PROVIDER_EVALUATION_TARGET_AUTHORIZATION_SCHEMA,
+              PROVIDER_EVALUATION_TARGET_AUTHORIZED_REPORT_VERSION,
+          )
           from prob4d.target_admission_enforcement import (
               TARGET_PROVIDER_ADMISSION_METADATA_KEY,
           )
@@ -131,6 +149,8 @@ jobs:
           assert HELDOUT_PROMOTION_LOCK_SCHEMA.startswith("prob4d.")
           assert HELDOUT_PROMOTION_REPORT_SCHEMA.startswith("prob4d.")
           assert PROMOTION_EVIDENCE_CARD_SCHEMA.startswith("prob4d.")
+          assert PROVIDER_EVALUATION_TARGET_AUTHORIZATION_SCHEMA.startswith("prob4d.")
+          assert PROVIDER_EVALUATION_TARGET_AUTHORIZED_REPORT_VERSION == 4
           assert TARGET_PROVIDER_ADMISSION_METADATA_KEY == "target_provider_admission_id"
           assert callable(build_promotion_evidence_card)
           assert callable(mixture_from_config)
