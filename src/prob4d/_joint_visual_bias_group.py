@@ -25,6 +25,7 @@ from ._joint_visual_bias_layout import (
 )
 from .visual_bias_calibration import VisualBiasCalibrationGroup
 
+
 @dataclass(frozen=True, slots=True)
 class JointVisualBiasCalibrationGroupV1:
     """One complete source/calibration object with a multiview joint-bias design."""
@@ -155,7 +156,6 @@ class JointVisualBiasCalibrationGroupV1:
             gauge_design=self.gauge_design,
             metadata=self._v1_metadata(include_artifact_id=True),
         )
-
 
 
 __all__ = ["JointVisualBiasCalibrationGroupV1"]
