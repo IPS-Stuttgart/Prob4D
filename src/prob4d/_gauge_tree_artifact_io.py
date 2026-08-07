@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import math
 import os
 import stat
 from dataclasses import dataclass
@@ -14,6 +15,7 @@ from typing import Any, cast
 import numpy as np
 
 from ._gauge_tree_artifact_common import (
+    MAX_NPY_HEADER_BYTES,
     MEMBER_NAMES,
     GaugeTreePriorArrayMemberV1,
     GaugeTreePriorArtifactV1,
@@ -168,6 +170,39 @@ def _member_from_array(
     )
 
 
+def _read_npy_header(
+    payload: bytes,
+    *,
+    name: str,
+) -> tuple[tuple[int, ...], bool, np.dtype[Any], int]:
+    buffer = io.BytesIO(payload)
+    try:
+        version = np.lib.format.read_magic(buffer)
+        if version == (1, 0):
+            shape, fortran_order, dtype = np.lib.format.read_array_header_1_0(
+                buffer,
+                max_header_size=MAX_NPY_HEADER_BYTES,
+            )
+        elif version == (2, 0):
+            shape, fortran_order, dtype = np.lib.format.read_array_header_2_0(
+                buffer,
+                max_header_size=MAX_NPY_HEADER_BYTES,
+            )
+        else:
+            raise ValueError(f"unsupported NPY format version {version}")
+    except (EOFError, ValueError) as error:
+        raise ValueError(f"{name} payload has an invalid bounded NPY header") from error
+    header_bytes = buffer.tell()
+    if header_bytes > MAX_NPY_HEADER_BYTES:
+        raise ValueError(f"{name} payload NPY header exceeds its bound")
+    return (
+        tuple(int(value) for value in shape),
+        bool(fortran_order),
+        np.dtype(dtype),
+        header_bytes,
+    )
+
+
 def _load_member(
     manifest_path: Path,
     member: GaugeTreePriorArrayMemberV1,
@@ -184,6 +219,23 @@ def _load_member(
         raise ValueError(f"{name} payload byte count mismatch")
     if hashlib.sha256(payload).hexdigest() != member.file_sha256:
         raise ValueError(f"{name} payload SHA-256 mismatch")
+
+    header_shape, fortran_order, header_dtype, header_bytes = _read_npy_header(
+        payload,
+        name=name,
+    )
+    if header_shape != member.shape:
+        raise ValueError(f"{name} payload NPY header shape mismatch")
+    if fortran_order:
+        raise ValueError(f"{name} payload must use C-order NPY storage")
+    if header_dtype.hasobject or header_dtype.str != member.dtype:
+        raise ValueError(f"{name} payload NPY header dtype mismatch")
+    expected_bytes = header_bytes + math.prod(header_shape) * header_dtype.itemsize
+    if len(payload) < expected_bytes:
+        raise ValueError(f"{name} payload is truncated")
+    if len(payload) > expected_bytes:
+        raise ValueError(f"{name} payload contains trailing bytes")
+
     buffer = io.BytesIO(payload)
     try:
         array = np.load(buffer, allow_pickle=False)
