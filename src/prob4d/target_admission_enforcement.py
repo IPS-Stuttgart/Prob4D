@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from pathlib import Path
 
 from ._heldout_promotion_common import (
@@ -23,9 +22,7 @@ TARGET_PROVIDER_ADMISSION_METADATA_KEY = "target_provider_admission_id"
 def _metadata_admission_id(value: object, *, name: str) -> str:
     metadata = _strict_mapping(value, name=name)
     if TARGET_PROVIDER_ADMISSION_METADATA_KEY not in metadata:
-        raise ValueError(
-            f"{name} must bind {TARGET_PROVIDER_ADMISSION_METADATA_KEY!r}"
-        )
+        raise ValueError(f"{name} must bind {TARGET_PROVIDER_ADMISSION_METADATA_KEY!r}")
     return _strict_digest(
         metadata[TARGET_PROVIDER_ADMISSION_METADATA_KEY],
         name=f"{name}.{TARGET_PROVIDER_ADMISSION_METADATA_KEY}",
@@ -37,8 +34,8 @@ def validate_target_admission_execution_binding(
     lock: HeldoutProviderPromotionLockV1,
     admission: HeldoutTargetProviderAdmissionV1,
     *,
-    provider_report: Mapping[str, object],
-    query_metadata: Mapping[str, object],
+    provider_report: object,
+    query_metadata: object,
 ) -> None:
     """Bind provider and query streams to one exact target admission."""
 
@@ -47,8 +44,9 @@ def validate_target_admission_execution_binding(
         raise ValueError("target admission may only be used with a cohort-bound promotion lock")
     validate_target_provider_admission_against_lock(admission, lock)
     expected = admission.target_provider_admission_id
+    provider_mapping = _strict_mapping(provider_report, name="provider evaluation report")
     provider_id = _metadata_admission_id(
-        provider_report.get("manifest_metadata"),
+        provider_mapping.get("manifest_metadata"),
         name="provider report manifest_metadata",
     )
     query_id = _metadata_admission_id(
@@ -65,8 +63,8 @@ def load_target_admission_for_execution(
     lock: HeldoutProviderPromotionLockV1,
     admission_path: str | Path | None,
     *,
-    provider_report: Mapping[str, object],
-    query_metadata: Mapping[str, object],
+    provider_report: object,
+    query_metadata: object,
 ) -> HeldoutTargetProviderAdmissionV1 | None:
     """Load the mandatory admission for a real cohort, preserving legacy controls."""
 
