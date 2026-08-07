@@ -6,6 +6,7 @@ import hashlib
 import io
 import json
 import os
+import stat
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -21,6 +22,9 @@ from ._gauge_tree_artifact_common import (
 )
 from ._gauge_tree_common import canonical_array_descriptor
 from .gauge_tree_prior import GaugeTreeSquareRootPriorV1
+
+MAX_MANIFEST_BYTES = 1_048_576
+_READ_CHUNK_BYTES = 1_048_576
 
 
 def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -43,25 +47,62 @@ def _reject_symlink_components(path: Path) -> None:
             raise ValueError(f"artifact path crosses symbolic link {candidate}")
 
 
-def _read_stable_bytes(path: Path, *, name: str) -> bytes:
+def _read_stable_bytes(
+    path: Path,
+    *,
+    name: str,
+    maximum_bytes: int,
+) -> bytes:
+    if maximum_bytes < 1:
+        raise ValueError("maximum_bytes must be positive")
     _reject_symlink_components(path)
+    flags = (
+        os.O_RDONLY
+        | int(getattr(os, "O_CLOEXEC", 0))
+        | int(getattr(os, "O_NOFOLLOW", 0))
+    )
     try:
-        before = os.stat(path, follow_symlinks=False)
-        payload = path.read_bytes()
-        after = os.stat(path, follow_symlinks=False)
+        descriptor = os.open(path, flags)
     except OSError as error:
         raise ValueError(f"{name} is unreadable") from error
+    try:
+        before = os.fstat(descriptor)
+        if not stat.S_ISREG(before.st_mode):
+            raise ValueError(f"{name} must be a regular file")
+        if before.st_size > maximum_bytes:
+            raise ValueError(f"{name} exceeds its maximum byte count")
+        chunks: list[bytes] = []
+        total = 0
+        while True:
+            chunk = os.read(
+                descriptor,
+                min(_READ_CHUNK_BYTES, maximum_bytes + 1 - total),
+            )
+            if not chunk:
+                break
+            chunks.append(chunk)
+            total += len(chunk)
+            if total > maximum_bytes:
+                raise ValueError(f"{name} exceeds its maximum byte count")
+        after = os.fstat(descriptor)
+    except OSError as error:
+        raise ValueError(f"{name} is unreadable") from error
+    finally:
+        os.close(descriptor)
+    payload = b"".join(chunks)
     identity_before = (
         before.st_dev,
         before.st_ino,
         before.st_size,
         before.st_mtime_ns,
+        before.st_ctime_ns,
     )
     identity_after = (
         after.st_dev,
         after.st_ino,
         after.st_size,
         after.st_mtime_ns,
+        after.st_ctime_ns,
     )
     if identity_before != identity_after or len(payload) != after.st_size:
         raise ValueError(f"{name} changed while it was being read")
@@ -79,7 +120,11 @@ def _write_create_if_absent(path: Path, payload: bytes, *, name: str) -> None:
             0o644,
         )
     except FileExistsError:
-        if _read_stable_bytes(path, name=name) != payload:
+        if _read_stable_bytes(
+            path,
+            name=name,
+            maximum_bytes=len(payload),
+        ) != payload:
             raise FileExistsError(f"refusing to replace different {name}: {path}")
         return
     try:
@@ -130,7 +175,11 @@ def _load_member(
     name: str,
 ) -> np.ndarray:
     path = manifest_path.parent / member.path
-    payload = _read_stable_bytes(path, name=f"{name} payload")
+    payload = _read_stable_bytes(
+        path,
+        name=f"{name} payload",
+        maximum_bytes=member.byte_count,
+    )
     if len(payload) != member.byte_count:
         raise ValueError(f"{name} payload byte count mismatch")
     if hashlib.sha256(payload).hexdigest() != member.file_sha256:
@@ -173,7 +222,11 @@ def load_gauge_tree_prior_artifact(
     """Load an exact manifest snapshot and all content-addressed NPY members."""
 
     path = Path(manifest_path)
-    payload = _read_stable_bytes(path, name="gauge-tree prior manifest")
+    payload = _read_stable_bytes(
+        path,
+        name="gauge-tree prior manifest",
+        maximum_bytes=MAX_MANIFEST_BYTES,
+    )
     try:
         raw = json.loads(
             payload.decode("utf-8"),
