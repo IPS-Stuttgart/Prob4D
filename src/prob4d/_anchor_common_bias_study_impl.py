@@ -210,14 +210,8 @@ def _differential_case_scores(
             * math.sqrt(config.dimension)
         )
         difference += biased[:, :, None] * (_direction(config.dimension) * amplitude)
-    variance = (
-        2.0
-        * config.provider_sigma**2
-        * (1.0 - config.provider_cross_correlation)
-    )
-    row_scores = np.sqrt(
-        np.sum(np.square(difference), axis=2) / (config.dimension * variance)
-    )
+    variance = 2.0 * config.provider_sigma**2 * (1.0 - config.provider_cross_correlation)
+    row_scores = np.sqrt(np.sum(np.square(difference), axis=2) / (config.dimension * variance))
     return _higher_quantile(row_scores, config.row_quantile)
 
 
@@ -252,14 +246,9 @@ def _anchor_common_case_scores(
         amplitude = anchor_drift_sigma * config.provider_sigma * math.sqrt(config.dimension)
         common_residual -= direction * amplitude
     variance = (
-        config.provider_sigma**2
-        * (1.0 + config.provider_cross_correlation)
-        / 2.0
-        + anchor_sigma**2
+        config.provider_sigma**2 * (1.0 + config.provider_cross_correlation) / 2.0 + anchor_sigma**2
     )
-    row_scores = np.sqrt(
-        np.sum(np.square(common_residual), axis=2) / (config.dimension * variance)
-    )
+    row_scores = np.sqrt(np.sum(np.square(common_residual), axis=2) / (config.dimension * variance))
     return _higher_quantile(row_scores, config.row_quantile)
 
 
@@ -280,8 +269,8 @@ def run_study(config: StudyConfig, *, source_revision: str) -> dict[str, Any]:
     differential_calibration = _differential_case_scores(
         _seed_sequence(config.seed, 1), config, config.calibration_groups
     )
-    differential_threshold, differential_order, differential_bound = (
-        finite_sample_upper_threshold(differential_calibration, config.miscoverage)
+    differential_threshold, differential_order, differential_bound = finite_sample_upper_threshold(
+        differential_calibration, config.miscoverage
     )
     differential_clean = _differential_case_scores(
         _seed_sequence(config.seed, 2), config, config.target_groups
@@ -305,9 +294,7 @@ def run_study(config: StudyConfig, *, source_revision: str) -> dict[str, Any]:
     power_grid: list[dict[str, Any]] = []
     reference: dict[str, Any] | None = None
     for sigma_index, anchor_sigma_ratio in enumerate(config.anchor_sigma_ratios):
-        for support_index, anchor_support_fraction in enumerate(
-            config.anchor_support_fractions
-        ):
+        for support_index, anchor_support_fraction in enumerate(config.anchor_support_fractions):
             calibration = _anchor_common_case_scores(
                 _seed_sequence(config.seed, 100, sigma_index, support_index),
                 config,
@@ -315,9 +302,7 @@ def run_study(config: StudyConfig, *, source_revision: str) -> dict[str, Any]:
                 anchor_sigma_ratio,
                 anchor_support_fraction,
             )
-            threshold, order, bound = finite_sample_upper_threshold(
-                calibration, config.miscoverage
-            )
+            threshold, order, bound = finite_sample_upper_threshold(calibration, config.miscoverage)
             clean = _anchor_common_case_scores(
                 _seed_sequence(config.seed, 101, sigma_index, support_index),
                 config,
@@ -345,9 +330,7 @@ def run_study(config: StudyConfig, *, source_revision: str) -> dict[str, Any]:
             record = {
                 "anchor_sigma_ratio": float(anchor_sigma_ratio),
                 "anchor_support_fraction": float(anchor_support_fraction),
-                "anchor_rows": max(
-                    1, int(round(config.rows_per_group * anchor_support_fraction))
-                ),
+                "anchor_rows": max(1, int(round(config.rows_per_group * anchor_support_fraction))),
                 "threshold": threshold,
                 "conformal_order": order,
                 "guaranteed_miscoverage_upper_bound": bound,
@@ -358,8 +341,7 @@ def run_study(config: StudyConfig, *, source_revision: str) -> dict[str, Any]:
             power_grid.append(record)
             if (
                 anchor_sigma_ratio == config.reference_anchor_sigma_ratio
-                and anchor_support_fraction
-                == config.reference_anchor_support_fraction
+                and anchor_support_fraction == config.reference_anchor_support_fraction
             ):
                 reference = record
 
@@ -370,15 +352,11 @@ def run_study(config: StudyConfig, *, source_revision: str) -> dict[str, Any]:
         "threshold": differential_threshold,
         "conformal_order": differential_order,
         "guaranteed_miscoverage_upper_bound": differential_bound,
-        "clean_false_rejection_rate": _rate(
-            differential_clean, differential_threshold
-        ),
+        "clean_false_rejection_rate": _rate(differential_clean, differential_threshold),
         "provider_specific_bias_rejection_rate": _rate(
             differential_provider_specific, differential_threshold
         ),
-        "shared_common_bias_rejection_rate": _rate(
-            differential_shared, differential_threshold
-        ),
+        "shared_common_bias_rejection_rate": _rate(differential_shared, differential_threshold),
     }
     gates = {
         "differential_clean_false_rejection_le_0_08": (
@@ -456,9 +434,9 @@ def _config_json(config: StudyConfig) -> dict[str, Any]:
 
 def _report_id(report: dict[str, Any]) -> str:
     payload = {key: value for key, value in report.items() if key != "report_id"}
-    encoded = json.dumps(
-        payload, sort_keys=True, separators=(",", ":"), allow_nan=False
-    ).encode("utf-8")
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False).encode(
+        "utf-8"
+    )
     return hashlib.sha256(encoded).hexdigest()
 
 

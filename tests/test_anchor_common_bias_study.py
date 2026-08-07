@@ -61,9 +61,7 @@ def test_anchor_power_improves_with_support_at_fixed_precision() -> None:
     ]
     assert records[0]["anchor_support_fraction"] == 0.20
     assert records[1]["anchor_support_fraction"] == 1.0
-    assert records[1]["shared_bias_rejection_rate"] >= records[0][
-        "shared_bias_rejection_rate"
-    ]
+    assert records[1]["shared_bias_rejection_rate"] >= records[0]["shared_bias_rejection_rate"]
 
 
 def test_anchor_power_degrades_with_noisier_anchor() -> None:
@@ -72,9 +70,10 @@ def test_anchor_power_degrades_with_noisier_anchor() -> None:
         (item["anchor_sigma_ratio"], item["anchor_support_fraction"]): item
         for item in report["anchor_common_mode_power_grid"]
     }
-    assert records[(0.5, 1.0)]["shared_bias_rejection_rate"] >= records[(1.0, 1.0)][
-        "shared_bias_rejection_rate"
-    ]
+    assert (
+        records[(0.5, 1.0)]["shared_bias_rejection_rate"]
+        >= records[(1.0, 1.0)]["shared_bias_rejection_rate"]
+    )
 
 
 def test_report_tampering_is_rejected() -> None:
@@ -125,9 +124,7 @@ def test_grouped_cli_routes_anchor_common_bias_help(capsys) -> None:
 
 def test_protocol_matches_frozen_default_design() -> None:
     protocol_path = (
-        Path(__file__).resolve().parents[1]
-        / "protocols"
-        / "anchor-common-bias-study-v1.json"
+        Path(__file__).resolve().parents[1] / "protocols" / "anchor-common-bias-study-v1.json"
     )
     protocol = json.loads(protocol_path.read_text(encoding="utf-8"))
     design = protocol["design"]
@@ -140,24 +137,12 @@ def test_protocol_matches_frozen_default_design() -> None:
     assert design["miscoverage"] == config.miscoverage
     assert design["row_quantile"] == config.row_quantile
     assert design["provider_sigma"] == config.provider_sigma
-    assert (
-        design["provider_cross_correlation"]
-        == config.provider_cross_correlation
-    )
+    assert design["provider_cross_correlation"] == config.provider_cross_correlation
     assert design["provider_specific_bias_sigma"] == config.provider_specific_bias_sigma
     assert design["shared_bias_sigma"] == config.shared_bias_sigma
     assert design["shared_bias_row_fraction"] == config.shared_bias_row_fraction
     assert design["anchor_drift_sigma"] == config.anchor_drift_sigma
     assert tuple(design["anchor_sigma_ratios"]) == config.anchor_sigma_ratios
-    assert (
-        tuple(design["anchor_support_fractions"])
-        == config.anchor_support_fractions
-    )
-    assert (
-        design["reference_anchor_sigma_ratio"]
-        == config.reference_anchor_sigma_ratio
-    )
-    assert (
-        design["reference_anchor_support_fraction"]
-        == config.reference_anchor_support_fraction
-    )
+    assert tuple(design["anchor_support_fractions"]) == config.anchor_support_fractions
+    assert design["reference_anchor_sigma_ratio"] == config.reference_anchor_sigma_ratio
+    assert design["reference_anchor_support_fraction"] == config.reference_anchor_support_fraction
