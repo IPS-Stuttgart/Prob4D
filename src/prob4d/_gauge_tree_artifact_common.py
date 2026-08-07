@@ -351,7 +351,11 @@ class GaugeTreePriorArtifactV1:
             )
         if value.get("schema") != GAUGE_TREE_PRIOR_ARTIFACT_SCHEMA:
             raise ValueError("unexpected gauge-tree prior artifact schema")
-        if value.get("schema_version") != GAUGE_TREE_PRIOR_ARTIFACT_VERSION:
+        schema_version = require_positive_integer(
+            value.get("schema_version"),
+            name="schema_version",
+        )
+        if schema_version != GAUGE_TREE_PRIOR_ARTIFACT_VERSION:
             raise ValueError("unsupported gauge-tree prior artifact version")
         gauge_count = require_positive_integer(
             value.get("gauge_count"),
