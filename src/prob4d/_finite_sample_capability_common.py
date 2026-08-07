@@ -7,7 +7,7 @@ import math
 from collections.abc import Mapping, Sequence
 from decimal import ROUND_CEILING, Decimal
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 FINITE_SAMPLE_CAPABILITY_SCHEMA = "prob4d.finite-sample-capability"
 FINITE_SAMPLE_CAPABILITY_VERSION = 1
@@ -90,7 +90,7 @@ def strict_integer(value: object, *, name: str, minimum: int = 0) -> int:
 def coverage(value: object, *, name: str) -> float:
     if type(value) not in {int, float}:
         raise ValueError(f"{name} must be a real number")
-    result = float(value)
+    result = float(cast(int | float, value))
     if not math.isfinite(result) or not 0.0 < result < 1.0:
         raise ValueError(f"{name} must be finite and strictly between zero and one")
     return result
