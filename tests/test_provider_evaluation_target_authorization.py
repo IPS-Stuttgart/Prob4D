@@ -227,7 +227,9 @@ def _admission(lock: HeldoutProviderPromotionLockV1) -> HeldoutTargetProviderAdm
     )
 
 
-def _bundle(tmp_path: Path) -> tuple[Path, HeldoutProviderPromotionLockV1, object]:
+def _bundle(
+    tmp_path: Path,
+) -> tuple[Path, HeldoutProviderPromotionLockV1, HeldoutTargetProviderAdmissionV1]:
     manifest = _manifest(tmp_path)
     digest = hashlib.sha256(manifest.read_bytes()).hexdigest()
     lock = _lock(digest)
@@ -250,10 +252,7 @@ def test_authorization_breaks_the_manifest_lock_admission_identity_cycle(
 
     assert TARGET_PROVIDER_ADMISSION_METADATA_KEY not in snapshot.metadata
     assert authorization["promotion_lock_id"] == lock.promotion_lock_id
-    assert (
-        authorization["target_provider_admission_id"]
-        == admission.target_provider_admission_id
-    )
+    assert authorization["target_provider_admission_id"] == admission.target_provider_admission_id
     assert authorization["source_manifest_sha256"] == lock.provider_evaluation_manifest_sha256
     assert authorization["target_outcomes_opened_during_authorization"] is False
 
@@ -350,10 +349,7 @@ def test_authorized_provider_evaluation_emits_replayable_receipt(
     assert report["schema_version"] == 4
     authorization = report[PROVIDER_EVALUATION_TARGET_AUTHORIZATION_FIELD]
     assert authorization["promotion_lock_id"] == lock.promotion_lock_id
-    assert (
-        authorization["target_provider_admission_id"]
-        == admission.target_provider_admission_id
-    )
+    assert authorization["target_provider_admission_id"] == admission.target_provider_admission_id
     assert report["manifest_metadata"] == {}
 
 
