@@ -72,6 +72,7 @@ _MEMBER_FIELDS: Final = frozenset(
     {"path", "sha256", "bytes", "dtype", "shape", "semantic_sha256"}
 )
 _MEMBER_NAMES: Final = frozenset({"transition_matrices", "innovation_scale_tril"})
+_MAX_NPY_HEADER_BYTES: Final = 4096
 
 
 @dataclass(frozen=True, slots=True)
@@ -222,6 +223,25 @@ def _validate_member_descriptor(
     return descriptor
 
 
+def _read_npy_header(
+    payload: bytes,
+    *,
+    name: str,
+) -> tuple[tuple[int, ...], bool, np.dtype[Any]]:
+    with io.BytesIO(payload) as stream:
+        try:
+            version = np.lib.format.read_magic(stream)
+            if version == (1, 0):
+                shape, fortran_order, dtype = np.lib.format.read_array_header_1_0(stream)
+            elif version == (2, 0):
+                shape, fortran_order, dtype = np.lib.format.read_array_header_2_0(stream)
+            else:
+                raise ValueError(f"{name} uses unsupported NPY version {version}")
+        except (EOFError, ValueError) as error:
+            raise ValueError(f"{name} has an invalid NPY header") from error
+    return tuple(int(value) for value in shape), bool(fortran_order), np.dtype(dtype)
+
+
 def _resolve_member(root: Path, name: str) -> Path:
     candidate = root / name
     if candidate.is_symlink():
@@ -252,16 +272,28 @@ def _load_array_member(
         expected_shape=expected_shape,
     )
     path = _resolve_member(root, expected_path)
-    payload = path.read_bytes()
     expected_bytes = require_exact_integer(
         validated["bytes"], name=f"{name}.bytes", minimum=1
     )
-    if len(payload) != expected_bytes:
+    raw_nbytes = expected_shape[0] * expected_shape[1] * expected_shape[2] * 8
+    if not raw_nbytes <= expected_bytes <= raw_nbytes + _MAX_NPY_HEADER_BYTES:
+        raise ValueError(f"{name} serialized byte count is inconsistent with its shape")
+    if path.stat().st_size != expected_bytes:
         raise ValueError(f"{name} byte count does not match its manifest")
+    payload = path.read_bytes()
+    if len(payload) != expected_bytes:
+        raise ValueError(f"{name} changed while it was being read")
     if _sha256_bytes(payload) != require_sha256(
         validated["sha256"], name=f"{name}.sha256"
     ):
         raise ValueError(f"{name} SHA-256 does not match its manifest")
+    header_shape, fortran_order, header_dtype = _read_npy_header(payload, name=name)
+    if header_shape != expected_shape:
+        raise ValueError(f"{name} NPY header shape does not match its manifest")
+    if fortran_order:
+        raise ValueError(f"{name} must not use Fortran-order NPY storage")
+    if header_dtype.str != np.dtype(np.float64).str:
+        raise ValueError(f"{name} NPY header dtype does not match float64")
     with io.BytesIO(payload) as stream:
         try:
             array = np.load(stream, allow_pickle=False)
