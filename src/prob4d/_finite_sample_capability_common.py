@@ -76,9 +76,7 @@ def strict_string(value: object, *, name: str) -> str:
 
 def strict_digest(value: object, *, name: str) -> str:
     digest = strict_string(value, name=name)
-    if len(digest) != 64 or any(
-        character not in "0123456789abcdef" for character in digest
-    ):
+    if len(digest) != 64 or any(character not in "0123456789abcdef" for character in digest):
         raise ValueError(f"{name} must be a lowercase SHA-256 digest")
     return digest
 
@@ -101,10 +99,7 @@ def coverage(value: object, *, name: str) -> float:
 def string_tuple(value: object, *, name: str) -> tuple[str, ...]:
     if not isinstance(value, (list, tuple)):
         raise ValueError(f"{name} must be a list of strings")
-    result = tuple(
-        strict_string(item, name=f"{name}[{index}]")
-        for index, item in enumerate(value)
-    )
+    result = tuple(strict_string(item, name=f"{name}[{index}]") for index, item in enumerate(value))
     if not result or result != tuple(sorted(result)) or len(set(result)) != len(result):
         raise ValueError(f"{name} must be nonempty, sorted, and unique")
     return result

@@ -45,10 +45,7 @@ def population_record(
         "group_ids": list(group_ids),
         "group_count": count,
         "maximum_finite_coverage": count / (count + 1),
-        "levels": [
-            split_conformal_level(count, requested)
-            for requested in requested_coverages
-        ],
+        "levels": [split_conformal_level(count, requested) for requested in requested_coverages],
     }
 
 

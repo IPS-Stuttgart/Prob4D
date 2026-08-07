@@ -54,10 +54,7 @@ def populations(state: CapabilityState) -> tuple[dict[str, object], ...]:
 def population_is_finite(population: Mapping[str, object]) -> bool:
     levels = population["levels"]
     assert isinstance(levels, list)
-    return all(
-        isinstance(level, Mapping) and level["finite_threshold"] is True
-        for level in levels
-    )
+    return all(isinstance(level, Mapping) and level["finite_threshold"] is True for level in levels)
 
 
 def descriptor(state: CapabilityState) -> dict[str, object]:
@@ -76,9 +73,7 @@ def descriptor(state: CapabilityState) -> dict[str, object]:
         "calibration_group_ids": list(state.calibration_group_ids),
         "target_group_ids": list(state.target_group_ids),
         "requested_coverages": list(state.requested_coverages),
-        "lock_minimum_mean_accepted_coverage": (
-            state.lock_minimum_mean_accepted_coverage
-        ),
+        "lock_minimum_mean_accepted_coverage": (state.lock_minimum_mean_accepted_coverage),
         "bootstrap_resamples": state.bootstrap_resamples,
         "calibration_strata": [item.to_dict() for item in state.calibration_strata],
         "populations": list(current_populations),
