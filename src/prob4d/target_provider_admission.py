@@ -19,7 +19,6 @@ from ._heldout_promotion_common import (
     _revision,
     _strict_bool,
     _strict_digest,
-    _strict_integer,
     _strict_list,
     _strict_mapping,
     _strict_string,
@@ -29,7 +28,7 @@ from ._heldout_promotion_lock import (
     load_promotion_lock,
 )
 from ._immutable_json import frozen_finite_json_mapping, plain_json
-from ._selection_evidence_common import _sha256_json
+from ._selection_evidence_common import _sha256_json, _strict_integer
 from .deform360_cohort_binding import (
     Deform360OfficialHubCohortBindingV1,
     load_deform360_cohort_binding,
