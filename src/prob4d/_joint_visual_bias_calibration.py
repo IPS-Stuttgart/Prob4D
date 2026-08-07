@@ -10,11 +10,11 @@ import numpy as np
 from ._immutable_array import immutable_integer_array
 from ._immutable_json import plain_json
 from ._joint_visual_bias_common import (
-    FloatArray,
+    _CALIBRATION_METADATA_FIELDS,
     JOINT_VISUAL_BIAS_CLAIM_BOUNDARY,
     JOINT_VISUAL_BIAS_COVARIANCE_SEMANTICS,
     JOINT_VISUAL_BIAS_METADATA_KEY,
-    _CALIBRATION_METADATA_FIELDS,
+    FloatArray,
     _metadata,
     _nonempty_string,
     _sha256,
@@ -239,6 +239,7 @@ def build_joint_visual_bias_nuisance_from_calibration(
             },
         },
     )
+
 
 __all__ = [
     "build_joint_visual_bias_nuisance_from_calibration",
