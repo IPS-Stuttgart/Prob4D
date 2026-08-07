@@ -55,8 +55,6 @@ def _lock(
         "sensor_assisted": ("provider-sensor", True),
     }
     config = {
-        "schema_name": "prob4d.heldout-provider-promotion-config",
-        "schema_version": 1,
         "experiment_id": "target-admission-enforcement-test-v1",
         "source_repository": "IPS-Stuttgart/Prob4D",
         "source_revision": source_revision,
