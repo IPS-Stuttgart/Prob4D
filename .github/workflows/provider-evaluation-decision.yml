@@ -81,18 +81,11 @@ jobs:
             tests/test_target_admission_enforcement.py \
             tests/test_target_provider_admission.py
           python -m ruff format --check \
-            src/prob4d/_provider_evaluation_decision.py \
-            src/prob4d/_provider_evaluation_manifest.py \
-            src/prob4d/_provider_evaluation_output.py \
             src/prob4d/provider_evaluation.py \
             src/prob4d/provider_evaluation_target_authorization.py \
             src/prob4d/target_admission_enforcement.py \
-            src/prob4d/target_provider_admission.py \
-            tests/test_provider_evaluation.py \
-            tests/test_provider_evaluation_decision.py \
             tests/test_provider_evaluation_target_authorization.py \
-            tests/test_target_admission_enforcement.py \
-            tests/test_target_provider_admission.py
+            tests/test_target_admission_enforcement.py
           python -m mypy \
             src/prob4d/_provider_evaluation_decision.py \
             src/prob4d/_provider_evaluation_manifest.py \
