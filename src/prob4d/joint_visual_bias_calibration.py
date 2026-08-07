@@ -18,10 +18,12 @@ from ._joint_visual_bias_common import (
     JOINT_VISUAL_BIAS_LAYOUT_SCHEMA,
     JOINT_VISUAL_BIAS_LAYOUT_VERSION,
     JOINT_VISUAL_BIAS_METADATA_KEY,
+)
+from ._joint_visual_bias_group import JointVisualBiasCalibrationGroupV1
+from ._joint_visual_bias_layout import (
     JointVisualBiasLayoutV1,
     expand_joint_visual_bias_jacobian,
 )
-from ._joint_visual_bias_group import JointVisualBiasCalibrationGroupV1
 
 __all__ = [
     "JOINT_VISUAL_BIAS_BASIS_ORDER",
