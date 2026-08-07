@@ -5,10 +5,11 @@ causal spanning-tree gauge posterior. It replaces the dense in-memory
 `7K x 7K` covariance with `O(K)` parent, transition, and innovation factors while
 preserving the exact joint Gaussian statistics.
 
-It does **not** change provider-v2, `ObservationFactorBundle` schema v4, or any
-frozen artifact identity. A future portable provider/artifact version is still
-required before Prob4D can omit the dense prior from serialized claim-bearing
-bundles.
+A standalone portable sparse artifact is now available for this backend. It lets
+new executions persist and reload the causal factors without first serializing or
+loading a dense joint covariance. This does **not** change provider-v2,
+`ObservationFactorBundle` schema v4, or any frozen artifact identity; those
+claim-bearing bundles continue to carry their historical dense prior.
 
 ## Model
 
@@ -98,6 +99,65 @@ tree-structured Gaussian. It must not be forced into this representation; the
 strict converter will reject it when its off-tree conditional structure is
 nonzero.
 
+## Portable sparse artifact
+
+Use the additive artifact API when the factors are constructed directly or after
+a verified dense migration:
+
+```python
+from prob4d.gauge_tree_artifact import (
+    load_gauge_tree_prior_artifact,
+    verify_gauge_tree_prior_artifact,
+    write_gauge_tree_prior_artifact,
+)
+
+summary = write_gauge_tree_prior_artifact(
+    prior,
+    "outputs/sequence-a/gauge-tree-prior-v1",
+)
+restored = load_gauge_tree_prior_artifact(
+    "outputs/sequence-a/gauge-tree-prior-v1"
+)
+verified = verify_gauge_tree_prior_artifact(
+    "outputs/sequence-a/gauge-tree-prior-v1"
+)
+
+assert summary.artifact_id == verified.artifact_id
+assert restored.prior_id == prior.prior_id
+```
+
+The artifact directory contains exactly:
+
+```text
+manifest.json
+transition_matrices.npy
+innovation_scale_tril.npy
+```
+
+The manifest stores the ordered gauge IDs and parent indices, prior semantics,
+optional dense-source digest, runtime storage accounting, exact NPY byte hashes,
+and separate semantic array hashes. Its `artifact_id` covers the complete
+canonical manifest except for the ID field itself. NPY members are deterministic,
+uncompressed, and C-contiguous, so the same prior produces the same member bytes
+and artifact identity.
+
+Publication is staged and renamed into place, never overwrites an existing path,
+and verifies the complete artifact after publication. Loading fails closed on:
+
+- duplicate or unknown JSON fields;
+- non-finite or coercive JSON values;
+- an unexpected schema, version, dimension, or prior semantic;
+- missing, extra, redirected, or symlinked members;
+- byte-count, file-digest, dtype, shape, or semantic-digest drift;
+- trailing member bytes;
+- invalid causal parents or numerical factors; and
+- mismatch of the reconstructed `prior_id` or top-level `artifact_id`.
+
+This artifact is a portable sparse sidecar and prospective execution surface. It
+is not a silent replacement for a dense schema-v4 factor bundle. A future
+claim-bearing provider schema may reference it only through a separately
+versioned compatibility and admission contract.
+
 ## Matrix-free operations
 
 The generative tree gives `Sigma = T D T^T`, where `D` is block diagonal. A
@@ -125,7 +185,7 @@ the complete covariance or information matrix. The prior also provides:
 ## Sparse observation-space covariance
 
 `SparseStackedObservationFactors` already stores one `3 x 7` Jacobian and one
-gauge index per row. The new prior applies the shared gauge contribution without
+gauge index per row. The prior applies the shared gauge contribution without
 expanding either the row design or the gauge covariance:
 
 ```python
@@ -171,14 +231,16 @@ At 64 gauges this is about 50 KiB instead of 1.53 MiB, before Python-container
 overhead. The advantage grows linearly with `K`. Dense materialization remains
 available only behind an explicit maximum-gauge guard.
 
-This first implementation removes dense prior storage only after direct sparse
-construction or a verified conversion. Serialized schema-v4 bundles still carry
-the dense covariance, so file size and initial load peak are unchanged.
+Direct sparse construction plus the portable artifact removes dense prior
+storage from both persistence and loading for that prospective route. Existing
+serialized schema-v4 bundles still carry the dense covariance, so their file
+size, identity, and initial load peak are intentionally unchanged.
 
 ## Claim boundary
 
-Exact dense parity, lower memory use, and matrix-free algebra are engineering
-properties. They do not establish provider competence, covariance calibration,
-physical-query identifiability, safe BayesianPhysTwin acceptance, Causal4D
-intervention benefit, deployment safety, or state of the art. Promotion requires
-the separately frozen independent-object provider and guarded-query experiment.
+Exact dense parity, deterministic portable factors, lower memory use, and
+matrix-free algebra are engineering properties. They do not establish provider
+competence, covariance calibration, physical-query identifiability, safe
+BayesianPhysTwin acceptance, Causal4D intervention benefit, deployment safety,
+or state of the art. Promotion requires the separately frozen independent-object
+provider and guarded-query experiment.
