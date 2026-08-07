@@ -368,7 +368,7 @@ def _load_artifact(
     )
     prior = GaugeTreeSquareRootPriorV1(
         gauge_ids=gauge_ids,
-        parent_indices=parents,
+        parent_indices=np.asarray(parents, dtype=np.int64),
         transition_matrices=transitions,
         innovation_scale_tril=scales,
         source_joint_covariance_sha256=source_digest,
@@ -423,6 +423,7 @@ def write_gauge_tree_prior_artifact(
         }
         manifest = _with_artifact_id(_artifact_payload(prior, members))
         _write_manifest(staging / GAUGE_TREE_ARTIFACT_MANIFEST, manifest)
+        _load_artifact(staging)
         _fsync_directory(staging)
         if destination.exists() or destination.is_symlink():
             raise FileExistsError(f"refusing to replace existing artifact {destination}")
