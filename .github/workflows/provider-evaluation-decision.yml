@@ -6,23 +6,37 @@ on:
     paths:
       - ".github/workflows/provider-evaluation-decision.yml"
       - "docs/provider-evaluation-decisions.md"
+      - "docs/target-provider-admission.md"
       - "src/prob4d/_provider_evaluation_decision.py"
       - "src/prob4d/_provider_evaluation_manifest.py"
       - "src/prob4d/_provider_evaluation_output.py"
       - "src/prob4d/provider_evaluation.py"
+      - "src/prob4d/provider_evaluation_target_authorization.py"
+      - "src/prob4d/target_admission_enforcement.py"
+      - "src/prob4d/target_provider_admission.py"
       - "tests/test_provider_evaluation.py"
       - "tests/test_provider_evaluation_decision.py"
+      - "tests/test_provider_evaluation_target_authorization.py"
+      - "tests/test_target_admission_enforcement.py"
+      - "tests/test_target_provider_admission.py"
   push:
     branches: [main]
     paths:
       - ".github/workflows/provider-evaluation-decision.yml"
       - "docs/provider-evaluation-decisions.md"
+      - "docs/target-provider-admission.md"
       - "src/prob4d/_provider_evaluation_decision.py"
       - "src/prob4d/_provider_evaluation_manifest.py"
       - "src/prob4d/_provider_evaluation_output.py"
       - "src/prob4d/provider_evaluation.py"
+      - "src/prob4d/provider_evaluation_target_authorization.py"
+      - "src/prob4d/target_admission_enforcement.py"
+      - "src/prob4d/target_provider_admission.py"
       - "tests/test_provider_evaluation.py"
       - "tests/test_provider_evaluation_decision.py"
+      - "tests/test_provider_evaluation_target_authorization.py"
+      - "tests/test_target_admission_enforcement.py"
+      - "tests/test_target_provider_admission.py"
   workflow_dispatch:
 
 permissions:
@@ -36,7 +50,7 @@ jobs:
   provider-decision:
     name: Provider decision manifest and report
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -50,6 +64,7 @@ jobs:
         run: |
           python -m pip install -e ".[dev]"
           python -m pip install "numpy>=1.24,<2.3"
+          python -m pip check
       - name: Check focused source quality
         run: |
           python -m ruff check \
@@ -57,14 +72,39 @@ jobs:
             src/prob4d/_provider_evaluation_manifest.py \
             src/prob4d/_provider_evaluation_output.py \
             src/prob4d/provider_evaluation.py \
+            src/prob4d/provider_evaluation_target_authorization.py \
+            src/prob4d/target_admission_enforcement.py \
+            src/prob4d/target_provider_admission.py \
             tests/test_provider_evaluation.py \
-            tests/test_provider_evaluation_decision.py
+            tests/test_provider_evaluation_decision.py \
+            tests/test_provider_evaluation_target_authorization.py \
+            tests/test_target_admission_enforcement.py \
+            tests/test_target_provider_admission.py
+          python -m ruff format --check \
+            src/prob4d/_provider_evaluation_decision.py \
+            src/prob4d/_provider_evaluation_manifest.py \
+            src/prob4d/_provider_evaluation_output.py \
+            src/prob4d/provider_evaluation.py \
+            src/prob4d/provider_evaluation_target_authorization.py \
+            src/prob4d/target_admission_enforcement.py \
+            src/prob4d/target_provider_admission.py \
+            tests/test_provider_evaluation.py \
+            tests/test_provider_evaluation_decision.py \
+            tests/test_provider_evaluation_target_authorization.py \
+            tests/test_target_admission_enforcement.py \
+            tests/test_target_provider_admission.py
           python -m mypy \
             src/prob4d/_provider_evaluation_decision.py \
             src/prob4d/_provider_evaluation_manifest.py \
-            src/prob4d/provider_evaluation.py
-      - name: Run decision and compatibility regressions
+            src/prob4d/provider_evaluation.py \
+            src/prob4d/provider_evaluation_target_authorization.py \
+            src/prob4d/target_admission_enforcement.py \
+            src/prob4d/target_provider_admission.py
+      - name: Run decision, authorization, and compatibility regressions
         run: >-
           python -m pytest -q
           tests/test_provider_evaluation.py
           tests/test_provider_evaluation_decision.py
+          tests/test_provider_evaluation_target_authorization.py
+          tests/test_target_admission_enforcement.py
+          tests/test_target_provider_admission.py
