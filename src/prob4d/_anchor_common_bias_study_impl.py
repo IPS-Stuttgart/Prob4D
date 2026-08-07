@@ -60,9 +60,9 @@ class StudyConfig:
             "rows_per_group": self.rows_per_group,
             "dimension": self.dimension,
         }
-        for name, value in integer_fields.items():
-            if isinstance(value, bool) or not isinstance(value, int):
-                raise TypeError(f"{name} must be an integer")
+        for integer_name, integer_value in integer_fields.items():
+            if isinstance(integer_value, bool) or not isinstance(integer_value, int):
+                raise TypeError(f"{integer_name} must be an integer")
         if self.calibration_groups < 20:
             raise ValueError("calibration_groups must be at least 20")
         if self.target_groups < 20:
@@ -71,7 +71,7 @@ class StudyConfig:
             raise ValueError("rows_per_group must be at least 4")
         if self.dimension < 1:
             raise ValueError("dimension must be positive")
-        for name, value in {
+        for scalar_name, scalar_value in {
             "miscoverage": self.miscoverage,
             "row_quantile": self.row_quantile,
             "provider_sigma": self.provider_sigma,
@@ -83,10 +83,10 @@ class StudyConfig:
             "reference_anchor_sigma_ratio": self.reference_anchor_sigma_ratio,
             "reference_anchor_support_fraction": self.reference_anchor_support_fraction,
         }.items():
-            if isinstance(value, bool) or not isinstance(value, (int, float)):
-                raise TypeError(f"{name} must be a real scalar")
-            if not math.isfinite(float(value)):
-                raise ValueError(f"{name} must be finite")
+            if isinstance(scalar_value, bool) or not isinstance(scalar_value, (int, float)):
+                raise TypeError(f"{scalar_name} must be a real scalar")
+            if not math.isfinite(float(scalar_value)):
+                raise ValueError(f"{scalar_name} must be finite")
         if not 0.0 < self.miscoverage < 1.0:
             raise ValueError("miscoverage must lie strictly between zero and one")
         if not 0.0 < self.row_quantile <= 1.0:
