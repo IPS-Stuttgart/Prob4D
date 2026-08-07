@@ -119,7 +119,7 @@ class GaugeTreeSquareRootPriorV1(GaugeTreePriorMethods):
 def main(argv: Sequence[str] | None = None) -> int:
     """Verify or explicitly densify a portable sparse-prior artifact."""
 
-    from .gauge_tree_prior_io import main as artifact_main
+    from .gauge_tree_prior_artifact import main as artifact_main
 
     return artifact_main(argv)
 
