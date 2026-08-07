@@ -140,6 +140,19 @@ def _reject_symlink_components(path: Path) -> None:
             raise ValueError(f"dense output path crosses symbolic link {candidate}")
 
 
+def _fsync_directory(path: Path) -> None:
+    try:
+        descriptor = os.open(path, os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(descriptor)
+    except OSError:
+        pass
+    finally:
+        os.close(descriptor)
+
+
 def _sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as stream:
@@ -159,7 +172,6 @@ def _write_dense_no_replace(output: Path, dense: np.ndarray) -> str:
         dir=output.parent,
     )
     temporary = Path(temporary_name)
-    published = False
     try:
         with os.fdopen(descriptor, "wb") as stream:
             np.save(stream, dense, allow_pickle=False)
@@ -172,12 +184,10 @@ def _write_dense_no_replace(output: Path, dense: np.ndarray) -> str:
             raise FileExistsError(
                 f"refusing to replace dense output {output}"
             ) from error
-        published = True
+        _fsync_directory(output.parent)
         return digest
     finally:
         temporary.unlink(missing_ok=True)
-        if not published and output.is_symlink():
-            raise ValueError("dense output destination became a symbolic link")
 
 
 def _materialize_cli(arguments: Sequence[str]) -> int:
