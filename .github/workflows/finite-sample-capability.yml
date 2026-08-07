@@ -1,0 +1,93 @@
+name: Finite-sample capability
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/finite-sample-capability.yml"
+      - "docs/finite-sample-capability.md"
+      - "pyproject.toml"
+      - "src/prob4d/_finite_sample_capability_*.py"
+      - "src/prob4d/finite_sample_capability.py"
+      - "tests/test_finite_sample_capability.py"
+      - "tests/test_finite_sample_capability_io.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: finite-sample-capability-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  contract:
+    name: Target-free finite-sample preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact reviewed source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install lightweight development environment
+        run: |
+          python -m pip install -e ".[dev]" "numpy>=1.24,<2.3"
+          python -m pip check
+
+      - name: Validate source and focused contracts
+        run: |
+          python -m ruff check \
+            src/prob4d/_finite_sample_capability_*.py \
+            src/prob4d/finite_sample_capability.py \
+            tests/test_finite_sample_capability.py \
+            tests/test_finite_sample_capability_io.py
+          python -m ruff format --check \
+            src/prob4d/_finite_sample_capability_*.py \
+            src/prob4d/finite_sample_capability.py \
+            tests/test_finite_sample_capability.py \
+            tests/test_finite_sample_capability_io.py
+          python -m mypy \
+            src/prob4d/_finite_sample_capability_*.py \
+            src/prob4d/finite_sample_capability.py
+          python -m pytest -q \
+            tests/test_finite_sample_capability.py \
+            tests/test_finite_sample_capability_io.py \
+            tests/test_heldout_promotion.py \
+            tests/test_deform360_cohort_binding.py
+          python -m compileall -q src/prob4d
+
+      - name: Build and audit source distribution
+        run: |
+          rm -rf dist
+          python -m build --sdist
+          archive="$(echo dist/prob4d-*.tar.gz)"
+          tar -tzf "$archive" | grep -q '/docs/finite-sample-capability.md$'
+          tar -tzf "$archive" | grep -q '/src/prob4d/finite_sample_capability.py$'
+          tar -tzf "$archive" | grep -q '/tests/test_finite_sample_capability.py$'
+          tar -tzf "$archive" | grep -q '/tests/test_finite_sample_capability_io.py$'
+
+      - name: Smoke-test installed command
+        run: |
+          prob4d-finite-sample-preflight --help
+          prob4d experiment heldout-provider freeze \
+            docs/examples/heldout-provider-promotion-config.json \
+            --output "$RUNNER_TEMP/promotion-lock.json"
+          prob4d-finite-sample-preflight \
+            "$RUNNER_TEMP/promotion-lock.json" \
+            --coverage 0.90 \
+            --output "$RUNNER_TEMP/finite-sample-capability.json"
+          test -s "$RUNNER_TEMP/finite-sample-capability.json"

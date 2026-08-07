@@ -19,6 +19,27 @@ def _workflow_files() -> tuple[Path, ...]:
     )
 
 
+def _uses_self_hosted_runner(text: str) -> bool:
+    lines = text.splitlines()
+    for index, line in enumerate(lines):
+        stripped = line.lstrip()
+        if not stripped.startswith("runs-on:"):
+            continue
+        indentation = len(line) - len(stripped)
+        if "self-hosted" in stripped.partition(":")[2]:
+            return True
+        for continuation in lines[index + 1 :]:
+            continuation_stripped = continuation.lstrip()
+            if not continuation_stripped:
+                continue
+            continuation_indentation = len(continuation) - len(continuation_stripped)
+            if continuation_indentation <= indentation:
+                break
+            if "self-hosted" in continuation:
+                return True
+    return False
+
+
 def test_only_the_protected_manual_workflow_can_use_self_hosted_runners() -> None:
     assert TRUSTED_WORKFLOW.is_file()
     offenders = []
@@ -26,7 +47,7 @@ def test_only_the_protected_manual_workflow_can_use_self_hosted_runners() -> Non
         if path == TRUSTED_WORKFLOW:
             continue
         text = path.read_text(encoding="utf-8")
-        if "self-hosted" in text:
+        if _uses_self_hosted_runner(text):
             offenders.append(path.relative_to(ROOT).as_posix())
         assert "ci/self-hosted-" not in text, path
         assert "SELF_HOSTED_RECOVERY" not in text, path
