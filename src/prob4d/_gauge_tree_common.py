@@ -18,9 +18,7 @@ IntArray: TypeAlias = NDArray[np.integer[Any]]
 GAUGE_DIMENSION: Final = 7
 GAUGE_TREE_PRIOR_SCHEMA: Final = "prob4d.gauge-tree-square-root-prior"
 GAUGE_TREE_PRIOR_VERSION: Final = 1
-GAUGE_TREE_PRIOR_SEMANTICS: Final = (
-    "zero-mean-linearized-causal-tree-independent-innovations-v1"
-)
+GAUGE_TREE_PRIOR_SEMANTICS: Final = "zero-mean-linearized-causal-tree-independent-innovations-v1"
 
 
 def canonical_array_descriptor(value: np.ndarray) -> dict[str, object]:
