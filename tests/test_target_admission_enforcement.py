@@ -29,7 +29,11 @@ COHORT_BINDING_ID = "f" * 64
 LOADER_ID = "1" * 64
 
 
-def _lock(*, cohort_bound: bool = True) -> HeldoutProviderPromotionLockV1:
+def _lock(
+    *,
+    cohort_bound: bool = True,
+    source_revision: str = SOURCE_REVISION,
+) -> HeldoutProviderPromotionLockV1:
     frozen_artifact_ids = {
         "provider_configuration": "0" * 64,
         "gauge_calibration": "1" * 64,
@@ -55,7 +59,7 @@ def _lock(*, cohort_bound: bool = True) -> HeldoutProviderPromotionLockV1:
         "schema_version": 1,
         "experiment_id": "target-admission-enforcement-test-v1",
         "source_repository": "IPS-Stuttgart/Prob4D",
-        "source_revision": SOURCE_REVISION,
+        "source_revision": source_revision,
         "bayesian_phystwin_repository": "IPS-Stuttgart/BayesianPhysTwin",
         "bayesian_phystwin_revision": BPT_REVISION,
         "motioncrafter_revision": PROVIDER_REVISION,
@@ -94,6 +98,9 @@ def _lock(*, cohort_bound: bool = True) -> HeldoutProviderPromotionLockV1:
 
 
 def _admission(lock: HeldoutProviderPromotionLockV1) -> HeldoutTargetProviderAdmissionV1:
+    cohort_binding_id = lock.frozen_artifact_ids.get("cohort_binding")
+    if not isinstance(cohort_binding_id, str):
+        raise AssertionError("test admission requires a cohort-bound promotion lock")
     entries = tuple(
         TargetProviderManifestAdmissionV1(
             group_id=group_id,
@@ -119,7 +126,7 @@ def _admission(lock: HeldoutProviderPromotionLockV1) -> HeldoutTargetProviderAdm
     )
     return HeldoutTargetProviderAdmissionV1(
         promotion_lock_id=lock.promotion_lock_id,
-        cohort_binding_id=lock.frozen_artifact_ids["cohort_binding"],
+        cohort_binding_id=cohort_binding_id,
         source_repository=lock.source_repository,
         source_revision=lock.source_revision,
         prediction_run_spec_id=lock.prediction_run_spec_id,
@@ -236,10 +243,7 @@ def test_provider_and_query_streams_must_bind_the_same_admission(tmp_path: Path)
 def test_admission_must_match_the_exact_promotion_lock() -> None:
     lock = _lock()
     admission = _admission(lock)
-    other_config = lock.to_dict()
-    other_config.pop("promotion_lock_id")
-    other_config["source_revision"] = "9" * 40
-    other_lock = promotion_lock_from_config(other_config)
+    other_lock = _lock(source_revision="9" * 40)
     metadata = _stream_metadata(admission)
 
     with pytest.raises(ValueError, match="another promotion lock"):
