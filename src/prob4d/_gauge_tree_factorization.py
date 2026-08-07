@@ -35,8 +35,10 @@ def transition_factors(
         raise ValueError(f"innovation_covariances must have shape {expected}")
     scales = np.empty_like(covariances)
     for index, gauge_id in enumerate(ids):
-        label = "root gauge covariance" if index == 0 else (
-            f"innovation covariance for gauge {gauge_id!r}"
+        label = (
+            "root gauge covariance"
+            if index == 0
+            else (f"innovation covariance for gauge {gauge_id!r}")
         )
         scales[index] = strict_scale_tril(covariances[index], name=label)
     return ids, parents, transitions, scales
