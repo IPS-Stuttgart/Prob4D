@@ -16,9 +16,7 @@ import numpy as np
 from ._gauge_tree_common import canonical_json_sha256
 from .gauge_tree_prior import GaugeTreeSquareRootPriorV1
 
-GAUGE_TREE_PRIOR_ARTIFACT_SCHEMA: Final = (
-    "prob4d.gauge-tree-square-root-prior-artifact"
-)
+GAUGE_TREE_PRIOR_ARTIFACT_SCHEMA: Final = "prob4d.gauge-tree-square-root-prior-artifact"
 GAUGE_TREE_PRIOR_ARTIFACT_VERSION: Final = 1
 GAUGE_TREE_PRIOR_ARTIFACT_STORAGE: Final = "compressed-npz-v1"
 
@@ -136,7 +134,7 @@ def _payload_relative_path(manifest: Path, payload: Path) -> str:
         raise ValueError(
             "sparse gauge-tree payload must be stored below the manifest directory"
         ) from error
-    if payload == manifest:
+    if resolved == manifest.resolve():
         raise ValueError("sparse gauge-tree manifest and payload paths must differ")
     return PurePosixPath(relative.as_posix()).as_posix()
 
@@ -203,19 +201,26 @@ def _load_payload(
     if payload.is_symlink():
         raise ValueError("sparse gauge-tree payload must not be a symbolic link")
     try:
-        with np.load(payload, allow_pickle=False) as arrays:
-            if set(arrays.files) != set(_ARRAY_KEYS):
-                raise ValueError("sparse gauge-tree payload contains unexpected arrays")
-            return GaugeTreeSquareRootPriorV1(
-                gauge_ids=gauge_ids,
-                parent_indices=arrays[_PARENT_KEY],
-                transition_matrices=arrays[_TRANSITION_KEY],
-                innovation_scale_tril=arrays[_INNOVATION_KEY],
-                source_joint_covariance_sha256=source_joint_covariance_sha256,
-                representation_semantics=representation_semantics,
-            )
+        archive = np.load(payload, allow_pickle=False)
     except (OSError, ValueError, EOFError, zipfile.BadZipFile) as error:
         raise ValueError("invalid sparse gauge-tree payload") from error
+    with archive as arrays:
+        if tuple(arrays.files) != _ARRAY_KEYS:
+            raise ValueError("sparse gauge-tree payload contains unexpected arrays")
+        try:
+            parents = arrays[_PARENT_KEY]
+            transitions = arrays[_TRANSITION_KEY]
+            innovation_scale = arrays[_INNOVATION_KEY]
+        except (OSError, ValueError, EOFError, zipfile.BadZipFile) as error:
+            raise ValueError("invalid sparse gauge-tree payload") from error
+        return GaugeTreeSquareRootPriorV1(
+            gauge_ids=gauge_ids,
+            parent_indices=parents,
+            transition_matrices=transitions,
+            innovation_scale_tril=innovation_scale,
+            source_joint_covariance_sha256=source_joint_covariance_sha256,
+            representation_semantics=representation_semantics,
+        )
 
 
 def _prior_from_record(
@@ -255,7 +260,7 @@ def _prior_from_record(
         source_joint_covariance_sha256=source_digest,
         representation_semantics=str(prior_record["representation_semantics"]),
     )
-    if prior.to_dict() != dict(prior_record):
+    if canonical_json_sha256(prior.to_dict()) != canonical_json_sha256(dict(prior_record)):
         raise ValueError("sparse gauge-tree prior record does not match the payload")
     return prior
 
