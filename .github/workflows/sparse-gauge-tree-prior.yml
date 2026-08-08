@@ -17,6 +17,7 @@ on:
       - "src/prob4d/gauge_tree_prior_artifact.py"
       - "src/prob4d/gauge_tree_prior_io.py"
       - "src/prob4d/provider_v2_factors.py"
+      - "src/prob4d/sparse_observation_factors.py"
       - "src/prob4d/tree_sparse_observation_factors.py"
       - "tests/test_cli.py"
       - "tests/test_command_registry.py"
@@ -81,6 +82,7 @@ jobs:
             src/prob4d/gauge_tree_prior_artifact.py
             src/prob4d/gauge_tree_prior_io.py
             src/prob4d/provider_v2_factors.py
+            src/prob4d/sparse_observation_factors.py
             src/prob4d/tree_sparse_observation_factors.py
             tests/test_cli.py
             tests/test_command_registry.py
@@ -89,6 +91,7 @@ jobs:
             tests/test_gauge_tree_prior.py
             tests/test_gauge_tree_prior_artifact.py
             tests/test_provider_v2_factors.py
+            tests/test_sparse_observation_factors.py
             tests/test_tree_sparse_observation_factors.py
           )
           python -m ruff check -- "${files[@]}"
@@ -102,6 +105,7 @@ jobs:
             src/prob4d/gauge_tree_prior_artifact.py \
             src/prob4d/gauge_tree_prior_io.py \
             src/prob4d/provider_v2_factors.py \
+            src/prob4d/sparse_observation_factors.py \
             src/prob4d/tree_sparse_observation_factors.py
 
       - name: Run focused and adjacent tests
