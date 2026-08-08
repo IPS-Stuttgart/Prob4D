@@ -5,10 +5,11 @@ causal spanning-tree gauge posterior. It replaces the dense in-memory
 `7K x 7K` covariance with `O(K)` parent, transition, and innovation factors while
 preserving the exact joint Gaussian statistics.
 
-It does **not** change provider-v2, `ObservationFactorBundle` schema v4, or any
-frozen artifact identity. A future portable provider/artifact version is still
-required before Prob4D can omit the dense prior from serialized claim-bearing
-bundles.
+The separately versioned portable artifact in `prob4d.gauge_tree_artifact` stores
+the same factors without materializing the dense prior. It does **not** change
+provider-v2, `ObservationFactorBundle` schema v4, or any frozen artifact identity.
+Current schema-v4 factor bundles still carry the dense compatibility covariance;
+the sparse artifact is an additive hand-off for prospective workflows.
 
 ## Model
 
@@ -98,6 +99,55 @@ tree-structured Gaussian. It must not be forced into this representation; the
 strict converter will reject it when its off-tree conditional structure is
 nonzero.
 
+## Portable sparse artifact
+
+Publish the normalized tree factors as a JSON manifest plus compressed NPZ
+payload:
+
+```python
+from prob4d.gauge_tree_artifact import (
+    load_gauge_tree_prior_artifact,
+    save_gauge_tree_prior_artifact,
+)
+
+manifest_path, payload_path = save_gauge_tree_prior_artifact(
+    "outputs/gauge-prior.json",
+    prior,
+)
+
+recovered = load_gauge_tree_prior_artifact(
+    manifest_path,
+    expected_prior_id=prior.prior_id,
+)
+```
+
+The writer is no-clobber and idempotent. Repeating a write for the same semantic
+prior reuses the validated files; attempting to replace either path with a
+different prior fails. If publication stops after the payload is complete but
+before the manifest is written, a repeated call verifies and reuses that orphan
+payload before publishing the manifest.
+
+The manifest binds:
+
+- schema, version, representation semantics, and ordered gauge identities;
+- the complete parent list and canonical descriptors of both factor tensors;
+- the optional dense-source covariance digest;
+- factor and dense-equivalent storage accounting;
+- the semantic `prior_id` and artifact identity; and
+- the relative payload path, exact payload SHA-256, fixed array inventory, and
+  `allow_pickle=false` declaration.
+
+The artifact identity is computed from the normalized semantic prior and fixed
+storage contract, not from ZIP timestamps or the local path. Two valid transports
+of the same prior therefore have the same identity. The NPZ SHA-256 remains a
+separate byte-level transport-integrity check.
+
+Loading rejects duplicate JSON keys, non-finite constants, unknown manifest or
+payload fields, path traversal, symbolic links, checksum drift, missing or extra
+arrays, changed array descriptors, mismatched storage accounting, and an
+unexpected `prior_id`. Loaded factors pass through the normal immutable prior
+constructor before they are returned.
+
 ## Matrix-free operations
 
 The generative tree gives `Sigma = T D T^T`, where `D` is block diagonal. A
@@ -171,14 +221,17 @@ At 64 gauges this is about 50 KiB instead of 1.53 MiB, before Python-container
 overhead. The advantage grows linearly with `K`. Dense materialization remains
 available only behind an explicit maximum-gauge guard.
 
-This first implementation removes dense prior storage only after direct sparse
-construction or a verified conversion. Serialized schema-v4 bundles still carry
-the dense covariance, so file size and initial load peak are unchanged.
+Direct sparse construction plus the portable artifact avoids dense prior storage
+both in memory and in the standalone file. A verified conversion from an existing
+dense bundle still incurs the original bundle load once. Serialized schema-v4
+observation-factor bundles continue to carry the dense covariance for frozen
+compatibility, so their file size and initial load peak are unchanged.
 
 ## Claim boundary
 
-Exact dense parity, lower memory use, and matrix-free algebra are engineering
-properties. They do not establish provider competence, covariance calibration,
-physical-query identifiability, safe BayesianPhysTwin acceptance, Causal4D
-intervention benefit, deployment safety, or state of the art. Promotion requires
-the separately frozen independent-object provider and guarded-query experiment.
+Exact dense parity, lower memory use, portable factor persistence, and
+matrix-free algebra are engineering properties. They do not establish provider
+competence, covariance calibration, physical-query identifiability, safe
+BayesianPhysTwin acceptance, Causal4D intervention benefit, deployment safety,
+or state of the art. Promotion requires the separately frozen independent-object
+provider and guarded-query experiment.
