@@ -31,13 +31,16 @@ def _bundle(*, with_invalid_row: bool = False) -> ObservationFactorBundle:
         GaugeEstimate("window-0", Sim3.identity(), covariance_0),
         GaugeEstimate("window-1", Sim3.identity(), covariance_1),
     )
+    local_covariance = np.repeat(
+        np.eye(3, dtype=np.float64)[None] * 1.0e-3,
+        2,
+        axis=0,
+    )
+    if with_invalid_row:
+        local_covariance[1] = np.nan
     common = {
         "valid_mask": np.asarray([True, not with_invalid_row]),
-        "local_covariance_m2": np.repeat(
-            np.eye(3, dtype=np.float64)[None] * 1.0e-3,
-            2,
-            axis=0,
-        ),
+        "local_covariance_m2": local_covariance,
         "association_probability": np.asarray([0.9, 0.8]),
         "prior_reliability": np.asarray([0.85, 0.75]),
         "prior_nominal_probability": 0.95,
@@ -53,7 +56,12 @@ def _bundle(*, with_invalid_row: bool = False) -> ObservationFactorBundle:
             gauge_id="window-0",
             point_ids=np.asarray([10, 11], dtype=np.int64),
             points_local_m=np.asarray(
-                [[0.0, 0.0, 1.0], [0.2, 0.0, 1.1]],
+                [
+                    [0.0, 0.0, 1.0],
+                    [np.nan, np.nan, np.nan]
+                    if with_invalid_row
+                    else [0.2, 0.0, 1.1],
+                ],
                 dtype=np.float64,
             ),
             correlation_group_id="camera-0:frame-2",
@@ -67,7 +75,12 @@ def _bundle(*, with_invalid_row: bool = False) -> ObservationFactorBundle:
             gauge_id="window-1",
             point_ids=np.asarray([20, 21], dtype=np.int64),
             points_local_m=np.asarray(
-                [[0.1, 0.2, 1.2], [0.3, 0.1, 1.3]],
+                [
+                    [0.1, 0.2, 1.2],
+                    [np.nan, np.nan, np.nan]
+                    if with_invalid_row
+                    else [0.3, 0.1, 1.3],
+                ],
                 dtype=np.float64,
             ),
             correlation_group_id="camera-0:frame-4",
@@ -203,6 +216,8 @@ def test_tree_sparse_stack_preserves_include_invalid_semantics() -> None:
 
     assert default.observation_count == 2
     assert complete.observation_count == 4
+    assert np.isnan(complete.world_mean_m[1]).all()
+    assert np.isnan(complete.conditional_world_covariance_m2[1]).all()
 
 
 def test_binding_rejects_wrong_gauge_order_and_wrong_covariance() -> None:
@@ -224,14 +239,25 @@ def test_binding_rejects_wrong_gauge_order_and_wrong_covariance() -> None:
         bind_gauge_tree_prior(dense_sparse, wrong_covariance)
 
 
-def test_public_constructor_rejects_marginal_covariance_drift() -> None:
+def test_binding_rejects_forged_row_marginal_covariance() -> None:
     bundle = _bundle()
-    tree_sparse = stack_tree_sparse_observation_factors(bundle, _prior(bundle))
-    changed = tree_sparse.marginal_world_covariance_m2.copy()
+    dense_sparse = stack_sparse_observation_factors(bundle)
+    changed = dense_sparse.marginal_world_covariance_m2.copy()
     changed[0] += np.eye(3) * 1.0e-4
+    forged = replace(dense_sparse, marginal_world_covariance_m2=changed)
 
     with pytest.raises(ValueError, match="does not match the tree gauge prior"):
-        replace(tree_sparse, marginal_world_covariance_m2=changed)
+        bind_gauge_tree_prior(forged, _prior(bundle))
+
+
+def test_tree_sparse_result_is_factory_built_and_slotted() -> None:
+    with pytest.raises(TypeError, match="bind_gauge_tree_prior"):
+        TreeSparseStackedObservationFactors()
+
+    bundle = _bundle()
+    tree_sparse = stack_tree_sparse_observation_factors(bundle, _prior(bundle))
+    with pytest.raises((AttributeError, TypeError)):
+        tree_sparse.new_attribute = 1  # type: ignore[misc]
 
 
 def test_tree_sparse_contract_rejects_wrong_types() -> None:
