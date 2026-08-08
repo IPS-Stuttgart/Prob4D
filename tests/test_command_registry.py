@@ -91,3 +91,11 @@ def test_find_command_resolves_canonical_route() -> None:
     command = find_command("prob4d observation export-calibrated")
     assert command is not None
     assert command.lifecycle is CommandLifecycle.STABLE
+
+
+def test_registry_exposes_portable_sparse_gauge_prior() -> None:
+    command = find_command("prob4d gauge prior")
+    assert command is not None
+    assert command.command_id == "gauge-tree-prior-artifact"
+    assert command.lifecycle is CommandLifecycle.STABLE
+    assert command.claim_bearing is False

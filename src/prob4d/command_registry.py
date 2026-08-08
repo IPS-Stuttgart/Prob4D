@@ -190,6 +190,14 @@ COMMANDS: Final[tuple[CommandSpec, ...]] = (
         "gauge-graph",
     ),
     _command(
+        "gauge-tree-prior-artifact",
+        "gauge prior",
+        "prob4d.gauge_tree_prior:main",
+        "verify or explicitly densify portable sparse gauge-tree priors",
+        S,
+        "gauge-tree",
+    ),
+    _command(
         "joint-covariance",
         "diagnostic joint-covariance",
         "prob4d.joint_covariance_metrics:main",
@@ -525,15 +533,11 @@ COMMANDS_BY_LEGACY_ALIAS: Final = {
 }
 
 
-def iter_commands(
-    *, lifecycle: CommandLifecycle | None = None
-) -> tuple[CommandSpec, ...]:
+def iter_commands(*, lifecycle: CommandLifecycle | None = None) -> tuple[CommandSpec, ...]:
     """Return registry entries in deterministic command-id order."""
 
     selected = (
-        command
-        for command in COMMANDS
-        if lifecycle is None or command.lifecycle is lifecycle
+        command for command in COMMANDS if lifecycle is None or command.lifecycle is lifecycle
     )
     return tuple(sorted(selected, key=lambda command: command.command_id))
 

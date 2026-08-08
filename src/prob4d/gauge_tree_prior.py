@@ -116,10 +116,23 @@ class GaugeTreeSquareRootPriorV1(GaugeTreePriorMethods):
         return result
 
 
+def main(argv: Sequence[str] | None = None) -> int:
+    """Verify or explicitly densify a portable sparse-prior artifact."""
+
+    from .gauge_tree_prior_artifact import main as artifact_main
+
+    return artifact_main(argv)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+
+
 __all__ = [
     "GAUGE_DIMENSION",
     "GAUGE_TREE_PRIOR_SCHEMA",
     "GAUGE_TREE_PRIOR_SEMANTICS",
     "GAUGE_TREE_PRIOR_VERSION",
     "GaugeTreeSquareRootPriorV1",
+    "main",
 ]
