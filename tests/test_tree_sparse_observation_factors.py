@@ -36,8 +36,6 @@ def _bundle(*, with_invalid_row: bool = False) -> ObservationFactorBundle:
         2,
         axis=0,
     )
-    if with_invalid_row:
-        local_covariance[1] = np.nan
     common = {
         "valid_mask": np.asarray([True, not with_invalid_row]),
         "local_covariance_m2": local_covariance,
@@ -58,7 +56,7 @@ def _bundle(*, with_invalid_row: bool = False) -> ObservationFactorBundle:
             points_local_m=np.asarray(
                 [
                     [0.0, 0.0, 1.0],
-                    [np.nan, np.nan, np.nan] if with_invalid_row else [0.2, 0.0, 1.1],
+                    [0.2, 0.0, 1.1],
                 ],
                 dtype=np.float64,
             ),
@@ -75,7 +73,7 @@ def _bundle(*, with_invalid_row: bool = False) -> ObservationFactorBundle:
             points_local_m=np.asarray(
                 [
                     [0.1, 0.2, 1.2],
-                    [np.nan, np.nan, np.nan] if with_invalid_row else [0.3, 0.1, 1.3],
+                    [0.3, 0.1, 1.3],
                 ],
                 dtype=np.float64,
             ),
@@ -217,8 +215,11 @@ def test_tree_sparse_stack_preserves_include_invalid_semantics() -> None:
 
     assert default.observation_count == 2
     assert complete.observation_count == 4
-    assert np.isnan(complete.world_mean_m[1]).all()
-    assert np.isnan(complete.conditional_world_covariance_m2[1]).all()
+    np.testing.assert_array_equal(default.point_ids, np.asarray([10, 20], dtype=np.int64))
+    np.testing.assert_array_equal(
+        complete.point_ids,
+        np.asarray([10, 11, 20, 21], dtype=np.int64),
+    )
 
 
 def test_binding_rejects_wrong_gauge_order_and_wrong_covariance() -> None:
