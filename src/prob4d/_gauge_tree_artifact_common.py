@@ -157,7 +157,7 @@ def _validate_member_path(value: object) -> str:
 def _validate_dtype(value: object, *, name: str) -> str:
     text = require_nonempty_string(value, name=name)
     try:
-        dtype = np.dtype(text)
+        dtype: np.dtype[Any] = np.dtype(text)
     except TypeError as error:
         raise ValueError(f"{name} is not a valid NumPy dtype") from error
     if dtype.hasobject:
@@ -227,12 +227,27 @@ class GaugeTreePriorArrayMemberV1:
                 f"gauge-tree array member fields changed; missing={missing}, extra={extra}"
             )
         return cls(
-            path=value.get("path"),
-            byte_count=value.get("byte_count"),
-            file_sha256=value.get("file_sha256"),
-            dtype=value.get("dtype"),
-            shape=value.get("shape"),
-            content_sha256=value.get("content_sha256"),
+            path=_validate_member_path(value["path"]),
+            byte_count=require_positive_integer(
+                value["byte_count"],
+                name="array member byte_count",
+            ),
+            file_sha256=validate_digest(
+                value["file_sha256"],
+                name="array member file_sha256",
+            ),
+            dtype=_validate_dtype(
+                value["dtype"],
+                name="array member dtype",
+            ),
+            shape=_require_shape(
+                value["shape"],
+                name="array member shape",
+            ),
+            content_sha256=validate_digest(
+                value["content_sha256"],
+                name="array member content_sha256",
+            ),
         )
 
 

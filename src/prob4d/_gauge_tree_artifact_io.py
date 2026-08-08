@@ -175,17 +175,25 @@ def _read_npy_header(
     try:
         version = np.lib.format.read_magic(buffer)
         if version == (1, 0):
-            shape, fortran_order, dtype = np.lib.format.read_array_header_1_0(
-                buffer,
-                max_header_size=MAX_NPY_HEADER_BYTES,
-            )
+            header_length_bytes = 2
+            header_reader = np.lib.format.read_array_header_1_0
         elif version == (2, 0):
-            shape, fortran_order, dtype = np.lib.format.read_array_header_2_0(
-                buffer,
-                max_header_size=MAX_NPY_HEADER_BYTES,
-            )
+            header_length_bytes = 4
+            header_reader = np.lib.format.read_array_header_2_0
         else:
             raise ValueError(f"unsupported NPY format version {version}")
+        length_start = buffer.tell()
+        length_stop = length_start + header_length_bytes
+        if len(payload) < length_stop:
+            raise ValueError("truncated NPY header length")
+        header_length = int.from_bytes(
+            payload[length_start:length_stop],
+            byteorder="little",
+            signed=False,
+        )
+        if header_length > MAX_NPY_HEADER_BYTES:
+            raise ValueError("NPY header length exceeds its bound")
+        shape, fortran_order, dtype = header_reader(buffer)
     except (EOFError, ValueError) as error:
         raise ValueError(f"{name} payload has an invalid bounded NPY header") from error
     header_bytes = buffer.tell()
