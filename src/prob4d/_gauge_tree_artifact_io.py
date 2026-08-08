@@ -58,11 +58,7 @@ def _read_stable_bytes(
     if maximum_bytes < 1:
         raise ValueError("maximum_bytes must be positive")
     _reject_symlink_components(path)
-    flags = (
-        os.O_RDONLY
-        | int(getattr(os, "O_CLOEXEC", 0))
-        | int(getattr(os, "O_NOFOLLOW", 0))
-    )
+    flags = os.O_RDONLY | int(getattr(os, "O_CLOEXEC", 0)) | int(getattr(os, "O_NOFOLLOW", 0))
     try:
         descriptor = os.open(path, flags)
     except OSError as error:
@@ -119,15 +115,18 @@ def _write_create_if_absent(path: Path, payload: bytes, *, name: str) -> None:
         descriptor = os.open(
             path,
             os.O_WRONLY | os.O_CREAT | os.O_EXCL,
-            0o644,
+            0o600,
         )
     except FileExistsError:
-        if _read_stable_bytes(
-            path,
-            name=name,
-            maximum_bytes=len(payload),
-        ) != payload:
-            raise FileExistsError(f"refusing to replace different {name}: {path}")
+        if (
+            _read_stable_bytes(
+                path,
+                name=name,
+                maximum_bytes=len(payload),
+            )
+            != payload
+        ):
+            raise FileExistsError(f"refusing to replace different {name}: {path}") from None
         return
     try:
         with os.fdopen(descriptor, "wb") as handle:
@@ -162,10 +161,7 @@ def _member_from_array(
         byte_count=len(payload),
         file_sha256=file_digest,
         dtype=str(descriptor["dtype"]),
-        shape=tuple(
-            int(value)
-            for value in cast(list[int], descriptor["shape"])
-        ),
+        shape=tuple(int(value) for value in cast(list[int], descriptor["shape"])),
         content_sha256=str(descriptor["sha256"]),
     )
 
@@ -240,9 +236,7 @@ def _load_member(
     try:
         array = np.load(buffer, allow_pickle=False)
     except (OSError, ValueError) as error:
-        raise ValueError(
-            f"{name} payload is not a valid non-pickled NPY array"
-        ) from error
+        raise ValueError(f"{name} payload is not a valid non-pickled NPY array") from error
     if not isinstance(array, np.ndarray) or array.dtype.hasobject:
         raise ValueError(f"{name} payload must be a non-object NumPy array")
     if buffer.read(1) != b"":
@@ -250,9 +244,7 @@ def _load_member(
     descriptor = canonical_array_descriptor(array)
     if str(descriptor["dtype"]) != member.dtype:
         raise ValueError(f"{name} payload dtype mismatch")
-    descriptor_shape = tuple(
-        int(value) for value in cast(list[int], descriptor["shape"])
-    )
+    descriptor_shape = tuple(int(value) for value in cast(list[int], descriptor["shape"]))
     if descriptor_shape != member.shape:
         raise ValueError(f"{name} payload shape mismatch")
     if str(descriptor["sha256"]) != member.content_sha256:
@@ -306,9 +298,7 @@ def load_gauge_tree_prior_artifact(
         parent_indices=parents,
         transition_matrices=transitions,
         innovation_scale_tril=scales,
-        source_joint_covariance_sha256=(
-            manifest.source_joint_covariance_sha256
-        ),
+        source_joint_covariance_sha256=(manifest.source_joint_covariance_sha256),
         representation_semantics=manifest.representation_semantics,
     )
     if prior.prior_id != manifest.prior_id:

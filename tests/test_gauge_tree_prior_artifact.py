@@ -21,8 +21,10 @@ from prob4d.gauge_tree_prior_artifact import (
     GAUGE_TREE_PRIOR_STORAGE_SEMANTICS,
     artifact_summary,
     load_gauge_tree_prior_artifact,
-    main as artifact_main,
     write_gauge_tree_prior_artifact,
+)
+from prob4d.gauge_tree_prior_artifact import (
+    main as artifact_main,
 )
 
 
@@ -46,8 +48,7 @@ def _rewrite_manifest(path: Path, record: dict[str, object]) -> None:
     identity = {key: value for key, value in record.items() if key != "artifact_id"}
     record["artifact_id"] = canonical_json_sha256(identity)
     path.write_text(
-        json.dumps(record, allow_nan=False, separators=(",", ":"), sort_keys=True)
-        + "\n",
+        json.dumps(record, allow_nan=False, separators=(",", ":"), sort_keys=True) + "\n",
         encoding="utf-8",
     )
 
