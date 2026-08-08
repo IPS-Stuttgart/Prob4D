@@ -109,7 +109,7 @@ jobs:
           assert any(name.endswith("/tests/test_gauge_tree_artifact.py") for name in names)
           assert any(name.endswith("/docs/sparse-gauge-tree-prior.md") for name in names)
           PY
-          python -m venv .artifact-wheel-venv
+          python -m venv --system-site-packages .artifact-wheel-venv
           .artifact-wheel-venv/bin/python -m pip install --no-deps dist/*.whl
           .artifact-wheel-venv/bin/python - <<'PY'
           from prob4d.gauge_tree_artifact import (
