@@ -2,10 +2,34 @@
 
 from __future__ import annotations
 
+from numbers import Real
+
 import numpy as np
 from numpy.typing import NDArray
 
 FloatArray = NDArray[np.floating]
+
+
+def _finite_nonnegative_real(value: float, *, name: str) -> float:
+    """Return one finite non-negative real scalar without coercive aliases."""
+
+    if isinstance(value, (bool, np.bool_)) or not isinstance(value, Real):
+        raise TypeError(f"{name} must be a real scalar")
+    result = float(value)
+    if not np.isfinite(result):
+        raise ValueError(f"{name} must be finite")
+    if result < 0.0:
+        raise ValueError(f"{name} must be non-negative")
+    return result
+
+
+def _finite_positive_real(value: float, *, name: str) -> float:
+    """Return one finite positive real scalar without coercive aliases."""
+
+    result = _finite_nonnegative_real(value, name=name)
+    if result <= 0.0:
+        raise ValueError(f"{name} must be positive")
+    return result
 
 
 def _validated_eigendecomposition(
@@ -22,8 +46,16 @@ def _validated_eigendecomposition(
         raise ValueError(f"{name} must contain nonempty square matrices")
     if not np.all(np.isfinite(values)):
         raise ValueError(f"{name} must be finite")
-    if absolute_negative_tolerance < 0.0 or relative_negative_tolerance < 0.0:
-        raise ValueError("negative-eigenvalue tolerances must be non-negative")
+    absolute_negative_tolerance = _finite_nonnegative_real(
+        absolute_negative_tolerance,
+        name="absolute_negative_tolerance",
+    )
+    relative_negative_tolerance = _finite_nonnegative_real(
+        relative_negative_tolerance,
+        name="relative_negative_tolerance",
+    )
+    symmetry_atol = _finite_nonnegative_real(symmetry_atol, name="symmetry_atol")
+    symmetry_rtol = _finite_nonnegative_real(symmetry_rtol, name="symmetry_rtol")
 
     transposed = np.swapaxes(values, -1, -2)
     symmetric = 0.5 * (values + transposed)
@@ -116,8 +148,7 @@ def covariance_eigendecomposition(
     well defined.
     """
 
-    if not np.isfinite(eigenvalue_floor) or eigenvalue_floor <= 0.0:
-        raise ValueError("eigenvalue_floor must be finite and positive")
+    eigenvalue_floor = _finite_positive_real(eigenvalue_floor, name="eigenvalue_floor")
     symmetric, eigenvalues, eigenvectors = _validated_eigendecomposition(
         covariance,
         name=name,

@@ -17,10 +17,12 @@ The installed package contains a data-only normative bundle under
 - ten invalid mutations covering semantic, closed-schema, dtype, and digest
   failures.
 
-The canonical repository is `FlorianPfaff/Prob4D`. Every participating
-repository carries a byte-identical copy so ordinary installation and CI remain
-offline and do not require access to another private repository. The copies are
-bound by the bundle SHA-256
+The canonical development repository is `IPS-Stuttgart/Prob4D`. The normative
+bundle was originally frozen under `FlorianPfaff/Prob4D`, and historical
+content-addressed artifacts may correctly retain that repository identity.
+Every participating repository carries a byte-identical copy so ordinary
+installation and CI remain offline and do not require access to another private
+repository. The copies are bound by the bundle SHA-256
 
 ```text
 a62c693a14c227daa1f4c8db850e691a1d0081df0c853cf0174c33d0b8504ce9
