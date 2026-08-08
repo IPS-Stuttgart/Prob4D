@@ -143,7 +143,7 @@ def test_manifest_and_expected_identity_tampering_fail_closed(tmp_path: Path) ->
         load_gauge_tree_prior_artifact(manifest, expected_prior_id=wrong_prior_id)
 
     record = json.loads(manifest.read_text(encoding="utf-8"))
-    record["prior"]["gauge_count"] = 999
+    record["prior"]["gauge_count"] = True
     manifest.write_text(json.dumps(record), encoding="utf-8")
     with pytest.raises(ValueError, match="does not match the payload"):
         load_gauge_tree_prior_artifact(manifest)
