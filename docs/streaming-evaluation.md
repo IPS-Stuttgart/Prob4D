@@ -88,13 +88,18 @@ processes used Python 3.13.5, NumPy 2.3.5, Linux 6.12.13 x86-64, three
 
 This is synthetic engineering evidence for one host and process configuration,
 not a runtime guarantee or a reconstruction-accuracy, uncertainty-calibration,
-Bayesian-PhysTwin, or Causal4D result.
+BayesianPhysTwin, or Causal4D result.
 
-## Remaining memory work
+## Current memory boundary
 
-The evaluator still requires the dense immutable prediction and truth inputs,
-and exact ranking diagnostics still retain three scalar values per evaluated
-point. Issue #50 continues to track memory-mapped prediction loading,
-export-stage streaming, and production-host profiling at the full
-`25 x 320 x 640` setting. Any such mode must remain explicit and must not alter
-frozen provider semantics silently.
+Issue #50 is complete. Its frozen real-bundle comparison verified exact semantic
+parity and measured materially lower source-loading memory and runtime for the
+memory-mapped execution store; the total-process peak improved more modestly.
+See [dense-memory execution](dense-memory.md) for the retained measurements,
+identities, and claim boundary.
+
+The evaluator still requires dense immutable prediction and truth inputs, and
+exact ranking diagnostics still retain three scalar values per evaluated point.
+A later optimization should be opened separately only when a matched production
+profile identifies a specific remaining bottleneck. Any such mode must remain
+explicit and must not silently alter frozen provider semantics.
