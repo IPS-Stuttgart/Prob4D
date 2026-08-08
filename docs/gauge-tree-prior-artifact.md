@@ -88,6 +88,12 @@ exact byte digests, and the manifest is published only after all members exist.
 A failed final publication can therefore leave only harmless content-addressed
 orphan members, never a valid manifest pointing to incomplete data.
 
+Before NumPy allocates an array, the loader independently reads the NPY magic,
+version, little-endian header length, shape, dtype, memory order, and exact
+header-plus-data size from the already bounded file snapshot. This prevents a
+small, correctly rehashed payload from advertising an unbounded allocation
+shape or a framing layout that differs from the manifest.
+
 Loading rejects:
 
 - duplicate or unknown JSON fields and non-finite JSON constants;
@@ -96,6 +102,8 @@ Loading rejects:
 - source mutation while a file is read;
 - a manifest larger than 1 MiB or an NPY member whose declared/actual size
   exceeds the exact array bytes plus a 64 KiB header allowance;
+- unsupported or oversized NPY headers, Fortran-order arrays, and any mismatch
+  between header shape/dtype/framing and the manifest;
 - file hash, byte-count, dtype, shape, or canonical-array mismatch;
 - object arrays, pickled data, malformed NPY data, and trailing bytes;
 - changed gauge order, tree semantics, sparse-prior identity, or source binding;
