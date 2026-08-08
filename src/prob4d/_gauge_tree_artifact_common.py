@@ -20,9 +20,7 @@ from ._gauge_tree_common import (
 
 GAUGE_TREE_PRIOR_ARTIFACT_SCHEMA: Final = "prob4d.gauge-tree-prior-artifact"
 GAUGE_TREE_PRIOR_ARTIFACT_VERSION: Final = 1
-GAUGE_TREE_PRIOR_STORAGE_SEMANTICS: Final = (
-    "content-addressed-non-pickled-npy-members-v1"
-)
+GAUGE_TREE_PRIOR_STORAGE_SEMANTICS: Final = "content-addressed-non-pickled-npy-members-v1"
 MAX_NPY_HEADER_BYTES: Final = 65_536
 MEMBER_NAMES: Final = (
     "parent_indices",
@@ -64,9 +62,7 @@ _ARTIFACT_FIELDS: Final = frozenset(
 
 def require_nonempty_string(value: object, *, name: str) -> str:
     if not isinstance(value, str) or not value or value != value.strip():
-        raise ValueError(
-            f"{name} must be a nonempty string without surrounding whitespace"
-        )
+        raise ValueError(f"{name} must be a nonempty string without surrounding whitespace")
     return value
 
 
@@ -102,9 +98,7 @@ def validate_optional_digest(value: object, *, name: str) -> str | None:
 
 
 def validate_gauge_ids_strict(values: Sequence[object]) -> tuple[str, ...]:
-    gauge_ids = tuple(
-        require_nonempty_string(value, name="gauge_id") for value in values
-    )
+    gauge_ids = tuple(require_nonempty_string(value, name="gauge_id") for value in values)
     if not gauge_ids:
         raise ValueError("gauge_ids must not be empty")
     if len(set(gauge_ids)) != len(gauge_ids):
@@ -230,8 +224,7 @@ class GaugeTreePriorArrayMemberV1:
             missing = sorted(_MEMBER_FIELDS - value.keys())
             extra = sorted(value.keys() - _MEMBER_FIELDS)
             raise ValueError(
-                "gauge-tree array member fields changed; "
-                f"missing={missing}, extra={extra}"
+                f"gauge-tree array member fields changed; missing={missing}, extra={extra}"
             )
         return cls(
             path=value.get("path"),
@@ -296,15 +289,10 @@ class GaugeTreePriorArtifactV1:
             raise ValueError("gauge-tree prior array member paths must be distinct")
         for name, member in members.items():
             if member.shape != expected_shapes[name]:
-                raise ValueError(
-                    f"{name} member shape must be {expected_shapes[name]}"
-                )
+                raise ValueError(f"{name} member shape must be {expected_shapes[name]}")
             if member.dtype != expected_dtypes[name]:
                 raise ValueError(f"{name} member dtype must be {expected_dtypes[name]}")
-            expected_path = (
-                f"gauge-tree-prior-{MEMBER_FILE_LABELS[name]}-"
-                f"{member.file_sha256}.npy"
-            )
+            expected_path = f"gauge-tree-prior-{MEMBER_FILE_LABELS[name]}-{member.file_sha256}.npy"
             if member.path != expected_path:
                 raise ValueError(f"{name} member path is not content-addressed")
 
@@ -346,8 +334,7 @@ class GaugeTreePriorArtifactV1:
             missing = sorted(_ARTIFACT_FIELDS - value.keys())
             extra = sorted(value.keys() - _ARTIFACT_FIELDS)
             raise ValueError(
-                "gauge-tree prior artifact fields changed; "
-                f"missing={missing}, extra={extra}"
+                f"gauge-tree prior artifact fields changed; missing={missing}, extra={extra}"
             )
         if value.get("schema") != GAUGE_TREE_PRIOR_ARTIFACT_SCHEMA:
             raise ValueError("unexpected gauge-tree prior artifact schema")

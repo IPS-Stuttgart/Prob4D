@@ -533,15 +533,11 @@ COMMANDS_BY_LEGACY_ALIAS: Final = {
 }
 
 
-def iter_commands(
-    *, lifecycle: CommandLifecycle | None = None
-) -> tuple[CommandSpec, ...]:
+def iter_commands(*, lifecycle: CommandLifecycle | None = None) -> tuple[CommandSpec, ...]:
     """Return registry entries in deterministic command-id order."""
 
     selected = (
-        command
-        for command in COMMANDS
-        if lifecycle is None or command.lifecycle is lifecycle
+        command for command in COMMANDS if lifecycle is None or command.lifecycle is lifecycle
     )
     return tuple(sorted(selected, key=lambda command: command.command_id))
 

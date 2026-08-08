@@ -181,9 +181,7 @@ def _write_dense_no_replace(output: Path, dense: np.ndarray) -> str:
         try:
             os.link(temporary, output)
         except FileExistsError as error:
-            raise FileExistsError(
-                f"refusing to replace dense output {output}"
-            ) from error
+            raise FileExistsError(f"refusing to replace dense output {output}") from error
         _fsync_directory(output.parent)
         return digest
     finally:
@@ -193,9 +191,7 @@ def _write_dense_no_replace(output: Path, dense: np.ndarray) -> str:
 def _materialize_cli(arguments: Sequence[str]) -> int:
     parser = argparse.ArgumentParser(
         prog="prob4d gauge prior materialize",
-        description=(
-            "Explicitly materialize a verified sparse prior as a guarded dense NPY file."
-        ),
+        description=("Explicitly materialize a verified sparse prior as a guarded dense NPY file."),
     )
     parser.add_argument("manifest", type=Path)
     parser.add_argument("output", type=Path)
@@ -204,9 +200,7 @@ def _materialize_cli(arguments: Sequence[str]) -> int:
     parsed = parser.parse_args(list(arguments))
     try:
         loaded = load_gauge_tree_prior_artifact(parsed.manifest)
-        dense = loaded.prior.materialize_dense_covariance(
-            maximum_gauges=parsed.maximum_gauges
-        )
+        dense = loaded.prior.materialize_dense_covariance(maximum_gauges=parsed.maximum_gauges)
         digest = _write_dense_no_replace(parsed.output, dense)
     except (OSError, ValueError) as error:
         print(f"unable to materialize gauge-tree prior: {error}", file=sys.stderr)
