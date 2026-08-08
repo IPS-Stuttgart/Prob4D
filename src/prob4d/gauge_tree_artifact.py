@@ -72,9 +72,7 @@ def _require_exact_keys(
     if actual != expected:
         missing = sorted(expected - actual)
         unexpected = sorted(actual - expected)
-        raise ValueError(
-            f"{name} has invalid keys: missing={missing}, unexpected={unexpected}"
-        )
+        raise ValueError(f"{name} has invalid keys: missing={missing}, unexpected={unexpected}")
 
 
 def _require_sha256(value: Any, *, name: str) -> str:
@@ -356,9 +354,7 @@ def save_gauge_tree_prior_artifact(
     if manifest.exists():
         existing = load_gauge_tree_prior_artifact(manifest)
         if existing.prior_id != prior.prior_id:
-            raise FileExistsError(
-                "refusing to overwrite a different sparse gauge-tree artifact"
-            )
+            raise FileExistsError("refusing to overwrite a different sparse gauge-tree artifact")
         record = _load_json(manifest)
         existing_payload = _resolve_payload(manifest, record["payload"]["path"])
         if existing_payload.resolve() != payload.resolve():
@@ -373,9 +369,7 @@ def save_gauge_tree_prior_artifact(
             representation_semantics=prior.representation_semantics,
         )
         if existing.prior_id != prior.prior_id:
-            raise FileExistsError(
-                "refusing to reuse a different sparse gauge-tree payload"
-            )
+            raise FileExistsError("refusing to reuse a different sparse gauge-tree payload")
     else:
         _atomic_write_npz(payload, prior)
 
