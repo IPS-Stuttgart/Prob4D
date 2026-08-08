@@ -39,14 +39,8 @@ def test_provider_v2_factor_facade_reexports_one_contract_surface() -> None:
         is strict.write_claim_bearing_observation_factor_bundle
     )
 
-    assert (
-        provider.SparseStackedObservationFactors
-        is sparse.SparseStackedObservationFactors
-    )
-    assert (
-        provider.stack_sparse_observation_factors
-        is sparse.stack_sparse_observation_factors
-    )
+    assert provider.SparseStackedObservationFactors is sparse.SparseStackedObservationFactors
+    assert provider.stack_sparse_observation_factors is sparse.stack_sparse_observation_factors
     assert (
         provider.TreeSparseStackedObservationFactors
         is tree_sparse.TreeSparseStackedObservationFactors
