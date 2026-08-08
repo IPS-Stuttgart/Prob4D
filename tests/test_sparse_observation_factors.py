@@ -150,8 +150,7 @@ def test_sparse_gauge_operations_match_dense_linear_algebra() -> None:
     )
     np.testing.assert_allclose(
         sparse.gauge_marginal_covariance_m2(),
-        sparse.marginal_world_covariance_m2
-        - sparse.conditional_world_covariance_m2,
+        sparse.marginal_world_covariance_m2 - sparse.conditional_world_covariance_m2,
         atol=1e-15,
         rtol=1e-12,
     )
