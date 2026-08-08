@@ -135,6 +135,18 @@ def test_payload_with_unexpected_array_fails_closed(tmp_path: Path) -> None:
         load_gauge_tree_prior_artifact(manifest)
 
 
+def test_non_npz_payload_fails_closed(tmp_path: Path) -> None:
+    manifest, payload = save_gauge_tree_prior_artifact(tmp_path / "prior.json", _prior())
+    with payload.open("wb") as stream:
+        np.save(stream, np.asarray([1.0], dtype=np.float64))
+    record = json.loads(manifest.read_text(encoding="utf-8"))
+    record["payload"]["sha256"] = _sha256(payload)
+    manifest.write_text(json.dumps(record), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="must be an NPZ archive"):
+        load_gauge_tree_prior_artifact(manifest)
+
+
 def test_manifest_and_expected_identity_tampering_fail_closed(tmp_path: Path) -> None:
     prior = _prior()
     manifest, _ = save_gauge_tree_prior_artifact(tmp_path / "prior.json", prior)
