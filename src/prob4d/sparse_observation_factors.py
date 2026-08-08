@@ -34,7 +34,29 @@ def _integer_vector(value: np.ndarray, *, name: str) -> np.ndarray:
         raise ValueError(f"{name} must be a vector")
     if raw.dtype.kind not in {"i", "u"}:
         raise TypeError(f"{name} must contain genuine integers")
+    if raw.dtype.kind == "u" and raw.size:
+        maximum = int(np.max(raw))
+        if maximum > np.iinfo(np.int64).max:
+            raise ValueError(f"{name} values must fit in the int64 range")
     return np.asarray(raw, dtype=np.int64)
+
+
+def _string_tuple(
+    value: object,
+    *,
+    name: str,
+    expected_length: int | None = None,
+) -> tuple[str, ...]:
+    if type(value) is not tuple:
+        raise TypeError(f"{name} must be a tuple of literal strings")
+    values = value
+    if any(type(item) is not str for item in values):
+        raise TypeError(f"{name} must contain literal strings")
+    if any(not item for item in values):
+        raise ValueError(f"{name} must contain nonempty strings")
+    if expected_length is not None and len(values) != expected_length:
+        raise ValueError(f"{name} must contain exactly {expected_length} entries")
+    return values
 
 
 def _require_psd(value: np.ndarray, *, name: str, tolerance: float = 1e-12) -> None:
@@ -43,6 +65,52 @@ def _require_psd(value: np.ndarray, *, name: str, tolerance: float = 1e-12) -> N
         raise ValueError(f"{name} must be symmetric")
     if np.min(np.linalg.eigvalsh(symmetric), initial=0.0) < -tolerance:
         raise ValueError(f"{name} must be positive semidefinite")
+
+
+def _require_row_covariance(
+    value: np.ndarray,
+    *,
+    name: str,
+    tolerance: float = 1e-12,
+) -> None:
+    finite_rows = np.all(np.isfinite(value), axis=(1, 2))
+    if not np.any(finite_rows):
+        return
+    selected = value[finite_rows]
+    symmetric = 0.5 * (selected + selected.swapaxes(1, 2))
+    if not np.allclose(selected, symmetric, atol=tolerance, rtol=1e-10):
+        raise ValueError(f"{name} finite rows must be symmetric")
+    if np.any(np.linalg.eigvalsh(symmetric) < -tolerance):
+        raise ValueError(f"{name} finite rows must be positive semidefinite")
+
+
+def _row_gauge_marginal_covariance(
+    local_gauge_jacobian: np.ndarray,
+    gauge_indices: np.ndarray,
+    gauge_prior_covariance: np.ndarray,
+    *,
+    gauge_count: int,
+) -> np.ndarray:
+    blocks: FloatArray = np.empty(
+        (len(local_gauge_jacobian), 7, 7),
+        dtype=np.float64,
+    )
+    for gauge_index in range(gauge_count):
+        selected = gauge_indices == gauge_index
+        start = 7 * gauge_index
+        blocks[selected] = gauge_prior_covariance[
+            start : start + 7,
+            start : start + 7,
+        ]
+    with np.errstate(invalid="ignore", over="ignore"):
+        result: FloatArray = np.einsum(
+            "nia,nab,njb->nij",
+            local_gauge_jacobian,
+            blocks,
+            local_gauge_jacobian,
+            optimize=True,
+        )
+    return 0.5 * (result + result.swapaxes(1, 2))
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,7 +160,7 @@ class SparseStackedObservationFactors:
         composite = np.asarray(self.composite_weight, dtype=np.float64)
         point_ids = _integer_vector(self.point_ids, name="point_ids")
         frame_indices = _integer_vector(self.frame_indices, name="frame_indices")
-        gauge_ids = tuple(str(value) for value in self.gauge_ids)
+        gauge_ids = _string_tuple(self.gauge_ids, name="gauge_ids")
         count = len(mean)
         gauge_count = len(gauge_ids)
         gauge_dimension = 7 * gauge_count
@@ -111,8 +179,8 @@ class SparseStackedObservationFactors:
             raise ValueError("local_gauge_jacobian must have shape (M, 3, 7)")
         if gauge_indices.shape != (count,):
             raise ValueError("gauge_indices must have shape (M,)")
-        if not gauge_ids or any(not value for value in gauge_ids):
-            raise ValueError("gauge_ids must contain nonempty strings")
+        if not gauge_ids:
+            raise ValueError("gauge_ids must contain at least one identifier")
         if len(set(gauge_ids)) != gauge_count:
             raise ValueError("gauge_ids must be unique")
         if np.any(gauge_indices < 0) or np.any(gauge_indices >= gauge_count):
@@ -125,6 +193,36 @@ class SparseStackedObservationFactors:
         if not np.all(np.isfinite(gauge_prior)):
             raise ValueError("gauge_prior_covariance must be finite")
         _require_psd(gauge_prior, name="gauge_prior_covariance")
+        _require_row_covariance(
+            conditional,
+            name="conditional_world_covariance_m2",
+        )
+        _require_row_covariance(
+            marginal,
+            name="marginal_world_covariance_m2",
+        )
+        gauge_marginal = _row_gauge_marginal_covariance(
+            local_jacobian,
+            gauge_indices,
+            gauge_prior,
+            gauge_count=gauge_count,
+        )
+        with np.errstate(invalid="ignore", over="ignore"):
+            expected_marginal = conditional + gauge_marginal
+            expected_marginal = 0.5 * (
+                expected_marginal + expected_marginal.swapaxes(1, 2)
+            )
+        if not np.allclose(
+            marginal,
+            expected_marginal,
+            atol=1e-12,
+            rtol=1e-10,
+            equal_nan=True,
+        ):
+            raise ValueError(
+                "marginal_world_covariance_m2 must equal conditional covariance "
+                "plus the selected gauge-prior contribution"
+            )
 
         probabilities = (
             ("association_probability", association, True),
@@ -159,15 +257,22 @@ class SparseStackedObservationFactors:
             raise ValueError("stacked rows cross the exclusive causal frame stop")
 
         string_fields = {
-            "view_ids": tuple(str(value) for value in self.view_ids),
-            "factor_ids": tuple(str(value) for value in self.factor_ids),
-            "correlation_group_ids": tuple(
-                str(value) for value in self.correlation_group_ids
+            "view_ids": _string_tuple(
+                self.view_ids,
+                name="view_ids",
+                expected_length=count,
+            ),
+            "factor_ids": _string_tuple(
+                self.factor_ids,
+                name="factor_ids",
+                expected_length=count,
+            ),
+            "correlation_group_ids": _string_tuple(
+                self.correlation_group_ids,
+                name="correlation_group_ids",
+                expected_length=count,
             ),
         }
-        for name, values in string_fields.items():
-            if len(values) != count or any(not value for value in values):
-                raise ValueError(f"{name} must contain one nonempty string per row")
 
         for name, value in (
             ("world_mean_m", mean),
@@ -257,24 +362,12 @@ class SparseStackedObservationFactors:
     def gauge_marginal_covariance_m2(self) -> FloatArray:
         """Return each row's ``J Sigma_gg J^T`` contribution."""
 
-        blocks: FloatArray = np.empty(
-            (self.observation_count, 7, 7), dtype=np.float64
-        )
-        for gauge_index in range(self.gauge_count):
-            selected = self.gauge_indices == gauge_index
-            start = 7 * gauge_index
-            blocks[selected] = self.gauge_prior_covariance[
-                start : start + 7,
-                start : start + 7,
-            ]
-        result: FloatArray = np.einsum(
-            "nia,nab,njb->nij",
+        return _row_gauge_marginal_covariance(
             self.local_gauge_jacobian,
-            blocks,
-            self.local_gauge_jacobian,
-            optimize=True,
+            self.gauge_indices,
+            self.gauge_prior_covariance,
+            gauge_count=self.gauge_count,
         )
-        return 0.5 * (result + result.swapaxes(1, 2))
 
 
 def stack_sparse_observation_factors(
