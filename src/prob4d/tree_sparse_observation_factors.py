@@ -64,9 +64,7 @@ def _require_marginal_parity(
         rtol=1e-10,
         equal_nan=True,
     ):
-        raise ValueError(
-            "marginal_world_covariance_m2 does not match the tree gauge prior"
-        )
+        raise ValueError("marginal_world_covariance_m2 does not match the tree gauge prior")
 
 
 def _require_immutable_rows(stacked: SparseStackedObservationFactors) -> None:
@@ -103,9 +101,7 @@ class TreeSparseStackedObservationFactors:
     causal_frame_stop: int
 
     def __init__(self) -> None:
-        raise TypeError(
-            "use bind_gauge_tree_prior or stack_tree_sparse_observation_factors"
-        )
+        raise TypeError("use bind_gauge_tree_prior or stack_tree_sparse_observation_factors")
 
     @classmethod
     def _from_verified_sparse_stack(
@@ -142,10 +138,7 @@ class TreeSparseStackedObservationFactors:
     @property
     def dense_gauge_design_nbytes(self) -> int:
         return int(
-            self.observation_count
-            * 3
-            * self.dense_gauge_dimension
-            * np.dtype(np.float64).itemsize
+            self.observation_count * 3 * self.dense_gauge_dimension * np.dtype(np.float64).itemsize
         )
 
     @property
@@ -255,9 +248,7 @@ def bind_gauge_tree_prior(
         raise ValueError("gauge-tree prior order does not match the sparse stack")
     gauge_tree_prior.verify_dense_covariance(
         stacked.gauge_prior_covariance,
-        require_source_digest=(
-            gauge_tree_prior.source_joint_covariance_sha256 is not None
-        ),
+        require_source_digest=(gauge_tree_prior.source_joint_covariance_sha256 is not None),
     )
     _require_immutable_rows(stacked)
     _require_marginal_parity(stacked, gauge_tree_prior)
