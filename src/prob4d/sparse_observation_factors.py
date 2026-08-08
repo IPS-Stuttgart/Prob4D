@@ -223,9 +223,7 @@ class SparseStackedObservationFactors:
         if mean.shape != (count, 3):
             raise ValueError("world_mean_m must have shape (M, 3)")
         if conditional.shape != (count, 3, 3):
-            raise ValueError(
-                "conditional_world_covariance_m2 must have shape (M, 3, 3)"
-            )
+            raise ValueError("conditional_world_covariance_m2 must have shape (M, 3, 3)")
         if marginal.shape != (count, 3, 3):
             raise ValueError("marginal_world_covariance_m2 must have shape (M, 3, 3)")
         if local_jacobian.shape != (count, 3, 7):
@@ -240,8 +238,7 @@ class SparseStackedObservationFactors:
             raise ValueError("gauge_indices reference an unknown gauge")
         if gauge_prior.shape != (gauge_dimension, gauge_dimension):
             raise ValueError(
-                "gauge_prior_covariance must have shape "
-                f"({gauge_dimension}, {gauge_dimension})"
+                f"gauge_prior_covariance must have shape ({gauge_dimension}, {gauge_dimension})"
             )
         if not np.all(np.isfinite(gauge_prior)):
             raise ValueError("gauge_prior_covariance must be finite")
@@ -273,20 +270,15 @@ class SparseStackedObservationFactors:
             if values.shape != (count,):
                 raise ValueError(f"{name} must have shape (M,)")
             lower = values >= 0.0 if allow_zero else values > 0.0
-            if (
-                not np.all(np.isfinite(values))
-                or not np.all(lower)
-                or np.any(values > 1.0)
-            ):
+            if not np.all(np.isfinite(values)) or not np.all(lower) or np.any(values > 1.0):
                 interval = "[0, 1]" if allow_zero else "(0, 1]"
                 raise ValueError(f"{name} must lie in {interval}")
 
         if point_ids.shape != (count,) or frame_indices.shape != (count,):
             raise ValueError("row identity vectors must have shape (M,)")
         raw_causal_frame_stop = self.causal_frame_stop
-        if (
-            isinstance(raw_causal_frame_stop, (bool, np.bool_))
-            or not isinstance(raw_causal_frame_stop, (int, np.integer))
+        if isinstance(raw_causal_frame_stop, (bool, np.bool_)) or not isinstance(
+            raw_causal_frame_stop, (int, np.integer)
         ):
             raise TypeError("causal_frame_stop must be a genuine integer")
         causal_frame_stop = int(raw_causal_frame_stop)
@@ -356,10 +348,7 @@ class SparseStackedObservationFactors:
         """Bytes required by the equivalent float64 dense ``M x 3 x 7K`` design."""
 
         return int(
-            self.observation_count
-            * 3
-            * self.dense_gauge_dimension
-            * np.dtype(np.float64).itemsize
+            self.observation_count * 3 * self.dense_gauge_dimension * np.dtype(np.float64).itemsize
         )
 
     def dense_gauge_jacobian(self) -> FloatArray:
@@ -452,9 +441,7 @@ def stack_sparse_observation_factors(
             continue
         gauge_index = gauge_positions[factor.gauge_id]
         means.append(linearized.world_mean_m[selected])
-        conditional_covariances.append(
-            linearized.conditional_world_covariance_m2[selected]
-        )
+        conditional_covariances.append(linearized.conditional_world_covariance_m2[selected])
         marginal_covariances.append(linearized.marginal_world_covariance_m2[selected])
         local_jacobians.append(linearized.gauge_jacobian[selected])
         gauge_indices.append(np.full(selected_count, gauge_index, dtype=np.int64))
@@ -467,18 +454,12 @@ def stack_sparse_observation_factors(
                 dtype=np.float64,
             )
         )
-        composite_weights.append(
-            np.full(selected_count, factor.composite_weight, dtype=np.float64)
-        )
+        composite_weights.append(np.full(selected_count, factor.composite_weight, dtype=np.float64))
         point_ids.append(factor.point_ids[selected])
-        frame_indices.append(
-            np.full(selected_count, factor.frame_index, dtype=np.int64)
-        )
+        frame_indices.append(np.full(selected_count, factor.frame_index, dtype=np.int64))
         view_ids.extend([factor.view_id] * selected_count)
         factor_ids.extend([factor.factor_id] * selected_count)
-        correlation_group_ids.extend(
-            [factor.correlation_group_id] * selected_count
-        )
+        correlation_group_ids.extend([factor.correlation_group_id] * selected_count)
 
     if not means:
         raise ValueError("observation-factor stack has no selected rows")
