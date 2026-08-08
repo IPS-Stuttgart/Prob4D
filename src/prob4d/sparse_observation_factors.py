@@ -11,7 +11,7 @@ statistics while reducing Jacobian storage from ``O(MK)`` to ``O(M)``.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, TypeAlias
+from typing import Any, TypeAlias, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -49,14 +49,14 @@ def _string_tuple(
 ) -> tuple[str, ...]:
     if type(value) is not tuple:
         raise TypeError(f"{name} must be a tuple of literal strings")
-    values = value
+    values = cast(tuple[object, ...], value)
     if any(type(item) is not str for item in values):
         raise TypeError(f"{name} must contain literal strings")
     if any(not item for item in values):
         raise ValueError(f"{name} must contain nonempty strings")
     if expected_length is not None and len(values) != expected_length:
         raise ValueError(f"{name} must contain exactly {expected_length} entries")
-    return values
+    return cast(tuple[str, ...], values)
 
 
 def _require_psd(value: np.ndarray, *, name: str, tolerance: float = 1e-12) -> None:
