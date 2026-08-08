@@ -132,12 +132,10 @@ def test_tree_sparse_stack_matches_dense_prior_and_row_contracts() -> None:
     )
     assert tree_sparse.gauge_ids == dense_sparse.gauge_ids
     assert (
-        tree_sparse.gauge_prior_storage_nbytes
-        == tree_sparse.gauge_tree_prior.factor_storage_nbytes
+        tree_sparse.gauge_prior_storage_nbytes == tree_sparse.gauge_tree_prior.factor_storage_nbytes
     )
     assert (
-        tree_sparse.dense_gauge_prior_nbytes
-        == tree_sparse.gauge_tree_prior.dense_covariance_nbytes
+        tree_sparse.dense_gauge_prior_nbytes == tree_sparse.gauge_tree_prior.dense_covariance_nbytes
     )
 
 
