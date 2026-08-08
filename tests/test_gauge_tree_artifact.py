@@ -35,11 +35,7 @@ def _prior(
     for index in range(1, gauge_count):
         transitions[index] = np.eye(7) * (0.7 + 0.02 * index)
         transitions[index, 4:, :3] = 0.01 * index
-        scale = np.diag(
-            np.linspace(0.02, 0.04, 7)
-            * (1.0 + 0.05 * index)
-            * innovation_scale
-        )
+        scale = np.diag(np.linspace(0.02, 0.04, 7) * (1.0 + 0.05 * index) * innovation_scale)
         scale[3, 0] = 0.002 * innovation_scale
         scale[6, 2] = -0.001 * innovation_scale
         scales[index] = scale
