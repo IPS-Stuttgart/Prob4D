@@ -109,14 +109,15 @@ jobs:
           assert any(name.endswith("/tests/test_gauge_tree_artifact.py") for name in names)
           assert any(name.endswith("/docs/sparse-gauge-tree-prior.md") for name in names)
           PY
-          python -m venv --system-site-packages .artifact-wheel-venv
-          .artifact-wheel-venv/bin/python -m pip install --no-deps dist/*.whl
+          python -m venv .artifact-wheel-venv
+          .artifact-wheel-venv/bin/python -m pip install dist/*.whl
           .artifact-wheel-venv/bin/python - <<'PY'
-          from prob4d.gauge_tree_artifact import (
-              load_gauge_tree_prior_artifact,
-              save_gauge_tree_prior_artifact,
-          )
+          from pathlib import Path
 
-          assert callable(load_gauge_tree_prior_artifact)
-          assert callable(save_gauge_tree_prior_artifact)
+          import prob4d.gauge_tree_artifact as artifact
+
+          module_path = Path(artifact.__file__).resolve()
+          assert ".artifact-wheel-venv" in module_path.parts
+          assert callable(artifact.load_gauge_tree_prior_artifact)
+          assert callable(artifact.save_gauge_tree_prior_artifact)
           PY
