@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import importlib
 import json
 import pickle
+import warnings
 from dataclasses import asdict, dataclass
+from numbers import Integral, Real
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
@@ -14,6 +18,124 @@ from .metrics import TruthSequence
 
 FloatArray = NDArray[np.floating]
 BoolArray = NDArray[np.bool_]
+
+
+def _integer_at_least(value: int, *, name: str, minimum: int) -> int:
+    """Return a non-coercive integer that satisfies a lower bound."""
+
+    if isinstance(value, (bool, np.bool_)) or not isinstance(value, Integral):
+        raise TypeError(f"{name} must be an integer")
+    result = int(value)
+    if result < minimum:
+        comparator = "positive" if minimum == 1 else f"at least {minimum}"
+        raise ValueError(f"{name} must be {comparator}")
+    return result
+
+
+def _positive_real(value: float, *, name: str) -> float:
+    """Return a finite positive real scalar without accepting Boolean aliases."""
+
+    if isinstance(value, (bool, np.bool_)) or not isinstance(value, Real):
+        raise TypeError(f"{name} must be a real scalar")
+    result = float(value)
+    if not np.isfinite(result) or result <= 0.0:
+        raise ValueError(f"{name} must be finite and positive")
+    return result
+
+
+def _strict_json_object(path: Path) -> dict[str, Any]:
+    """Load one finite JSON object while rejecting duplicate keys and symlinks."""
+
+    if path.is_symlink():
+        raise ValueError(f"refusing symbolic-link metadata path: {path}")
+
+    def reject_constant(value: str) -> None:
+        raise ValueError(f"non-finite JSON constant is not allowed: {value}")
+
+    def reject_duplicates(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError(f"duplicate JSON key: {key}")
+            result[key] = value
+        return result
+
+    loaded = json.loads(
+        path.read_text(encoding="utf-8"),
+        parse_constant=reject_constant,
+        object_pairs_hook=reject_duplicates,
+    )
+    if not isinstance(loaded, dict):
+        raise ValueError(f"{path} must contain one JSON object")
+    return loaded
+
+
+def _legacy_numpy_pickle_globals() -> dict[tuple[str, str], Any]:
+    """Return the minimal NumPy globals required by official legacy artifacts."""
+
+    allowed: dict[tuple[str, str], Any] = {
+        ("numpy", "dtype"): np.dtype,
+        ("numpy", "ndarray"): np.ndarray,
+    }
+    module_attributes = {
+        "numpy.core.multiarray": ("_reconstruct", "scalar"),
+        "numpy._core.multiarray": ("_reconstruct", "scalar"),
+        "numpy.core.numeric": ("_frombuffer",),
+        "numpy._core.numeric": ("_frombuffer",),
+    }
+    for module_name, attributes in module_attributes.items():
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", DeprecationWarning)
+                module = importlib.import_module(module_name)
+                values = tuple(getattr(module, attribute, None) for attribute in attributes)
+        except ImportError:
+            continue
+        for attribute, value in zip(attributes, values, strict=True):
+            if value is not None:
+                allowed[(module_name, attribute)] = value
+    return allowed
+
+
+_LEGACY_NUMPY_PICKLE_GLOBALS = _legacy_numpy_pickle_globals()
+
+
+class _RestrictedLegacyUnpickler(pickle.Unpickler):
+    """Unpickle only primitive containers and the NumPy array reconstruction API."""
+
+    def find_class(self, module: str, name: str) -> Any:
+        allowed = _LEGACY_NUMPY_PICKLE_GLOBALS.get((module, name))
+        if allowed is None:
+            raise pickle.UnpicklingError(
+                f"legacy PhysTwin pickle requests forbidden global {module}.{name}"
+            )
+        return allowed
+
+
+def _load_trusted_legacy_pickle(path: Path, *, description: str) -> Any:
+    """Load a legacy official dataset pickle through a restricted unpickler.
+
+    The old PhysTwin dataset stores calibration and mask arrays as pickles. This
+    adapter permits only NumPy's array reconstruction primitives; arbitrary
+    globals and symbolic-link substitution fail closed. Portable Prob4D artifacts
+    never use pickle.
+    """
+
+    if path.is_symlink():
+        raise ValueError(f"refusing symbolic-link {description} path: {path}")
+    if not path.is_file():
+        raise FileNotFoundError(path)
+    try:
+        with path.open("rb") as handle:
+            return _RestrictedLegacyUnpickler(handle).load()
+    except (pickle.UnpicklingError, AttributeError, EOFError, TypeError, ValueError) as error:
+        raise ValueError(f"invalid or unsafe {description} pickle: {path}") from error
+
+
+def _readonly_float64(value: Any) -> FloatArray:
+    array = np.asarray(value, dtype=np.float64).copy()
+    array.setflags(write=False)
+    return array
 
 
 @dataclass(frozen=True)
@@ -37,9 +159,26 @@ class CoverResizeCrop:
         target_height: int,
         target_width: int,
     ) -> CoverResizeCrop:
-        values = (source_height, source_width, target_height, target_width)
-        if any(value < 1 for value in values):
-            raise ValueError("source and target image dimensions must be positive")
+        source_height = _integer_at_least(
+            source_height,
+            name="source_height",
+            minimum=1,
+        )
+        source_width = _integer_at_least(
+            source_width,
+            name="source_width",
+            minimum=1,
+        )
+        target_height = _integer_at_least(
+            target_height,
+            name="target_height",
+            minimum=1,
+        )
+        target_width = _integer_at_least(
+            target_width,
+            name="target_width",
+            minimum=1,
+        )
         scale = max(target_height / source_height, target_width / source_width)
         resized_height = int(round(source_height * scale))
         resized_width = int(round(source_width * scale))
@@ -58,7 +197,7 @@ class CoverResizeCrop:
         """Map target pixel centers to continuous source pixel coordinates."""
 
         coordinates = np.asarray(target_xy, dtype=np.float64)
-        if coordinates.shape[-1] != 2:
+        if coordinates.ndim == 0 or coordinates.shape[-1] != 2:
             raise ValueError("pixel coordinates must end in (x, y)")
         result = np.empty_like(coordinates)
         result[..., 0] = (
@@ -79,7 +218,7 @@ class CoverResizeCrop:
         """Map source pixel centers into MotionCrafter's cropped image."""
 
         coordinates = np.asarray(source_xy, dtype=np.float64)
-        if coordinates.shape[-1] != 2:
+        if coordinates.ndim == 0 or coordinates.shape[-1] != 2:
             raise ValueError("pixel coordinates must end in (x, y)")
         result = np.empty_like(coordinates)
         result[..., 0] = (
@@ -119,7 +258,7 @@ class CoverResizeCrop:
 
 @dataclass(frozen=True)
 class PhysTwinCase:
-    """A calibrated official PhysTwin RGB-D interaction."""
+    """A validated calibrated official PhysTwin RGB-D interaction."""
 
     root: Path
     intrinsics: FloatArray
@@ -136,21 +275,74 @@ class PhysTwinCase:
         calibration_path = path / "calibrate.pkl"
         if not metadata_path.is_file() or not calibration_path.is_file():
             raise ValueError(f"{path} is not a calibrated PhysTwin case")
-        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-        with calibration_path.open("rb") as handle:
-            camera_to_world = np.asarray(pickle.load(handle), dtype=np.float64)
+        metadata = _strict_json_object(metadata_path)
+        required = {"intrinsics", "WH", "frame_num", "fps"}
+        missing = sorted(required - metadata.keys())
+        if missing:
+            raise ValueError(f"PhysTwin metadata is missing required fields: {missing}")
+
+        wh = metadata["WH"]
+        if not isinstance(wh, list) or len(wh) != 2:
+            raise ValueError("PhysTwin WH must be a two-element JSON array")
+        width = _integer_at_least(wh[0], name="PhysTwin width", minimum=1)
+        height = _integer_at_least(wh[1], name="PhysTwin height", minimum=1)
+        frame_count = _integer_at_least(
+            metadata["frame_num"],
+            name="PhysTwin frame_num",
+            minimum=1,
+        )
+        fps = _positive_real(metadata["fps"], name="PhysTwin fps")
+
+        camera_to_world = np.asarray(
+            _load_trusted_legacy_pickle(
+                calibration_path,
+                description="PhysTwin calibration",
+            ),
+            dtype=np.float64,
+        )
         intrinsics = np.asarray(metadata["intrinsics"], dtype=np.float64)
-        width, height = (int(value) for value in metadata["WH"])
         if intrinsics.ndim != 3 or intrinsics.shape[1:] != (3, 3):
             raise ValueError("PhysTwin intrinsics must have shape (C, 3, 3)")
+        if intrinsics.shape[0] == 0:
+            raise ValueError("PhysTwin must contain at least one camera")
         if camera_to_world.shape != (intrinsics.shape[0], 4, 4):
             raise ValueError("PhysTwin camera calibration count is inconsistent")
+        if not np.all(np.isfinite(intrinsics)):
+            raise ValueError("PhysTwin intrinsics must be finite")
+        if not np.all(np.isfinite(camera_to_world)):
+            raise ValueError("PhysTwin camera transforms must be finite")
+        if np.any(intrinsics[:, 0, 0] <= 0.0) or np.any(intrinsics[:, 1, 1] <= 0.0):
+            raise ValueError("PhysTwin focal lengths must be positive")
+        expected_intrinsic_row = np.array([0.0, 0.0, 1.0])
+        if not np.allclose(
+            intrinsics[:, 2, :],
+            expected_intrinsic_row,
+            atol=1e-10,
+            rtol=0.0,
+        ):
+            raise ValueError("PhysTwin intrinsics must use a homogeneous final row")
+        expected_transform_row = np.array([0.0, 0.0, 0.0, 1.0])
+        if not np.allclose(
+            camera_to_world[:, 3, :],
+            expected_transform_row,
+            atol=1e-8,
+            rtol=0.0,
+        ):
+            raise ValueError("PhysTwin camera transforms must be homogeneous")
+        rotations = camera_to_world[:, :3, :3]
+        gram = np.einsum("...ji,...jk->...ik", rotations, rotations)
+        if not np.allclose(gram, np.eye(3), atol=1e-5, rtol=1e-5):
+            raise ValueError("PhysTwin camera rotations must be orthonormal")
+        determinants = np.linalg.det(rotations)
+        if not np.allclose(determinants, 1.0, atol=1e-5, rtol=1e-5):
+            raise ValueError("PhysTwin camera rotations must be proper")
+
         return cls(
             root=path,
-            intrinsics=intrinsics,
-            camera_to_world=camera_to_world,
-            frame_count=int(metadata["frame_num"]),
-            fps=float(metadata["fps"]),
+            intrinsics=_readonly_float64(intrinsics),
+            camera_to_world=_readonly_float64(camera_to_world),
+            frame_count=frame_count,
+            fps=fps,
             source_width=width,
             source_height=height,
         )
@@ -160,11 +352,13 @@ class PhysTwinCase:
         return int(self.intrinsics.shape[0])
 
     def _validate_camera(self, camera: int) -> None:
-        if not 0 <= camera < self.camera_count:
+        camera = _integer_at_least(camera, name="camera", minimum=0)
+        if camera >= self.camera_count:
             raise ValueError(f"camera must be between 0 and {self.camera_count - 1}")
 
     def _validate_frame(self, frame: int) -> None:
-        if not 0 <= frame < self.frame_count:
+        frame = _integer_at_least(frame, name="frame", minimum=0)
+        if frame >= self.frame_count:
             raise ValueError(f"frame must be between 0 and {self.frame_count - 1}")
 
     def color_video(self, camera: int) -> Path:
@@ -178,20 +372,29 @@ class PhysTwinCase:
         self._validate_frame(frame)
         self._validate_camera(camera)
         path = self.root / "depth" / str(camera) / f"{frame}.npy"
-        depth = np.asarray(np.load(path), dtype=np.float64) / 1000.0
+        depth = np.asarray(np.load(path, allow_pickle=False), dtype=np.float64) / 1000.0
         if depth.shape != (self.source_height, self.source_width):
             raise ValueError(f"unexpected depth shape in {path}")
         return depth
 
-    def load_processed_masks(self) -> dict:
+    def load_processed_masks(self) -> dict | list | tuple:
         path = self.root / "mask" / "processed_masks.pkl"
-        with path.open("rb") as handle:
-            masks = pickle.load(handle)
+        masks = _load_trusted_legacy_pickle(
+            path,
+            description="PhysTwin processed-mask",
+        )
+        if not isinstance(masks, (dict, list, tuple)):
+            raise ValueError("processed masks must be an indexed mapping or sequence")
         if len(masks) != self.frame_count:
             raise ValueError("processed mask frame count is inconsistent")
         return masks
 
-    def object_mask(self, masks: dict, frame: int, camera: int) -> BoolArray:
+    def object_mask(
+        self,
+        masks: dict | list | tuple,
+        frame: int,
+        camera: int,
+    ) -> BoolArray:
         self._validate_frame(frame)
         self._validate_camera(camera)
         mask = np.asarray(masks[frame][camera]["object"], dtype=bool)
@@ -205,7 +408,7 @@ class PhysTwinCase:
         camera: int,
         crop: CoverResizeCrop,
         *,
-        masks: dict | None = None,
+        masks: dict | list | tuple | None = None,
         object_only: bool = True,
         minimum_depth_m: float = 0.2,
         maximum_depth_m: float = 1.5,
@@ -214,6 +417,10 @@ class PhysTwinCase:
 
         if crop.source_height != self.source_height or crop.source_width != self.source_width:
             raise ValueError("crop source geometry does not match PhysTwin metadata")
+        minimum_depth_m = _positive_real(minimum_depth_m, name="minimum_depth_m")
+        maximum_depth_m = _positive_real(maximum_depth_m, name="maximum_depth_m")
+        if maximum_depth_m <= minimum_depth_m:
+            raise ValueError("maximum_depth_m must exceed minimum_depth_m")
         depth = crop.sample_nearest(self.load_depth_m(frame, camera))
         valid = np.isfinite(depth) & (depth > minimum_depth_m) & (depth < maximum_depth_m)
         if object_only:
@@ -246,9 +453,14 @@ class PhysTwinCase:
         *,
         object_only: bool = True,
     ) -> TruthSequence:
-        frames = np.asarray(frame_indices, dtype=np.int64)
+        raw_frames = np.asarray(frame_indices)
+        if not np.issubdtype(raw_frames.dtype, np.integer):
+            raise ValueError("frame_indices must contain integers")
+        frames = np.asarray(raw_frames, dtype=np.int64)
         if frames.ndim != 1 or frames.size == 0:
             raise ValueError("frame_indices must be a non-empty vector")
+        if np.any(frames < 0) or np.any(frames >= self.frame_count):
+            raise ValueError("frame_indices lie outside the PhysTwin case")
         masks = self.load_processed_masks() if object_only else None
         point_maps = []
         valid_masks = []
@@ -269,16 +481,21 @@ class PhysTwinCase:
         )
 
     def project_world(self, points: FloatArray, camera: int) -> tuple[FloatArray, FloatArray]:
-        """Project world points to source pixels and return positive camera depth."""
+        """Project finite world points to source pixels and positive camera depth."""
 
         self._validate_camera(camera)
         points = np.asarray(points, dtype=np.float64)
-        if points.shape[-1] != 3:
+        if points.ndim == 0 or points.shape[-1] != 3:
             raise ValueError("world points must end in three coordinates")
-        world_to_camera = np.linalg.inv(self.camera_to_world[camera])
+        if not np.all(np.isfinite(points)):
+            raise ValueError("world points must be finite")
+        rotation = self.camera_to_world[camera, :3, :3]
+        translation = self.camera_to_world[camera, :3, 3]
         camera_points = np.einsum(
-            "ij,...j->...i", world_to_camera[:3, :3], points
-        ) + world_to_camera[:3, 3]
+            "ji,...j->...i",
+            rotation,
+            points - translation,
+        )
         depth = camera_points[..., 2]
         intrinsic = self.intrinsics[camera]
         safe_depth = np.where(np.abs(depth) > 1e-12, depth, 1.0)
@@ -304,6 +521,8 @@ def sample_vector_field_nearest(
     coordinates = np.asarray(coordinates_xy, dtype=np.float64)
     if values.ndim != 3 or values.shape[-1] != 3:
         raise ValueError("field must have shape (H, W, 3)")
+    if values.shape[0] == 0 or values.shape[1] == 0:
+        raise ValueError("field spatial dimensions must be nonempty")
     if coordinates.ndim != 2 or coordinates.shape[1] != 2:
         raise ValueError("coordinates must have shape (N, 2)")
     finite = np.all(np.isfinite(coordinates), axis=1)
@@ -337,8 +556,13 @@ def deterministic_subsample(
     points = np.asarray(points, dtype=np.float64)
     if points.ndim != 2 or points.shape[1] != 3:
         raise ValueError("point sets must have shape (N, 3)")
-    if maximum_points < 1:
-        raise ValueError("maximum_points must be positive")
+    if not np.all(np.isfinite(points)):
+        raise ValueError("point sets must be finite")
+    maximum_points = _integer_at_least(
+        maximum_points,
+        name="maximum_points",
+        minimum=1,
+    )
     if points.shape[0] <= maximum_points:
         return points
     generator = np.random.default_rng(seed)
@@ -375,6 +599,9 @@ def nearest_neighbor_indices(
         raise ValueError("source and target must have shape (N, 3)")
     if source.shape[0] == 0 or target.shape[0] == 0:
         raise ValueError("point sets must not be empty")
+    if not np.all(np.isfinite(source)) or not np.all(np.isfinite(target)):
+        raise ValueError("source and target point sets must be finite")
+    chunk_size = _integer_at_least(chunk_size, name="chunk_size", minimum=1)
     indices = np.empty(source.shape[0], dtype=np.int64)
     distances = np.empty(source.shape[0], dtype=np.float64)
     for start in range(0, source.shape[0], chunk_size):
