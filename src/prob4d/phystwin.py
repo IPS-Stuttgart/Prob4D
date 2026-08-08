@@ -481,14 +481,12 @@ class PhysTwinCase:
         )
 
     def project_world(self, points: FloatArray, camera: int) -> tuple[FloatArray, FloatArray]:
-        """Project finite world points to source pixels and positive camera depth."""
+        """Project world points to source pixels and return camera depth."""
 
         self._validate_camera(camera)
         points = np.asarray(points, dtype=np.float64)
         if points.ndim == 0 or points.shape[-1] != 3:
             raise ValueError("world points must end in three coordinates")
-        if not np.all(np.isfinite(points)):
-            raise ValueError("world points must be finite")
         rotation = self.camera_to_world[camera, :3, :3]
         translation = self.camera_to_world[camera, :3, 3]
         camera_points = np.einsum(
