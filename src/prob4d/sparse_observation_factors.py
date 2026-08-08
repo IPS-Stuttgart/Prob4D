@@ -21,6 +21,8 @@ from .observation_factors import ObservationFactorBundle
 FloatArray: TypeAlias = NDArray[np.floating[Any]]
 IntArray: TypeAlias = NDArray[np.integer[Any]]
 
+_VALIDATION_CHUNK_SIZE = 65_536
+
 
 def _readonly(value: np.ndarray, *, dtype: Any | None = None) -> np.ndarray:
     result = np.asarray(value, dtype=dtype).copy()
@@ -73,15 +75,30 @@ def _require_row_covariance(
     name: str,
     tolerance: float = 1e-12,
 ) -> None:
-    finite_rows = np.all(np.isfinite(value), axis=(1, 2))
-    if not np.any(finite_rows):
-        return
-    selected = value[finite_rows]
-    symmetric = 0.5 * (selected + selected.swapaxes(1, 2))
-    if not np.allclose(selected, symmetric, atol=tolerance, rtol=1e-10):
-        raise ValueError(f"{name} finite rows must be symmetric")
-    if np.any(np.linalg.eigvalsh(symmetric) < -tolerance):
-        raise ValueError(f"{name} finite rows must be positive semidefinite")
+    finite_indices = np.flatnonzero(np.all(np.isfinite(value), axis=(1, 2)))
+    for offset in range(0, len(finite_indices), _VALIDATION_CHUNK_SIZE):
+        indices = finite_indices[offset : offset + _VALIDATION_CHUNK_SIZE]
+        selected = value[indices]
+        symmetric = 0.5 * (selected + selected.swapaxes(1, 2))
+        if not np.allclose(selected, symmetric, atol=tolerance, rtol=1e-10):
+            raise ValueError(f"{name} finite rows must be symmetric")
+        if np.any(np.linalg.eigvalsh(symmetric) < -tolerance):
+            raise ValueError(f"{name} finite rows must be positive semidefinite")
+
+
+def _selected_gauge_covariance(
+    local_gauge_jacobian: np.ndarray,
+    gauge_covariance: np.ndarray,
+) -> np.ndarray:
+    with np.errstate(invalid="ignore", over="ignore"):
+        result: FloatArray = np.einsum(
+            "nia,ab,njb->nij",
+            local_gauge_jacobian,
+            gauge_covariance,
+            local_gauge_jacobian,
+            optimize=True,
+        )
+    return 0.5 * (result + result.swapaxes(1, 2))
 
 
 def _row_gauge_marginal_covariance(
@@ -91,26 +108,62 @@ def _row_gauge_marginal_covariance(
     *,
     gauge_count: int,
 ) -> np.ndarray:
-    blocks: FloatArray = np.empty(
-        (len(local_gauge_jacobian), 7, 7),
+    result: FloatArray = np.empty(
+        (len(local_gauge_jacobian), 3, 3),
         dtype=np.float64,
     )
     for gauge_index in range(gauge_count):
-        selected = gauge_indices == gauge_index
+        row_indices = np.flatnonzero(gauge_indices == gauge_index)
         start = 7 * gauge_index
-        blocks[selected] = gauge_prior_covariance[
+        gauge_covariance = gauge_prior_covariance[
             start : start + 7,
             start : start + 7,
         ]
-    with np.errstate(invalid="ignore", over="ignore"):
-        result: FloatArray = np.einsum(
-            "nia,nab,njb->nij",
-            local_gauge_jacobian,
-            blocks,
-            local_gauge_jacobian,
-            optimize=True,
-        )
-    return 0.5 * (result + result.swapaxes(1, 2))
+        for offset in range(0, len(row_indices), _VALIDATION_CHUNK_SIZE):
+            indices = row_indices[offset : offset + _VALIDATION_CHUNK_SIZE]
+            result[indices] = _selected_gauge_covariance(
+                local_gauge_jacobian[indices],
+                gauge_covariance,
+            )
+    return result
+
+
+def _require_marginal_accounting(
+    conditional_covariance: np.ndarray,
+    marginal_covariance: np.ndarray,
+    local_gauge_jacobian: np.ndarray,
+    gauge_indices: np.ndarray,
+    gauge_prior_covariance: np.ndarray,
+    *,
+    gauge_count: int,
+) -> None:
+    for gauge_index in range(gauge_count):
+        row_indices = np.flatnonzero(gauge_indices == gauge_index)
+        start = 7 * gauge_index
+        gauge_covariance = gauge_prior_covariance[
+            start : start + 7,
+            start : start + 7,
+        ]
+        for offset in range(0, len(row_indices), _VALIDATION_CHUNK_SIZE):
+            indices = row_indices[offset : offset + _VALIDATION_CHUNK_SIZE]
+            gauge_marginal = _selected_gauge_covariance(
+                local_gauge_jacobian[indices],
+                gauge_covariance,
+            )
+            with np.errstate(invalid="ignore", over="ignore"):
+                expected = conditional_covariance[indices] + gauge_marginal
+                expected = 0.5 * (expected + expected.swapaxes(1, 2))
+            if not np.allclose(
+                marginal_covariance[indices],
+                expected,
+                atol=1e-12,
+                rtol=1e-10,
+                equal_nan=True,
+            ):
+                raise ValueError(
+                    "marginal_world_covariance_m2 must equal conditional covariance "
+                    "plus the selected gauge-prior contribution"
+                )
 
 
 @dataclass(frozen=True, slots=True)
@@ -201,28 +254,14 @@ class SparseStackedObservationFactors:
             marginal,
             name="marginal_world_covariance_m2",
         )
-        gauge_marginal = _row_gauge_marginal_covariance(
+        _require_marginal_accounting(
+            conditional,
+            marginal,
             local_jacobian,
             gauge_indices,
             gauge_prior,
             gauge_count=gauge_count,
         )
-        with np.errstate(invalid="ignore", over="ignore"):
-            expected_marginal = conditional + gauge_marginal
-            expected_marginal = 0.5 * (
-                expected_marginal + expected_marginal.swapaxes(1, 2)
-            )
-        if not np.allclose(
-            marginal,
-            expected_marginal,
-            atol=1e-12,
-            rtol=1e-10,
-            equal_nan=True,
-        ):
-            raise ValueError(
-                "marginal_world_covariance_m2 must equal conditional covariance "
-                "plus the selected gauge-prior contribution"
-            )
 
         probabilities = (
             ("association_probability", association, True),
