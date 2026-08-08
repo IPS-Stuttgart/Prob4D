@@ -12,6 +12,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Final
 
 import numpy as np
+from numpy.lib.npyio import NpzFile
 
 from ._gauge_tree_common import canonical_json_sha256
 from .gauge_tree_prior import GaugeTreeSquareRootPriorV1
@@ -219,6 +220,8 @@ def _load_payload(
         archive = np.load(payload, allow_pickle=False)
     except (OSError, ValueError, EOFError, zipfile.BadZipFile) as error:
         raise ValueError("invalid sparse gauge-tree payload") from error
+    if not isinstance(archive, NpzFile):
+        raise ValueError("sparse gauge-tree payload must be an NPZ archive")
     with archive as arrays:
         if tuple(arrays.files) != _ARRAY_KEYS:
             raise ValueError("sparse gauge-tree payload contains unexpected arrays")
