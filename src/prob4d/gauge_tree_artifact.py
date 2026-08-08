@@ -85,6 +85,12 @@ def _require_sha256(value: Any, *, name: str) -> str:
     return text
 
 
+def _require_exact_int(value: Any, *, name: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"{name} must be a genuine integer")
+    return value
+
+
 def _artifact_id(prior_record: Mapping[str, Any]) -> str:
     return canonical_json_sha256(
         {
@@ -139,8 +145,19 @@ def _payload_relative_path(manifest: Path, payload: Path) -> str:
     return PurePosixPath(relative.as_posix()).as_posix()
 
 
+def _link_complete_temporary(temporary: Path, path: Path) -> None:
+    os.link(temporary, path)
+    directory_fd = os.open(path.parent, os.O_RDONLY)
+    try:
+        os.fsync(directory_fd)
+    finally:
+        os.close(directory_fd)
+
+
 def _atomic_write_npz(path: Path, prior: GaugeTreeSquareRootPriorV1) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists():
+        raise FileExistsError(f"refusing to overwrite sparse gauge-tree payload: {path}")
     handle = tempfile.NamedTemporaryFile(
         mode="w+b",
         dir=path.parent,
@@ -159,15 +176,15 @@ def _atomic_write_npz(path: Path, prior: GaugeTreeSquareRootPriorV1) -> None:
             )
             handle.flush()
             os.fsync(handle.fileno())
-        if path.exists():
-            raise FileExistsError(f"refusing to overwrite sparse gauge-tree payload: {path}")
-        os.replace(temporary, path)
+        _link_complete_temporary(temporary, path)
     finally:
         temporary.unlink(missing_ok=True)
 
 
 def _atomic_write_text(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists():
+        raise FileExistsError(f"refusing to overwrite sparse gauge-tree manifest: {path}")
     handle = tempfile.NamedTemporaryFile(
         mode="w",
         encoding="utf-8",
@@ -182,9 +199,7 @@ def _atomic_write_text(path: Path, content: str) -> None:
             handle.write(content)
             handle.flush()
             os.fsync(handle.fileno())
-        if path.exists():
-            raise FileExistsError(f"refusing to overwrite sparse gauge-tree manifest: {path}")
-        os.replace(temporary, path)
+        _link_complete_temporary(temporary, path)
     finally:
         temporary.unlink(missing_ok=True)
 
@@ -283,9 +298,8 @@ def load_gauge_tree_prior_artifact(
     )
     if record["schema"] != GAUGE_TREE_PRIOR_ARTIFACT_SCHEMA:
         raise ValueError("unsupported sparse gauge-tree artifact schema")
-    if type(record["version"]) is not int or (
-        record["version"] != GAUGE_TREE_PRIOR_ARTIFACT_VERSION
-    ):
+    version = _require_exact_int(record["version"], name="sparse gauge-tree artifact version")
+    if version != GAUGE_TREE_PRIOR_ARTIFACT_VERSION:
         raise ValueError("unsupported sparse gauge-tree artifact version")
     prior_record = record["prior"]
     payload_record = record["payload"]
