@@ -5,6 +5,23 @@
 Security and integrity fixes are applied to the current `0.3.x` development line.
 Frozen historical revisions remain reproducible but may not receive backports.
 
+## Legacy PhysTwin dataset boundary
+
+The `PhysTwinCase` directory adapter still needs the official dataset's
+historical `calibrate.pkl` and `processed_masks.pkl` files. Prob4D loads these
+only inside that dedicated legacy adapter, rejects symbolic-link substitution,
+and uses a restricted unpickler that admits primitive containers plus the
+minimal NumPy array-reconstruction globals. Arbitrary Python globals fail
+closed. Portable Prob4D prediction, calibration, observation, and evidence
+artifacts never use pickle.
+
+The restriction prevents ordinary pickle code execution through those two
+adapter paths; it is not a general sandbox against malformed or
+resource-exhausting files. Use only locally verified official dataset files and
+retain their hashes in claim-bearing run provenance. Other explicitly diagnostic
+legacy import paths remain trusted-input boundaries unless their own contract
+states otherwise.
+
 ## Self-hosted workflow boundary
 
 Ordinary pull-request workflows run on GitHub-hosted infrastructure. Pull-request
