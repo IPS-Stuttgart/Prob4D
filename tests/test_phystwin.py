@@ -104,6 +104,18 @@ def test_phystwin_metric_point_map_and_projection_round_trip(tmp_path: Path) -> 
     assert not case.camera_to_world.flags.writeable
 
 
+def test_phystwin_projection_preserves_nonfinite_track_placeholders(tmp_path: Path) -> None:
+    case = make_case(tmp_path)
+    points = np.array([[0.0, 0.0, 1.0], [np.nan, np.nan, np.nan]])
+
+    pixels, depth = case.project_world(points, 0)
+
+    np.testing.assert_allclose(pixels[0], [1.5, 1.0])
+    assert depth[0] == pytest.approx(1.0)
+    assert np.all(np.isnan(pixels[1]))
+    assert np.isnan(depth[1])
+
+
 def test_phystwin_metric_truth_preserves_absolute_frames(tmp_path: Path) -> None:
     case = make_case(tmp_path)
     crop = CoverResizeCrop.from_shapes(3, 4, 3, 4)
