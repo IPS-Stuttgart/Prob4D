@@ -241,15 +241,20 @@ def test_binding_rejects_wrong_gauge_order_and_wrong_covariance() -> None:
         bind_gauge_tree_prior(dense_sparse, wrong_covariance)
 
 
-def test_binding_rejects_forged_row_marginal_covariance() -> None:
+def test_binding_rejects_postconstruction_row_marginal_tampering() -> None:
     bundle = _bundle()
     dense_sparse = stack_sparse_observation_factors(bundle)
     changed = dense_sparse.marginal_world_covariance_m2.copy()
     changed[0] += np.eye(3) * 1.0e-4
-    forged = replace(dense_sparse, marginal_world_covariance_m2=changed)
+    changed.setflags(write=False)
+    object.__setattr__(
+        dense_sparse,
+        "marginal_world_covariance_m2",
+        changed,
+    )
 
     with pytest.raises(ValueError, match="does not match the tree gauge prior"):
-        bind_gauge_tree_prior(forged, _prior(bundle))
+        bind_gauge_tree_prior(dense_sparse, _prior(bundle))
 
 
 def test_tree_sparse_result_is_factory_built_and_slotted() -> None:

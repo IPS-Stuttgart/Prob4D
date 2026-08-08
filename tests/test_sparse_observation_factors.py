@@ -150,8 +150,7 @@ def test_sparse_gauge_operations_match_dense_linear_algebra() -> None:
     )
     np.testing.assert_allclose(
         sparse.gauge_marginal_covariance_m2(),
-        sparse.marginal_world_covariance_m2
-        - sparse.conditional_world_covariance_m2,
+        sparse.marginal_world_covariance_m2 - sparse.conditional_world_covariance_m2,
         atol=1e-15,
         rtol=1e-12,
     )
@@ -185,6 +184,45 @@ def test_sparse_stack_owns_readonly_arrays_and_rejects_lossy_indices() -> None:
             sparse,
             gauge_indices=sparse.gauge_indices.astype(np.float64),
         )
+    overflow = sparse.point_ids.astype(np.uint64)
+    overflow[0] = np.uint64(2**63)
+    with pytest.raises(ValueError, match="int64 range"):
+        replace(sparse, point_ids=overflow)
+
+
+def test_sparse_stack_rejects_coercive_identifiers() -> None:
+    sparse = stack_sparse_observation_factors(_bundle())
+
+    with pytest.raises(TypeError, match="literal strings"):
+        replace(sparse, gauge_ids=(1, "window-1"))  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="literal strings"):
+        replace(sparse, view_ids=(1,) + sparse.view_ids[1:])  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="tuple of literal strings"):
+        replace(sparse, factor_ids=list(sparse.factor_ids))  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="nonempty strings"):
+        replace(
+            sparse,
+            correlation_group_ids=("",) + sparse.correlation_group_ids[1:],
+        )
+
+
+def test_sparse_stack_rejects_covariance_contract_drift() -> None:
+    sparse = stack_sparse_observation_factors(_bundle())
+
+    asymmetric = sparse.conditional_world_covariance_m2.copy()
+    asymmetric[0, 0, 1] = 1.0e-4
+    with pytest.raises(ValueError, match="finite rows must be symmetric"):
+        replace(sparse, conditional_world_covariance_m2=asymmetric)
+
+    indefinite = sparse.conditional_world_covariance_m2.copy()
+    indefinite[0, 0, 0] = -1.0
+    with pytest.raises(ValueError, match="positive semidefinite"):
+        replace(sparse, conditional_world_covariance_m2=indefinite)
+
+    forged_marginal = sparse.marginal_world_covariance_m2.copy()
+    forged_marginal[0, 0, 0] += 1.0e-4
+    with pytest.raises(ValueError, match="selected gauge-prior contribution"):
+        replace(sparse, marginal_world_covariance_m2=forged_marginal)
 
 
 def test_sparse_stack_reduces_expanded_gauge_design_storage() -> None:
