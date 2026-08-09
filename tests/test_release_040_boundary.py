@@ -56,7 +56,8 @@ def test_release_changelog_and_claim_boundary_are_published() -> None:
     assert "claim-bearing tree-sparse observation artifacts" in lower_changelog
     assert "outcome-blind provider support feasibility" in lower_changelog
     assert "replay-complete held-out provider evidence" in lower_changelog
-    assert "registry-driven compatibility wrappers" in lower_changelog
+    assert "canonical grouped `prob4d` registry" in lower_changelog
+    assert "compatibility wrappers" in lower_changelog
 
     boundary = (ROOT / "docs" / "releases" / "0.4.0.md").read_text(
         encoding="utf-8"
