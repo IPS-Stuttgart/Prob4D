@@ -45,13 +45,9 @@ from .tree_sparse_observation_factors import (
     build_tree_sparse_observation_factors,
 )
 
-TREE_SPARSE_OBSERVATION_ARTIFACT_SCHEMA: Final = (
-    "prob4d.tree-sparse-observation-artifact"
-)
+TREE_SPARSE_OBSERVATION_ARTIFACT_SCHEMA: Final = "prob4d.tree-sparse-observation-artifact"
 TREE_SPARSE_OBSERVATION_ARTIFACT_VERSION: Final = 1
-TREE_SPARSE_OBSERVATION_STORAGE_SEMANTICS: Final = (
-    "content-addressed-non-pickled-npy-members-v1"
-)
+TREE_SPARSE_OBSERVATION_STORAGE_SEMANTICS: Final = "content-addressed-non-pickled-npy-members-v1"
 TREE_SPARSE_OBSERVATION_CLAIM_BOUNDARY: Final = (
     "This artifact preserves selected explicit-gauge observation rows and one "
     "portable sparse gauge-tree prior without serializing a dense joint gauge "
@@ -120,9 +116,7 @@ def _string_table(value: object, *, name: str) -> tuple[str, ...]:
     if type(value) is not tuple:
         raise ValueError(f"{name} must be a canonical tuple")
     values = cast(tuple[object, ...], value)
-    normalized = tuple(
-        require_exact_string(item, name=f"{name} item") for item in values
-    )
+    normalized = tuple(require_exact_string(item, name=f"{name} item") for item in values)
     if not normalized:
         raise ValueError(f"{name} must not be empty")
     if tuple(sorted(set(normalized))) != normalized:
@@ -267,8 +261,7 @@ class TreeSparseObservationArtifactV1:
             missing = sorted(set(_ARRAY_NAMES) - members.keys())
             extra = sorted(members.keys() - set(_ARRAY_NAMES))
             raise ValueError(
-                f"tree-sparse observation array inventory changed; "
-                f"missing={missing}, extra={extra}"
+                f"tree-sparse observation array inventory changed; missing={missing}, extra={extra}"
             )
         expected_shapes = _expected_shapes(observation_count)
         paths: set[str] = set()
@@ -282,9 +275,7 @@ class TreeSparseObservationArtifactV1:
             if member.dtype != expected_dtype:
                 raise ValueError(f"array member {name} must use {expected_dtype}")
             if member.shape != expected_shapes[name]:
-                raise ValueError(
-                    f"array member {name} shape must be {expected_shapes[name]}"
-                )
+                raise ValueError(f"array member {name} shape must be {expected_shapes[name]}")
             if member.path != _member_path(name, member.file_sha256):
                 raise ValueError(f"array member {name} path is not content-addressed")
             if member.path in paths:
@@ -340,9 +331,7 @@ class TreeSparseObservationArtifactV1:
             "view_id_table": list(self.view_id_table),
             "factor_id_table": list(self.factor_id_table),
             "correlation_group_id_table": list(self.correlation_group_id_table),
-            "array_members": {
-                name: self.array_members[name].to_record() for name in _ARRAY_NAMES
-            },
+            "array_members": {name: self.array_members[name].to_record() for name in _ARRAY_NAMES},
             "metadata": plain_json(self.metadata),
             "claim_boundary": self.claim_boundary,
         }
@@ -587,8 +576,7 @@ def load_tree_sparse_observation_artifact(
         raise ValueError("gauge-tree prior order differs from observation manifest")
 
     arrays = {
-        name: _load_member(path, manifest.array_members[name], name=name)
-        for name in _ARRAY_NAMES
+        name: _load_member(path, manifest.array_members[name], name=name) for name in _ARRAY_NAMES
     }
     view_ids = _decode_table(
         manifest.view_id_table,
