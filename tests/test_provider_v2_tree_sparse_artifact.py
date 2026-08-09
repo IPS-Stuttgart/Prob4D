@@ -346,9 +346,7 @@ def test_claim_bearing_tree_sparse_publication_is_idempotent_no_clobber(
     with pytest.raises((FileExistsError, ValueError)):
         _seal(_factors(mean_offset=0.01), path)
     assert path.read_bytes() == retained
-    assert load_claim_bearing_tree_sparse_observation(path).artifact_id == (
-        first.artifact_id
-    )
+    assert load_claim_bearing_tree_sparse_observation(path).artifact_id == (first.artifact_id)
 
 
 def test_claim_bearing_tree_sparse_rejects_boolean_schema_version(

@@ -119,14 +119,18 @@ def _tree_provider_fields(
     artifact_versions = manifest.get("artifact_schema_versions")
     if not isinstance(artifact_versions, Mapping):
         raise ValueError("provider manifest artifact schema versions changed type")
+    observation_version = artifact_versions.get("TreeSparseObservationArtifactV1")
     if (
-        artifact_versions.get("TreeSparseObservationArtifactV1")
-        != TREE_SPARSE_OBSERVATION_ARTIFACT_VERSION
+        isinstance(observation_version, bool)
+        or not isinstance(observation_version, int)
+        or observation_version != TREE_SPARSE_OBSERVATION_ARTIFACT_VERSION
     ):
         raise ValueError("provider manifest lacks the tree-sparse artifact version")
+    envelope_version = artifact_versions.get("ClaimBearingTreeSparseObservationEnvelopeV1")
     if (
-        artifact_versions.get("ClaimBearingTreeSparseObservationEnvelopeV1")
-        != CLAIM_BEARING_TREE_SPARSE_OBSERVATION_VERSION
+        isinstance(envelope_version, bool)
+        or not isinstance(envelope_version, int)
+        or envelope_version != CLAIM_BEARING_TREE_SPARSE_OBSERVATION_VERSION
     ):
         raise ValueError("provider manifest lacks the tree-sparse envelope version")
     return result
@@ -193,8 +197,7 @@ class ClaimBearingTreeSparseObservationEnvelopeV1:
         if (
             isinstance(self.observation_artifact_schema_version, bool)
             or not isinstance(self.observation_artifact_schema_version, int)
-            or self.observation_artifact_schema_version
-            != TREE_SPARSE_OBSERVATION_ARTIFACT_VERSION
+            or self.observation_artifact_schema_version != TREE_SPARSE_OBSERVATION_ARTIFACT_VERSION
         ):
             raise ValueError("claim-bearing envelope requires tree-sparse artifact v1")
         sequence_id = _require_nonempty_string(self.sequence_id, name="sequence_id")
@@ -293,9 +296,7 @@ class ClaimBearingTreeSparseObservationEnvelopeV1:
             "schema_version": CLAIM_BEARING_TREE_SPARSE_OBSERVATION_VERSION,
             "observation_manifest_sha256": self.observation_manifest_sha256,
             "observation_artifact_id": self.observation_artifact_id,
-            "observation_artifact_schema_version": (
-                self.observation_artifact_schema_version
-            ),
+            "observation_artifact_schema_version": (self.observation_artifact_schema_version),
             "sequence_id": self.sequence_id,
             "case_id": self.case_id,
             "stream_id": self.stream_id,
@@ -337,15 +338,17 @@ class ClaimBearingTreeSparseObservationEnvelopeV1:
             )
         if value.get("schema") != CLAIM_BEARING_TREE_SPARSE_OBSERVATION_SCHEMA:
             raise ValueError("unexpected claim-bearing tree-sparse schema")
-        if value.get("schema_version") != CLAIM_BEARING_TREE_SPARSE_OBSERVATION_VERSION:
+        schema_version = _require_positive_integer(
+            value.get("schema_version"),
+            name="schema_version",
+        )
+        if schema_version != CLAIM_BEARING_TREE_SPARSE_OBSERVATION_VERSION:
             raise ValueError("unsupported claim-bearing tree-sparse version")
         return cls(
             observation_manifest_path=value["observation_manifest_path"],
             observation_manifest_sha256=value["observation_manifest_sha256"],
             observation_artifact_id=value["observation_artifact_id"],
-            observation_artifact_schema_version=value[
-                "observation_artifact_schema_version"
-            ],
+            observation_artifact_schema_version=value["observation_artifact_schema_version"],
             sequence_id=value["sequence_id"],
             case_id=value["case_id"],
             stream_id=value["stream_id"],
@@ -571,9 +574,7 @@ def write_claim_bearing_tree_sparse_observation(
     revision = _require_revision(source_revision, name="source_revision")
     runtime = assert_runtime_revision(revision)
     attestation = build_provider_attestation(
-        provider_manifest=prob4d_tree_sparse_provider_manifest(
-            provider_revision=revision
-        ),
+        provider_manifest=prob4d_tree_sparse_provider_manifest(provider_revision=revision),
         provider_revision=revision,
         export_mode="calibrated",
         calibration_compatibility_validated=True,
