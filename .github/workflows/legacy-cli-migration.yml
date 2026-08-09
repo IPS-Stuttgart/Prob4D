@@ -1,0 +1,85 @@
+name: Legacy CLI migration wrappers
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/legacy-cli-migration.yml"
+      - "docs/legacy-cli-migration.md"
+      - "pyproject.toml"
+      - "src/prob4d/command_registry.py"
+      - "src/prob4d/legacy_cli.py"
+      - "tests/test_command_registry.py"
+      - "tests/test_legacy_cli.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: legacy-cli-migration-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  compatibility:
+    name: Registry-driven legacy entry points
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install development environment
+        run: python -m pip install -e ".[dev]"
+      - name: Check focused source quality
+        run: |
+          python -m ruff check \
+            src/prob4d/legacy_cli.py \
+            tests/test_legacy_cli.py
+          python -m mypy src/prob4d/legacy_cli.py
+      - name: Run registry and wrapper regressions
+        run: |
+          python -m pytest -q \
+            tests/test_command_registry.py \
+            tests/test_legacy_cli.py
+      - name: Verify lazy compatibility import
+        run: |
+          python - <<'PY'
+          import sys
+
+          import prob4d.legacy_cli
+
+          forbidden = {
+              "prob4d.motioncrafter_safe",
+              "prob4d.phystwin_experiment",
+              "prob4d.vggt_baseline",
+          }
+          loaded = sorted(forbidden & set(sys.modules))
+          if loaded:
+              raise SystemExit(f"legacy wrapper import loaded command targets: {loaded}")
+          PY
+      - name: Exercise installed migration warnings
+        shell: bash
+        run: |
+          prob4d-validate-observation --help \
+            > validate-help.txt 2> validate-warning.txt
+          grep -F "use 'prob4d observation validate'" validate-warning.txt
+
+          prob4d-target-admit --help \
+            > target-help.txt 2> target-warning.txt
+          grep -F "use 'prob4d provider target-admit'" target-warning.txt
+
+          prob4d-provider-manifest --help \
+            > manifest-help.txt 2> manifest-warning.txt
+          grep -F "use 'prob4d provider manifest'" manifest-warning.txt
