@@ -129,6 +129,51 @@ tree_stacked = bind_gauge_tree_prior(stacked, prior)
 The caller may retain the old dense stack separately; the returned tree-backed
 object does not reference its dense covariance.
 
+## Direct native construction
+
+A producer that already owns the causal tree factors should not create a dense
+joint covariance merely to pass through schema v4. It can construct the execution
+object directly:
+
+```python
+from prob4d.provider_v2_factors import (
+    build_tree_sparse_observation_factors,
+)
+
+tree_stacked = build_tree_sparse_observation_factors(
+    prior,
+    world_mean_m=world_mean_m,
+    conditional_world_covariance_m2=conditional_world_covariance_m2,
+    local_gauge_jacobian=local_gauge_jacobian,
+    gauge_indices=gauge_indices,
+    association_probability=association_probability,
+    prior_reliability=prior_reliability,
+    prior_nominal_probability=prior_nominal_probability,
+    composite_weight=composite_weight,
+    point_ids=point_ids,
+    frame_indices=frame_indices,
+    view_ids=view_ids,
+    factor_ids=factor_ids,
+    correlation_group_ids=correlation_group_ids,
+    causal_frame_stop=causal_frame_stop,
+)
+```
+
+The direct factory:
+
+- accepts only selected finite execution rows with positive association and
+  reliability;
+- validates covariance geometry, gauge indices, causal timing, probabilities,
+  literal string identities, factor metadata, correlation-group settings, and
+  within-factor point uniqueness;
+- derives `marginal_world_covariance_m2` from the conditional covariance and the
+  tree prior rather than accepting a redundant caller-supplied marginal;
+- copies numerical arrays into immutable storage; and
+- never calls dense prior materialization or dense-covariance verification.
+
+This is the intended in-memory producer boundary for a future tree-native
+portable observation artifact.
+
 ## Constructing the sparse gauge prior
 
 An existing dense bundle can be converted only when its declared parent order is
@@ -159,10 +204,10 @@ dense file and transient loading cost once. The tree-backed stack removes the
 dense prior from the retained execution object; it does not retroactively change
 the bundle bytes or their content identity.
 
-Eliminating the dense prior before initial factor-bundle loading requires a
-separately versioned provider or observation-factor contract. Such a future
-contract should bind the portable prior artifact identity rather than silently
-reinterpret schema v4.
+The direct native factory removes the dense requirement for an in-memory
+producer. Eliminating it from portable observation I/O still requires a
+separately versioned artifact that binds the sparse row arrays to the portable
+prior identity rather than silently reinterpreting schema v4.
 
 ## Compatibility and claim boundary
 
