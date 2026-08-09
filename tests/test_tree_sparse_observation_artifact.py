@@ -182,9 +182,7 @@ def test_tree_sparse_observation_artifact_is_transport_independent(
     written = _write(_factors(), source / "observation.json")
     shutil.copytree(source, destination)
 
-    transported = load_tree_sparse_observation_artifact(
-        destination / "observation.json"
-    )
+    transported = load_tree_sparse_observation_artifact(destination / "observation.json")
     assert transported.manifest.artifact_id == written.manifest.artifact_id
     np.testing.assert_array_equal(
         transported.factors.world_mean_m,
@@ -331,9 +329,7 @@ def test_tree_sparse_observation_artifact_contract_types(tmp_path: Path) -> None
 
     loaded = _write(_factors(), tmp_path / "observation.json")
     assert isinstance(loaded.manifest, TreeSparseObservationArtifactV1)
-    assert loaded.manifest.to_record()["schema"] == (
-        TREE_SPARSE_OBSERVATION_ARTIFACT_SCHEMA
-    )
+    assert loaded.manifest.to_record()["schema"] == (TREE_SPARSE_OBSERVATION_ARTIFACT_SCHEMA)
     assert loaded.manifest.to_record()["schema_version"] == (
         TREE_SPARSE_OBSERVATION_ARTIFACT_VERSION
     )
