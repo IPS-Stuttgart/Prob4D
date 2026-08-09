@@ -71,19 +71,29 @@ factors = spatial_tracklets_to_observation_factors(
     covariance,
     view_id="camera-0",
     correlation_group_mode="frame-seed-cell",
-    effective_samples_per_group=8.0,
+    effective_samples_per_frame=8.0,
 )
 ```
 
-This preserves the original persistent point IDs and gauge ID, while applying
-the generalized-Bayes effective-sample cap separately to each spatial cell.
-`correlation_group_mode="frame"` reproduces the existing frame-level conversion.
+This preserves the original persistent point IDs and gauge ID while retaining a
+separate correlation-group identity for every represented seed cell. All cell
+factors from one frame share one frozen generalized-Bayes budget:
 
-The cell split is not a claim that cells are statistically independent. It is a
-more conservative support and likelihood-power boundary than assigning one
-large dense frame group or treating every row independently. Shared gauge,
-provider, camera, clock, and capture bias must still remain explicit nuisance
-variables downstream.
+```text
+frame weight = min(1, effective_samples_per_frame / retained_rows_in_frame)
+```
+
+Consequently, splitting one frame into cell factors cannot increase its total
+weighted row mass relative to `correlation_group_mode="frame"`. The two modes
+have the same frame-level likelihood-power cap; the cell mode adds spatially
+resolved support and robust-group identities. It remains more conservative than
+treating every row as an independent full-weight observation.
+
+The cell split is not a claim that cells are statistically independent. Shared
+gauge, provider, camera, clock, and capture bias must still remain explicit
+nuisance variables downstream. Increasing total likelihood power based on a
+stronger cell-independence assumption requires a separately declared and
+validated model rather than silently multiplying the frame budget.
 
 ## Camera-panel support audit
 
@@ -131,8 +141,8 @@ competence, and the guarded BayesianPhysTwin promotion gate.
 ## Recommended protocol use
 
 1. Freeze the camera roster, cell grid, seed stride, per-cell quota, required
-   frames, and panel thresholds before source residuals or target outcomes are
-   opened.
+   frames, frame-level effective-sample budget, and panel thresholds before
+   source residuals or target outcomes are opened.
 2. Retain support-negative views and frames; do not delete cameras after seeing
    provider errors.
 3. Fit covariance, association, reliability, camera-bias, and timing priors only
