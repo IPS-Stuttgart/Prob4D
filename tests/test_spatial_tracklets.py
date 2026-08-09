@@ -1,7 +1,10 @@
+from dataclasses import replace
+
 import numpy as np
 import pytest
 
 from prob4d.camera_panel_support import (
+    CameraPanelFrameSupportV1,
     CameraPanelSupportPolicyV1,
     evaluate_camera_panel_tracklet_support,
 )
@@ -298,6 +301,21 @@ def test_camera_panel_support_requires_multiple_spatially_supported_views() -> N
     assert support_negative.frame_results[0].reason_codes == (
         "insufficient-spatially-supported-views",
     )
+
+    forged = CameraPanelFrameSupportV1(
+        frame_index=0,
+        contributing_view_ids=("camera-a",),
+        spatially_supported_view_ids=("camera-a",),
+        seed_cell_counts_by_view={"camera-a": 3},
+        supported=True,
+        reason_codes=(),
+    )
+    with pytest.raises(ValueError, match="contradicts the frozen panel policy"):
+        replace(
+            report,
+            frame_results=(forged, report.frame_results[1]),
+            camera_panel_support_id=None,
+        )
 
 
 def test_camera_panel_support_cannot_drop_a_declared_view() -> None:
