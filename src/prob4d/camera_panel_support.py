@@ -126,6 +126,23 @@ class CameraPanelSupportPolicyV1:
         )
 
 
+def _frame_reason_codes(
+    *,
+    contributing_view_ids: tuple[str, ...],
+    spatially_supported_view_ids: tuple[str, ...],
+    declared_view_ids: tuple[str, ...],
+    policy: CameraPanelSupportPolicyV1,
+) -> tuple[str, ...]:
+    reasons: list[str] = []
+    if len(spatially_supported_view_ids) < policy.minimum_view_count:
+        reasons.append("insufficient-spatially-supported-views")
+    if policy.require_all_declared_views and (
+        len(contributing_view_ids) != len(declared_view_ids)
+    ):
+        reasons.append("missing-declared-view")
+    return tuple(sorted(reasons))
+
+
 @dataclass(frozen=True, slots=True)
 class CameraPanelFrameSupportV1:
     """View-local spatial support decision for one required causal-prefix frame."""
@@ -257,6 +274,12 @@ class CameraPanelSupportReportV1:
         )
         if not isinstance(self.policy, CameraPanelSupportPolicyV1):
             raise TypeError("policy must be a CameraPanelSupportPolicyV1")
+        if self.policy.minimum_view_count > len(views):
+            raise ValueError("minimum_view_count exceeds the declared panel size")
+        if self.policy.minimum_seed_cell_count_per_view > grid[0] * grid[1]:
+            raise ValueError(
+                "minimum_seed_cell_count_per_view exceeds the declared seed-cell grid"
+            )
         if type(self.frame_results) is not tuple:
             raise ValueError("frame_results must be a tuple")
         results = self.frame_results
@@ -264,6 +287,20 @@ class CameraPanelSupportReportV1:
             raise TypeError("frame_results must contain CameraPanelFrameSupportV1 values")
         if tuple(result.frame_index for result in results) != required:
             raise ValueError("frame_results must exactly cover required_frame_indices")
+        declared_set = set(views)
+        for result in results:
+            if not set(result.contributing_view_ids).issubset(declared_set):
+                raise ValueError("frame result contains an undeclared contributing view")
+            if not set(result.spatially_supported_view_ids).issubset(declared_set):
+                raise ValueError("frame result contains an undeclared supported view")
+            expected_reasons = _frame_reason_codes(
+                contributing_view_ids=result.contributing_view_ids,
+                spatially_supported_view_ids=result.spatially_supported_view_ids,
+                declared_view_ids=views,
+                policy=self.policy,
+            )
+            if result.reason_codes != expected_reasons:
+                raise ValueError("frame result contradicts the frozen panel policy")
         support = _strict_bool(self.support_feasible, name="support_feasible")
         supported_count = sum(result.supported for result in results)
         fraction = supported_count / len(results)
@@ -424,11 +461,12 @@ def evaluate_camera_panel_tracklet_support(
                 if count >= actual_policy.minimum_seed_cell_count_per_view
             )
         )
-        reasons: list[str] = []
-        if len(spatially_supported) < actual_policy.minimum_view_count:
-            reasons.append("insufficient-spatially-supported-views")
-        if actual_policy.require_all_declared_views and len(contributing) != len(declared):
-            reasons.append("missing-declared-view")
+        reasons = _frame_reason_codes(
+            contributing_view_ids=contributing,
+            spatially_supported_view_ids=spatially_supported,
+            declared_view_ids=declared,
+            policy=actual_policy,
+        )
         contributing_counts = {view: counts[view] for view in contributing}
         frame_results.append(
             CameraPanelFrameSupportV1(
@@ -437,7 +475,7 @@ def evaluate_camera_panel_tracklet_support(
                 spatially_supported_view_ids=spatially_supported,
                 seed_cell_counts_by_view=contributing_counts,
                 supported=not reasons,
-                reason_codes=tuple(sorted(reasons)),
+                reason_codes=reasons,
             )
         )
 
