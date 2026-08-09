@@ -11,6 +11,7 @@ on:
       - "src/prob4d/_selection_evidence_records.py"
       - "src/prob4d/_selection_evidence_replay.py"
       - "tests/test_selection_lock.py"
+      - "tests/test_selection_lock_publication.py"
       - "tests/test_selection_evidence.py"
   workflow_dispatch:
 
@@ -50,11 +51,13 @@ jobs:
           python -m ruff check \
             src/prob4d/selection_lock.py \
             src/prob4d/deployment_ledger.py \
-            tests/test_selection_lock.py
+            tests/test_selection_lock.py \
+            tests/test_selection_lock_publication.py
           python -m ruff format --check \
             src/prob4d/selection_lock.py \
             src/prob4d/deployment_ledger.py \
-            tests/test_selection_lock.py
+            tests/test_selection_lock.py \
+            tests/test_selection_lock_publication.py
           python -m mypy \
             src/prob4d/selection_lock.py \
             src/prob4d/deployment_ledger.py
@@ -62,6 +65,7 @@ jobs:
         run: >-
           python -m pytest -q
           tests/test_selection_lock.py
+          tests/test_selection_lock_publication.py
           tests/test_selection_evidence.py
       - name: Verify installed public modules
         run: |
