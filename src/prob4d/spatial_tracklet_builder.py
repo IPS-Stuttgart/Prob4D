@@ -10,6 +10,7 @@ from typing import Any, TypeAlias
 import numpy as np
 from numpy.typing import NDArray
 
+from ._immutable_json import plain_json
 from .causal_tracklets import (
     CausalTrackletReport,
     CausalTrackletSet,
@@ -228,7 +229,7 @@ def build_spatially_stratified_scene_flow_tracklets(
         }
     )
     try:
-        json.dumps(metadata, allow_nan=False)
+        json.dumps(plain_json(metadata), allow_nan=False)
     except (TypeError, ValueError) as error:
         raise ValueError("spatial tracklet metadata must be finite JSON") from error
     enriched = CausalTrackletSet(
