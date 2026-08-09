@@ -41,6 +41,7 @@ from .sparse_observation_factors import (
 from .tree_sparse_observation_factors import (
     TreeSparseStackedObservationFactors,
     bind_gauge_tree_prior,
+    build_tree_sparse_observation_factors,
     stack_tree_sparse_observation_factors,
 )
 
@@ -69,6 +70,7 @@ __all__ = [
     "TreeSparseStackedObservationFactors",
     "ValidatedClaimBearingObservationFactorBundle",
     "bind_gauge_tree_prior",
+    "build_tree_sparse_observation_factors",
     "load_claim_bearing_observation_factor_bundle",
     "load_observation_factor_bundle",
     "seal_claim_bearing_observation_factor_bundle",
