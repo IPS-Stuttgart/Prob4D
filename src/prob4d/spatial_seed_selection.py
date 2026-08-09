@@ -144,9 +144,9 @@ class SpatialSeedSelection:
     def __post_init__(self) -> None:
         if type(self.image_shape) is not tuple or len(self.image_shape) != 2:
             raise ValueError("image_shape must be a two-element tuple")
-        image_shape = tuple(
-            _strict_integer(value, name=f"image_shape[{index}]", minimum=1)
-            for index, value in enumerate(self.image_shape)
+        image_shape = (
+            _strict_integer(self.image_shape[0], name="image_shape[0]", minimum=1),
+            _strict_integer(self.image_shape[1], name="image_shape[1]", minimum=1),
         )
         for field_name in ("requested_cell_grid_shape", "cell_grid_shape"):
             raw = getattr(self, field_name)
