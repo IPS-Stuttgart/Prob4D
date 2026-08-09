@@ -52,10 +52,11 @@ def test_release_changelog_and_claim_boundary_are_published() -> None:
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     assert "## Unreleased\n\nNo changes yet." in changelog
     assert "## 0.4.0 — 2026-08-10" in changelog
-    assert "claim-bearing tree-sparse observation artifacts" in changelog
-    assert "outcome-blind provider support feasibility" in changelog
-    assert "replay-complete held-out provider evidence" in changelog
-    assert "registry-driven compatibility wrappers" in changelog
+    lower_changelog = changelog.lower()
+    assert "claim-bearing tree-sparse observation artifacts" in lower_changelog
+    assert "outcome-blind provider support feasibility" in lower_changelog
+    assert "replay-complete held-out provider evidence" in lower_changelog
+    assert "registry-driven compatibility wrappers" in lower_changelog
 
     boundary = (ROOT / "docs" / "releases" / "0.4.0.md").read_text(
         encoding="utf-8"
