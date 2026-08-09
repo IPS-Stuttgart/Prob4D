@@ -16,7 +16,6 @@ from ._gauge_tree_artifact_common import (
     GaugeTreePriorArrayMemberV1,
     canonical_json_bytes,
     require_mapping,
-    validate_digest,
     validate_gauge_ids_strict,
 )
 from ._gauge_tree_artifact_io import (
