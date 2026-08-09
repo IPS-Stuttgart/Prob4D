@@ -98,13 +98,20 @@ validated model rather than silently multiplying the frame budget.
 ## Camera-panel support audit
 
 `evaluate_camera_panel_tracklet_support` combines several spatially annotated
-tracklet sets without averaging their point estimates. For every predeclared
-causal-prefix frame it reports:
+tracklet sets without averaging their point estimates. The complete camera
+roster is a separate required input; it is not inferred from whichever mappings
+happen to be supplied at evaluation time. A declared camera missing from
+`tracklets_by_view` contributes zero support on every required frame, and an
+undeclared camera is rejected.
 
+For every predeclared causal-prefix frame the report records:
+
+- the complete frozen camera roster;
 - each contributing camera view;
-- the number of represented view-local seed cells in each camera;
+- the number of represented view-local seed cells in each contributing camera;
 - the cameras that independently meet the frozen per-view cell threshold; and
-- exact failure reasons for insufficient views or spatial support.
+- exact failure reasons for insufficient views, spatial support, or missing
+  declared cameras.
 
 Image-cell IDs are view-local. The audit deliberately does not treat the same
 numeric image-cell ID in two cameras as the same physical object region.
@@ -127,24 +134,28 @@ report = evaluate_camera_panel_tracklet_support(
         "camera-1": camera_1_tracklets,
         "camera-2": camera_2_tracklets,
     },
+    declared_view_ids=("camera-0", "camera-1", "camera-2"),
     panel_id="session-17-prefix-panel",
     required_frame_indices=tuple(range(109, 134)),
     policy=policy,
 )
 ```
 
-The report is content-addressed and invariant to the input mapping order. It is
-a source-only support diagnostic, not a provider-accuracy result. A passing
-panel still requires separate source/calibration fitting, held-out provider
-competence, and the guarded BayesianPhysTwin promotion gate.
+The report is content-addressed and invariant to the input mapping order. Its
+identity includes the complete declared roster, so dropping a camera changes the
+request and cannot masquerade as a replay of the frozen panel. The report is a
+source-only support diagnostic, not a provider-accuracy result. A passing panel
+still requires separate source/calibration fitting, held-out provider competence,
+and the guarded BayesianPhysTwin promotion gate.
 
 ## Recommended protocol use
 
 1. Freeze the camera roster, cell grid, seed stride, per-cell quota, required
    frames, frame-level effective-sample budget, and panel thresholds before
    source residuals or target outcomes are opened.
-2. Retain support-negative views and frames; do not delete cameras after seeing
-   provider errors.
+2. Pass the frozen roster through `declared_view_ids`; retain absent or
+   support-negative cameras instead of deleting them after seeing provider
+   support or errors.
 3. Fit covariance, association, reliability, camera-bias, and timing priors only
    on development/calibration objects or sessions.
 4. Keep view-specific and shared visual nuisance variables separate from local
