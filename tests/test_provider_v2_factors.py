@@ -6,6 +6,7 @@ import sys
 import prob4d.observation_factors as neutral
 import prob4d.provider_v2_factor_bundle as strict
 import prob4d.sparse_observation_factors as sparse
+import prob4d.tree_sparse_observation_artifact as tree_artifact
 import prob4d.tree_sparse_observation_factors as tree_sparse
 from prob4d import provider_v2_factors as provider
 
@@ -53,6 +54,23 @@ def test_provider_v2_factor_facade_reexports_one_contract_surface() -> None:
     assert (
         provider.stack_tree_sparse_observation_factors
         is tree_sparse.stack_tree_sparse_observation_factors
+    )
+
+    assert (
+        provider.TreeSparseObservationArtifactV1
+        is tree_artifact.TreeSparseObservationArtifactV1
+    )
+    assert (
+        provider.LoadedTreeSparseObservationArtifactV1
+        is tree_artifact.LoadedTreeSparseObservationArtifactV1
+    )
+    assert (
+        provider.load_tree_sparse_observation_artifact
+        is tree_artifact.load_tree_sparse_observation_artifact
+    )
+    assert (
+        provider.write_tree_sparse_observation_artifact
+        is tree_artifact.write_tree_sparse_observation_artifact
     )
 
 
