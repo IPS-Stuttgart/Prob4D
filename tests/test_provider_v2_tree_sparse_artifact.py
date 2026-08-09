@@ -152,10 +152,10 @@ def _factors(
         view_ids=("camera-0", "camera-0", "camera-0", "camera-0"),
         factor_ids=("factor-0", "factor-0", "factor-1", "factor-1"),
         correlation_group_ids=(
-            "camera-0:frame-1",
-            "camera-0:frame-1",
-            f"camera-0:frame-{second_frame}",
-            f"camera-0:frame-{second_frame}",
+            "factor-0:camera-0:frame-1",
+            "factor-0:camera-0:frame-1",
+            f"factor-1:camera-0:frame-{second_frame}",
+            f"factor-1:camera-0:frame-{second_frame}",
         ),
         causal_frame_stop=5,
     )
