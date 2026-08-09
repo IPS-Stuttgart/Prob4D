@@ -55,6 +55,18 @@ def _strict_bool(value: object, *, name: str) -> bool:
     return value
 
 
+def _canonical_string_tuple(value: object, *, name: str) -> tuple[str, ...]:
+    if type(value) is not tuple or not value:
+        raise ValueError(f"{name} must be a non-empty tuple")
+    result = tuple(
+        _strict_string(item, name=f"{name}[{index}]")
+        for index, item in enumerate(value)
+    )
+    if result != tuple(sorted(set(result))):
+        raise ValueError(f"{name} must be sorted and unique")
+    return result
+
+
 def _canonical_json_bytes(value: Mapping[str, object]) -> bytes:
     return json.dumps(
         value,
@@ -225,14 +237,10 @@ class CameraPanelSupportReportV1:
             raise ValueError("required_frame_indices must be sorted and unique")
         if any(frame >= cutoff for frame in required):
             raise ValueError("required frames cross the causal frame stop")
-        if type(self.declared_view_ids) is not tuple or not self.declared_view_ids:
-            raise ValueError("declared_view_ids must be a non-empty tuple")
-        views = tuple(
-            _strict_string(value, name="declared_view_id")
-            for value in self.declared_view_ids
+        views = _canonical_string_tuple(
+            self.declared_view_ids,
+            name="declared_view_ids",
         )
-        if views != tuple(sorted(set(views))):
-            raise ValueError("declared_view_ids must be sorted and unique")
         if type(self.seed_cell_grid_shape) is not tuple or len(self.seed_cell_grid_shape) != 2:
             raise ValueError("seed_cell_grid_shape must be a two-element tuple")
         grid = (
@@ -337,26 +345,32 @@ def _tracklet_grid_shape(tracklets: CausalTrackletSet) -> tuple[int, int]:
 def evaluate_camera_panel_tracklet_support(
     tracklets_by_view: Mapping[str, CausalTrackletSet],
     *,
+    declared_view_ids: tuple[str, ...],
     panel_id: str,
     required_frame_indices: tuple[int, ...],
     policy: CameraPanelSupportPolicyV1 | None = None,
     metadata: Mapping[str, object] | None = None,
 ) -> CameraPanelSupportReportV1:
-    """Audit per-view distributed support without equating camera image cells."""
+    """Audit a frozen camera roster without equating view-local image cells."""
 
     if not isinstance(tracklets_by_view, Mapping) or not tracklets_by_view:
         raise ValueError("tracklets_by_view must be a non-empty mapping")
+    declared = _canonical_string_tuple(
+        declared_view_ids,
+        name="declared_view_ids",
+    )
     normalized: dict[str, CausalTrackletSet] = {}
     for raw_view, tracklets in tracklets_by_view.items():
         view = _strict_string(raw_view, name="view_id")
+        if view not in declared:
+            raise ValueError("tracklets_by_view contains a view outside declared_view_ids")
         if not isinstance(tracklets, CausalTrackletSet):
             raise TypeError("tracklets_by_view values must be CausalTrackletSet instances")
         normalized[view] = tracklets
-    views = tuple(sorted(normalized))
     actual_policy = CameraPanelSupportPolicyV1() if policy is None else policy
     if not isinstance(actual_policy, CameraPanelSupportPolicyV1):
         raise TypeError("policy must be a CameraPanelSupportPolicyV1")
-    if actual_policy.minimum_view_count > len(views):
+    if actual_policy.minimum_view_count > len(declared):
         raise ValueError("minimum_view_count exceeds the declared panel size")
 
     cutoffs = {tracklets.causal_frame_stop for tracklets in normalized.values()}
@@ -381,7 +395,11 @@ def evaluate_camera_panel_tracklet_support(
         raise ValueError("required frames cross the panel causal frame stop")
 
     cells_by_view_and_frame: dict[str, dict[int, set[int]]] = {}
-    for view, tracklets in normalized.items():
+    for view in declared:
+        tracklets = normalized.get(view)
+        if tracklets is None:
+            cells_by_view_and_frame[view] = {}
+            continue
         track_cells = seed_cell_ids_by_track(tracklets)
         row_cells = track_cells[np.asarray(tracklets.track_ids, dtype=np.int64)]
         per_frame: dict[int, set[int]] = {}
@@ -394,9 +412,11 @@ def evaluate_camera_panel_tracklet_support(
     for frame in required:
         counts = {
             view: len(cells_by_view_and_frame[view].get(frame, set()))
-            for view in views
+            for view in declared
         }
-        contributing = tuple(sorted(view for view, count in counts.items() if count > 0))
+        contributing = tuple(
+            sorted(view for view, count in counts.items() if count > 0)
+        )
         spatially_supported = tuple(
             sorted(
                 view
@@ -407,7 +427,7 @@ def evaluate_camera_panel_tracklet_support(
         reasons: list[str] = []
         if len(spatially_supported) < actual_policy.minimum_view_count:
             reasons.append("insufficient-spatially-supported-views")
-        if actual_policy.require_all_declared_views and len(contributing) != len(views):
+        if actual_policy.require_all_declared_views and len(contributing) != len(declared):
             reasons.append("missing-declared-view")
         contributing_counts = {view: counts[view] for view in contributing}
         frame_results.append(
@@ -435,7 +455,7 @@ def evaluate_camera_panel_tracklet_support(
         panel_id=panel_id,
         causal_frame_stop=cutoff,
         required_frame_indices=required,
-        declared_view_ids=views,
+        declared_view_ids=declared,
         seed_cell_grid_shape=grid,
         policy=actual_policy,
         frame_results=tuple(frame_results),
