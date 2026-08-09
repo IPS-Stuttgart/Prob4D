@@ -47,6 +47,10 @@ def test_provider_v2_factor_facade_reexports_one_contract_surface() -> None:
     )
     assert provider.bind_gauge_tree_prior is tree_sparse.bind_gauge_tree_prior
     assert (
+        provider.build_tree_sparse_observation_factors
+        is tree_sparse.build_tree_sparse_observation_factors
+    )
+    assert (
         provider.stack_tree_sparse_observation_factors
         is tree_sparse.stack_tree_sparse_observation_factors
     )
