@@ -228,13 +228,12 @@ def test_spatial_factor_conversion_preserves_cell_groups_and_point_ids() -> None
     assert all(factor.composite_weight == 0.5 for factor in spatial)
 
 
-def test_camera_panel_support_requires_cross_view_spatial_corroboration() -> None:
+def test_camera_panel_support_requires_multiple_spatially_supported_views() -> None:
     first = panel_tracklets((0, 1, 2), window_id="view-a")
-    second = panel_tracklets((0, 1, 3), window_id="view-b")
+    second = panel_tracklets((2, 3), window_id="view-b")
     policy = CameraPanelSupportPolicyV1(
         minimum_view_count=2,
-        minimum_seed_cell_count=2,
-        minimum_views_per_cell=2,
+        minimum_seed_cell_count_per_view=2,
         minimum_supported_frame_fraction=1.0,
         require_all_declared_views=True,
     )
@@ -249,7 +248,14 @@ def test_camera_panel_support_requires_cross_view_spatial_corroboration() -> Non
 
     assert report.support_feasible
     assert report.supported_frame_count == 2
-    assert report.frame_results[0].corroborated_seed_cell_ids == (0, 1)
+    assert report.frame_results[0].spatially_supported_view_ids == (
+        "camera-a",
+        "camera-b",
+    )
+    assert dict(report.frame_results[0].seed_cell_counts_by_view) == {
+        "camera-a": 3,
+        "camera-b": 2,
+    }
     assert len(report.camera_panel_support_id or "") == 64
     replay = evaluate_camera_panel_tracklet_support(
         {"camera-b": second, "camera-a": first},
@@ -271,7 +277,7 @@ def test_camera_panel_support_requires_cross_view_spatial_corroboration() -> Non
     )
     assert not support_negative.support_feasible
     assert support_negative.frame_results[0].reason_codes == (
-        "insufficient-spatial-seed-cells",
+        "insufficient-spatially-supported-views",
     )
 
 
@@ -297,6 +303,6 @@ def test_spatial_contracts_reject_coercive_aliases() -> None:
             required_frame_indices=(1, 0),
             policy=CameraPanelSupportPolicyV1(
                 minimum_view_count=1,
-                minimum_seed_cell_count=1,
+                minimum_seed_cell_count_per_view=1,
             ),
         )
