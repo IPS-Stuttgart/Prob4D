@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -47,6 +46,11 @@ from .provider_v2_factor_bundle import (
     _validated_gauge_ids,
     _validated_lineage,
 )
+from .provider_v2_tree_sparse_manifest import (
+    CLAIM_BEARING_TREE_SPARSE_OBSERVATION_ENVELOPE_VERSION,
+    TREE_SPARSE_PROVIDER_CAPABILITIES,
+    prob4d_tree_sparse_provider_manifest,
+)
 from .runtime_revision import assert_runtime_revision
 from .tree_sparse_observation_artifact import (
     TREE_SPARSE_OBSERVATION_ARTIFACT_VERSION,
@@ -59,14 +63,11 @@ from .tree_sparse_observation_factors import TreeSparseStackedObservationFactors
 CLAIM_BEARING_TREE_SPARSE_OBSERVATION_SCHEMA = (
     "prob4d.claim-bearing-tree-sparse-observation-artifact"
 )
-CLAIM_BEARING_TREE_SPARSE_OBSERVATION_VERSION = 1
-CLAIM_BEARING_TREE_SPARSE_MAX_ENVELOPE_BYTES = 4_194_304
-_REQUIRED_TREE_SPARSE_CAPABILITIES = frozenset(
-    {
-        "content_addressed_tree_sparse_observation_artifacts",
-        "strict_claim_bearing_tree_sparse_observation_loading",
-    }
+CLAIM_BEARING_TREE_SPARSE_OBSERVATION_VERSION = (
+    CLAIM_BEARING_TREE_SPARSE_OBSERVATION_ENVELOPE_VERSION
 )
+CLAIM_BEARING_TREE_SPARSE_MAX_ENVELOPE_BYTES = 4_194_304
+_REQUIRED_TREE_SPARSE_CAPABILITIES = frozenset(TREE_SPARSE_PROVIDER_CAPABILITIES)
 _ENVELOPE_FIELDS = frozenset(
     {
         "schema",
@@ -569,10 +570,10 @@ def write_claim_bearing_tree_sparse_observation(
     )
     revision = _require_revision(source_revision, name="source_revision")
     runtime = assert_runtime_revision(revision)
-    from .provider_v2 import prob4d_provider_manifest
-
     attestation = build_provider_attestation(
-        provider_manifest=prob4d_provider_manifest(provider_revision=revision),
+        provider_manifest=prob4d_tree_sparse_provider_manifest(
+            provider_revision=revision
+        ),
         provider_revision=revision,
         export_mode="calibrated",
         calibration_compatibility_validated=True,
