@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 try:
     import tomllib
@@ -125,15 +126,16 @@ def test_target_loading_uses_only_the_registry_module_and_function(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     command = COMMANDS_BY_LEGACY_ALIAS["prob4d-target-admit"]
-    sentinel = lambda: 3
-    observed = []
 
-    class Module:
-        main_admit = sentinel
+    def sentinel() -> int:
+        return 3
+
+    observed = []
+    module = SimpleNamespace(main_admit=sentinel)
 
     def import_module(name: str):
         observed.append(name)
-        return Module()
+        return module
 
     monkeypatch.setattr(legacy_cli.importlib, "import_module", import_module)
 
