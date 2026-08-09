@@ -184,7 +184,7 @@ def test_spatial_tracklets_retain_cell_lineage_and_causal_cutoff() -> None:
     assert first.metadata["seed_selection_policy"] == "spatial-stratified"
 
 
-def test_spatial_factor_conversion_preserves_cell_groups_and_point_ids() -> None:
+def test_spatial_factor_conversion_preserves_cell_groups_and_frame_budget() -> None:
     window = moving_window(frames=2, height=2, width=6)
     tracklets, _ = build_spatially_stratified_scene_flow_tracklets(
         window,
@@ -211,21 +211,35 @@ def test_spatial_factor_conversion_preserves_cell_groups_and_point_ids() -> None
         tracklets,
         covariance,
         view_id="camera-0",
-        effective_samples_per_group=0.5,
+        effective_samples_per_frame=0.5,
     )
     framewise = spatial_tracklets_to_observation_factors(
         tracklets,
         covariance,
         view_id="camera-0",
         correlation_group_mode="frame",
-        effective_samples_per_group=0.5,
+        effective_samples_per_frame=0.5,
     )
 
     assert len(spatial) == 4
     assert len(framewise) == 2
     assert all("seed-cell" in factor.correlation_group_id for factor in spatial)
     assert {factor.point_ids[0] for factor in spatial[:2]} == {0, 1}
-    assert all(factor.composite_weight == 0.5 for factor in spatial)
+    assert all(factor.composite_weight == 0.25 for factor in spatial)
+    assert all(factor.composite_weight == 0.25 for factor in framewise)
+    for frame_index in (0, 1):
+        spatial_mass = sum(
+            factor.composite_weight * len(factor.point_ids)
+            for factor in spatial
+            if factor.frame_index == frame_index
+        )
+        framewise_mass = sum(
+            factor.composite_weight * len(factor.point_ids)
+            for factor in framewise
+            if factor.frame_index == frame_index
+        )
+        assert spatial_mass == pytest.approx(0.5)
+        assert spatial_mass == pytest.approx(framewise_mass)
 
 
 def test_camera_panel_support_requires_multiple_spatially_supported_views() -> None:
