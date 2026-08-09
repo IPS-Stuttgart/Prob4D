@@ -167,7 +167,7 @@ def _member_from_array(
 def _canonical_table(values: tuple[str, ...]) -> tuple[tuple[str, ...], np.ndarray]:
     table = tuple(sorted(set(values)))
     positions = {value: index for index, value in enumerate(table)}
-    indices = np.fromiter(
+    indices: np.ndarray = np.fromiter(
         (positions[value] for value in values),
         dtype=np.int64,
         count=len(values),
