@@ -117,7 +117,11 @@ def _prior() -> GaugeTreeSquareRootPriorV1:
     )
 
 
-def _factors(*, second_frame: int = 3, mean_offset: float = 0.0) -> TreeSparseStackedObservationFactors:
+def _factors(
+    *,
+    second_frame: int = 3,
+    mean_offset: float = 0.0,
+) -> TreeSparseStackedObservationFactors:
     local_jacobian = np.zeros((4, 3, 7), dtype=np.float64)
     local_jacobian[:, :, 4:7] = np.eye(3, dtype=np.float64)[None]
     return build_tree_sparse_observation_factors(
