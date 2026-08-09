@@ -183,6 +183,7 @@ class CameraPanelFrameSupportV1:
             _strict_string(view, name="seed-cell count view_id"): _strict_integer(
                 count,
                 name=f"seed_cell_counts_by_view[{view!r}]",
+                minimum=1,
             )
             for view, count in self.seed_cell_counts_by_view.items()
         }
@@ -293,6 +294,17 @@ class CameraPanelSupportReportV1:
                 raise ValueError("frame result contains an undeclared contributing view")
             if not set(result.spatially_supported_view_ids).issubset(declared_set):
                 raise ValueError("frame result contains an undeclared supported view")
+            expected_spatially_supported = tuple(
+                sorted(
+                    view
+                    for view, count in result.seed_cell_counts_by_view.items()
+                    if count >= self.policy.minimum_seed_cell_count_per_view
+                )
+            )
+            if result.spatially_supported_view_ids != expected_spatially_supported:
+                raise ValueError(
+                    "frame supported-view IDs contradict stored seed-cell counts"
+                )
             expected_reasons = _frame_reason_codes(
                 contributing_view_ids=result.contributing_view_ids,
                 spatially_supported_view_ids=result.spatially_supported_view_ids,
