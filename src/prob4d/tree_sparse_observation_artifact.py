@@ -494,14 +494,6 @@ def write_tree_sparse_observation_artifact(
     path = Path(manifest_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     prior_artifact_id = gauge_tree_prior_artifact_id(factors.gauge_tree_prior)
-    prior_manifest_path = path.parent / f"gauge-tree-prior-{prior_artifact_id}.json"
-    loaded_prior = write_gauge_tree_prior_artifact(
-        factors.gauge_tree_prior,
-        prior_manifest_path,
-    )
-    if loaded_prior.manifest.artifact_id != prior_artifact_id:
-        raise RuntimeError("published gauge-tree prior changed artifact identity")
-
     members_and_payloads, view_table, factor_table, group_table = _array_payloads(factors)
     manifest = TreeSparseObservationArtifactV1(
         sequence_id=sequence_id,
@@ -526,6 +518,15 @@ def write_tree_sparse_observation_artifact(
     }
     if path.name in reserved_names:
         raise ValueError("tree-sparse observation manifest collides with a payload path")
+
+    prior_manifest_path = path.parent / manifest.gauge_tree_prior_manifest_filename
+    loaded_prior = write_gauge_tree_prior_artifact(
+        factors.gauge_tree_prior,
+        prior_manifest_path,
+    )
+    if loaded_prior.manifest.artifact_id != prior_artifact_id:
+        raise RuntimeError("published gauge-tree prior changed artifact identity")
+
     for name in _ARRAY_NAMES:
         member, payload = members_and_payloads[name]
         _write_create_if_absent(
