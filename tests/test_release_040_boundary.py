@@ -62,9 +62,13 @@ def test_release_changelog_and_claim_boundary_are_published() -> None:
     boundary = (ROOT / "docs" / "releases" / "0.4.0.md").read_text(
         encoding="utf-8"
     )
-    assert "does not publish to a package registry or create a Git tag" in boundary
-    assert "does not establish real-provider competence" in boundary
-    assert "313/324" in boundary
+    normalized_boundary = " ".join(boundary.split())
+    assert (
+        "does not publish to a package registry or create a Git tag"
+        in normalized_boundary
+    )
+    assert "does not establish real-provider competence" in normalized_boundary
+    assert "313/324" in normalized_boundary
 
 
 def test_v1_v2_and_tree_sparse_manifest_boundaries_remain_distinct() -> None:
