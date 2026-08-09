@@ -23,20 +23,14 @@ def prob4d_tree_sparse_provider_manifest(
 ) -> dict[str, object]:
     """Return provider-v2 plus the prospective tree-sparse artifact contracts."""
 
-    descriptor = dict(
-        prob4d_provider_manifest(provider_revision=provider_revision)
-    )
+    descriptor = dict(prob4d_provider_manifest(provider_revision=provider_revision))
     descriptor.pop("manifest_id", None)
     capabilities = list(cast(list[str], descriptor["capabilities"]))
     for capability in TREE_SPARSE_PROVIDER_CAPABILITIES:
         if capability not in capabilities:
             capabilities.append(capability)
-    schema_versions = dict(
-        cast(dict[str, int], descriptor["artifact_schema_versions"])
-    )
-    schema_versions["TreeSparseObservationArtifactV1"] = (
-        TREE_SPARSE_OBSERVATION_ARTIFACT_VERSION
-    )
+    schema_versions = dict(cast(dict[str, int], descriptor["artifact_schema_versions"]))
+    schema_versions["TreeSparseObservationArtifactV1"] = TREE_SPARSE_OBSERVATION_ARTIFACT_VERSION
     schema_versions["ClaimBearingTreeSparseObservationEnvelopeV1"] = (
         CLAIM_BEARING_TREE_SPARSE_OBSERVATION_ENVELOPE_VERSION
     )
