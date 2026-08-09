@@ -56,10 +56,7 @@ def test_provider_v2_factor_facade_reexports_one_contract_surface() -> None:
         is tree_sparse.stack_tree_sparse_observation_factors
     )
 
-    assert (
-        provider.TreeSparseObservationArtifactV1
-        is tree_artifact.TreeSparseObservationArtifactV1
-    )
+    assert provider.TreeSparseObservationArtifactV1 is tree_artifact.TreeSparseObservationArtifactV1
     assert (
         provider.LoadedTreeSparseObservationArtifactV1
         is tree_artifact.LoadedTreeSparseObservationArtifactV1
