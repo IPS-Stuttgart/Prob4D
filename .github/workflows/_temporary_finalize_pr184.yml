@@ -1,0 +1,82 @@
+name: Temporary finalize PR 184
+
+on:
+  push:
+    branches:
+      - agent/claim-bearing-tree-sparse-artifact
+
+permissions:
+  contents: write
+
+concurrency:
+  group: temporary-finalize-pr184
+  cancel-in-progress: false
+
+jobs:
+  finalize:
+    if: ${{ !contains(github.event.head_commit.message, '[finalize-pr184]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact branch head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Apply exact schema hardening and canonical formatting
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/prob4d/provider_v2_tree_sparse_artifact.py")
+          text = path.read_text(encoding="utf-8")
+
+          old = '''        if value.get("schema_version") != CLAIM_BEARING_TREE_SPARSE_OBSERVATION_VERSION:\n            raise ValueError("unsupported claim-bearing tree-sparse version")\n'''
+          new = '''        schema_version = _require_positive_integer(\n            value.get("schema_version"),\n            name="schema_version",\n        )\n        if schema_version != CLAIM_BEARING_TREE_SPARSE_OBSERVATION_VERSION:\n            raise ValueError("unsupported claim-bearing tree-sparse version")\n'''
+          if old not in text:
+              raise SystemExit("schema-version replacement target not found")
+          text = text.replace(old, new, 1)
+
+          old = '''    if (\n        artifact_versions.get("TreeSparseObservationArtifactV1")\n        != TREE_SPARSE_OBSERVATION_ARTIFACT_VERSION\n    ):\n        raise ValueError("provider manifest lacks the tree-sparse artifact version")\n    if (\n        artifact_versions.get("ClaimBearingTreeSparseObservationEnvelopeV1")\n        != CLAIM_BEARING_TREE_SPARSE_OBSERVATION_VERSION\n    ):\n        raise ValueError("provider manifest lacks the tree-sparse envelope version")\n'''
+          new = '''    observation_version = artifact_versions.get(\n        "TreeSparseObservationArtifactV1"\n    )\n    if (\n        isinstance(observation_version, bool)\n        or not isinstance(observation_version, int)\n        or observation_version != TREE_SPARSE_OBSERVATION_ARTIFACT_VERSION\n    ):\n        raise ValueError("provider manifest lacks the tree-sparse artifact version")\n    envelope_version = artifact_versions.get(\n        "ClaimBearingTreeSparseObservationEnvelopeV1"\n    )\n    if (\n        isinstance(envelope_version, bool)\n        or not isinstance(envelope_version, int)\n        or envelope_version != CLAIM_BEARING_TREE_SPARSE_OBSERVATION_VERSION\n    ):\n        raise ValueError("provider manifest lacks the tree-sparse envelope version")\n'''
+          if old not in text:
+              raise SystemExit("provider-version replacement target not found")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
+
+          python -m pip install --disable-pip-version-check ruff==0.16.2
+          python -m ruff format \
+            src/prob4d/provider_v2_tree_sparse_artifact.py \
+            src/prob4d/provider_v2_tree_sparse_manifest.py \
+            tests/test_provider_v2_tree_sparse_artifact.py
+          python -m ruff check \
+            src/prob4d/provider_v2_tree_sparse_artifact.py \
+            src/prob4d/provider_v2_tree_sparse_manifest.py \
+            tests/test_provider_v2_tree_sparse_artifact.py
+
+      - name: Publish finalized source
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo "No finalization changes required."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            src/prob4d/provider_v2_tree_sparse_artifact.py \
+            src/prob4d/provider_v2_tree_sparse_manifest.py \
+            tests/test_provider_v2_tree_sparse_artifact.py
+          git commit -m "Finalize claim-bearing tree-sparse contracts [finalize-pr184]"
+          git push origin HEAD:agent/claim-bearing-tree-sparse-artifact
