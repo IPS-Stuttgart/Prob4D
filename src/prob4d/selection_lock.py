@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import tempfile
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -44,6 +45,34 @@ SELECTION_LOCK_CLAIM_BOUNDARY = (
     "benefit requires a separately content-addressed deployment ledger and frozen target "
     "analysis."
 )
+
+
+def _atomic_create(path: Path, content: bytes) -> None:
+    """Durably publish one immutable file without replacing a competing writer."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="wb",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as handle:
+            temporary = Path(handle.name)
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.link(temporary, path)
+        directory_fd = os.open(path.parent, os.O_RDONLY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
 
 
 @dataclass(frozen=True, slots=True)
@@ -267,18 +296,15 @@ def selection_lock_from_dict(value: Any) -> SelectionLockV1:
 
 
 def write_selection_lock(lock: SelectionLockV1, path: str | os.PathLike[str]) -> None:
-    """Write one canonical lock atomically."""
+    """Publish one canonical lock without replacing retained evidence."""
 
     if not isinstance(lock, SelectionLockV1):
         raise ValueError("lock must be a SelectionLockV1")
-    destination = Path(path)
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    temporary = destination.with_name(f".{destination.name}.tmp")
-    temporary.write_text(
-        json.dumps(lock.to_dict(), sort_keys=True, indent=2, allow_nan=False) + "\n",
-        encoding="utf-8",
+    payload = (
+        json.dumps(lock.to_dict(), sort_keys=True, indent=2, allow_nan=False).encode("utf-8")
+        + b"\n"
     )
-    os.replace(temporary, destination)
+    _atomic_create(Path(path), payload)
 
 
 def load_selection_lock(path: str | os.PathLike[str]) -> SelectionLockV1:
