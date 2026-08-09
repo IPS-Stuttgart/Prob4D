@@ -46,7 +46,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm \
+          git rm -f \
             .github/workflows/prepare-release-040.yml \
             scripts/ci/prepare_release_040.py
           git add \
