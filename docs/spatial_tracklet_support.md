@@ -91,10 +91,13 @@ variables downstream.
 tracklet sets without averaging their point estimates. For every predeclared
 causal-prefix frame it reports:
 
-- contributing camera views;
-- the union of represented seed cells;
-- seed cells represented by at least the required number of views; and
+- each contributing camera view;
+- the number of represented view-local seed cells in each camera;
+- the cameras that independently meet the frozen per-view cell threshold; and
 - exact failure reasons for insufficient views or spatial support.
+
+Image-cell IDs are view-local. The audit deliberately does not treat the same
+numeric image-cell ID in two cameras as the same physical object region.
 
 ```python
 from prob4d.camera_panel_support import (
@@ -104,8 +107,7 @@ from prob4d.camera_panel_support import (
 
 policy = CameraPanelSupportPolicyV1(
     minimum_view_count=2,
-    minimum_seed_cell_count=8,
-    minimum_views_per_cell=2,
+    minimum_seed_cell_count_per_view=8,
     minimum_supported_frame_fraction=1.0,
     require_all_declared_views=True,
 )
@@ -142,7 +144,7 @@ competence, and the guarded BayesianPhysTwin promotion gate.
 
 ## Claim boundary
 
-Spatial coverage and camera-panel corroboration establish only that the frozen
+Spatial coverage and camera-panel support establish only that the frozen
 causal-prefix provider has distributed support under the declared policy. They
 do not establish calibrated uncertainty, provider competence, physical-state
 identifiability, BayesianPhysTwin benefit, Causal4D intervention benefit,
