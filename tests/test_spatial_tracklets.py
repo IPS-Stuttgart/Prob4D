@@ -245,6 +245,7 @@ def test_spatial_factor_conversion_preserves_cell_groups_and_frame_budget() -> N
 def test_camera_panel_support_requires_multiple_spatially_supported_views() -> None:
     first = panel_tracklets((0, 1, 2), window_id="view-a")
     second = panel_tracklets((2, 3), window_id="view-b")
+    declared = ("camera-a", "camera-b")
     policy = CameraPanelSupportPolicyV1(
         minimum_view_count=2,
         minimum_seed_cell_count_per_view=2,
@@ -254,6 +255,7 @@ def test_camera_panel_support_requires_multiple_spatially_supported_views() -> N
 
     report = evaluate_camera_panel_tracklet_support(
         {"camera-a": first, "camera-b": second},
+        declared_view_ids=declared,
         panel_id="panel",
         required_frame_indices=(0, 1),
         policy=policy,
@@ -261,6 +263,7 @@ def test_camera_panel_support_requires_multiple_spatially_supported_views() -> N
     )
 
     assert report.support_feasible
+    assert report.declared_view_ids == declared
     assert report.supported_frame_count == 2
     assert report.frame_results[0].spatially_supported_view_ids == (
         "camera-a",
@@ -273,6 +276,7 @@ def test_camera_panel_support_requires_multiple_spatially_supported_views() -> N
     assert len(report.camera_panel_support_id or "") == 64
     replay = evaluate_camera_panel_tracklet_support(
         {"camera-b": second, "camera-a": first},
+        declared_view_ids=declared,
         panel_id="panel",
         required_frame_indices=(0, 1),
         policy=policy,
@@ -285,6 +289,7 @@ def test_camera_panel_support_requires_multiple_spatially_supported_views() -> N
             "camera-a": first,
             "camera-b": panel_tracklets((0,), window_id="view-b-limited"),
         },
+        declared_view_ids=declared,
         panel_id="panel-limited",
         required_frame_indices=(0, 1),
         policy=policy,
@@ -293,6 +298,42 @@ def test_camera_panel_support_requires_multiple_spatially_supported_views() -> N
     assert support_negative.frame_results[0].reason_codes == (
         "insufficient-spatially-supported-views",
     )
+
+
+def test_camera_panel_support_cannot_drop_a_declared_view() -> None:
+    first = panel_tracklets((0, 1, 2), window_id="view-a")
+    declared = ("camera-a", "camera-b")
+    policy = CameraPanelSupportPolicyV1(
+        minimum_view_count=1,
+        minimum_seed_cell_count_per_view=2,
+        minimum_supported_frame_fraction=1.0,
+        require_all_declared_views=True,
+    )
+
+    report = evaluate_camera_panel_tracklet_support(
+        {"camera-a": first},
+        declared_view_ids=declared,
+        panel_id="missing-camera-b",
+        required_frame_indices=(0, 1),
+        policy=policy,
+    )
+
+    assert not report.support_feasible
+    assert report.declared_view_ids == declared
+    assert report.frame_results[0].contributing_view_ids == ("camera-a",)
+    assert report.frame_results[0].reason_codes == ("missing-declared-view",)
+
+    with pytest.raises(ValueError, match="outside declared_view_ids"):
+        evaluate_camera_panel_tracklet_support(
+            {"camera-c": first},
+            declared_view_ids=("camera-a",),
+            panel_id="unknown-camera",
+            required_frame_indices=(0, 1),
+            policy=CameraPanelSupportPolicyV1(
+                minimum_view_count=1,
+                minimum_seed_cell_count_per_view=1,
+            ),
+        )
 
 
 def test_spatial_contracts_reject_coercive_aliases() -> None:
@@ -313,6 +354,7 @@ def test_spatial_contracts_reject_coercive_aliases() -> None:
     with pytest.raises(ValueError, match="required_frame_indices"):
         evaluate_camera_panel_tracklet_support(
             {"camera-a": panel_tracklets((0,), window_id="view-a")},
+            declared_view_ids=("camera-a",),
             panel_id="panel",
             required_frame_indices=(1, 0),
             policy=CameraPanelSupportPolicyV1(
