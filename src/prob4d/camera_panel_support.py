@@ -9,6 +9,7 @@ from dataclasses import asdict, dataclass, field
 
 import numpy as np
 
+from ._immutable_json import frozen_finite_json_mapping
 from .causal_tracklets import CausalTrackletSet
 from .spatial_tracklets import (
     SPATIAL_TRACKLET_CLAIM_BOUNDARY,
@@ -238,9 +239,17 @@ class CameraPanelSupportReportV1:
             raise ValueError("declared_view_ids must be sorted and unique")
         if type(self.seed_cell_grid_shape) is not tuple or len(self.seed_cell_grid_shape) != 2:
             raise ValueError("seed_cell_grid_shape must be a two-element tuple")
-        grid = tuple(
-            _strict_integer(value, name="seed_cell_grid_shape", minimum=1)
-            for value in self.seed_cell_grid_shape
+        grid = (
+            _strict_integer(
+                self.seed_cell_grid_shape[0],
+                name="seed_cell_grid_shape[0]",
+                minimum=1,
+            ),
+            _strict_integer(
+                self.seed_cell_grid_shape[1],
+                name="seed_cell_grid_shape[1]",
+                minimum=1,
+            ),
         )
         if not isinstance(self.policy, CameraPanelSupportPolicyV1):
             raise TypeError("policy must be a CameraPanelSupportPolicyV1")
@@ -265,11 +274,10 @@ class CameraPanelSupportReportV1:
             raise ValueError("decision_reason contradicts support_feasible")
         if self.claim_boundary != SPATIAL_TRACKLET_CLAIM_BOUNDARY:
             raise ValueError("camera-panel support claim boundary changed")
-        metadata = dict(self.metadata)
-        try:
-            json.dumps(metadata, allow_nan=False)
-        except (TypeError, ValueError) as error:
-            raise ValueError("camera-panel support metadata must be finite JSON") from error
+        metadata = frozen_finite_json_mapping(
+            self.metadata,
+            name="camera-panel support metadata",
+        )
 
         object.__setattr__(self, "panel_id", panel)
         object.__setattr__(self, "causal_frame_stop", cutoff)
