@@ -259,6 +259,36 @@ def test_tree_sparse_observation_artifact_rejects_duplicate_and_nonfinite_json(
         load_tree_sparse_observation_artifact(fresh)
 
 
+def test_invalid_manifest_inputs_publish_no_artifact_files(tmp_path: Path) -> None:
+    factors = _factors()
+    path = tmp_path / "observation.json"
+
+    with pytest.raises(ValueError, match="source_revision"):
+        write_tree_sparse_observation_artifact(
+            factors,
+            path,
+            sequence_id="sequence-a",
+            case_id="case-a",
+            stream_id="stream-a",
+            source_repository="IPS-Stuttgart/Prob4D",
+            source_revision="not-a-revision",
+        )
+    assert list(tmp_path.iterdir()) == []
+
+    with pytest.raises(ValueError, match="finite"):
+        write_tree_sparse_observation_artifact(
+            factors,
+            path,
+            sequence_id="sequence-a",
+            case_id="case-a",
+            stream_id="stream-a",
+            source_repository="IPS-Stuttgart/Prob4D",
+            source_revision=SOURCE_REVISION,
+            metadata={"invalid": float("nan")},
+        )
+    assert list(tmp_path.iterdir()) == []
+
+
 def test_tree_sparse_observation_artifact_publication_is_idempotent_no_clobber(
     tmp_path: Path,
 ) -> None:
