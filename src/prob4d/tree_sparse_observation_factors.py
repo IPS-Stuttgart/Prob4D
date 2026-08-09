@@ -133,8 +133,7 @@ def _require_row_metadata_consistency(
         previous_settings = group_settings.setdefault(group_id, settings)
         if previous_settings != settings:
             raise ValueError(
-                "rows in one correlation group must share nominal probability "
-                "and composite weight"
+                "rows in one correlation group must share nominal probability and composite weight"
             )
 
         point_key = (factor_id, int(point_ids[index]))
@@ -381,10 +380,7 @@ class TreeSparseStackedObservationFactors:
     @property
     def dense_gauge_design_nbytes(self) -> int:
         return int(
-            self.observation_count
-            * 3
-            * self.dense_gauge_dimension
-            * np.dtype(np.float64).itemsize
+            self.observation_count * 3 * self.dense_gauge_dimension * np.dtype(np.float64).itemsize
         )
 
     @property
