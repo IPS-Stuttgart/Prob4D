@@ -73,8 +73,7 @@ class CameraPanelSupportPolicyV1:
     """Frozen thresholds for a source-only multi-view spatial support audit."""
 
     minimum_view_count: int = 2
-    minimum_seed_cell_count: int = 8
-    minimum_views_per_cell: int = 1
+    minimum_seed_cell_count_per_view: int = 8
     minimum_supported_frame_fraction: float = 1.0
     require_all_declared_views: bool = False
 
@@ -90,19 +89,10 @@ class CameraPanelSupportPolicyV1:
         )
         object.__setattr__(
             self,
-            "minimum_seed_cell_count",
+            "minimum_seed_cell_count_per_view",
             _strict_integer(
-                self.minimum_seed_cell_count,
-                name="minimum_seed_cell_count",
-                minimum=1,
-            ),
-        )
-        object.__setattr__(
-            self,
-            "minimum_views_per_cell",
-            _strict_integer(
-                self.minimum_views_per_cell,
-                name="minimum_views_per_cell",
+                self.minimum_seed_cell_count_per_view,
+                name="minimum_seed_cell_count_per_view",
                 minimum=1,
             ),
         )
@@ -111,6 +101,8 @@ class CameraPanelSupportPolicyV1:
             name="minimum_supported_frame_fraction",
             maximum=1.0,
         )
+        if fraction <= 0.0:
+            raise ValueError("minimum_supported_frame_fraction must be positive")
         object.__setattr__(self, "minimum_supported_frame_fraction", fraction)
         object.__setattr__(
             self,
@@ -124,49 +116,49 @@ class CameraPanelSupportPolicyV1:
 
 @dataclass(frozen=True, slots=True)
 class CameraPanelFrameSupportV1:
-    """Spatial support decision for one required causal-prefix frame."""
+    """View-local spatial support decision for one required causal-prefix frame."""
 
     frame_index: int
     contributing_view_ids: tuple[str, ...]
-    union_seed_cell_ids: tuple[int, ...]
-    corroborated_seed_cell_ids: tuple[int, ...]
+    spatially_supported_view_ids: tuple[str, ...]
+    seed_cell_counts_by_view: Mapping[str, int]
     supported: bool
     reason_codes: tuple[str, ...]
 
     def __post_init__(self) -> None:
-        object.__setattr__(
-            self,
-            "frame_index",
-            _strict_integer(self.frame_index, name="frame_index"),
-        )
+        frame = _strict_integer(self.frame_index, name="frame_index")
         for name in (
             "contributing_view_ids",
-            "union_seed_cell_ids",
-            "corroborated_seed_cell_ids",
+            "spatially_supported_view_ids",
             "reason_codes",
         ):
             if type(getattr(self, name)) is not tuple:
                 raise ValueError(f"{name} must be a tuple")
-        views = tuple(
+        contributing = tuple(
             _strict_string(value, name="contributing_view_id")
             for value in self.contributing_view_ids
         )
-        if views != tuple(sorted(set(views))):
+        spatially_supported = tuple(
+            _strict_string(value, name="spatially_supported_view_id")
+            for value in self.spatially_supported_view_ids
+        )
+        if contributing != tuple(sorted(set(contributing))):
             raise ValueError("contributing_view_ids must be sorted and unique")
-        union = tuple(
-            _strict_integer(value, name="union_seed_cell_id")
-            for value in self.union_seed_cell_ids
-        )
-        corroborated = tuple(
-            _strict_integer(value, name="corroborated_seed_cell_id")
-            for value in self.corroborated_seed_cell_ids
-        )
-        if union != tuple(sorted(set(union))):
-            raise ValueError("union_seed_cell_ids must be sorted and unique")
-        if corroborated != tuple(sorted(set(corroborated))):
-            raise ValueError("corroborated_seed_cell_ids must be sorted and unique")
-        if not set(corroborated).issubset(set(union)):
-            raise ValueError("corroborated seed cells must be in the panel union")
+        if spatially_supported != tuple(sorted(set(spatially_supported))):
+            raise ValueError("spatially_supported_view_ids must be sorted and unique")
+        if not set(spatially_supported).issubset(set(contributing)):
+            raise ValueError("spatially supported views must contribute to the frame")
+        if not isinstance(self.seed_cell_counts_by_view, Mapping):
+            raise ValueError("seed_cell_counts_by_view must be a mapping")
+        counts = {
+            _strict_string(view, name="seed-cell count view_id"): _strict_integer(
+                count,
+                name=f"seed_cell_counts_by_view[{view!r}]",
+            )
+            for view, count in self.seed_cell_counts_by_view.items()
+        }
+        if tuple(sorted(counts)) != contributing:
+            raise ValueError("seed_cell_counts_by_view must cover contributing views exactly")
         supported = _strict_bool(self.supported, name="supported")
         reasons = tuple(
             _strict_string(value, name="reason_code") for value in self.reason_codes
@@ -175,9 +167,14 @@ class CameraPanelFrameSupportV1:
             raise ValueError("reason_codes must be sorted and unique")
         if supported == bool(reasons):
             raise ValueError("supported frames must have no reasons and failures must have reasons")
-        object.__setattr__(self, "contributing_view_ids", views)
-        object.__setattr__(self, "union_seed_cell_ids", union)
-        object.__setattr__(self, "corroborated_seed_cell_ids", corroborated)
+        object.__setattr__(self, "frame_index", frame)
+        object.__setattr__(self, "contributing_view_ids", contributing)
+        object.__setattr__(self, "spatially_supported_view_ids", spatially_supported)
+        object.__setattr__(
+            self,
+            "seed_cell_counts_by_view",
+            frozen_finite_json_mapping(counts, name="seed-cell counts by view"),
+        )
         object.__setattr__(self, "supported", supported)
         object.__setattr__(self, "reason_codes", reasons)
 
@@ -186,10 +183,9 @@ class CameraPanelFrameSupportV1:
             "frame_index": self.frame_index,
             "contributing_view_ids": list(self.contributing_view_ids),
             "contributing_view_count": len(self.contributing_view_ids),
-            "union_seed_cell_ids": list(self.union_seed_cell_ids),
-            "union_seed_cell_count": len(self.union_seed_cell_ids),
-            "corroborated_seed_cell_ids": list(self.corroborated_seed_cell_ids),
-            "corroborated_seed_cell_count": len(self.corroborated_seed_cell_ids),
+            "spatially_supported_view_ids": list(self.spatially_supported_view_ids),
+            "spatially_supported_view_count": len(self.spatially_supported_view_ids),
+            "seed_cell_counts_by_view": dict(self.seed_cell_counts_by_view),
             "supported": self.supported,
             "reason_codes": list(self.reason_codes),
         }
@@ -256,6 +252,8 @@ class CameraPanelSupportReportV1:
         if type(self.frame_results) is not tuple:
             raise ValueError("frame_results must be a tuple")
         results = self.frame_results
+        if any(not isinstance(result, CameraPanelFrameSupportV1) for result in results):
+            raise TypeError("frame_results must contain CameraPanelFrameSupportV1 values")
         if tuple(result.frame_index for result in results) != required:
             raise ValueError("frame_results must exactly cover required_frame_indices")
         support = _strict_bool(self.support_feasible, name="support_feasible")
@@ -344,7 +342,7 @@ def evaluate_camera_panel_tracklet_support(
     policy: CameraPanelSupportPolicyV1 | None = None,
     metadata: Mapping[str, object] | None = None,
 ) -> CameraPanelSupportReportV1:
-    """Audit distributed and cross-view causal tracklet support per frame."""
+    """Audit per-view distributed support without equating camera image cells."""
 
     if not isinstance(tracklets_by_view, Mapping) or not tracklets_by_view:
         raise ValueError("tracklets_by_view must be a non-empty mapping")
@@ -360,8 +358,6 @@ def evaluate_camera_panel_tracklet_support(
         raise TypeError("policy must be a CameraPanelSupportPolicyV1")
     if actual_policy.minimum_view_count > len(views):
         raise ValueError("minimum_view_count exceeds the declared panel size")
-    if actual_policy.minimum_views_per_cell > len(views):
-        raise ValueError("minimum_views_per_cell exceeds the declared panel size")
 
     cutoffs = {tracklets.causal_frame_stop for tracklets in normalized.values()}
     if len(cutoffs) != 1:
@@ -371,6 +367,10 @@ def evaluate_camera_panel_tracklet_support(
     if len(grids) != 1:
         raise ValueError("camera-panel tracklets must share one seed-cell grid")
     grid = next(iter(grids))
+    if actual_policy.minimum_seed_cell_count_per_view > grid[0] * grid[1]:
+        raise ValueError(
+            "minimum_seed_cell_count_per_view exceeds the declared seed-cell grid"
+        )
     required = tuple(
         _strict_integer(value, name="required_frame_index")
         for value in required_frame_indices
@@ -392,35 +392,30 @@ def evaluate_camera_panel_tracklet_support(
 
     frame_results: list[CameraPanelFrameSupportV1] = []
     for frame in required:
-        per_view = {
-            view: cells_by_view_and_frame[view].get(frame, set()) for view in views
+        counts = {
+            view: len(cells_by_view_and_frame[view].get(frame, set()))
+            for view in views
         }
-        contributing = tuple(sorted(view for view, cells in per_view.items() if cells))
-        counts: dict[int, int] = {}
-        for cells in per_view.values():
-            for cell_id in cells:
-                counts[cell_id] = counts.get(cell_id, 0) + 1
-        union = tuple(sorted(counts))
-        corroborated = tuple(
+        contributing = tuple(sorted(view for view, count in counts.items() if count > 0))
+        spatially_supported = tuple(
             sorted(
-                cell_id
-                for cell_id, count in counts.items()
-                if count >= actual_policy.minimum_views_per_cell
+                view
+                for view, count in counts.items()
+                if count >= actual_policy.minimum_seed_cell_count_per_view
             )
         )
         reasons: list[str] = []
-        if len(contributing) < actual_policy.minimum_view_count:
-            reasons.append("insufficient-contributing-views")
+        if len(spatially_supported) < actual_policy.minimum_view_count:
+            reasons.append("insufficient-spatially-supported-views")
         if actual_policy.require_all_declared_views and len(contributing) != len(views):
             reasons.append("missing-declared-view")
-        if len(corroborated) < actual_policy.minimum_seed_cell_count:
-            reasons.append("insufficient-spatial-seed-cells")
+        contributing_counts = {view: counts[view] for view in contributing}
         frame_results.append(
             CameraPanelFrameSupportV1(
                 frame_index=frame,
                 contributing_view_ids=contributing,
-                union_seed_cell_ids=union,
-                corroborated_seed_cell_ids=corroborated,
+                spatially_supported_view_ids=spatially_supported,
+                seed_cell_counts_by_view=contributing_counts,
                 supported=not reasons,
                 reason_codes=tuple(sorted(reasons)),
             )
