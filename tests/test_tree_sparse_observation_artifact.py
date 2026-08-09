@@ -170,7 +170,7 @@ def test_artifact_inventory_contains_no_dense_or_redundant_covariance(
     assert "gauge_prior_covariance" not in names
     assert "conditional_world_covariance_m2" in names
     assert "local_gauge_jacobian" in names
-    assert loaded.factors.gauge_prior_storage_nbytes < loaded.factors.dense_gauge_prior_nbytes
+    assert not hasattr(loaded.factors, "gauge_prior_covariance")
 
 
 def test_tree_sparse_observation_artifact_is_transport_independent(
