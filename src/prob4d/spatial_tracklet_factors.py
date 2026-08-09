@@ -69,12 +69,18 @@ def spatial_tracklets_to_observation_factors(
     view_id: str,
     prior_reliability: FloatArray | None = None,
     prior_nominal_probability: float = 1.0,
-    effective_samples_per_group: float = 64.0,
+    effective_samples_per_frame: float = 64.0,
     correlation_group_prefix: str = "scene-flow-tracklets",
     factor_id_prefix: str | None = None,
     correlation_group_mode: CorrelationGroupMode = "frame-seed-cell",
 ) -> tuple[ObservationFactor, ...]:
-    """Convert tracklets while optionally preserving spatial cells as groups."""
+    """Convert tracklets without amplifying a frame's likelihood-power budget.
+
+    In ``frame-seed-cell`` mode, every cell receives a distinct correlation-group
+    identity, but all factors from one frame share the historical frame-level
+    generalized-Bayes weight. Splitting a frame therefore cannot increase total
+    weighted row mass relative to ``frame`` mode.
+    """
 
     mode = _correlation_group_mode(correlation_group_mode)
     if mode == "frame":
@@ -84,7 +90,7 @@ def spatial_tracklets_to_observation_factors(
             view_id=view_id,
             prior_reliability=prior_reliability,
             prior_nominal_probability=prior_nominal_probability,
-            effective_samples_per_group=effective_samples_per_group,
+            effective_samples_per_group=effective_samples_per_frame,
             correlation_group_prefix=correlation_group_prefix,
             factor_id_prefix=factor_id_prefix,
         )
@@ -101,8 +107,8 @@ def spatial_tracklets_to_observation_factors(
         maximum=1.0,
     )
     effective = _strict_real(
-        effective_samples_per_group,
-        name="effective_samples_per_group",
+        effective_samples_per_frame,
+        name="effective_samples_per_frame",
         strictly_positive=True,
     )
     cell_by_track = seed_cell_ids_by_track(tracklets)
@@ -141,6 +147,7 @@ def spatial_tracklets_to_observation_factors(
     factors: list[ObservationFactor] = []
     for frame in np.unique(tracklets.frame_indices):
         frame_rows = np.flatnonzero(tracklets.frame_indices == frame)
+        frame_weight = min(1.0, effective / len(frame_rows))
         for cell_id in np.unique(row_cells[frame_rows]):
             selected = frame_rows[row_cells[frame_rows] == cell_id]
             local_indices = np.unique(tracklets.local_frame_indices[selected])
@@ -150,7 +157,6 @@ def spatial_tracklets_to_observation_factors(
             rows = tracklets.rows[selected]
             columns = tracklets.columns[selected]
             count = len(selected)
-            composite_weight = min(1.0, effective / count)
             factors.append(
                 ObservationFactor(
                     factor_id=(
@@ -167,7 +173,7 @@ def spatial_tracklets_to_observation_factors(
                     association_probability=tracklets.association_probability[selected],
                     prior_reliability=reliability_grid[local_index, rows, columns],
                     prior_nominal_probability=nominal,
-                    composite_weight=composite_weight,
+                    composite_weight=frame_weight,
                     correlation_group_id=(
                         f"{group_prefix}:frame-{int(frame)}:seed-cell-{int(cell_id)}"
                     ),
