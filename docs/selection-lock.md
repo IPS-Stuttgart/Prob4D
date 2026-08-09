@@ -41,6 +41,11 @@ lock = build_selection_lock(
 write_selection_lock(lock, "evidence/selection-lock.json")
 ```
 
+Selection-lock publication is exactly once. The writer uses a durable atomic
+no-clobber operation: an existing file or a competing writer causes
+`FileExistsError` and leaves the retained bytes unchanged. A changed lock must use
+a separately versioned path rather than replacing the pre-target artifact.
+
 Loading the JSON independently replays the complete candidate order and rejects
 missing matrix rows, duplicate keys, changed candidate order, changed selection,
 noncanonical provenance, altered claim boundaries, or content-ID mismatch.
