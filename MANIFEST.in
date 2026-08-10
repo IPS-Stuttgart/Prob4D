@@ -5,14 +5,8 @@ include LICENSE
 include README.md
 include SECURITY.md
 include pyproject.toml
-graft .github
 graft docs
-graft evidence
-graft environments
 graft protocols
-graft requirements
-graft scripts
-graft tests
 global-exclude __pycache__
 global-exclude *.py[cod]
 global-exclude .DS_Store
