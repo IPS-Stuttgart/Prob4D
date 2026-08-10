@@ -10,11 +10,11 @@ from typing import Any
 
 import numpy as np
 
-from .api import v2 as provider_api
 from ._provider_v2_contract_common import (
     ProviderV2ContractVector,
     _validate_sha256,
 )
+from .api import v2 as provider_api
 
 
 @dataclass(frozen=True, slots=True)
