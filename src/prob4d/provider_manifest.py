@@ -5,11 +5,13 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from importlib.metadata import PackageNotFoundError, distribution, version
+from importlib.metadata import PackageNotFoundError, distribution
 from typing import Any
 
+from ._version import __version__
+
 PROB4D_PROVIDER_API_VERSION = 1
-PROB4D_PROVIDER_PACKAGE_VERSION = "0.3.1"
+PROB4D_PROVIDER_PACKAGE_VERSION = __version__
 PROB4D_CAUSAL_STREAM_CONTRACT_VERSION = 2
 PROB4D_PROVIDER_CAPABILITIES = (
     "append_invariant_causal_source_digest",
@@ -53,10 +55,7 @@ PROB4D_PROVIDER_LIMITATIONS = {
 
 
 def _installed_version() -> str:
-    try:
-        return version("prob4d")
-    except PackageNotFoundError:
-        return PROB4D_PROVIDER_PACKAGE_VERSION
+    return __version__
 
 
 def _installed_revision() -> str | None:
@@ -104,8 +103,8 @@ def prob4d_provider_manifest(
         "artifact_schema_versions": dict(PROB4D_ARTIFACT_SCHEMA_VERSIONS),
         "limitations": dict(PROB4D_PROVIDER_LIMITATIONS),
         "metadata": {
-            "source_repository": "FlorianPfaff/Prob4D",
-            "python_import_boundary": "prob4d.provider_v1",
+            "source_repository": "IPS-Stuttgart/Prob4D",
+            "python_import_boundary": "prob4d.api.v1",
             "observation_stream": "prob4d:causal-overlap-window-points",
             "observation_stream_contract_version": (
                 PROB4D_CAUSAL_STREAM_CONTRACT_VERSION
