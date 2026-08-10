@@ -38,13 +38,16 @@ def test_all_source_release_version_declarations_are_synchronized() -> None:
         )
         == EXPECTED_VERSION
     )
-    assert (
-        _declared_version(
-            ROOT / "src" / "prob4d" / "__init__.py",
-            r'__version__\s*=\s*["\']([^"\']+)',
-        )
-        == EXPECTED_VERSION
+
+    package_source = (ROOT / "src" / "prob4d" / "__init__.py").read_text(
+        encoding="utf-8"
     )
+    version_source = (ROOT / "src" / "prob4d" / "_version.py").read_text(
+        encoding="utf-8"
+    )
+    assert "from ._version import __version__" in package_source
+    assert 'UNKNOWN_VERSION = "0+unknown"' in version_source
+    assert EXPECTED_VERSION not in version_source
     assert PROB4D_PROVIDER_PACKAGE_VERSION == EXPECTED_VERSION
 
 
@@ -58,6 +61,8 @@ def test_release_changelog_and_claim_boundary_are_published() -> None:
     assert "replay-complete held-out provider evidence" in lower_changelog
     assert "canonical grouped `prob4d` registry" in lower_changelog
     assert "compatibility wrappers" in lower_changelog
+    assert "versioned `prob4d.api.v1`" in lower_changelog
+    assert "installed source distribution" in lower_changelog
 
     boundary = (ROOT / "docs" / "releases" / "0.4.0.md").read_text(
         encoding="utf-8"
@@ -91,6 +96,11 @@ def test_v1_v2_and_tree_sparse_manifest_boundaries_remain_distinct() -> None:
     assert "content_addressed_tree_sparse_observation_artifacts" in tree_sparse[
         "capabilities"
     ]
+
+
+def test_release_boundary_contains_no_self_mutating_workflow() -> None:
+    assert not (ROOT / ".github" / "workflows" / "prepare-release-040.yml").exists()
+    assert not (ROOT / "scripts" / "ci" / "prepare_release_040.py").exists()
 
 
 def test_ci_and_release_tests_do_not_retain_the_previous_version() -> None:
