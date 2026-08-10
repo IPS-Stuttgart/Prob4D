@@ -13,6 +13,7 @@ Breaking changes require a new :mod:`prob4d.api.vN` module.  The frozen
 from __future__ import annotations
 
 from .._version import __version__
+from ..gauge import GaugeEstimate
 from ..gauge_tree_prior import (
     GAUGE_DIMENSION,
     GAUGE_TREE_PRIOR_SCHEMA,
@@ -157,6 +158,7 @@ from ..provider_v2_factors import (
     write_observation_factor_bundle,
     write_tree_sparse_observation_artifact,
 )
+from ..sim3 import Sim3
 
 API_VERSION = 2
 
@@ -217,6 +219,7 @@ __all__ = [
     "CompositionJacobianMode",
     "CovarianceRootMode",
     "GaugeCovarianceCalibrationV1",
+    "GaugeEstimate",
     "GaugeCovarianceSemantics",
     "GaugeTreePriorArrayMemberV1",
     "GaugeTreePriorArtifactV1",
@@ -234,6 +237,7 @@ __all__ = [
     "PredictionCalibrationTargetV1",
     "RuntimeRevisionAttestation",
     "SamplingMode",
+    "Sim3",
     "SelectedOverlapWindow",
     "SparseStackedObservationFactors",
     "StackedObservationFactors",
