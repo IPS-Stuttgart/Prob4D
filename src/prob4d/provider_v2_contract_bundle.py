@@ -11,7 +11,6 @@ import argparse
 import json
 from collections.abc import Sequence
 
-from .api import v2 as provider_api
 from ._provider_v2_contract_common import (
     PROVIDER_V2_CONTRACT_BUNDLE,
     PROVIDER_V2_CONTRACT_BUNDLE_SHA256,
@@ -30,6 +29,7 @@ from ._provider_v2_contract_materialization import (
     provider_v2_contract_stack_sha256,
     validate_provider_v2_contract_materialization,
 )
+from .api import v2 as provider_api
 
 
 def main(argv: Sequence[str] | None = None) -> int:
