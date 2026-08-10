@@ -9,11 +9,11 @@ lock and complete target-group roster before later evidence can be bound.
 from __future__ import annotations
 
 import argparse
+import json
+import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-import json
 from pathlib import Path
-import sys
 from typing import Any
 
 from ._heldout_promotion_common import (
@@ -42,10 +42,7 @@ from .provider_support_feasibility import (
     load_provider_support_feasibility,
 )
 
-
-PROVIDER_PROMOTION_AUTHORIZATION_SCHEMA = (
-    "prob4d.provider-promotion-authorization"
-)
+PROVIDER_PROMOTION_AUTHORIZATION_SCHEMA = "prob4d.provider-promotion-authorization"
 PROVIDER_PROMOTION_AUTHORIZATION_VERSION = 2
 PROVIDER_PROMOTION_AUTHORIZATION_CLAIM_BOUNDARY = (
     "This artifact establishes only that one exact target-free promotion lock "
@@ -55,9 +52,7 @@ PROVIDER_PROMOTION_AUTHORIZATION_CLAIM_BOUNDARY = (
     "BayesianPhysTwin benefit, Causal4D benefit, deployment safety, or state of "
     "the art."
 )
-AUTHORIZED_HELDOUT_PROVIDER_EVIDENCE_SCHEMA = (
-    "prob4d.authorized-heldout-provider-evidence"
-)
+AUTHORIZED_HELDOUT_PROVIDER_EVIDENCE_SCHEMA = "prob4d.authorized-heldout-provider-evidence"
 AUTHORIZED_HELDOUT_PROVIDER_EVIDENCE_VERSION = 1
 AUTHORIZED_HELDOUT_PROVIDER_EVIDENCE_CLAIM_BOUNDARY = (
     "This envelope binds replay-complete held-out evidence to the exact earlier "
@@ -111,8 +106,7 @@ def _canonical_string_tuple(
     if isinstance(values, (str, bytes)):
         raise ValueError(f"{name} must be a sequence of strings")
     result = tuple(
-        _strict_string(value, name=f"{name}[{index}]")
-        for index, value in enumerate(values)
+        _strict_string(value, name=f"{name}[{index}]") for index, value in enumerate(values)
     )
     if nonempty and not result:
         raise ValueError(f"{name} must not be empty")
@@ -144,16 +138,12 @@ def _stream_roster_descriptor(
                 "group_id": stream.group_id,
                 "stream_id": stream.stream_id,
                 "causal_frame_start": stream.causal_frame_start,
-                "causal_frame_stop_exclusive": (
-                    stream.causal_frame_stop_exclusive
-                ),
+                "causal_frame_stop_exclusive": (stream.causal_frame_stop_exclusive),
                 "required_frame_ids": list(stream.required_frame_ids),
                 "intrinsics_id": stream.intrinsics_id,
                 "extrinsics_id": stream.extrinsics_id,
                 "metric_anchor_id": stream.metric_anchor_id,
-                "minimum_geometry_support_fraction": (
-                    stream.minimum_geometry_support_fraction
-                ),
+                "minimum_geometry_support_fraction": (stream.minimum_geometry_support_fraction),
                 "technical_failure_code": stream.technical_failure_code,
             }
             for stream in feasibility.request.streams
@@ -166,9 +156,7 @@ def _technical_exclusion_policy_descriptor(
 ) -> dict[str, object]:
     request = feasibility.request
     return {
-        "permitted_technical_exclusion_codes": list(
-            request.permitted_technical_exclusion_codes
-        ),
+        "permitted_technical_exclusion_codes": list(request.permitted_technical_exclusion_codes),
         "maximum_technical_exclusions": request.maximum_technical_exclusions,
         "technical_exclusion_count": feasibility.technical_exclusion_count,
     }
@@ -177,22 +165,14 @@ def _technical_exclusion_policy_descriptor(
 def _request_group_ids(
     feasibility: ProviderSupportFeasibilityV1,
 ) -> tuple[str, ...]:
-    return tuple(
-        sorted({stream.group_id for stream in feasibility.request.streams})
-    )
+    return tuple(sorted({stream.group_id for stream in feasibility.request.streams}))
 
 
 def _supported_group_ids(
     feasibility: ProviderSupportFeasibilityV1,
 ) -> tuple[str, ...]:
     return tuple(
-        sorted(
-            {
-                result.group_id
-                for result in feasibility.stream_results
-                if result.supported
-            }
-        )
+        sorted({result.group_id for result in feasibility.stream_results if result.supported})
     )
 
 
@@ -227,16 +207,12 @@ class ProviderPromotionAuthorizationV2:
             self.promotion_lock,
             HeldoutProviderPromotionLockV1,
         ):
-            raise TypeError(
-                "promotion_lock must be HeldoutProviderPromotionLockV1"
-            )
+            raise TypeError("promotion_lock must be HeldoutProviderPromotionLockV1")
         if not isinstance(
             self.support_feasibility,
             ProviderSupportFeasibilityV1,
         ):
-            raise TypeError(
-                "support_feasibility must be ProviderSupportFeasibilityV1"
-            )
+            raise TypeError("support_feasibility must be ProviderSupportFeasibilityV1")
         for name in (
             "calibration_payloads_opened",
             "target_payloads_opened",
@@ -245,9 +221,7 @@ class ProviderPromotionAuthorizationV2:
             value = _strict_bool(getattr(self, name), name=name)
             object.__setattr__(self, name, value)
             if value:
-                raise ValueError(
-                    f"{name} must be false when authorization is created"
-                )
+                raise ValueError(f"{name} must be false when authorization is created")
         object.__setattr__(
             self,
             "metadata",
@@ -262,8 +236,7 @@ class ProviderPromotionAuthorizationV2:
         request = feasibility.request
         if not feasibility.support_feasible:
             raise PermissionError(
-                "provider support feasibility is negative; promotion is not "
-                "authorized"
+                "provider support feasibility is negative; promotion is not authorized"
             )
         if request.prediction_payloads_opened:
             raise ValueError("support request opened prediction payloads")
@@ -272,33 +245,19 @@ class ProviderPromotionAuthorizationV2:
         if request.target_outcomes_used:
             raise ValueError("support request used target outcomes")
         if request.promotion_lock_id != lock.promotion_lock_id:
-            raise ValueError(
-                "support request references a different promotion lock"
-            )
+            raise ValueError("support request references a different promotion lock")
         if request.source_repository != lock.source_repository:
-            raise ValueError(
-                "support request and promotion lock source repositories differ"
-            )
+            raise ValueError("support request and promotion lock source repositories differ")
         if request.source_revision != lock.source_revision:
-            raise ValueError(
-                "support request and promotion lock source revisions differ"
-            )
+            raise ValueError("support request and promotion lock source revisions differ")
         if request.model_set_id != lock.model_set_id:
-            raise ValueError(
-                "support request and promotion lock model-set identities differ"
-            )
+            raise ValueError("support request and promotion lock model-set identities differ")
         if self.target_group_ids != lock.target_group_ids:
-            raise ValueError(
-                "support request does not cover the complete frozen target roster"
-            )
+            raise ValueError("support request does not cover the complete frozen target roster")
         if self.supported_target_group_ids != lock.target_group_ids:
-            missing = sorted(
-                set(lock.target_group_ids)
-                - set(self.supported_target_group_ids)
-            )
+            missing = sorted(set(lock.target_group_ids) - set(self.supported_target_group_ids))
             raise PermissionError(
-                "support feasibility lacks a supported stream for target groups: "
-                f"{missing}"
+                f"support feasibility lacks a supported stream for target groups: {missing}"
             )
 
     @property
@@ -323,17 +282,11 @@ class ProviderPromotionAuthorizationV2:
 
     @property
     def stream_roster_id(self) -> str:
-        return _sha256_json(
-            _stream_roster_descriptor(self.support_feasibility)
-        )
+        return _sha256_json(_stream_roster_descriptor(self.support_feasibility))
 
     @property
     def technical_exclusion_policy_id(self) -> str:
-        return _sha256_json(
-            _technical_exclusion_policy_descriptor(
-                self.support_feasibility
-            )
-        )
+        return _sha256_json(_technical_exclusion_policy_descriptor(self.support_feasibility))
 
     @property
     def intrinsics_ids(self) -> tuple[str, ...]:
@@ -361,28 +314,18 @@ class ProviderPromotionAuthorizationV2:
             "support_request_id": self.support_request_id,
             "support_feasibility_id": self.support_feasibility_id,
             "target_group_ids": list(self.target_group_ids),
-            "supported_target_group_ids": list(
-                self.supported_target_group_ids
-            ),
+            "supported_target_group_ids": list(self.supported_target_group_ids),
             "stream_roster_id": self.stream_roster_id,
-            "technical_exclusion_policy_id": (
-                self.technical_exclusion_policy_id
-            ),
+            "technical_exclusion_policy_id": (self.technical_exclusion_policy_id),
             "intrinsics_ids": list(self.intrinsics_ids),
             "extrinsics_ids": list(self.extrinsics_ids),
             "metric_anchor_ids": list(self.metric_anchor_ids),
-            "calibration_payloads_opened": (
-                self.calibration_payloads_opened
-            ),
+            "calibration_payloads_opened": (self.calibration_payloads_opened),
             "target_payloads_opened": self.target_payloads_opened,
-            "provider_residuals_computed": (
-                self.provider_residuals_computed
-            ),
+            "provider_residuals_computed": (self.provider_residuals_computed),
             "authorized": True,
             "metadata": plain_json(self.metadata),
-            "claim_boundary": (
-                PROVIDER_PROMOTION_AUTHORIZATION_CLAIM_BOUNDARY
-            ),
+            "claim_boundary": (PROVIDER_PROMOTION_AUTHORIZATION_CLAIM_BOUNDARY),
         }
 
     @property
@@ -409,43 +352,22 @@ class ProviderPromotionAuthorizationV2:
             _AUTHORIZATION_FIELDS,
             name="provider promotion authorization",
         )
-        if (
-            mapping["schema_name"]
-            != PROVIDER_PROMOTION_AUTHORIZATION_SCHEMA
-        ):
-            raise ValueError(
-                "unsupported provider promotion authorization schema"
-            )
-        if (
-            mapping["schema_version"]
-            != PROVIDER_PROMOTION_AUTHORIZATION_VERSION
-        ):
-            raise ValueError(
-                "unsupported provider promotion authorization version"
-            )
-        if (
-            mapping["claim_boundary"]
-            != PROVIDER_PROMOTION_AUTHORIZATION_CLAIM_BOUNDARY
-        ):
-            raise ValueError(
-                "provider promotion authorization claim boundary changed"
-            )
+        if mapping["schema_name"] != PROVIDER_PROMOTION_AUTHORIZATION_SCHEMA:
+            raise ValueError("unsupported provider promotion authorization schema")
+        if mapping["schema_version"] != PROVIDER_PROMOTION_AUTHORIZATION_VERSION:
+            raise ValueError("unsupported provider promotion authorization version")
+        if mapping["claim_boundary"] != PROVIDER_PROMOTION_AUTHORIZATION_CLAIM_BOUNDARY:
+            raise ValueError("provider promotion authorization claim boundary changed")
         if mapping["authorized"] is not True:
             raise ValueError("provider promotion authorization is not positive")
         authorization = cls(
-            promotion_lock=promotion_lock_from_dict(
-                mapping["promotion_lock"]
-            ),
+            promotion_lock=promotion_lock_from_dict(mapping["promotion_lock"]),
             support_feasibility=ProviderSupportFeasibilityV1.from_dict(
                 mapping["support_feasibility"]
             ),
-            calibration_payloads_opened=mapping[
-                "calibration_payloads_opened"
-            ],
+            calibration_payloads_opened=mapping["calibration_payloads_opened"],
             target_payloads_opened=mapping["target_payloads_opened"],
-            provider_residuals_computed=mapping[
-                "provider_residuals_computed"
-            ],
+            provider_residuals_computed=mapping["provider_residuals_computed"],
             metadata=_strict_mapping(
                 mapping["metadata"],
                 name="provider promotion authorization metadata",
@@ -456,26 +378,18 @@ class ProviderPromotionAuthorizationV2:
             "support_request_id": authorization.support_request_id,
             "support_feasibility_id": authorization.support_feasibility_id,
             "target_group_ids": list(authorization.target_group_ids),
-            "supported_target_group_ids": list(
-                authorization.supported_target_group_ids
-            ),
+            "supported_target_group_ids": list(authorization.supported_target_group_ids),
             "stream_roster_id": authorization.stream_roster_id,
-            "technical_exclusion_policy_id": (
-                authorization.technical_exclusion_policy_id
-            ),
+            "technical_exclusion_policy_id": (authorization.technical_exclusion_policy_id),
             "intrinsics_ids": list(authorization.intrinsics_ids),
             "extrinsics_ids": list(authorization.extrinsics_ids),
             "metric_anchor_ids": list(authorization.metric_anchor_ids),
         }
         for name, expected in derived.items():
             if mapping[name] != expected:
-                raise ValueError(
-                    f"provider promotion authorization {name} changed"
-                )
+                raise ValueError(f"provider promotion authorization {name} changed")
         if mapping["authorization_id"] != authorization.authorization_id:
-            raise ValueError(
-                "provider promotion authorization identity changed"
-            )
+            raise ValueError("provider promotion authorization identity changed")
         return authorization
 
 
@@ -491,45 +405,26 @@ class AuthorizedHeldoutProviderEvidenceV1:
             self.authorization,
             ProviderPromotionAuthorizationV2,
         ):
-            raise TypeError(
-                "authorization must be ProviderPromotionAuthorizationV2"
-            )
+            raise TypeError("authorization must be ProviderPromotionAuthorizationV2")
         if not isinstance(self.evidence, HeldoutProviderEvidenceV2):
             raise TypeError("evidence must be HeldoutProviderEvidenceV2")
         lock = self.authorization.promotion_lock
         evidence = self.evidence
         if evidence.promotion_lock.to_dict() != lock.to_dict():
-            raise ValueError(
-                "held-out evidence uses a different promotion lock"
-            )
+            raise ValueError("held-out evidence uses a different promotion lock")
         selection = evidence.selection_evidence
         if selection.experiment_id != lock.experiment_id:
-            raise ValueError(
-                "held-out evidence identifies a different experiment"
-            )
+            raise ValueError("held-out evidence identifies a different experiment")
         if selection.source_repository != lock.source_repository:
-            raise ValueError(
-                "held-out evidence identifies a different source repository"
-            )
+            raise ValueError("held-out evidence identifies a different source repository")
         if selection.source_revision != lock.source_revision:
-            raise ValueError(
-                "held-out evidence identifies a different source revision"
-            )
-        calibration_groups = tuple(
-            sorted({row.group_id for row in selection.calibration_rows})
-        )
+            raise ValueError("held-out evidence identifies a different source revision")
+        calibration_groups = tuple(sorted({row.group_id for row in selection.calibration_rows}))
         if calibration_groups != lock.calibration_group_ids:
-            raise ValueError(
-                "held-out evidence changed the calibration group roster"
-            )
-        target_groups = tuple(
-            decision.group_id
-            for decision in selection.deployment_decisions
-        )
+            raise ValueError("held-out evidence changed the calibration group roster")
+        target_groups = tuple(decision.group_id for decision in selection.deployment_decisions)
         if target_groups != lock.target_group_ids:
-            raise ValueError(
-                "held-out evidence changed the target group roster"
-            )
+            raise ValueError("held-out evidence changed the target group roster")
 
     @property
     def authorization_id(self) -> str:
@@ -549,21 +444,15 @@ class AuthorizedHeldoutProviderEvidenceV1:
 
     def descriptor(self) -> dict[str, object]:
         return {
-            "schema_name": (
-                AUTHORIZED_HELDOUT_PROVIDER_EVIDENCE_SCHEMA
-            ),
-            "schema_version": (
-                AUTHORIZED_HELDOUT_PROVIDER_EVIDENCE_VERSION
-            ),
+            "schema_name": (AUTHORIZED_HELDOUT_PROVIDER_EVIDENCE_SCHEMA),
+            "schema_version": (AUTHORIZED_HELDOUT_PROVIDER_EVIDENCE_VERSION),
             "authorization": self.authorization.to_dict(),
             "evidence": self.evidence.to_dict(),
             "authorization_id": self.authorization_id,
             "evidence_id": self.evidence_id,
             "promotion_lock_id": self.promotion_lock_id,
             "overall_passed": self.overall_passed,
-            "claim_boundary": (
-                AUTHORIZED_HELDOUT_PROVIDER_EVIDENCE_CLAIM_BOUNDARY
-            ),
+            "claim_boundary": (AUTHORIZED_HELDOUT_PROVIDER_EVIDENCE_CLAIM_BOUNDARY),
         }
 
     @property
@@ -590,34 +479,15 @@ class AuthorizedHeldoutProviderEvidenceV1:
             _AUTHORIZED_EVIDENCE_FIELDS,
             name="authorized held-out provider evidence",
         )
-        if (
-            mapping["schema_name"]
-            != AUTHORIZED_HELDOUT_PROVIDER_EVIDENCE_SCHEMA
-        ):
-            raise ValueError(
-                "unsupported authorized held-out evidence schema"
-            )
-        if (
-            mapping["schema_version"]
-            != AUTHORIZED_HELDOUT_PROVIDER_EVIDENCE_VERSION
-        ):
-            raise ValueError(
-                "unsupported authorized held-out evidence version"
-            )
-        if (
-            mapping["claim_boundary"]
-            != AUTHORIZED_HELDOUT_PROVIDER_EVIDENCE_CLAIM_BOUNDARY
-        ):
-            raise ValueError(
-                "authorized held-out evidence claim boundary changed"
-            )
+        if mapping["schema_name"] != AUTHORIZED_HELDOUT_PROVIDER_EVIDENCE_SCHEMA:
+            raise ValueError("unsupported authorized held-out evidence schema")
+        if mapping["schema_version"] != AUTHORIZED_HELDOUT_PROVIDER_EVIDENCE_VERSION:
+            raise ValueError("unsupported authorized held-out evidence version")
+        if mapping["claim_boundary"] != AUTHORIZED_HELDOUT_PROVIDER_EVIDENCE_CLAIM_BOUNDARY:
+            raise ValueError("authorized held-out evidence claim boundary changed")
         result = cls(
-            authorization=ProviderPromotionAuthorizationV2.from_dict(
-                mapping["authorization"]
-            ),
-            evidence=heldout_provider_evidence_from_dict(
-                mapping["evidence"]
-            ),
+            authorization=ProviderPromotionAuthorizationV2.from_dict(mapping["authorization"]),
+            evidence=heldout_provider_evidence_from_dict(mapping["evidence"]),
         )
         derived = {
             "authorization_id": result.authorization_id,
@@ -628,9 +498,7 @@ class AuthorizedHeldoutProviderEvidenceV1:
         }
         for name, expected in derived.items():
             if mapping[name] != expected:
-                raise ValueError(
-                    f"authorized held-out provider evidence {name} changed"
-                )
+                raise ValueError(f"authorized held-out provider evidence {name} changed")
         return result
 
 
@@ -665,20 +533,14 @@ def require_provider_promotion_authorization(
         authorization,
         ProviderPromotionAuthorizationV2,
     ):
-        raise TypeError(
-            "authorization must be ProviderPromotionAuthorizationV2"
-        )
+        raise TypeError("authorization must be ProviderPromotionAuthorizationV2")
     if not isinstance(
         promotion_lock,
         HeldoutProviderPromotionLockV1,
     ):
-        raise TypeError(
-            "promotion_lock must be HeldoutProviderPromotionLockV1"
-        )
+        raise TypeError("promotion_lock must be HeldoutProviderPromotionLockV1")
     if authorization.promotion_lock.to_dict() != promotion_lock.to_dict():
-        raise ValueError(
-            "provider promotion authorization belongs to a different lock"
-        )
+        raise ValueError("provider promotion authorization belongs to a different lock")
     return authorization
 
 
@@ -708,9 +570,7 @@ def write_provider_promotion_authorization(
         authorization,
         ProviderPromotionAuthorizationV2,
     ):
-        raise TypeError(
-            "authorization must be ProviderPromotionAuthorizationV2"
-        )
+        raise TypeError("authorization must be ProviderPromotionAuthorizationV2")
     _atomic_write_json(
         Path(path),
         authorization.to_dict(),
@@ -738,9 +598,7 @@ def write_authorized_heldout_provider_evidence(
         evidence,
         AuthorizedHeldoutProviderEvidenceV1,
     ):
-        raise TypeError(
-            "evidence must be AuthorizedHeldoutProviderEvidenceV1"
-        )
+        raise TypeError("evidence must be AuthorizedHeldoutProviderEvidenceV1")
     _atomic_write_json(
         Path(path),
         evidence.to_dict(),
@@ -785,9 +643,7 @@ def _print_json(value: Mapping[str, object], *, compact: bool) -> None:
 
 
 def main(arguments: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
-        prog="python -m prob4d.provider_promotion_authorization"
-    )
+    parser = argparse.ArgumentParser(prog="python -m prob4d.provider_promotion_authorization")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     authorize = subparsers.add_parser("authorize")
@@ -811,9 +667,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
         try:
             authorization = authorize_provider_promotion(
                 load_promotion_lock(parsed.promotion_lock),
-                load_provider_support_feasibility(
-                    parsed.support_feasibility
-                ),
+                load_provider_support_feasibility(parsed.support_feasibility),
             )
         except PermissionError as error:
             print(str(error), file=sys.stderr)
@@ -828,17 +682,13 @@ def main(arguments: Sequence[str] | None = None) -> int:
         )
         return 0
     if parsed.command == "verify":
-        authorization = load_provider_promotion_authorization(
-            parsed.artifact
-        )
+        authorization = load_provider_promotion_authorization(parsed.artifact)
         _print_json(
             _summary(authorization),
             compact=parsed.compact,
         )
         return 0
-    authorization = load_provider_promotion_authorization(
-        parsed.authorization
-    )
+    authorization = load_provider_promotion_authorization(parsed.authorization)
     evidence = load_heldout_provider_evidence(parsed.evidence)
     bound = bind_authorized_heldout_provider_evidence(
         authorization,

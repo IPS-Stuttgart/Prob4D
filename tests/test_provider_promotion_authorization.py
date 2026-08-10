@@ -159,9 +159,7 @@ def _request(
         cohort_binding_id="8" * 64,
         promotion_lock_id=lock.promotion_lock_id,
         coordinate_semantics="metric-world-frame",
-        admission_rule=(
-            "all-streams" if minimum_fraction == 1.0 else "minimum-stream-fraction"
-        ),
+        admission_rule=("all-streams" if minimum_fraction == 1.0 else "minimum-stream-fraction"),
         minimum_supported_fraction=minimum_fraction,
         permitted_technical_exclusion_codes=(),
         maximum_technical_exclusions=0,
@@ -169,8 +167,7 @@ def _request(
         residuals_used=False,
         target_outcomes_used=False,
         streams=tuple(
-            _stream(group, supported=group in supported)
-            for group in lock.target_group_ids
+            _stream(group, supported=group in supported) for group in lock.target_group_ids
         ),
     )
 
@@ -231,18 +228,21 @@ def test_round_trip_cli_no_clobber_and_tamper_detection(
     write_promotion_lock(lock, lock_path)
     write_provider_support_feasibility(support_path, support)
 
-    assert main(
-        [
-            "authorize",
-            "--promotion-lock",
-            str(lock_path),
-            "--support-feasibility",
-            str(support_path),
-            "--output",
-            str(output),
-            "--compact",
-        ]
-    ) == 0
+    assert (
+        main(
+            [
+                "authorize",
+                "--promotion-lock",
+                str(lock_path),
+                "--support-feasibility",
+                str(support_path),
+                "--output",
+                str(output),
+                "--compact",
+            ]
+        )
+        == 0
+    )
     summary = json.loads(capsys.readouterr().out)
     assert summary["authorized"] is True
     assert summary["promotion_lock_id"] == lock.promotion_lock_id
