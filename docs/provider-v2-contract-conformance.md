@@ -14,6 +14,10 @@ adversarial mutations. Its content-addressed bundle identity is:
 fe0374f46319287e3709497de9cbb73f7497286cf4f157f246096f2c352e4446
 ```
 
+Producer materialization uses the stable `prob4d.api.v2` surface now available
+on `main`; consumers can validate the same bytes independently without relying
+on Prob4D implementation-module layout.
+
 The valid vector covers:
 
 - provider API version 2 and provider-factor API version 2;
