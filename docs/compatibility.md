@@ -8,8 +8,10 @@ frozen evidence even when package-version ranges are compatible.
 
 | Surface | Version | Intended use |
 | --- | ---: | --- |
-| `prob4d.provider_v1` | 1 | Frozen reproduction and provider-v1 compatibility |
-| `prob4d.provider_v2` | 2 | New calibrated or explicitly exploratory development |
+| `prob4d.api.v1` | 1 | Stable frozen provider-v1 downstream façade |
+| `prob4d.api.v2` | 2 | Stable claim-bearing provider-v2 downstream façade |
+| `prob4d.provider_v1` | 1 | Frozen implementation and reproduction compatibility |
+| `prob4d.provider_v2` | 2 | Provider-v2 implementation behind `prob4d.api.v2` |
 | `phys4d.observation_belief` | 1 | Portable fused observation container |
 | Prob4D causal stream contract | 2 | Strict causal lineage and joint-gauge semantics |
 | `ObservationFactorBundle` | 4 | Unfused factors with ordered joint gauge covariance |
@@ -18,8 +20,11 @@ frozen evidence even when package-version ranges are compatible.
 
 Provider-v1 behavior and the standalone
 `prob4d-export-observation-belief` executable remain available for frozen run
-manifests. New work should choose an explicit provider-v2 export mode and use the
-strict loader re-exported by `prob4d.provider_v2`.
+manifests. New work should choose an explicit provider-v2 export mode and import the
+strict loaders and contracts through `prob4d.api.v2`. Direct imports from
+`prob4d.provider_v2`, `prob4d.provider_v2_factors`, `prob4d.gauge`, or
+`prob4d.sim3` are implementation dependencies rather than the supported
+ecosystem boundary.
 
 The historical `prob4d.motioncrafter-model.v1` identifier covers the original
 common-seed behavior, whether the manifest omits `seed_policy` or explicitly
