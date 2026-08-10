@@ -125,9 +125,10 @@ def _run(command: list[str | Path], *, cwd: Path | None = None) -> None:
 
 def _smoke_installed_archive(archive: Path, destination: Path) -> None:
     environment = destination / "installed"
-    venv.EnvBuilder(with_pip=True, system_site_packages=True).create(environment)
+    venv.EnvBuilder(with_pip=True).create(environment)
     python = _venv_python(environment)
-    _run([python, "-m", "pip", "install", "--no-deps", archive])
+    _run([python, "-m", "pip", "install", archive])
+    _run([python, "-m", "pip", "check"])
 
     smoke = """
 from importlib import resources
