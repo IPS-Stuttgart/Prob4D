@@ -5,11 +5,13 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from importlib.metadata import PackageNotFoundError, distribution, version
+from importlib.metadata import PackageNotFoundError, distribution
 from typing import Any
 
+from ._version import __version__
+
 PROB4D_PROVIDER_API_VERSION = 1
-PROB4D_PROVIDER_PACKAGE_VERSION = "0.3.1"
+PROB4D_PROVIDER_PACKAGE_VERSION = __version__
 PROB4D_CAUSAL_STREAM_CONTRACT_VERSION = 2
 PROB4D_PROVIDER_CAPABILITIES = (
     "append_invariant_causal_source_digest",
@@ -53,10 +55,7 @@ PROB4D_PROVIDER_LIMITATIONS = {
 
 
 def _installed_version() -> str:
-    try:
-        return version("prob4d")
-    except PackageNotFoundError:
-        return PROB4D_PROVIDER_PACKAGE_VERSION
+    return __version__
 
 
 def _installed_revision() -> str | None:
@@ -87,7 +86,13 @@ def prob4d_provider_manifest(
     *,
     provider_revision: str | None = None,
 ) -> dict[str, object]:
-    """Return the auditable producer contract for Bayesian consumers."""
+    """Return the auditable producer contract for Bayesian consumers.
+
+    Provider API v1 intentionally retains its historical repository and import
+    boundary because both fields contribute to content-addressed manifest IDs.
+    Current project identity and the additive public API façade are published
+    separately through :mod:`prob4d.project_identity` and :mod:`prob4d.api.v1`.
+    """
 
     revision = (
         provider_revision

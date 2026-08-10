@@ -1,246 +1,104 @@
 # Changelog
 
-All notable changes to Prob4D are documented here.
+All notable changes to Prob4D are documented here. Detailed, claim-bearing
+release notes and scientific boundaries live under `docs/releases/`.
 
 ## Unreleased
 
+No changes yet.
+
+## 0.4.0 — 2026-08-10
+
 ### Added
 
-- A read-only three-repository installed-wheel release capsule that resolves exact
-  Prob4D, BayesianPhysTwin, and Causal4D revisions, reuses the existing isolated
-  golden path, binds the three wheel SHA-256 digests and execution identity, and
-  emits a deeply validated content-addressed JSON artifact.
-- An explicit MIT license in source and built distributions, SPDX package
-  metadata, a license project URL, and the `Typing :: Typed` classifier.
-- Weekly Dependabot maintenance for Python development tools and immutable
-  GitHub Actions dependencies.
-- A target-free, content-addressed held-out provider promotion protocol that
-  freezes complete object/session splits, source/model/calibration identities,
-  seven required comparison roles, BayesianPhysTwin guard settings, bootstrap
-  semantics, and decision margins; seals the complete target group-by-arm query
-  matrix; composes provider competence with guarded-query gates; and replays the
-  final report deterministically through `prob4d experiment heldout-provider`.
-- A grouped `prob4d identity` interface for atomic material-identity mixture
-  construction from externally source-calibrated weights, strict mixture and
-  append-only stream validation, candidate-aligned log-sum-exp likelihood
-  marginalization, and law-of-total-covariance Gaussian moment matching.
-- An optional source-only directed-cycle gate for the experimental full-joint
-  gauge graph, with a preregistered displacement threshold,
-  per-multi-edge-child cycle support, complete audit reporting, and exact analytic
-  provider-v2 tree fallback.
-- Explicit MotionCrafter `legacy-common` and `derived-per-call` stochastic seed
-  policies, with a versioned source-bound call schedule recorded in every new
-  prediction manifest.
-- Fail-closed seed-schedule validation that recomputes effective seeds and
-  rejects missing, reordered, inconsistent, duplicated, or colliding derived
-  calls.
-- Atomic, crash-safe, resumable MotionCrafter prediction production with a
-  content-addressed progress journal and member verification before reuse.
-- Immutable model-set identities for the MotionCrafter UNet, geometry/motion VAE,
-  base pipeline, and executed loader, using exact remote revisions or recursively
-  content-addressed local snapshots.
-- Versioned fused-prediction covariance semantics and a held-out provider
-  evaluator with paired equal-group aggregation and deterministic group
-  bootstrap intervals.
-- Explicit `float32` or `float64` dense prediction storage, frame-local ray
-  access, and deterministic retained-storage accounting for benchmark runs.
-- `FusedSequence` as a public immutable dense-output contract with canonical
-  dtypes, bounded active covariance validation, and read-only arrays.
-- `TruthSequence` as an immutable, canonical, alias-safe truth-input contract with
-  strict frame ordering and active point/flow finiteness validation.
-- Common-support primary provider evaluation, native-support secondary results,
-  support-retention diagnostics, frame-balanced errors, multi-level coverage,
-  covariance-width summaries, uncertainty-error ranking, selective risk, and
-  worst-group coverage-shortfall reporting. Selective-risk metrics are invariant
-  to sample ordering when uncertainty scores tie.
-- Bounded spatial-tile dense fusion that preserves structured covariance until a
-  representative covariance-intersection sample or active tile is required, plus
-  a deterministic process-level memory and timing benchmark.
-- Bounded-memory metric, prefix-aligned, and oracle-aligned evaluation with an
-  explicit chunk-size execution contract and deterministic process-level memory,
-  timing, retained-storage, and numerical-agreement benchmark.
-- An opt-in self-hosted full-resolution memory-profile workflow that runs fusion
-  and provider evaluation in fresh processes, optionally profiles verified eager
-  and mmap prediction loading, binds host and revision identity, and uploads
-  checksummed machine-readable evidence.
-- Explicit upper-winsorized calibration aggregation identifiers, public quantile
-  aliases, and a shared validated aggregation primitive for point and gauge scales.
+- A versioned `prob4d.api.v1` façade as the supported Python dependency boundary
+  for BayesianPhysTwin, Causal4D, and independent downstream providers.
+- One runtime-version resolver backed by installed distribution metadata, with an
+  explicit `0+unknown` sentinel for an uninstalled source tree.
+- An installed source distribution audit that verifies package-only contents,
+  installs the archive in an isolated environment, and smoke-tests the public API,
+  provider contracts, contract data, and canonical CLI.
+- Portable `O(K)` causal gauge-tree prior artifacts and tree-backed sparse
+  observation-factor stacks that avoid materializing the complete joint gauge
+  covariance.
+- Portable and claim-bearing tree-sparse observation artifacts binding provider,
+  calibration, runtime-revision, causal-lineage, observation, and sparse-prior
+  identities for strict BayesianPhysTwin admission.
+- Outcome-blind provider support feasibility over frozen source streams, geometry,
+  camera calibration, metric anchors, admission rules, and technical exclusions.
+- Spatially stratified causal tracklets and frozen-roster camera-panel support with
+  a frame-level likelihood-power budget.
+- Replay-complete held-out provider evidence binding calibration selection, exact
+  provider-report bytes, sealed target decisions, exact fallback, bootstrap
+  settings, and the final Prob4D-to-BayesianPhysTwin promotion report.
+- Paired joint-covariance dependence ablations comparing full shared covariance,
+  marginal-preserving independence, and conditional-only controls.
+- A content-addressed three-repository installed-wheel release capsule binding
+  exact Prob4D, BayesianPhysTwin, and Causal4D revisions and wheel digests.
+- Bounded-memory dense fusion, provider evaluation, prediction storage, and
+  production memory profiling.
+- Versioned material-identity, source-reliability, stochastic-seed, and provider
+  evaluation contracts.
 
 ### Changed
 
-- The causal observation-export guide now uses the explicit calibrated provider-v2
-  command, includes both required covariance calibration artifacts, and names the
-  frozen provider-v1 and exploratory alternatives without invoking the deliberately
-  disabled ambiguous route.
-- Release metadata and source-distribution audits now require the license,
-  dependency-maintenance policy, ecosystem capsule workflow, capsule tooling, and
-  representative capsule regressions.
-- Claim-bearing prediction/calibration compatibility now retains the historical
-  version-1 model identifier for legacy common-seed runs and uses a version-2
-  identifier for `derived-per-call` runs, preventing silent calibration reuse
-  across stochastic semantics.
-- `prob4d-benchmark` forwards and records the selected MotionCrafter seed policy,
-  model-set identity, prediction manifest identity, and dense-storage mode.
-- Reused benchmark outputs are admitted only after the prediction bundle,
-  baseline bytes, fused semantics, revisions, model identities, covariance
-  presence, and execution settings validate against the current run.
-- Held-out provider evaluation rejects one method label that mixes revisions,
-  model sets, seed policies, covariance meanings, gauge estimators, calibration
-  states, or dense-storage execution semantics across cases.
-- Fusion and fused-artifact loading transfer ownership of private arrays into the
-  immutable `FusedSequence` contract without an unnecessary second dense copy.
-- Provider-evaluation report schema version 2 keeps the established unprefixed
-  metric paths for common-support primary results and adds explicit
-  `native_support` and `support` secondary diagnostics.
-- Evaluation modes rely on the immutable finite-active point/flow contracts
-  directly instead of rebuilding dense sequences solely to sanitize flow masks.
-- Dense covariance-intersection weights remain optimized once per complete
-  frame/contributor-mask pattern and are reused across bounded application tiles,
-  so the tile size changes temporary memory rather than estimator semantics.
-- Provider evaluation accumulates active point, covariance, flow, alignment, and
-  seam statistics in bounded chunks; prefix and oracle modes apply transforms
-  during evaluation instead of constructing complete transformed sequences.
-- Provider reports record `evaluation_chunk_size`; changing it affects resource
-  use and floating-point summation order, not registered support or metric
-  semantics.
-- New group-balanced point calibration metadata names its actual upper-winsorized
-  operation; the frozen `trim_quantile` field and legacy misnamed aggregation ID
-  remain readable without rewriting historical artifact identities.
+- The canonical grouped `prob4d` registry owns command targets while historical
+  executables remain available through documented compatibility wrappers.
+- The authoritative Ruff and mypy job uses one pinned quality environment; the
+  main test workflow owns repository, release, package, and provider-contract
+  checks instead of duplicating quality execution.
+- Wheel and source distributions are separated from GitHub workflows, generated
+  evidence, CI environments, repository tests, and one-off maintenance scripts.
+  Scientific evidence remains in explicit content-addressed capsules.
+- Current project identity and the additive `prob4d.api.v1` façade are published
+  separately, while content-addressed provider manifests retain their frozen
+  historical repository and import-boundary fields.
+- Provider API v1 remains frozen at observation-factor schema 3, while provider
+  API v2 and tree-sparse manifests retain their newer joint-covariance contracts.
 
 ### Fixed
 
-- Source-reliability calibration artifacts now reject coercive JSON aliases,
-  duplicate object keys, non-finite constants, non-string feature or group IDs,
-  and noncanonical report primitives. Persistence is atomic, idempotent for
-  identical bytes, and refuses to overwrite a different content-addressed model.
-- Scientific scalar contracts for robust alignment, cross-fitted disagreement,
-  and uncertainty calibration reports now reject booleans, integral floats,
-  numeric strings, and fractional count truncation. Robust alignment also rejects
-  non-positive iteration, Huber, and convergence controls before numerical work.
-- `FusedSequence` no longer retains mutable aliases to caller-owned arrays or
-  leaves apparent dtype normalization local to validation. Active point and flow
-  covariance now fail closed on non-finite, asymmetric, or materially indefinite
-  matrices, while tolerated floating-point-scale negative eigenvalues are
-  projected to the positive-semidefinite boundary.
-- Truth arrays can no longer change after validation through caller-owned aliases,
-  and malformed frame indices or non-finite active truth geometry now fail before
-  evaluation.
-- Paired provider comparisons no longer reward methods for omitting difficult
-  frames or pixels from their primary score.
+- The 0.4.0 source boundary is an ordinary reviewed commit rather than a workflow
+  that mutates and pushes its own branch.
+- Selection-lock publication, content-addressed persistence, and claim-bearing
+  artifact loading fail closed on overwrite, coercion, lineage, and covariance
+  inconsistencies.
+- Sparse observation and camera-panel contracts preserve likelihood budgets and
+  reject lossy indices, omitted cameras, forged support, and malformed geometry.
+- Immutable dense and truth contracts no longer retain mutable caller aliases and
+  reject non-finite or materially invalid covariance and geometry.
 
 ## 0.3.0 — 2026-07-30
 
 ### Added
 
-- `ObservationFactorStreamV1`, a portable append-only chain of causally disjoint
-  schema-v4 factor bundles with bundle/payload checksums, stable observation
-  identity digests, contiguous frame intervals, and previous-update hash binding.
-- Direct provider-v2 exports of `load_claim_bearing_observation_belief`,
-  `validate_claim_bearing_observation_belief`, and
-  `ValidatedClaimBearingObservation` so safe export and admission live on one
-  versioned public surface.
-- A PEP 561 `py.typed` marker for downstream static type checking.
-- `load_claim_bearing_observation_belief` and
-  `validate_claim_bearing_observation_belief` as explicit admission boundaries for
-  calibrated, causal, independently attested observations.
-- `ObservationFactorBundle` schema v4 with an ordered joint `7K x 7K` gauge
-  covariance, explicit joint-versus-marginal covariance semantics, fail-closed
-  marginal-block validation, and conservative schema-v2/v3 migration.
-- A public cluster-cross-fitted overlap-disagreement diagnostic that holds out
-  frame-by-spatial-tile clusters, refits the relative gauge without them, fails
-  closed on unfittable folds, and reports the strictly out-of-fold evaluated
-  fraction.
-- Equal-group point-uncertainty calibration with canonical group ordering,
-  within-group trimming, per-group diagnostics, and row-order-invariant aggregate
-  scales so dense sequences cannot dominate solely through sample count.
-- A provider-compatible helper that binds the full equal-group report and grouping
-  definition into `PointUncertaintyCalibrationV1` content-addressed metadata, with
-  explicit pooled-versus-balanced inspection and round-trip validation.
-- Prefix-only scene-flow tracklets with persistent within-window point IDs,
-  deterministic collision handling, cumulative association probabilities,
-  termination diagnostics, and conversion to unfused observation factors.
-- A directed gauge-cycle audit that compares direct overlap alignments with
-  two-edge paths in representative observation displacement, preserves
-  deterministic thresholds, and avoids chi-square claims under unknown edge
-  dependence.
-- A content-addressed, equal-group logistic source-reliability calibration with a
-  source-only feature contract, canonical row ordering, exact label/group
-  semantics, probability clipping, immutable metadata, and tamper-checked JSON
-  round trips.
-- `prob4d.provider_v2` as a safe-by-default Python surface with distinct
-  exploratory and claim-bearing export functions.
-- Strict prediction/calibration compatibility checks covering MotionCrafter
-  revision, canonical model settings, resolution, window geometry, covariance
-  cluster size, and gauge/point covariance methods before payload loading.
-- A context-local canonical covariance-root basis for repeated eigenspaces in
-  provider v2, with fail-closed rank boundaries and unchanged provider-v1
-  defaults.
-- Context-local analytic `Sim(3)` composition Jacobians for provider-v2 sequential
-  covariance propagation, with fail-closed handling at the SO(3) logarithm branch
-  cut and exact provider-v1 finite-difference compatibility.
-- Explicit `prob4d observation export-calibrated`,
-  `prob4d observation export-exploratory`, and
-  `prob4d observation export-v1` grouped commands, plus installed legacy-style
-  entry points for scripted reproduction.
-- Runtime source-revision attestation for provider-v2 export. Claim-bearing runs
-  require independent VCS metadata or a clean source checkout; an environment-only
-  `PROB4D_RUNTIME_REVISION` assertion is recorded only for exploratory deployments.
-- A versioned self-contained provider-attestation schema that embeds the complete
-  content-addressed provider manifest, export mode, calibration IDs,
-  covariance-root and composition-Jacobian modes, and runtime revision evidence.
-- Version-selectable provider manifest emission through
-  `prob4d provider manifest --api-version {1,2}`.
-- A provider-v2 gauge-backend ablation runner that preserves the seven-row
-  reconstruction contract while using the production causal spanning tree,
-  analytic composition Jacobians, and joint-covariance marginal adapter.
+- Provider API v2 with claim-bearing observation loading, schema-4 joint gauge
+  covariance, analytic Sim(3) composition Jacobians, runtime source attestation,
+  and version-selectable provider manifests.
+- Append-only causal observation-factor streams, content-addressed covariance
+  calibration, source reliability, causal tracklets, cycle audits, and strict
+  prediction/calibration compatibility.
+- A PEP 561 `py.typed` marker and installed grouped and compatibility commands.
 
 ### Changed
 
-- The grouped `prob4d observation export` route now fails closed with migration
-  guidance instead of silently selecting provider v1. The historical standalone
-  `prob4d-export-observation-belief` executable remains unchanged.
-- Claim-bearing loading now requires complete alignment-level covariance
-  calibration, rejects uncalibrated or pointwise-fallback permission, and rejects
-  recorded covariance fallback use.
-- `ObservationBeliefExportV1.metadata` is recursively immutable after finite-JSON
-  normalization. Ordinary `dict`/`list` checks and mutable `copy`/`deepcopy`
-  workflows remain supported.
-- Stacked unfused factors retain cross-window gauge covariance rather than
-  reconstructing a block-diagonal prior from per-gauge marginals. The frozen
-  provider-v1 writer remains schema v3 and rejects joint covariance it cannot
-  encode.
-- Fixed-lag gauge smoothing Schur-marginalizes expired gauges into an
-  uncertainty-bearing boundary prior. Portable historical covariance remains an
-  explicit block-diagonal reconstruction approximation.
-- Documentation recommends calibrated provider v2 for new claim-bearing work and
-  labels provider-v1 routes as frozen compatibility surfaces.
-- CI verifies analytic-versus-finite-difference derivative parity, provider
-  manifest and attestation hashing, clean-checkout runtime provenance, and every
-  provider-v2 command from installed wheel and source artifacts.
+- New claim-bearing exports require complete calibration and preserve shared
+  cross-window covariance; provider API v1 remains a frozen compatibility surface.
+- Fixed-lag smoothing carries an uncertainty-bearing marginalized boundary prior
+  while historical all-window covariance remains an explicit approximation.
 
 ## 0.2.0 — 2026-07-26
 
-### Changed
-
-- Portable Bayesian observation export now defaults to a causal sequential gauge
-  tree and carries the full joint cross-window gauge covariance.
-- Gauge-root rank reduction is trace-audited and fails closed below a declared
-  retained-covariance threshold.
-- Fixed-lag covariance export requires an explicit acknowledgement that its
-  marginalized boundary covariance is approximate.
-- `PredictionWindow` rejects invalid geometry and defensively copies and freezes
-  every NumPy field after validation.
-- Continuous integration covers Python 3.10, 3.12, and 3.14, validates wheel and
-  source distributions, installs both artifacts in isolation, and smoke-tests
-  grouped and legacy commands.
-- Project metadata and documentation point to the canonical
-  `FlorianPfaff/BayesianPhysTwin-Paper` project-notes repository.
-
 ### Added
 
-- A content-addressed provider manifest and lazy grouped `prob4d` command surface.
-- `prob4d.provider_v1` as the versioned Python import boundary for downstream
-  development.
-- `prob4d-validate-observation` for strict installed-artifact validation.
-- Joint covariance propagation, cross-window factor, provider-boundary, and input
-  immutability regression tests.
+- A content-addressed provider manifest, a lazy grouped command surface,
+  `prob4d.provider_v1`, strict observation validation, and joint-covariance
+  regression tests.
+
+### Changed
+
+- Portable observation export defaults to a causal sequential gauge tree with
+  shared gauge covariance and trace-audited rank reduction.
+- Prediction windows are immutable, CI validates wheel and source artifacts across
+  supported Python versions, and project metadata points to the canonical project
+  notes repository.

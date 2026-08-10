@@ -20,7 +20,7 @@ env:
 
 jobs:
   quality:
-    name: Quality and provider contract
+    name: Repository and provider contract
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -35,62 +35,16 @@ jobs:
           cache-dependency-path: pyproject.toml
       - name: Install development tools
         run: python -m pip install -e ".[dev]"
-      - name: Run Ruff
-        id: ruff
-        continue-on-error: true
-        run: python -m ruff check src tests scripts/ci 2>&1 | tee ruff-output.txt
-      - name: Upload Ruff diagnostics
-        if: steps.ruff.outcome == 'failure'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: ruff-diagnostics
-          path: ruff-output.txt
-          if-no-files-found: error
-          retention-days: 14
-      - name: Fail on Ruff diagnostics
-        if: steps.ruff.outcome == 'failure'
-        run: exit 1
-      - name: Type-check stable provider interfaces
-        id: mypy
-        continue-on-error: true
-        run: >-
-          python -m mypy
-          src/prob4d/cli.py
-          src/prob4d/calibration_compatibility.py
-          src/prob4d/composition_jacobian.py
-          src/prob4d/covariance_root.py
-          src/prob4d/observation_factor_stream.py
-          src/prob4d/prediction_store.py
-          src/prob4d/prediction_store_benchmark.py
-          src/prob4d/prediction_store_cli.py
-          src/prob4d/project_identity.py
-          src/prob4d/provider_attestation.py
-          src/prob4d/provider_manifest.py
-          src/prob4d/provider_manifest_cli.py
-          src/prob4d/provider_v1.py
-          src/prob4d/provider_v2.py
-          src/prob4d/provider_v2_cli.py
-          src/prob4d/provider_v2_loading.py
-          src/prob4d/runtime_revision.py
-          src/prob4d/source_diagnostics.py
-          2>&1 | tee mypy-output.txt
-      - name: Upload mypy diagnostics
-        if: steps.mypy.outcome == 'failure'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: mypy-diagnostics
-          path: mypy-output.txt
-          if-no-files-found: error
-          retention-days: 14
-      - name: Fail on mypy diagnostics
-        if: steps.mypy.outcome == 'failure'
-        run: exit 1
-      - name: Verify repository and release policies
+      - name: Verify repository, release, API, and distribution policies
         run: >-
           python -m pytest -q
+          tests/test_api_v1.py
+          tests/test_fail_closed_quality_workflow.py
           tests/test_github_action_pins.py
           tests/test_project_identity.py
           tests/test_release_metadata.py
+          tests/test_release_040_boundary.py
+          tests/test_sdist_boundary.py
       - name: Verify clean-checkout runtime revision attestation
         run: |
           python - <<'PY'
@@ -147,6 +101,7 @@ jobs:
           python - <<'PY'
           import sys
 
+          import prob4d.api.v1
           import prob4d.cli
           import prob4d.composition_jacobian
           import prob4d.covariance_root
@@ -206,11 +161,13 @@ jobs:
       - name: Verify resolved floor
         run: |
           python - <<'PY'
+          from importlib.metadata import version
+
           import numpy
           import prob4d
 
           assert numpy.__version__ == "1.24.0"
-          assert prob4d.__version__ == "0.3.1"
+          assert prob4d.__version__ == version("prob4d")
           PY
       - name: Run complete suite at the declared floor
         run: >-
@@ -287,16 +244,21 @@ jobs:
           "$python_bin" -m pip check
           "$python_bin" - <<'PY'
           from importlib import resources
+          from importlib.metadata import version
 
           import prob4d
+          import prob4d.api.v1 as api_v1
           import prob4d.provider_v1 as provider_v1
           import prob4d.provider_v2 as provider_v2
           from prob4d.composition_jacobian import current_composition_jacobian_mode
           from prob4d.prediction_store import load_prediction_bundle_store
           from prob4d.project_identity import prob4d_project_identity
 
-          print(prob4d.__version__)
-          assert prob4d.__version__ == "0.3.1"
+          installed = version("prob4d")
+          print(installed)
+          assert prob4d.__version__ == installed
+          assert api_v1.__version__ == installed
+          assert api_v1.API_VERSION == 1
           assert provider_v1.PROVIDER_API_VERSION == 1
           assert provider_v2.PROVIDER_API_VERSION == 2
           assert provider_v2.OBSERVATION_FACTOR_STREAM_VERSION == 1

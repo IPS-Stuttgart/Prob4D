@@ -19,7 +19,7 @@ def _log() -> str:
     return "\n".join(
         [
             "ordinary build output",
-            f"{'a' * 64}  /tmp/wheelhouse/prob4d-0.3.1-py3-none-any.whl",
+            f"{'a' * 64}  /tmp/wheelhouse/prob4d-0.4.0-py3-none-any.whl",
             f"{'b' * 64}  /tmp/wheelhouse/bayesian_phystwin-0.4.0-py3-none-any.whl",
             f"{'c' * 64}  /tmp/wheelhouse/causal4d-0.4.1-py3-none-any.whl",
             "3 passed",
@@ -50,9 +50,9 @@ def test_parse_wheel_hashes_is_ordered_and_exact() -> None:
 
 def test_parse_wheel_hashes_rejects_missing_or_conflicting_wheels() -> None:
     with pytest.raises(ValueError, match="omitted wheel hashes"):
-        MODULE.parse_wheel_hashes(f"{'a' * 64}  prob4d-0.3.1-py3-none-any.whl")
+        MODULE.parse_wheel_hashes(f"{'a' * 64}  prob4d-0.4.0-py3-none-any.whl")
 
-    conflicting = _log() + f"\n{'d' * 64}  /tmp/other/prob4d-0.3.2-py3-none-any.whl\n"
+    conflicting = _log() + f"\n{'d' * 64}  /tmp/other/prob4d-0.4.1-py3-none-any.whl\n"
     with pytest.raises(ValueError, match="conflicting prob4d wheels"):
         MODULE.parse_wheel_hashes(conflicting)
 

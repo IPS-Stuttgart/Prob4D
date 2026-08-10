@@ -62,6 +62,8 @@ def test_authoritative_quality_workflow_covers_current_stable_surfaces() -> None
     text = WORKFLOW.read_text(encoding="utf-8")
 
     required = (
+        "src/prob4d/_version.py",
+        "src/prob4d/api/v1.py",
         "src/prob4d/provider_v2_factor_bundle.py",
         "src/prob4d/provider_v2_factors.py",
         "src/prob4d/sparse_observation_factors.py",
@@ -69,7 +71,9 @@ def test_authoritative_quality_workflow_covers_current_stable_surfaces() -> None
     )
     for path in required:
         assert path in text
-    assert 'python -m pip install "numpy>=1.24,<2.3"' in text
+    assert "python -m pip install -r requirements/ci/quality.txt" in text
+    assert "python -m pip install --no-deps -e ." in text
+    assert 'python -m pip install "numpy>=1.24,<2.3"' not in text
 
 
 def test_pipefail_policy_rejects_masked_diagnostic_pipelines() -> None:
