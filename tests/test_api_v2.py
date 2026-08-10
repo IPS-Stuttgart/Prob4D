@@ -5,8 +5,10 @@ from importlib.metadata import version
 import prob4d.api.v1 as api_v1
 import prob4d.api.v2 as api_v2
 from prob4d import provider_v2, provider_v2_factors
+from prob4d.gauge import GaugeEstimate
 from prob4d.gauge_tree_prior import GaugeTreeSquareRootPriorV1
 from prob4d.project_identity import PROB4D_PROJECT_ID
+from prob4d.sim3 import Sim3
 
 
 def test_api_v2_is_versioned_and_matches_the_installed_distribution() -> None:
@@ -40,6 +42,8 @@ def test_api_v2_reexports_claim_bearing_provider_contracts() -> None:
         is provider_v2_factors.TreeSparseStackedObservationFactors
     )
     assert api_v2.GaugeTreeSquareRootPriorV1 is GaugeTreeSquareRootPriorV1
+    assert api_v2.GaugeEstimate is GaugeEstimate
+    assert api_v2.Sim3 is Sim3
 
 
 def test_api_v2_exposes_transfer_safe_project_identity() -> None:
@@ -57,8 +61,10 @@ def test_api_v2_declares_only_supported_public_names() -> None:
         "PROVIDER_API_VERSION",
         "PROVIDER_FACTOR_API_VERSION",
         "PROB4D_PROJECT_ID",
+        "GaugeEstimate",
         "GaugeTreeSquareRootPriorV1",
         "ObservationFactorBundle",
+        "Sim3",
         "TreeSparseStackedObservationFactors",
         "load_claim_bearing_observation_belief",
         "load_claim_bearing_observation_factor_bundle",
