@@ -34,6 +34,7 @@ PROB4D_PROVIDER_CAPABILITIES = (
     "strict_observation_belief_validation",
     "trace_audited_gauge_rank_reduction",
     "versioned_causal_stream_contract",
+    "versioned_python_provider_api",
 )
 PROB4D_ARTIFACT_SCHEMA_VERSIONS = {
     "GaugeCovarianceCalibrationV1": 1,
