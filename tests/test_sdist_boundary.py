@@ -30,3 +30,16 @@ def test_sdist_audit_installs_and_smoke_tests_the_archive() -> None:
     assert '"-m", "pip", "install"' in audit
     assert "prob4d.api.v1" in audit
     assert "REPRESENTATIVE_TESTS" not in audit
+
+
+def test_specialized_workflows_use_the_installed_sdist_boundary() -> None:
+    workflows = (
+        ROOT / ".github" / "workflows" / "finite-sample-capability.yml",
+        ROOT / ".github" / "workflows" / "visual-bias-calibration.yml",
+    )
+    for workflow in workflows:
+        text = workflow.read_text(encoding="utf-8")
+        assert 'python scripts/ci/check_sdist.py "$archive"' in text
+        assert "grep -q '/tests/test_" not in text
+        assert 'name.endswith("/tests/' not in text
+        assert 'assert not any("/tests/" in name for name in names)' in text
