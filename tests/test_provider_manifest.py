@@ -4,6 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 
+import prob4d
 from prob4d.provider_manifest import (
     PROB4D_PROVIDER_PACKAGE_VERSION,
     prob4d_provider_manifest,
@@ -14,7 +15,8 @@ from prob4d.provider_manifest_cli import main
 def test_provider_manifest_declares_covariance_boundary() -> None:
     manifest = prob4d_provider_manifest(provider_revision="a" * 40)
 
-    assert PROB4D_PROVIDER_PACKAGE_VERSION == "0.3.1"
+    assert PROB4D_PROVIDER_PACKAGE_VERSION == prob4d.__version__
+    assert manifest["provider_version"] == prob4d.__version__
     assert manifest["provider_revision"] == "a" * 40
     assert manifest["artifact_schema_versions"] == {
         "GaugeCovarianceCalibrationV1": 1,
@@ -32,6 +34,8 @@ def test_provider_manifest_declares_covariance_boundary() -> None:
     assert "sim3_observation_displacement_rank_reduction" in manifest["capabilities"]
     assert "information_stratified_observation_sampling" in manifest["capabilities"]
     assert "versioned_causal_stream_contract" in manifest["capabilities"]
+    assert manifest["metadata"]["source_repository"] == "IPS-Stuttgart/Prob4D"
+    assert manifest["metadata"]["python_import_boundary"] == "prob4d.api.v1"
     assert manifest["metadata"]["group_composite_weight_semantics"].startswith(
         "final-per-row-effective-sample-cap-v1"
     )
