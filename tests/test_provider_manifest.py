@@ -34,8 +34,8 @@ def test_provider_manifest_declares_covariance_boundary() -> None:
     assert "sim3_observation_displacement_rank_reduction" in manifest["capabilities"]
     assert "information_stratified_observation_sampling" in manifest["capabilities"]
     assert "versioned_causal_stream_contract" in manifest["capabilities"]
-    assert manifest["metadata"]["source_repository"] == "IPS-Stuttgart/Prob4D"
-    assert manifest["metadata"]["python_import_boundary"] == "prob4d.api.v1"
+    assert manifest["metadata"]["source_repository"] == "FlorianPfaff/Prob4D"
+    assert manifest["metadata"]["python_import_boundary"] == "prob4d.provider_v1"
     assert manifest["metadata"]["group_composite_weight_semantics"].startswith(
         "final-per-row-effective-sample-cap-v1"
     )
