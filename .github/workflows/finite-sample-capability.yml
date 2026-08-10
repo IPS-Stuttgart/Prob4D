@@ -71,14 +71,28 @@ jobs:
           python -m compileall -q src/prob4d
 
       - name: Build and audit source distribution
+        shell: bash
         run: |
+          set -euo pipefail
           rm -rf dist
           python -m build --sdist
           archive="$(echo dist/prob4d-*.tar.gz)"
-          tar -tzf "$archive" | grep -q '/docs/finite-sample-capability.md$'
-          tar -tzf "$archive" | grep -q '/src/prob4d/finite_sample_capability.py$'
-          tar -tzf "$archive" | grep -q '/tests/test_finite_sample_capability.py$'
-          tar -tzf "$archive" | grep -q '/tests/test_finite_sample_capability_io.py$'
+          python - "$archive" <<'PY'
+          import sys
+          import tarfile
+
+          with tarfile.open(sys.argv[1], "r:gz") as archive:
+              names = archive.getnames()
+          required = (
+              "/docs/finite-sample-capability.md",
+              "/src/prob4d/finite_sample_capability.py",
+              "/src/prob4d/_finite_sample_capability_build.py",
+              "/src/prob4d/_finite_sample_capability_io.py",
+          )
+          assert all(any(name.endswith(path) for name in names) for path in required)
+          assert not any("/tests/" in name for name in names)
+          PY
+          python scripts/ci/check_sdist.py "$archive"
 
       - name: Smoke-test installed command
         run: |
