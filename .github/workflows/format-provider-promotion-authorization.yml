@@ -1,4 +1,4 @@
-name: Format provider promotion authorization
+name: Repair provider promotion authorization
 
 on:
   pull_request:
@@ -9,16 +9,16 @@ permissions:
   contents: write
 
 concurrency:
-  group: format-provider-promotion-authorization-${{ github.ref }}
+  group: repair-provider-promotion-authorization-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  format:
+  repair:
     if: >-
       github.head_ref == 'agent/bind-support-feasibility-promotion-v2' &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Check out exact source branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -26,9 +26,55 @@ jobs:
           ref: agent/bind-support-feasibility-promotion-v2
           fetch-depth: 0
           persist-credentials: true
-      - name: Apply authoritative Ruff rewrite
+      - name: Repair CLI path boundaries
         run: |
-          python -m pip install ruff==0.16.2
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/prob4d/provider_promotion_authorization.py")
+          text = path.read_text(encoding="utf-8")
+          replacements = (
+              (
+                  "load_promotion_lock(parsed.promotion_lock)",
+                  "load_promotion_lock(Path(parsed.promotion_lock))",
+              ),
+              (
+                  "load_provider_support_feasibility(parsed.support_feasibility)",
+                  "load_provider_support_feasibility(Path(parsed.support_feasibility))",
+              ),
+              (
+                  "load_provider_promotion_authorization(parsed.artifact)",
+                  "load_provider_promotion_authorization(Path(parsed.artifact))",
+              ),
+              (
+                  "load_provider_promotion_authorization(parsed.authorization)",
+                  "load_provider_promotion_authorization(Path(parsed.authorization))",
+              ),
+              (
+                  "load_heldout_provider_evidence(parsed.evidence)",
+                  "load_heldout_provider_evidence(Path(parsed.evidence))",
+              ),
+          )
+          changed = False
+          for old, new in replacements:
+              old_count = text.count(old)
+              new_count = text.count(new)
+              if old_count == 1 and new_count == 0:
+                  text = text.replace(old, new, 1)
+                  changed = True
+              elif old_count == 0 and new_count == 1:
+                  continue
+              else:
+                  raise SystemExit(
+                      f"unexpected marker counts for {old!r}: "
+                      f"old={old_count}, new={new_count}"
+                  )
+          if changed:
+              path.write_text(text, encoding="utf-8")
+          PY
+      - name: Validate focused repair
+        run: |
+          python -m pip install -e ".[dev]"
           python -m ruff check --fix \
             src/prob4d/provider_promotion_authorization.py \
             tests/test_provider_promotion_authorization.py
@@ -41,8 +87,9 @@ jobs:
           python -m ruff format --check \
             src/prob4d/provider_promotion_authorization.py \
             tests/test_provider_promotion_authorization.py
+          python -m pytest -q tests/test_provider_promotion_authorization.py
           git diff --check
-      - name: Publish canonical formatting
+      - name: Publish repaired implementation
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -50,9 +97,9 @@ jobs:
             src/prob4d/provider_promotion_authorization.py \
             tests/test_provider_promotion_authorization.py
           if git diff --cached --quiet; then
-            echo "Files are already canonical."
+            echo "Implementation is already repaired."
             exit 0
           fi
           git diff --cached --check
-          git commit -m "Format provider promotion authorization"
+          git commit -m "Repair provider promotion CLI path handling"
           git push origin HEAD:agent/bind-support-feasibility-promotion-v2
