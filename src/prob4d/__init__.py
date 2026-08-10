@@ -1,7 +1,6 @@
 """Probabilistic long-horizon fusion for MotionCrafter predictions."""
 
-from importlib.metadata import PackageNotFoundError, version
-
+from ._version import __version__
 from .alignment_cycles import (
     AlignmentCycleAudit,
     AlignmentCycleResidual,
@@ -154,11 +153,6 @@ from .source_reliability import (
 )
 from .uncertainty import GroupBalancedCalibrationReport
 
-try:
-    __version__ = version("prob4d")
-except PackageNotFoundError:  # Source tree without installed distribution metadata.
-    __version__ = "0.3.1"
-
 __all__ = [
     "CAUSAL_GAUGE_GRAPH_DEPENDENCE",
     "CAUSAL_GAUGE_GRAPH_MODE",
@@ -226,6 +220,7 @@ __all__ = [
     "SourceReliabilityFeatures",
     "SourceReliabilityModelV1",
     "StackedObservationFactors",
+    "__version__",
     "accumulate_cross_fitted_disagreement",
     "alignment_edge_id",
     "append_observation_factor_bundle",
