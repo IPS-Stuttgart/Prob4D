@@ -34,7 +34,6 @@ PROB4D_PROVIDER_CAPABILITIES = (
     "strict_observation_belief_validation",
     "trace_audited_gauge_rank_reduction",
     "versioned_causal_stream_contract",
-    "versioned_python_provider_api",
 )
 PROB4D_ARTIFACT_SCHEMA_VERSIONS = {
     "GaugeCovarianceCalibrationV1": 1,
@@ -86,7 +85,13 @@ def prob4d_provider_manifest(
     *,
     provider_revision: str | None = None,
 ) -> dict[str, object]:
-    """Return the auditable producer contract for Bayesian consumers."""
+    """Return the auditable producer contract for Bayesian consumers.
+
+    Provider API v1 intentionally retains its historical repository and import
+    boundary because both fields contribute to content-addressed manifest IDs.
+    Current project identity and the additive public API façade are published
+    separately through :mod:`prob4d.project_identity` and :mod:`prob4d.api.v1`.
+    """
 
     revision = (
         provider_revision
@@ -103,8 +108,8 @@ def prob4d_provider_manifest(
         "artifact_schema_versions": dict(PROB4D_ARTIFACT_SCHEMA_VERSIONS),
         "limitations": dict(PROB4D_PROVIDER_LIMITATIONS),
         "metadata": {
-            "source_repository": "IPS-Stuttgart/Prob4D",
-            "python_import_boundary": "prob4d.api.v1",
+            "source_repository": "FlorianPfaff/Prob4D",
+            "python_import_boundary": "prob4d.provider_v1",
             "observation_stream": "prob4d:causal-overlap-window-points",
             "observation_stream_contract_version": (
                 PROB4D_CAUSAL_STREAM_CONTRACT_VERSION
