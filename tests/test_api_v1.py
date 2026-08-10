@@ -19,7 +19,10 @@ def test_api_v1_reexports_the_frozen_provider_contract() -> None:
         api_v1.export_calibrated_observation_belief
         is provider_v1.export_calibrated_observation_belief
     )
-    assert api_v1.load_observation_factor_bundle is provider_v1.load_observation_factor_bundle
+    assert (
+        api_v1.load_observation_factor_bundle
+        is provider_v1.load_observation_factor_bundle
+    )
     assert api_v1.prob4d_provider_manifest is provider_v1.prob4d_provider_manifest
 
 
@@ -35,4 +38,7 @@ def test_api_v1_declares_only_supported_public_names() -> None:
         "prob4d_provider_manifest",
     }
     assert required <= set(api_v1.__all__)
-    assert all(not name.startswith("_") or name == "__version__" for name in api_v1.__all__)
+    assert all(
+        not name.startswith("_") or name == "__version__"
+        for name in api_v1.__all__
+    )
