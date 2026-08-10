@@ -10,15 +10,16 @@ def test_sdist_excludes_repository_automation_and_generated_evidence() -> None:
 
     assert "graft docs" in manifest
     assert "graft protocols" in manifest
-    for excluded in (
-        "graft .github",
-        "graft evidence",
-        "graft environments",
-        "graft requirements",
-        "graft scripts",
-        "graft tests",
+    for directory in (
+        ".github",
+        "evidence",
+        "environments",
+        "requirements",
+        "scripts",
+        "tests",
     ):
-        assert excluded not in manifest
+        assert f"graft {directory}" not in manifest
+        assert f"prune {directory}" in manifest
 
 
 def test_sdist_audit_installs_and_smoke_tests_the_archive() -> None:
