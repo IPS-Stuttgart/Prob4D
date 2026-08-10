@@ -50,8 +50,9 @@ No changes yet.
 - Wheel and source distributions are separated from GitHub workflows, generated
   evidence, CI environments, repository tests, and one-off maintenance scripts.
   Scientific evidence remains in explicit content-addressed capsules.
-- Provider manifests name `IPS-Stuttgart/Prob4D` and `prob4d.api.v1` as the
-  canonical repository and Python import boundary.
+- Current project identity and the additive `prob4d.api.v1` façade are published
+  separately, while content-addressed provider manifests retain their frozen
+  historical repository and import-boundary fields.
 - Provider API v1 remains frozen at observation-factor schema 3, while provider
   API v2 and tree-sparse manifests retain their newer joint-covariance contracts.
 
