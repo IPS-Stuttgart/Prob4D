@@ -666,8 +666,8 @@ def main(arguments: Sequence[str] | None = None) -> int:
     if parsed.command == "authorize":
         try:
             authorization = authorize_provider_promotion(
-                load_promotion_lock(parsed.promotion_lock),
-                load_provider_support_feasibility(parsed.support_feasibility),
+                load_promotion_lock(Path(parsed.promotion_lock)),
+                load_provider_support_feasibility(Path(parsed.support_feasibility)),
             )
         except PermissionError as error:
             print(str(error), file=sys.stderr)
@@ -682,14 +682,14 @@ def main(arguments: Sequence[str] | None = None) -> int:
         )
         return 0
     if parsed.command == "verify":
-        authorization = load_provider_promotion_authorization(parsed.artifact)
+        authorization = load_provider_promotion_authorization(Path(parsed.artifact))
         _print_json(
             _summary(authorization),
             compact=parsed.compact,
         )
         return 0
-    authorization = load_provider_promotion_authorization(parsed.authorization)
-    evidence = load_heldout_provider_evidence(parsed.evidence)
+    authorization = load_provider_promotion_authorization(Path(parsed.authorization))
+    evidence = load_heldout_provider_evidence(Path(parsed.evidence))
     bound = bind_authorized_heldout_provider_evidence(
         authorization,
         evidence,
