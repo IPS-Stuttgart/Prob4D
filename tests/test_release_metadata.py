@@ -12,7 +12,6 @@ except ModuleNotFoundError:  # Python 3.10.
     import tomli as tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
-EXPECTED_VERSION = "0.3.1"
 EXPECTED_LICENSE = "MIT"
 EXPECTED_REPOSITORY = "https://github.com/IPS-Stuttgart/Prob4D"
 
@@ -22,26 +21,36 @@ def _project() -> dict[str, object]:
     return payload["project"]
 
 
+def _expected_version() -> str:
+    value = _project()["version"]
+    assert isinstance(value, str)
+    return value
+
+
 def test_package_and_citation_versions_are_synchronized() -> None:
-    project = _project()
-    assert project["version"] == EXPECTED_VERSION
-    assert prob4d.__version__ == EXPECTED_VERSION
+    expected_version = _expected_version()
+    assert prob4d.__version__ == expected_version
     try:
         installed_version = version("prob4d")
     except PackageNotFoundError:
-        installed_version = EXPECTED_VERSION
-    assert installed_version == EXPECTED_VERSION
+        installed_version = expected_version
+    assert installed_version == expected_version
 
     citation = (ROOT / "CITATION.cff").read_text(encoding="utf-8")
     match = re.search(r'^version:\s*["\']?([^"\'\s]+)', citation, re.MULTILINE)
     assert match is not None
-    assert match.group(1) == EXPECTED_VERSION
+    assert match.group(1) == expected_version
     assert re.search(r'^license:\s*["\']?MIT["\']?$', citation, re.MULTILINE)
 
-    source = (ROOT / "src" / "prob4d" / "__init__.py").read_text(encoding="utf-8")
-    fallback = re.search(r'__version__\s*=\s*["\']([^"\']+)', source)
-    assert fallback is not None
-    assert fallback.group(1) == EXPECTED_VERSION
+    package_source = (ROOT / "src" / "prob4d" / "__init__.py").read_text(
+        encoding="utf-8"
+    )
+    resolver_source = (ROOT / "src" / "prob4d" / "_version.py").read_text(
+        encoding="utf-8"
+    )
+    assert "from ._version import __version__" in package_source
+    assert re.search(r'__version__\s*=\s*["\']\d', package_source) is None
+    assert 'UNKNOWN_VERSION = "0+unknown"' in resolver_source
 
 
 def test_project_urls_point_to_the_canonical_repository() -> None:
@@ -90,8 +99,12 @@ def test_release_governance_files_exist() -> None:
         "LICENSE",
         "MANIFEST.in",
         "SECURITY.md",
+        "docs/distribution-boundaries.md",
         "docs/ecosystem-release-capsule.md",
+        "docs/public-api.md",
+        "docs/releases/0.4.0.md",
         "docs/trusted-self-hosted-validation.md",
         "scripts/ci/build_ecosystem_release_capsule.py",
+        "scripts/ci/check_sdist.py",
     ):
         assert (ROOT / name).is_file(), name
