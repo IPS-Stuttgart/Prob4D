@@ -12,6 +12,7 @@ from typing import Any
 
 import numpy as np
 
+from ._scientific_scalars import require_finite_real
 from .experiments import (
     _baseline_sequence,
     _build_alignments,
@@ -67,11 +68,51 @@ def _resize_nearest(mask: np.ndarray, output_shape: tuple[int, int]) -> np.ndarr
     return mask[:, rows[:, None], columns[None, :]]
 
 
+def _resize_masked_bilinear(
+    values: np.ndarray,
+    mask: np.ndarray,
+    output_shape: tuple[int, int],
+    *,
+    minimum_support: float = 0.5,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Resize values without allowing invalid coordinates to leak into results."""
+
+    if values.ndim != 4 or values.shape[-1] < 1:
+        raise ValueError("values must have shape (T, H, W, C)")
+    if mask.shape != values.shape[:3]:
+        raise ValueError("mask must have shape values.shape[:3]")
+    support_threshold = require_finite_real(
+        minimum_support,
+        name="minimum_support",
+        minimum=0.0,
+        maximum=1.0,
+        minimum_inclusive=False,
+    )
+    if values.shape[1:3] == output_shape:
+        output = np.asarray(values).copy()
+        output[~mask] = 0.0
+        return output, np.asarray(mask, dtype=bool).copy()
+
+    finite_values = np.where(mask[..., None], values, 0.0)
+    numerator = _resize_bilinear(finite_values, output_shape)
+    support = _resize_bilinear(mask[..., None].astype(np.float32), output_shape)[..., 0]
+    output = np.divide(
+        numerator,
+        support[..., None],
+        out=np.zeros_like(numerator),
+        where=support[..., None] > np.finfo(np.float32).eps,
+    )
+    output_mask = support >= support_threshold
+    output[~output_mask] = 0.0
+    return output, output_mask
+
+
 def load_sintel_truth(
     path: Path,
     *,
     output_shape: tuple[int, int] = (320, 640),
     max_depth: float = 70.0,
+    minimum_resize_support: float = 0.5,
 ) -> TruthSequence:
     """Load camera-space Sintel HDF5 truth and return first-pose world coordinates."""
 
@@ -86,9 +127,13 @@ def load_sintel_truth(
         poses = handle["camera_pose"][:].astype(np.float64)
     finite = np.isfinite(points).all(axis=-1)
     mask &= finite & (points[..., 2] > 1e-5) & (points[..., 2] < max_depth)
-    points = np.nan_to_num(points)
-    points = _resize_bilinear(points, output_shape)
-    mask = _resize_nearest(mask, output_shape)
+    points = np.where(mask[..., None], points, 0.0)
+    points, mask = _resize_masked_bilinear(
+        points,
+        mask,
+        output_shape,
+        minimum_support=minimum_resize_support,
+    )
 
     poses = np.linalg.inv(poses[0])[None] @ poses
     world = np.einsum("tij,thwj->thwi", poses[:, :3, :3], points)
