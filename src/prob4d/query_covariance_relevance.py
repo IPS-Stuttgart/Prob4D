@@ -9,6 +9,7 @@ projection and reports how much query-space variance comes from shared modes.
 from __future__ import annotations
 
 import math
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any, TypeAlias
 
@@ -16,6 +17,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 FloatArray: TypeAlias = NDArray[np.floating[Any]]
+QueryCovarianceBlock: TypeAlias = tuple[object, object, object]
 
 QUERY_COVARIANCE_RELEVANCE_SCHEMA = "prob4d.query-covariance-relevance"
 QUERY_COVARIANCE_RELEVANCE_VERSION = 1
@@ -186,6 +188,23 @@ def _coordinate_shared_fractions(
     return tuple(result)
 
 
+def _compensated_add(
+    total: FloatArray,
+    correction: FloatArray,
+    increment: FloatArray,
+) -> tuple[FloatArray, FloatArray]:
+    """Accumulate one array with a Neumaier correction."""
+
+    updated = total + increment
+    larger_total = np.abs(total) >= np.abs(increment)
+    correction += np.where(
+        larger_total,
+        (total - updated) + increment,
+        (increment - updated) + total,
+    )
+    return updated, correction
+
+
 @dataclass(frozen=True, slots=True)
 class QueryCovarianceProjectionV1:
     """Immutable query-space decomposition and relevance diagnostics."""
@@ -334,6 +353,92 @@ class QueryCovarianceProjectionV1:
         }
 
 
+def project_joint_covariance_blocks_to_query(
+    blocks: Iterable[QueryCovarianceBlock],
+    *,
+    relative_rank_tolerance: float = 1e-10,
+) -> QueryCovarianceProjectionV1:
+    """Project a stream of observation blocks without retaining all rows.
+
+    Every block is a three-tuple ``(query_jacobian, local_covariance_m2,
+    low_rank_factor_m)`` with the same query dimension and shared-factor rank.
+    Blocks are consumed exactly once. The routine retains only ``Q x Q`` and
+    ``Q x R`` accumulators, so peak memory is independent of the total number of
+    observation rows apart from the caller-owned current block.
+    """
+
+    tolerance = _validated_relative_rank_tolerance(relative_rank_tolerance)
+    conditional: FloatArray | None = None
+    conditional_correction: FloatArray | None = None
+    shared_query_factor: FloatArray | None = None
+    shared_correction: FloatArray | None = None
+    query_dimension: int | None = None
+    shared_rank: int | None = None
+    observation_count = 0
+
+    for block_index, block in enumerate(blocks):
+        if not isinstance(block, tuple) or len(block) != 3:
+            raise TypeError(
+                f"blocks[{block_index}] must be a three-tuple of Jacobian, "
+                "local covariance, and low-rank factor"
+            )
+        jacobian, local, factor = _validated_inputs(*block)
+        block_query_dimension = int(jacobian.shape[0])
+        block_shared_rank = int(factor.shape[2])
+        if query_dimension is None:
+            query_dimension = block_query_dimension
+            shared_rank = block_shared_rank
+            conditional = np.zeros((query_dimension, query_dimension), dtype=np.float64)
+            conditional_correction = np.zeros_like(conditional)
+            shared_query_factor = np.zeros((query_dimension, shared_rank), dtype=np.float64)
+            shared_correction = np.zeros_like(shared_query_factor)
+        else:
+            if block_query_dimension != query_dimension:
+                raise ValueError("all blocks must use the same query dimension")
+            if block_shared_rank != shared_rank:
+                raise ValueError("all blocks must use the same shared-factor rank")
+
+        block_conditional = np.einsum(
+            "qni,nij,rnj->qr",
+            jacobian,
+            local,
+            jacobian,
+            optimize=True,
+        )
+        block_shared = np.einsum(
+            "qni,nik->qk",
+            jacobian,
+            factor,
+            optimize=True,
+        )
+        assert conditional is not None
+        assert conditional_correction is not None
+        assert shared_query_factor is not None
+        assert shared_correction is not None
+        conditional, conditional_correction = _compensated_add(
+            conditional,
+            conditional_correction,
+            block_conditional,
+        )
+        shared_query_factor, shared_correction = _compensated_add(
+            shared_query_factor,
+            shared_correction,
+            block_shared,
+        )
+        observation_count += int(jacobian.shape[1])
+
+    if conditional is None or shared_query_factor is None:
+        raise ValueError("blocks must contain at least one observation block")
+    assert conditional_correction is not None
+    assert shared_correction is not None
+    return QueryCovarianceProjectionV1(
+        conditional_covariance=conditional + conditional_correction,
+        shared_query_factor=shared_query_factor + shared_correction,
+        observation_count=observation_count,
+        relative_rank_tolerance=tolerance,
+    )
+
+
 def project_joint_covariance_to_query(
     query_jacobian: object,
     local_covariance_m2: object,
@@ -349,30 +454,9 @@ def project_joint_covariance_to_query(
     observation covariance or a dense ``Q x 3N`` Jacobian.
     """
 
-    tolerance = _validated_relative_rank_tolerance(relative_rank_tolerance)
-    jacobian, local, factor = _validated_inputs(
-        query_jacobian,
-        local_covariance_m2,
-        low_rank_factor_m,
-    )
-    conditional = np.einsum(
-        "qni,nij,rnj->qr",
-        jacobian,
-        local,
-        jacobian,
-        optimize=True,
-    )
-    shared_query_factor = np.einsum(
-        "qni,nik->qk",
-        jacobian,
-        factor,
-        optimize=True,
-    )
-    return QueryCovarianceProjectionV1(
-        conditional_covariance=conditional,
-        shared_query_factor=shared_query_factor,
-        observation_count=int(jacobian.shape[1]),
-        relative_rank_tolerance=tolerance,
+    return project_joint_covariance_blocks_to_query(
+        ((query_jacobian, local_covariance_m2, low_rank_factor_m),),
+        relative_rank_tolerance=relative_rank_tolerance,
     )
 
 
@@ -380,6 +464,8 @@ __all__ = [
     "QUERY_COVARIANCE_RELEVANCE_CLAIM_BOUNDARY",
     "QUERY_COVARIANCE_RELEVANCE_SCHEMA",
     "QUERY_COVARIANCE_RELEVANCE_VERSION",
+    "QueryCovarianceBlock",
     "QueryCovarianceProjectionV1",
+    "project_joint_covariance_blocks_to_query",
     "project_joint_covariance_to_query",
 ]
