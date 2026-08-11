@@ -69,6 +69,32 @@ The returned `QueryCovarianceProjectionV1` owns immutable copies of all retained
 arrays and replays every derived rank, trace, fraction, and covariance identity
 when constructed directly.
 
+## Streaming large observations
+
+Dense physical queries can have many observation rows even though their output
+dimension `Q` and shared rank `R` are small. Use
+`project_joint_covariance_blocks_to_query` to avoid retaining a complete
+`Q x N x 3` Jacobian in memory:
+
+```python
+from prob4d.query_covariance_relevance import (
+    project_joint_covariance_blocks_to_query,
+)
+
+projection = project_joint_covariance_blocks_to_query(
+    (
+        (query_jacobian[:, start:stop], local_covariance[start:stop], shared_factor[start:stop])
+        for start, stop in row_blocks
+    )
+)
+```
+
+Each block is validated independently and must use the same query dimension and
+shared-factor rank. The iterable is consumed exactly once. Only compensated
+`Q x Q` and `Q x R` accumulators are retained, so peak memory is independent of
+the total row count apart from the caller-owned current block. Empty streams,
+malformed blocks, and dimension or rank drift fail closed.
+
 ## Reported relevance measures
 
 The compact summary contains:
