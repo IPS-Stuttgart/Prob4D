@@ -23,9 +23,16 @@ from ._provider_v2_contract_common import (
     provider_v2_contract_vector,
 )
 from ._provider_v2_contract_materialization import (
+    PROVIDER_V2_CONTRACT_MINIMAL_STACK_SEMANTIC_SHA256,
+    PROVIDER_V2_CONTRACT_NUMERICAL_ATOL,
+    PROVIDER_V2_CONTRACT_NUMERICAL_RTOL,
+    PROVIDER_V2_CONTRACT_STACK_SEMANTIC_SCHEMA,
+    PROVIDER_V2_CONTRACT_STACK_SEMANTIC_VERSION,
     ProviderV2ContractMaterialization,
     materialize_provider_v2_contract_vector,
     provider_v2_contract_array_sha256,
+    provider_v2_contract_runtime_stack_sha256,
+    provider_v2_contract_stack_semantic_sha256,
     provider_v2_contract_stack_sha256,
     validate_provider_v2_contract_materialization,
 )
@@ -53,9 +60,21 @@ def main(argv: Sequence[str] | None = None) -> int:
             provider_api.TREE_SPARSE_OBSERVATION_ARTIFACT_VERSION
         ),
         "minimal_prior_id": materialization.gauge_tree_prior.prior_id,
-        "minimal_stack_sha256": provider_v2_contract_stack_sha256(
-            materialization.tree_sparse_stack
+        "minimal_stack_semantic_sha256": (
+            provider_v2_contract_stack_semantic_sha256(
+                materialization.tree_sparse_stack
+            )
         ),
+        "minimal_reference_runtime_stack_sha256": (
+            vector.payload["expected"]["stack_sha256"]
+        ),
+        "minimal_observed_runtime_stack_sha256": (
+            provider_v2_contract_runtime_stack_sha256(
+                materialization.tree_sparse_stack
+            )
+        ),
+        "numerical_atol": PROVIDER_V2_CONTRACT_NUMERICAL_ATOL,
+        "numerical_rtol": PROVIDER_V2_CONTRACT_NUMERICAL_RTOL,
     }
     print(
         json.dumps(
@@ -76,6 +95,11 @@ __all__ = [
     "PROVIDER_V2_CONTRACT_BUNDLE",
     "PROVIDER_V2_CONTRACT_BUNDLE_SHA256",
     "PROVIDER_V2_CONTRACT_BUNDLE_VERSION",
+    "PROVIDER_V2_CONTRACT_MINIMAL_STACK_SEMANTIC_SHA256",
+    "PROVIDER_V2_CONTRACT_NUMERICAL_ATOL",
+    "PROVIDER_V2_CONTRACT_NUMERICAL_RTOL",
+    "PROVIDER_V2_CONTRACT_STACK_SEMANTIC_SCHEMA",
+    "PROVIDER_V2_CONTRACT_STACK_SEMANTIC_VERSION",
     "ProviderV2ContractMaterialization",
     "ProviderV2ContractVector",
     "invalid_provider_v2_contract_vectors",
@@ -83,7 +107,9 @@ __all__ = [
     "materialize_provider_v2_contract_vector",
     "provider_v2_contract_array_sha256",
     "provider_v2_contract_bundle_manifest",
+    "provider_v2_contract_runtime_stack_sha256",
     "provider_v2_contract_schema",
+    "provider_v2_contract_stack_semantic_sha256",
     "provider_v2_contract_stack_sha256",
     "provider_v2_contract_vector",
     "validate_provider_v2_contract_materialization",
