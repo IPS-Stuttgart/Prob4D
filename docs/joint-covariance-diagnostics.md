@@ -98,5 +98,18 @@ joint-covariance command, evaluates those exact bytes, and publishes its report
 with the same create-if-absent behavior. It is controlled mechanism evidence,
 not permission to reuse or retune an opened target cohort.
 
+## Query-space relevance
+
+Calibration and dependence diagnostics operate in observation space. A separate
+experimental Python diagnostic projects `blockdiag(D_i) + U U^T` through a
+consumer-supplied local query Jacobian without materializing the dense observation
+covariance. It reports trace, coordinate, effective-rank, and generalized
+directional shares of query variance caused by the shared modes. See
+[query-space covariance relevance](query-covariance-relevance.md).
+
+The consumer remains responsible for defining the physical query, freezing any
+selection or practical-equivalence rule on source/calibration groups, and
+preserving exact fallback. Query relevance is not a provider-promotion decision.
+
 This is a calibration diagnostic, not a provider promotion decision. Provider
 competence and guarded BayesianPhysTwin benefit remain separate frozen gates.
