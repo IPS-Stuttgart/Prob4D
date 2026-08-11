@@ -64,6 +64,7 @@ def test_authoritative_quality_workflow_covers_current_stable_surfaces() -> None
     required = (
         "src/prob4d/_version.py",
         "src/prob4d/api/v1.py",
+        "src/prob4d/api/v2.py",
         "src/prob4d/provider_v2_factor_bundle.py",
         "src/prob4d/provider_v2_factors.py",
         "src/prob4d/sparse_observation_factors.py",
