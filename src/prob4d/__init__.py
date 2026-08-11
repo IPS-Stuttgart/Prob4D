@@ -364,6 +364,7 @@ if len(_LAZY_EXPORTS) != sum(len(names) for _, names in _LAZY_EXPORT_GROUPS):
 if set(__all__) != set(_LAZY_EXPORTS) | {"__version__"}:
     raise RuntimeError("Prob4D lazy exports and __all__ differ")
 
+
 def __getattr__(name: str) -> object:
     """Load one historical top-level export from its owning module."""
 
@@ -373,6 +374,7 @@ def __getattr__(name: str) -> object:
     value = getattr(import_module(module_name), name)
     globals()[name] = value
     return value
+
 
 def __dir__() -> list[str]:
     """Include lazy public exports in module introspection."""
