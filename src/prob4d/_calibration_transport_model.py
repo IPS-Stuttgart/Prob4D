@@ -10,12 +10,12 @@ from typing import Any
 import numpy as np
 
 from ._calibration_transport_common import (
+    _IQR_NORMAL_SCALE,
+    _MAD_NORMAL_SCALE,
+    _MODEL_FIELDS,
     CALIBRATION_TRANSPORT_CLAIM_BOUNDARY,
     CALIBRATION_TRANSPORT_MODEL_SCHEMA,
     CALIBRATION_TRANSPORT_VERSION,
-    _IQR_NORMAL_SCALE,
-    _MODEL_FIELDS,
-    _MAD_NORMAL_SCALE,
     CalibrationTransportPolicyV1,
     CalibrationTransportUnitV1,
     FloatArray,
