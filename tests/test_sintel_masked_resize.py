@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import h5py
 import numpy as np
 import pytest
 
@@ -69,6 +68,7 @@ def test_mask_normalized_resize_rejects_invalid_support(value: object) -> None:
 
 
 def test_load_sintel_truth_uses_mask_normalized_resize(tmp_path: Path) -> None:
+    h5py = pytest.importorskip("h5py")
     path = tmp_path / "truth.hdf5"
     points = np.zeros((1, 2, 2, 3), dtype=np.float32)
     points[..., 2] = 10.0
