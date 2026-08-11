@@ -1,0 +1,53 @@
+name: Apply VGGT format fix
+
+on:
+  push:
+    branches:
+      - agent/race-safe-artifact-publication
+    paths:
+      - ".github/workflows/apply-vggt-format-fix.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-vggt-format-fix
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: Apply exact formatting fix and remove workflow
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Apply exact formatter output
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/prob4d/vggt_baseline.py")
+          text = path.read_text(encoding="utf-8")
+          old = '''                raise ValueError(
+                              f"refusing to replace different VGGT prediction {path}"
+                          ) from None
+          '''
+          new = '''                raise ValueError(f"refusing to replace different VGGT prediction {path}") from None
+          '''
+          if text.count(old) != 1:
+              raise SystemExit("expected VGGT formatter target exactly once")
+          path.write_text(text.replace(old, new), encoding="utf-8")
+          PY
+          git rm -- ".github/workflows/apply-vggt-format-fix.yml"
+          git add -- "src/prob4d/vggt_baseline.py"
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Format VGGT archive conflict error"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
