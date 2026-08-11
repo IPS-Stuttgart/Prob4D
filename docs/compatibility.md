@@ -30,6 +30,13 @@ the strict loaders and contracts through `prob4d.api.v2`. Direct imports from
 `prob4d.sim3` are implementation dependencies rather than the supported
 ecosystem boundary.
 
+The broad `prob4d` root remains a historical compatibility surface. Its export
+inventory is unchanged, but runtime attributes are now loaded lazily and its
+complete static typing surface is packaged in `prob4d/__init__.pyi`. The
+content-addressed public API manifest records the exact root, `api.v1`, and
+`api.v2` inventories for an installed distribution. See
+[public API manifest](public-api-manifest.md).
+
 The historical `prob4d.motioncrafter-model.v1` identifier covers the original
 common-seed behavior, whether the manifest omits `seed_policy` or explicitly
 uses `legacy-common`. A run using `derived-per-call` receives a
@@ -116,6 +123,6 @@ and output artifact digests inside the owning evidence record.
 - A repository transfer alone does not permit rewriting a frozen artifact's
   source-repository field.
 
-Passing compatibility tests is infrastructure evidence. It does not establish
-accuracy, calibration, transfer, intervention benefit, deployment safety, or
-state of the art.
+Passing compatibility tests or validating a public API manifest is
+infrastructure evidence. It does not establish accuracy, calibration, transfer,
+intervention benefit, deployment safety, or state of the art.

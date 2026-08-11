@@ -74,6 +74,12 @@ def test_license_and_typing_metadata_are_explicit() -> None:
     assert isinstance(classifiers, list)
     assert "Typing :: Typed" in classifiers
 
+    package_data = tomllib.loads(
+        (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    )["tool"]["setuptools"]["package-data"]["prob4d"]
+    assert "__init__.pyi" in package_data
+    assert "py.typed" in package_data
+
     license_text = (ROOT / "LICENSE").read_text(encoding="utf-8")
     assert license_text.startswith("MIT License\n")
     assert "Copyright (c) 2026 Florian Pfaff" in license_text
@@ -81,10 +87,19 @@ def test_license_and_typing_metadata_are_explicit() -> None:
 
 
 def test_observation_export_documentation_uses_an_explicit_route() -> None:
-    documentation = (ROOT / "docs" / "observation-belief-export.md").read_text(encoding="utf-8")
-    assert "prob4d observation export-calibrated \\" in documentation
-    assert "prob4d observation export \\" not in documentation
+    documentation = (ROOT / "docs" / "observation-belief-export.md").read_text(
+        encoding="utf-8"
+    )
+    calibrated_command = "prob4d observation export-calibrated \\"
+    ambiguous_command = "prob4d observation export \\"
+    assert calibrated_command in documentation
+    assert ambiguous_command not in documentation
     assert "prob4d observation export-v1" in documentation
+
+
+def test_current_release_note_exists() -> None:
+    release_note = ROOT / "docs" / "releases" / f"{_expected_version()}.md"
+    assert release_note.is_file()
 
 
 def test_release_governance_files_exist() -> None:
@@ -101,10 +116,12 @@ def test_release_governance_files_exist() -> None:
         "SECURITY.md",
         "docs/distribution-boundaries.md",
         "docs/ecosystem-release-capsule.md",
+        "docs/public-api-manifest.md",
         "docs/public-api.md",
-        "docs/releases/0.4.0.md",
         "docs/trusted-self-hosted-validation.md",
         "scripts/ci/build_ecosystem_release_capsule.py",
         "scripts/ci/check_sdist.py",
+        "src/prob4d/__init__.pyi",
+        "src/prob4d/public_api_manifest.py",
     ):
         assert (ROOT / name).is_file(), name
