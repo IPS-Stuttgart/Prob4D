@@ -277,9 +277,7 @@ def write_prediction_archive(
             publish_temporary_file(temporary, path, overwrite=False)
         except FileExistsError:
             if not _archives_equal(path, temporary):
-                raise ValueError(
-                    f"refusing to replace different VGGT prediction {path}"
-                ) from None
+                raise ValueError(f"refusing to replace different VGGT prediction {path}") from None
     finally:
         temporary.unlink(missing_ok=True)
 
