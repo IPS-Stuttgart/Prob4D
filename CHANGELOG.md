@@ -5,12 +5,7 @@ release notes and scientific boundaries live under `docs/releases/`.
 
 ## Unreleased
 
-### Added
-
-- A dense-free query-space covariance relevance diagnostic that projects
-  conditional-plus-low-rank Prob4D uncertainty through a consumer-supplied local
-  query Jacobian and reports trace, coordinate, rank, and directional shared-mode
-  contributions without defining downstream admission.
+No changes yet.
 
 ## 0.4.0 — 2026-08-10
 
