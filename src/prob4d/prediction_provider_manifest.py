@@ -12,13 +12,12 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
-import tempfile
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Any, Final
 
+from ._atomic_file import atomic_write_text
 from ._immutable_json import frozen_finite_json_mapping, plain_json
 from ._strict_json import (
     load_json_object,
@@ -185,36 +184,8 @@ def _relative_member(path: Path, *, root: Path, name: str) -> str:
     return _safe_relative_path(relative.as_posix(), name=name)
 
 
-def _fsync_directory(path: Path) -> None:
-    try:
-        descriptor = os.open(path, os.O_RDONLY)
-    except OSError:
-        return
-    try:
-        os.fsync(descriptor)
-    except OSError:
-        pass
-    finally:
-        os.close(descriptor)
-
-
 def _atomic_write_text(path: Path, content: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary_name = tempfile.mkstemp(
-        prefix=f".{path.name}.",
-        suffix=".tmp",
-        dir=path.parent,
-    )
-    try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
-            stream.write(content)
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.replace(temporary_name, path)
-        _fsync_directory(path.parent)
-    finally:
-        if os.path.exists(temporary_name):
-            os.unlink(temporary_name)
+    atomic_write_text(path, content, overwrite=False)
 
 
 @dataclass(frozen=True)
@@ -713,12 +684,14 @@ def save_prediction_provider_manifest(
     destination = Path(path)
     record = manifest.to_record()
     content = json.dumps(record, indent=2, sort_keys=True, allow_nan=False) + "\n"
-    if destination.exists():
+    try:
+        _atomic_write_text(destination, content)
+    except FileExistsError:
         existing = load_prediction_provider_manifest(destination)
         if existing.to_record() != record:
-            raise ValueError("refusing to replace a different prediction-provider manifest")
-        return destination
-    _atomic_write_text(destination, content)
+            raise ValueError(
+                "refusing to replace a different prediction-provider manifest"
+            ) from None
     return destination
 
 

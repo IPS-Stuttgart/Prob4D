@@ -13,6 +13,7 @@ from typing import Any
 
 import numpy as np
 
+from ._atomic_file import publish_temporary_file
 from .data import DENSE_STORAGE_DTYPES, PredictionWindow
 from .prediction_provider_manifest import (
     PredictionFrameLineageV1,
@@ -93,26 +94,28 @@ def _windows_equal(first: PredictionWindow, second: PredictionWindow) -> bool:
 
 def _write_window_atomically(path: Path, window: PredictionWindow) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    if path.exists():
-        existing = PredictionWindow.from_npz(
-            path,
-            dense_storage_dtype=window.dense_storage_dtype,
-        )
-        if not _windows_equal(existing, window):
-            raise ValueError(f"refusing to replace different canonical VGGT payload {path.name!r}")
-        return
     descriptor, temporary_name = tempfile.mkstemp(
         prefix=f".{path.stem}.",
         suffix=".npz",
         dir=path.parent,
     )
     os.close(descriptor)
+    temporary = Path(temporary_name)
     try:
-        window.to_npz(temporary_name)
-        os.replace(temporary_name, path)
+        window.to_npz(temporary)
+        try:
+            publish_temporary_file(temporary, path, overwrite=False)
+        except FileExistsError:
+            existing = PredictionWindow.from_npz(
+                path,
+                dense_storage_dtype=window.dense_storage_dtype,
+            )
+            if not _windows_equal(existing, window):
+                raise ValueError(
+                    f"refusing to replace different canonical VGGT payload {path.name!r}"
+                ) from None
     finally:
-        if os.path.exists(temporary_name):
-            os.unlink(temporary_name)
+        temporary.unlink(missing_ok=True)
 
 
 def _adapter_id() -> str:

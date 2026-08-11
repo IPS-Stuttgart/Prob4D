@@ -11,12 +11,12 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal, cast
 
+from ._atomic_file import atomic_write_text
 from ._immutable_json import frozen_finite_json_mapping, plain_json
 from ._strict_json import (
     load_json_object,
@@ -231,32 +231,15 @@ def _atomic_write_json(
     *,
     overwrite: bool,
 ) -> None:
-    destination = Path(path)
     if type(overwrite) is not bool:
         raise ValueError("overwrite must be a Boolean")
-    if destination.exists() and not overwrite:
-        raise FileExistsError(destination)
-    destination.parent.mkdir(parents=True, exist_ok=True)
     payload = json.dumps(
         plain_json(value),
         sort_keys=True,
         indent=2,
         allow_nan=False,
     ) + "\n"
-    temporary = destination.with_name(
-        f".{destination.name}.tmp-{os.getpid()}-"
-        f"{hashlib.sha256(payload.encode()).hexdigest()[:16]}"
-    )
-    try:
-        with temporary.open("x", encoding="utf-8") as stream:
-            stream.write(payload)
-            stream.flush()
-            os.fsync(stream.fileno())
-        if destination.exists() and not overwrite:
-            raise FileExistsError(destination)
-        os.replace(temporary, destination)
-    finally:
-        temporary.unlink(missing_ok=True)
+    atomic_write_text(path, payload, overwrite=overwrite)
 
 
 def _gate_name(value: object) -> GateName:
