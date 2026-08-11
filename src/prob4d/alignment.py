@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field, replace
@@ -227,6 +227,39 @@ class _CovarianceEstimate:
     information_condition: float
 
 
+def _factorized_information_solver(
+    information: FloatArray,
+) -> Callable[[FloatArray], FloatArray]:
+    """Return a solve function for one validated full-rank information matrix."""
+
+    symmetric = 0.5 * (information + information.T)
+    try:
+        cholesky = np.linalg.cholesky(symmetric)
+    except np.linalg.LinAlgError:
+        eigenvalues, eigenvectors = np.linalg.eigh(symmetric)
+        threshold = max(
+            float(np.max(np.abs(eigenvalues), initial=0.0)) * 1e-10,
+            np.finfo(np.float64).eps,
+        )
+        if float(np.min(eigenvalues)) <= threshold:
+            raise ValueError(
+                "alignment information is not numerically positive definite"
+            ) from None
+
+        def solve(right_hand_side: FloatArray) -> FloatArray:
+            right = np.asarray(right_hand_side, dtype=np.float64)
+            projected = eigenvectors.T @ right
+            return eigenvectors @ (projected / eigenvalues[:, None])
+
+        return solve
+
+    def solve(right_hand_side: FloatArray) -> FloatArray:
+        right = np.asarray(right_hand_side, dtype=np.float64)
+        return np.linalg.solve(cholesky.T, np.linalg.solve(cholesky, right))
+
+    return solve
+
+
 def _weighted_umeyama(source: FloatArray, target: FloatArray, weights: FloatArray) -> Sim3:
     weights = np.asarray(weights, dtype=np.float64)
     weight_sum = float(weights.sum())
@@ -310,19 +343,20 @@ def _alignment_covariance_estimate(
             f"alignment geometry is rank-deficient ({information_rank}/7 observable parameters)"
         )
     information_condition = float(singular_values[0] / singular_values[-1])
-    inverse_information = np.linalg.pinv(information, rcond=1e-10)
+    solve_information = _factorized_information_solver(information)
 
     if cluster_scores is None:
         degrees_of_freedom = max(1, 3 * active - 7)
         variance = float(np.sum(weights[:, None] * residuals**2) / degrees_of_freedom)
-        covariance = variance * inverse_information
+        covariance = variance * solve_information(np.eye(7))
         method = "iid_gauss_newton"
     else:
         meat = cluster_scores.T @ cluster_scores
         finite_sample_correction = (num_clusters / (num_clusters - 1)) * (
             (active - 1) / max(active - 7, 1)
         )
-        covariance = finite_sample_correction * inverse_information @ meat @ inverse_information
+        left_solve = solve_information(meat)
+        covariance = finite_sample_correction * solve_information(left_solve.T).T
         method = DENSE_ALIGNMENT_COVARIANCE_METHOD
 
     floor = np.diag([1e-10, 1e-10, 1e-10, 1e-10, 1e-12, 1e-12, 1e-12])

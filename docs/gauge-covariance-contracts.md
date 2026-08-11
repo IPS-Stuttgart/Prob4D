@@ -35,6 +35,18 @@ statistics are formed. Whitening and Mahalanobis computations use the shared
 fail-closed eigendecomposition rather than silently repairing materially invalid
 input.
 
+## Analytic experimental propagation
+
+The additive `prob4d.gauge_analytic` module provides analytic `Sim(3)`
+composition and inverse covariance propagation plus
+`AnalyticSequentialGaugeEstimatorV2`. The historical estimator remains
+unchanged. See [analytic gauge covariance propagation](analytic-gauge-propagation.md).
+
+Alignment covariance for both IID and cluster-robust modes is formed through
+factorized information solves rather than an explicit pseudoinverse after the
+information matrix has passed the existing full-rank check. Method labels and
+statistical formulas remain unchanged.
+
 ## Claim boundary
 
 These checks prevent malformed or caller-mutated uncertainty from entering gauge
