@@ -7,8 +7,9 @@ import textwrap
 from importlib import import_module
 from pathlib import Path
 
-import prob4d
 import pytest
+
+import prob4d
 
 
 def _run_probe(source: str) -> None:
@@ -103,4 +104,4 @@ def test_unknown_root_attribute_raises_standard_attribute_error() -> None:
         AttributeError,
         match="module 'prob4d' has no attribute 'definitely_not_an_export'",
     ):
-        getattr(prob4d, "definitely_not_an_export")
+        prob4d.definitely_not_an_export

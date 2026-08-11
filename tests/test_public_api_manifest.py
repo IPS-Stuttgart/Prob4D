@@ -3,8 +3,9 @@ from __future__ import annotations
 import json
 from copy import deepcopy
 
-import prob4d
 import pytest
+
+import prob4d
 from prob4d.api import v1 as api_v1
 from prob4d.api import v2 as api_v2
 from prob4d.public_api_manifest import (
@@ -25,9 +26,9 @@ def test_public_api_manifest_is_deterministic_and_complete() -> None:
 
     assert first == second
     assert first["schema"] == PUBLIC_API_MANIFEST_SCHEMA
-    assert first["schema_version"] == PUBLIC_API_MANIFST_VERSION
+    assert first["schema_version"] == PUBLIC_API_MANIFEST_VERSION
     assert first["package"]["version"] == prob4d.__version__
-    assert first["claim_boundary"] == PUBLIC_API_MANIFST_CLAIM_BOUNDARY
+    assert first["claim_boundary"] == PUBLIC_API_MANIFEST_CLAIM_BOUNDARY
 
     surfaces = first["surfaces"]
     assert surfaces["compatibility_root"]["loading"] == "lazy-compatibility-shim-v1"

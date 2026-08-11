@@ -86,7 +86,7 @@ def build_public_api_manifest() -> dict[str, Any]:
                 "exports": _surface_exports(api_v2.__all__, name="api_v2"),
             },
         },
-        "claim_boundary": PUBLIC_API_MANIFST_CLAIM_BOUNDARY,
+        "claim_boundary": PUBLIC_API_MANIFEST_CLAIM_BOUNDARY,
     }
     payload["manifest_id"] = _manifest_id(payload)
     return validate_public_api_manifest(payload)
@@ -155,7 +155,7 @@ def validate_public_api_manifest(value: Any) -> dict[str, Any]:
         raise ValueError("unsupported public-API manifest schema version")
     if (
         _strict_string(payload["claim_boundary"], name="claim_boundary")
-        != PUBLIC_API_MANIFST_CLAIM_BOUNDARY
+        != PUBLIC_API_MANIFEST_CLAIM_BOUNDARY
     ):
         raise ValueError("public-API manifest claim boundary is not canonical")
 
@@ -256,7 +256,7 @@ def validate_public_api_manifest(value: Any) -> dict[str, Any]:
     unsigned = dict(payload)
     unsigned.pop("manifest_id")
     if manifest_id != _manifest_id(unsigned):
-        raise ValueEError("manifest_id does not match the canonical manifest content")
+        raise ValueError("manifest_id does not match the canonical manifest content")
     canonical: dict[str, Any] = json.loads(_canonical_json(payload))
     return canonical
 
@@ -265,7 +265,7 @@ def load_public_api_manifest(path: str | Path) -> dict[str, Any]:
     """Load strict JSON and validate a public-API manifest."""
 
     def reject_constant(value: str) -> None:
-        raise ValueEError(f"non-finite JSON constant is forbidden: {value}")
+        raise ValueError(f"non-finite JSON constant is forbidden: {value}")
 
     def unique_object(pairs: Sequence[tuple[str, Any]]) -> dict[str, Any]:
         result: dict[str, Any] = {}
