@@ -7,6 +7,55 @@ release notes and scientific boundaries live under `docs/releases/`.
 
 No changes yet.
 
+## 0.4.1 — 2026-08-12
+
+### Added
+
+- A source-fitted correlation-group robust likelihood with complete
+  object/session selection, one contamination state per declared dependence
+  group, and exact Gaussian fallback when source support is insufficient.
+- An additive analytic `Sim(3)` composition and inversion covariance path with
+  branch-cut rejection and factorized solves for declared full-rank alignment
+  systems.
+- Source-only calibration-transport certificates, source-provider competence
+  reports, and query-space covariance relevance and preservation diagnostics.
+- A target-closed fresh-provider cohort lock, ordered seven-gate readiness
+  decision, deterministic failure localization, one-shot target authorization,
+  and a conformance corpus covering every terminal classification.
+- A content-addressed public API manifest for the compatibility root and the
+  stable `prob4d.api.v1` and `prob4d.api.v2` façades.
+- A packaged root typing stub that preserves the historical typed import surface
+  under lazy runtime loading.
+
+### Changed
+
+- Importing the broad `prob4d` compatibility root no longer eagerly imports
+  calibration, fusion, gauge-graph, observation, storage, and reliability
+  implementations. Historical exports load on first access and retain exact
+  object identity.
+- Source-distribution and release checks now require and exercise the root typing
+  stub, public API manifest, current release note, and installed lazy-import
+  behavior.
+- Public API documentation now distinguishes the lazy compatibility root from the
+  supported versioned façades and provides a reproducible manifest workflow.
+
+### Fixed
+
+- Sampled Gaussian fusion and declared full-rank covariance operations use
+  validated factorized solves instead of explicit inverses or pseudoinverses.
+- Invalid Sintel truth coordinates are prevented from leaking through bilinear
+  resampling.
+- Fresh-provider readiness cannot conflate failed means, identities,
+  gauge/dependence, point covariance, query relevance, or technical fallback
+  failures, and target authorization is bound to exactly one unopened roster.
+
+### Scientific boundary
+
+This release adds implementation, interoperability, and prospective protocol
+infrastructure. It does not establish fresh real-provider competence, calibrated
+target uncertainty, unseen-object BayesianPhysTwin benefit, Causal4D
+intervention benefit, deployment safety, or state of the art.
+
 ## 0.4.0 — 2026-08-10
 
 ### Added

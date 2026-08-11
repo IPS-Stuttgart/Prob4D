@@ -25,6 +25,21 @@ new-integration dependency boundaries. A breaking change requires a new module
 such as `prob4d.api.v3`; it must not silently change `prob4d.api.v1` or
 `prob4d.api.v2`.
 
+## Lazy compatibility root
+
+Importing `prob4d` now records the complete historical root export inventory
+without importing calibration, fusion, gauge-graph, observation, prediction
+storage, or reliability implementations. Accessing an exported attribute loads
+its owning module once and caches the object in the package root.
+
+The export set and object identities are unchanged. `dir(prob4d)`,
+`from prob4d import Sim3`, and historical star imports continue to see the same
+inventory. The packaged `prob4d/__init__.pyi` retains the complete static typing
+surface even though runtime loading is lazy.
+
+This optimization does not promote the broad root into a stable dependency
+boundary. New integrations should still use a versioned façade.
+
 ## Version 1 boundary
 
 `prob4d.api.v1` is the frozen provider-v1 reproduction surface. It exposes the
@@ -47,6 +62,25 @@ provider-evaluation studies, and paper-specific evidence code are deliberately
 outside the façade. BayesianPhysTwin may independently revalidate producer
 artifacts and apply its own physical-update guards. Causal4D may continue to
 validate neutral wire artifacts without importing Prob4D.
+
+## Machine-readable inventory
+
+The exact executing surfaces can be emitted as a content-addressed JSON artifact:
+
+```bash
+python -m prob4d.public_api_manifest print
+
+python -m prob4d.public_api_manifest build \
+  --output public-api-manifest.json
+
+python -m prob4d.public_api_manifest verify \
+  public-api-manifest.json \
+  --require-current
+```
+
+The artifact records the package version, project identity, root loading mode,
+root exports, versioned façade exports, and provider API versions. See
+[public API manifest](public-api-manifest.md) for the schema and claim boundary.
 
 ## Ownership boundary
 
