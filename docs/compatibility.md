@@ -1,10 +1,10 @@
 # Version and compatibility boundaries
 
-Prob4D versions its Python providers separately from its portable artifact
+Prob4D versions its Python façades separately from portable artifact and wire
 contracts. Exact repository revisions and artifact digests remain mandatory for
-frozen evidence even when package-version ranges are compatible.
+frozen evidence even when released package versions are compatible.
 
-## Prob4D 0.3.x surfaces
+## Prob4D 0.4.x surfaces
 
 | Surface | Version | Intended use |
 | --- | ---: | --- |
@@ -16,12 +16,16 @@ frozen evidence even when package-version ranges are compatible.
 | Prob4D causal stream contract | 2 | Strict causal lineage and joint-gauge semantics |
 | `ObservationFactorBundle` | 4 | Unfused factors with ordered joint gauge covariance |
 | `ObservationFactorStreamV1` | 1 | Append-only sequence of causal schema-v4 delta bundles |
+| `GaugeTreeSquareRootPriorV1` | 1 | Portable causal tree transition/innovation prior |
+| `TreeSparseObservationArtifactV1` | 1 | Portable tree-sparse factor and prior artifact |
+| `ClaimBearingTreeSparseObservationEnvelopeV1` | 1 | Strict tree-sparse admission envelope |
+| `prob4d.provider_v2_factors.v1` | 1 | Normative provider-v2 conformance corpus |
 | MotionCrafter model identifier | 1 / 2 | Legacy common seed / derived per-call seed semantics |
 
 Provider-v1 behavior and the standalone
 `prob4d-export-observation-belief` executable remain available for frozen run
-manifests. New work should choose an explicit provider-v2 export mode and import the
-strict loaders and contracts through `prob4d.api.v2`. Direct imports from
+manifests. New work should choose an explicit provider-v2 export mode and import
+the strict loaders and contracts through `prob4d.api.v2`. Direct imports from
 `prob4d.provider_v2`, `prob4d.provider_v2_factors`, `prob4d.gauge`, or
 `prob4d.sim3` are implementation dependencies rather than the supported
 ecosystem boundary.
@@ -32,6 +36,21 @@ uses `legacy-common`. A run using `derived-per-call` receives a
 `prob4d.motioncrafter-model.v2` identifier, and its source-bound seed schedule is
 validated before claim-bearing calibration compatibility is accepted. See
 [the stochastic seed policy](stochastic-seed-policy.md).
+
+## Normative cross-repository corpora
+
+Prob4D packages two separate data-only interoperability references:
+
+- `phys4d.observation_belief` version 1 fixes the neutral fused-observation wire
+  contract; and
+- `prob4d.provider_v2_factors.v1` fixes the explicit-gauge and tree-sparse
+  provider-v2 construction boundary.
+
+BayesianPhysTwin and Causal4D may carry byte-identical corpus copies while
+retaining independent validators. Exact corpus identity, structural semantics,
+and declared numerical tolerances are conformance evidence. A green corpus does
+not establish provider accuracy, calibration, physical-query benefit, or
+intervention benefit.
 
 ## Grouped CLI migration
 
@@ -63,25 +82,31 @@ the canonical repository separately for navigation. Existing provider-v1,
 causal-stream, and provider-v2 artifact schemas retain their exact historical
 repository semantics. See [repository identity](repository-identity.md).
 
-## Companion projects
+## Companion-project compatibility
 
-At the time Prob4D 0.3.0 was prepared, the companion package versions on their
-main branches were:
+Do not maintain a table of mutable companion-repository branch versions in this
+document. Such a table becomes stale whenever Prob4D, BayesianPhysTwin, or
+Causal4D merges an unrelated change and can be mistaken for frozen scientific
+provenance.
 
-- Bayesian-PhysTwin 0.4.0;
-- Causal4D 0.4.1.
-
-These numbers are development reference points, not substitutes for the
-three-repository installed-wheel golden path. Claim-bearing runs must bind exact
-Prob4D, Bayesian-PhysTwin, and Causal4D commits, wheel hashes, provider
-manifests, artifacts, and protocol identifiers.
+For ordinary development, consume released versioned façades and run the
+three-repository installed-wheel compatibility capsule. For claim-bearing runs,
+bind the exact Prob4D, BayesianPhysTwin, and Causal4D revisions, wheel hashes,
+provider manifests, contract-corpus identities, protocol identifiers, and input
+and output artifact digests inside the owning evidence record.
 
 ## Upgrade rules
 
-- A breaking Python signature requires a new provider module.
+- A breaking stable Python signature requires a new `prob4d.api.vN` façade.
+- A breaking provider implementation signature that remains outside the stable
+  façade requires a new provider module or an explicit internal migration.
 - A breaking Prob4D-specific interpretation of an observation artifact requires
   a new causal-stream contract version.
 - A breaking factor-bundle representation requires a new bundle schema.
+- A changed tree-prior or tree-sparse representation requires a new artifact
+  schema and corresponding provider capability.
+- A changed normative corpus requires a new corpus version and bundle identity;
+  one repository must not silently edit its local validator or vectors.
 - A changed stream hash or interval interpretation requires a new factor-stream
   schema.
 - A changed covariance or reliability fitting method requires regenerated,
@@ -92,4 +117,5 @@ manifests, artifacts, and protocol identifiers.
   source-repository field.
 
 Passing compatibility tests is infrastructure evidence. It does not establish
-accuracy, calibration, transfer, intervention benefit, or safety.
+accuracy, calibration, transfer, intervention benefit, deployment safety, or
+state of the art.
