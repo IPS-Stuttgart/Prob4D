@@ -64,6 +64,15 @@ def test_explicit_overwrite_replaces_complete_bytes(tmp_path: Path) -> None:
     assert destination.read_bytes() == b"second"
 
 
+def test_atomic_writer_rejects_non_boolean_overwrite(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="overwrite must be a Boolean"):
+        atomic_write_bytes(
+            tmp_path / "artifact.bin",
+            b"payload",
+            overwrite=1,  # type: ignore[arg-type]
+        )
+
+
 @pytest.mark.parametrize(
     "writer",
     [
