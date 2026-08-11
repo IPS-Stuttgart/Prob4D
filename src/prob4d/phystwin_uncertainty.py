@@ -199,28 +199,76 @@ def calibrate_covariance_scale(errors: FloatArray, covariances: FloatArray) -> f
     return max(scale, np.finfo(np.float64).eps)
 
 
+def _positive_definite_covariance_batch(
+    value: FloatArray,
+    *,
+    count: int,
+    name: str,
+) -> FloatArray:
+    """Broadcast and validate one symmetric positive-definite covariance batch."""
+
+    raw = np.asarray(value, dtype=np.float64)
+    try:
+        covariance = np.broadcast_to(raw, (count, 3, 3))
+    except ValueError as error:
+        raise ValueError(f"{name} must broadcast to shape ({count}, 3, 3)") from error
+    if not np.all(np.isfinite(covariance)):
+        raise ValueError(f"{name} must be finite")
+    symmetric = 0.5 * (covariance + covariance.swapaxes(1, 2))
+    scale = np.maximum(np.max(np.abs(symmetric), axis=(1, 2)), 1.0)
+    if not np.allclose(
+        covariance,
+        symmetric,
+        atol=1e-12 * scale[:, None, None],
+        rtol=1e-10,
+    ):
+        raise ValueError(f"{name} must be symmetric")
+    try:
+        np.linalg.cholesky(symmetric)
+    except np.linalg.LinAlgError as error:
+        raise ValueError(f"{name} must be positive definite") from error
+    return symmetric
+
+
+def _batched_cholesky_solve(cholesky: FloatArray, right_hand_side: FloatArray) -> FloatArray:
+    forward = np.linalg.solve(cholesky, right_hand_side)
+    return np.linalg.solve(cholesky.swapaxes(1, 2), forward)
+
+
 def gaussian_product(
     mean_a: FloatArray,
     covariance_a: FloatArray,
     mean_b: FloatArray,
     covariance_b: FloatArray,
 ) -> tuple[FloatArray, FloatArray]:
-    """Fuse batched independent Gaussian estimates in information form."""
+    """Fuse independent Gaussian estimates without explicit matrix inversion."""
 
     first = np.asarray(mean_a, dtype=np.float64)
     second = np.asarray(mean_b, dtype=np.float64)
     if first.shape != second.shape or first.ndim != 2 or first.shape[1] != 3:
         raise ValueError("means must share shape (N, 3)")
-    cov_a = np.broadcast_to(np.asarray(covariance_a, dtype=np.float64), (first.shape[0], 3, 3))
-    cov_b = np.broadcast_to(np.asarray(covariance_b, dtype=np.float64), (first.shape[0], 3, 3))
-    precision_a = np.linalg.inv(cov_a)
-    precision_b = np.linalg.inv(cov_b)
-    covariance = np.linalg.inv(precision_a + precision_b)
-    information = (
-        np.einsum("nij,nj->ni", precision_a, first)
-        + np.einsum("nij,nj->ni", precision_b, second)
+    if not np.all(np.isfinite(first)) or not np.all(np.isfinite(second)):
+        raise ValueError("means must be finite")
+    cov_a = _positive_definite_covariance_batch(
+        covariance_a,
+        count=first.shape[0],
+        name="covariance_a",
     )
-    mean = np.einsum("nij,nj->ni", covariance, information)
+    cov_b = _positive_definite_covariance_batch(
+        covariance_b,
+        count=first.shape[0],
+        name="covariance_b",
+    )
+
+    summed = cov_a + cov_b
+    cholesky = np.linalg.cholesky(summed)
+    innovation = (second - first)[..., None]
+    solved_innovation = _batched_cholesky_solve(cholesky, innovation)[..., 0]
+    mean = first + np.einsum("nij,nj->ni", cov_a, solved_innovation)
+
+    solved_b = _batched_cholesky_solve(cholesky, cov_b)
+    covariance = np.einsum("nij,njk->nik", cov_a, solved_b)
+    covariance = 0.5 * (covariance + covariance.swapaxes(1, 2))
     return mean, covariance
 
 
