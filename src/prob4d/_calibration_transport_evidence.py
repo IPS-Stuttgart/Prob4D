@@ -9,10 +9,10 @@ from typing import Any
 import numpy as np
 
 from ._calibration_transport_common import (
+    _EVIDENCE_FIELDS,
     CALIBRATION_TRANSPORT_CLAIM_BOUNDARY,
     CALIBRATION_TRANSPORT_EVIDENCE_SCHEMA,
     CALIBRATION_TRANSPORT_VERSION,
-    _EVIDENCE_FIELDS,
     CalibrationTransportUnitV1,
     FloatArray,
     _readonly_float,
