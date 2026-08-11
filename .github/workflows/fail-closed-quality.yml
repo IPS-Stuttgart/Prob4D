@@ -76,6 +76,7 @@ jobs:
           python -m mypy \
             src/prob4d/_version.py \
             src/prob4d/api/v1.py \
+            src/prob4d/api/v2.py \
             src/prob4d/cli.py \
             src/prob4d/calibration_compatibility.py \
             src/prob4d/composition_jacobian.py \
