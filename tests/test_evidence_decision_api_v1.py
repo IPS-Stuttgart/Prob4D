@@ -1,7 +1,9 @@
 from __future__ import annotations
 
-import prob4d.api.evidence_decision_v1 as api
-import prob4d.evidence_decision_v1 as implementation
+from importlib import import_module
+
+api = import_module("prob4d.api.evidence_decision_v1")
+implementation = import_module("prob4d.evidence_decision_v1")
 
 
 EXPECTED_PUBLIC_API = {
