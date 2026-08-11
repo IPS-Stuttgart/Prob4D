@@ -1,10 +1,9 @@
-"""Source-fitted contaminated-Gaussian likelihood for complete correlation groups.
+"""Source-fitted contaminated-Gaussian likelihood for correlation groups.
 
-One latent contamination state is shared by every row in a declared correlation
-or statistical group. Association probability and prior reliability remain
-separate inputs owned by their existing contracts; the posterior contamination
-responsibility produced here is a likelihood diagnostic, not a replacement for
-either quantity.
+One latent contamination state is shared by every row in one coherent correlation
+group. Independent source objects or sessions remain the outer statistical units.
+Association probability and prior reliability remain separate from the posterior
+contamination responsibility computed here.
 """
 
 from __future__ import annotations
@@ -27,9 +26,10 @@ CORRELATION_GROUP_ROBUST_SCHEMA = "prob4d.correlation-group-robust-likelihood"
 CORRELATION_GROUP_ROBUST_VERSION = 1
 CORRELATION_GROUP_ROBUST_CLAIM_BOUNDARY = (
     "This source-side diagnostic fits a finite contaminated-Gaussian candidate grid "
-    "over complete independent groups. Posterior contamination responsibility is "
-    "distinct from association probability and prior reliability. The result does "
-    "not authorize a BayesianPhysTwin update, replace exact fallback, establish "
+    "over correlation groups nested inside independent source objects or sessions. "
+    "Posterior contamination responsibility is distinct from association probability "
+    "and prior reliability. The result does not authorize a BayesianPhysTwin "
+    "update, replace exact fallback, establish "
     "target calibration, or establish Causal4D intervention benefit."
 )
 
@@ -117,7 +117,11 @@ class CorrelationGroupContaminationSpecV1:
         }
         object.__setattr__(self, "contamination_probability", probability)
         object.__setattr__(self, "inflation_factor", inflation)
-        object.__setattr__(self, "spec_id", hashlib.sha256(_canonical_json(identity)).hexdigest())
+        object.__setattr__(
+            self,
+            "spec_id",
+            hashlib.sha256(_canonical_json(identity)).hexdigest(),
+        )
 
     @property
     def is_gaussian_fallback(self) -> bool:
@@ -137,7 +141,7 @@ GAUSSIAN_GROUP_LIKELIHOOD_V1 = CorrelationGroupContaminationSpecV1(0.0, 1.0)
 
 @dataclass(frozen=True, slots=True)
 class CorrelationGroupResidualV1:
-    """Immutable matched residual bundle for one complete independent group."""
+    """Immutable matched residual bundle for one coherent correlation group."""
 
     group_id: str
     residual_xyz_m: FloatArray
@@ -171,9 +175,16 @@ class CorrelationGroupResidualV1:
         local_owned = _readonly(symmetric)
         factor_owned = _readonly(factor)
         digest = hashlib.sha256()
-        digest.update(CORRELATION_GROUP_ROBUST_SCHEMA.encode("ascii"))
-        digest.update(str(CORRELATION_GROUP_ROBUST_VERSION).encode("ascii"))
-        digest.update(group_id.encode("utf-8"))
+        digest.update(
+            _canonical_json(
+                {
+                    "schema": CORRELATION_GROUP_ROBUST_SCHEMA,
+                    "version": CORRELATION_GROUP_ROBUST_VERSION,
+                    "record": "correlation-group-residual",
+                    "group_id": group_id,
+                }
+            )
+        )
         _array_digest(digest, "residual_xyz_m", residual_owned)
         _array_digest(digest, "local_covariance_m2", local_owned)
         _array_digest(digest, "low_rank_factor_m", factor_owned)
@@ -185,6 +196,61 @@ class CorrelationGroupResidualV1:
         object.__setattr__(self, "source_id", digest.hexdigest())
         object.__setattr__(self, "sample_count", int(residual.shape[0]))
         object.__setattr__(self, "dimension", int(3 * residual.shape[0]))
+
+
+@dataclass(frozen=True, slots=True)
+class SourceCorrelationGroupUnitV1:
+    """One independent source object/session containing correlation groups."""
+
+    source_unit_id: str
+    correlation_groups: tuple[CorrelationGroupResidualV1, ...]
+    source_id: str = field(init=False)
+    correlation_group_count: int = field(init=False)
+    sample_count: int = field(init=False)
+    dimension: int = field(init=False)
+
+    def __post_init__(self) -> None:
+        source_unit_id = _strict_group_id(
+            self.source_unit_id,
+            name="source_unit_id",
+        )
+        groups = tuple(self.correlation_groups)
+        if not groups:
+            raise ValueError("correlation_groups must not be empty")
+        if not all(isinstance(item, CorrelationGroupResidualV1) for item in groups):
+            raise TypeError(
+                "correlation_groups must contain CorrelationGroupResidualV1 values"
+            )
+        groups = tuple(sorted(groups, key=lambda item: item.group_id))
+        if len({item.group_id for item in groups}) != len(groups):
+            raise ValueError("correlation-group IDs must be unique within a source unit")
+
+        identity = {
+            "schema": CORRELATION_GROUP_ROBUST_SCHEMA,
+            "version": CORRELATION_GROUP_ROBUST_VERSION,
+            "record": "source-correlation-group-unit",
+            "source_unit_id": source_unit_id,
+            "correlation_groups": [
+                {"group_id": group.group_id, "source_id": group.source_id}
+                for group in groups
+            ],
+        }
+        source_id = hashlib.sha256(_canonical_json(identity)).hexdigest()
+
+        object.__setattr__(self, "source_unit_id", source_unit_id)
+        object.__setattr__(self, "correlation_groups", groups)
+        object.__setattr__(self, "source_id", source_id)
+        object.__setattr__(self, "correlation_group_count", len(groups))
+        object.__setattr__(
+            self,
+            "sample_count",
+            sum(item.sample_count for item in groups),
+        )
+        object.__setattr__(
+            self,
+            "dimension",
+            sum(item.dimension for item in groups),
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -340,12 +406,15 @@ def _choose_candidate(
         for index, score in enumerate(scores)
         if float(score) <= best + tie_tolerance
     ]
-    return min(eligible, key=lambda index: _candidate_complexity_key(candidates[index]))
+    return min(
+        eligible,
+        key=lambda index: _candidate_complexity_key(candidates[index]),
+    )
 
 
 @dataclass(frozen=True, slots=True)
-class CorrelationGroupSelectionFoldV1:
-    heldout_group_id: str
+class SourceUnitSelectionFoldV1:
+    heldout_source_unit_id: str
     selected_spec_id: str
     selected_is_robust: bool
     heldout_selected_nll_per_dimension: float
@@ -355,7 +424,7 @@ class CorrelationGroupSelectionFoldV1:
 
     def summary(self) -> dict[str, object]:
         return {
-            "heldout_group_id": self.heldout_group_id,
+            "heldout_source_unit_id": self.heldout_source_unit_id,
             "selected_spec_id": self.selected_spec_id,
             "selected_is_robust": self.selected_is_robust,
             "heldout_selected_nll_per_dimension": (
@@ -375,14 +444,14 @@ class CorrelationGroupSelectionFoldV1:
 class SourceCorrelationGroupMixtureSelectionV1:
     """Replayable source-only selection over a finite frozen candidate grid."""
 
-    group_ids: tuple[str, ...]
-    group_source_ids: tuple[str, ...]
+    source_unit_ids: tuple[str, ...]
+    source_unit_source_ids: tuple[str, ...]
     candidates: tuple[CorrelationGroupContaminationSpecV1, ...]
     nll_per_dimension: FloatArray
-    minimum_group_count: int = 4
+    minimum_source_unit_count: int = 4
     minimum_mean_heldout_advantage_per_dimension: float = 0.0
     maximum_heldout_nll_harm_per_dimension: float = 0.1
-    maximum_harmful_group_fraction: float = 0.0
+    maximum_harmful_source_unit_fraction: float = 0.0
     minimum_final_candidate_fold_fraction: float = 0.5
     tie_tolerance: float = 1e-12
     relative_rank_tolerance: float = 1e-10
@@ -390,39 +459,41 @@ class SourceCorrelationGroupMixtureSelectionV1:
     selected_spec_id: str = field(init=False)
     robust_supported: bool = field(init=False)
     decision_reasons: tuple[str, ...] = field(init=False)
-    candidate_equal_group_mean_nll_per_dimension: tuple[float, ...] = field(init=False)
-    folds: tuple[CorrelationGroupSelectionFoldV1, ...] = field(init=False)
+    candidate_equal_source_unit_mean_nll_per_dimension: tuple[float, ...] = field(
+        init=False
+    )
+    folds: tuple[SourceUnitSelectionFoldV1, ...] = field(init=False)
     mean_heldout_advantage_per_dimension: float = field(init=False)
-    harmful_group_fraction: float = field(init=False)
+    harmful_source_unit_fraction: float = field(init=False)
     final_candidate_fold_fraction: float = field(init=False)
     selection_id: str = field(init=False)
 
     def __post_init__(self) -> None:
-        group_ids = tuple(
-            _strict_group_id(value, name=f"group_ids[{index}]")
-            for index, value in enumerate(self.group_ids)
+        source_unit_ids = tuple(
+            _strict_group_id(value, name=f"source_unit_ids[{index}]")
+            for index, value in enumerate(self.source_unit_ids)
         )
-        if len(group_ids) < 2:
-            raise ValueError("at least two independent groups are required")
-        if tuple(sorted(group_ids)) != group_ids:
-            raise ValueError("group_ids must be sorted")
-        if len(set(group_ids)) != len(group_ids):
-            raise ValueError("group_ids must be unique")
-        source_ids = tuple(self.group_source_ids)
-        if len(source_ids) != len(group_ids):
-            raise ValueError("group_source_ids must match group_ids")
+        if len(source_unit_ids) < 2:
+            raise ValueError("at least two independent source units are required")
+        if tuple(sorted(source_unit_ids)) != source_unit_ids:
+            raise ValueError("source_unit_ids must be sorted")
+        if len(set(source_unit_ids)) != len(source_unit_ids):
+            raise ValueError("source_unit_ids must be unique")
+        source_ids = tuple(self.source_unit_source_ids)
+        if len(source_ids) != len(source_unit_ids):
+            raise ValueError("source_unit_source_ids must match source_unit_ids")
         for index, value in enumerate(source_ids):
             if (
                 not isinstance(value, str)
                 or len(value) != 64
                 or value != value.lower()
             ):
-                raise ValueError(f"group_source_ids[{index}] must be SHA-256 text")
+                raise ValueError(f"source_unit_source_ids[{index}] must be SHA-256 text")
             try:
                 int(value, 16)
             except ValueError as error:
                 raise ValueError(
-                    f"group_source_ids[{index}] must be SHA-256 text"
+                    f"source_unit_source_ids[{index}] must be SHA-256 text"
                 ) from error
 
         raw_candidates = tuple(self.candidates)
@@ -434,7 +505,10 @@ class SourceCorrelationGroupMixtureSelectionV1:
         ):
             raise TypeError("candidates must contain contamination specifications")
         candidate_order = tuple(
-            sorted(range(len(raw_candidates)), key=lambda index: raw_candidates[index].spec_id)
+            sorted(
+                range(len(raw_candidates)),
+                key=lambda index: raw_candidates[index].spec_id,
+            )
         )
         candidates = tuple(raw_candidates[index] for index in candidate_order)
         if len({item.spec_id for item in candidates}) != len(candidates):
@@ -447,18 +521,21 @@ class SourceCorrelationGroupMixtureSelectionV1:
         gaussian_index = gaussian_indices[0]
 
         raw_scores = np.asarray(self.nll_per_dimension, dtype=np.float64)
-        if raw_scores.shape != (len(candidates), len(group_ids)):
-            raise ValueError("nll_per_dimension must have shape (candidate_count, group_count)")
+        if raw_scores.shape != (len(candidates), len(source_unit_ids)):
+            raise ValueError(
+                "nll_per_dimension must have shape "
+                "(candidate_count, source_unit_count)"
+            )
         if not np.all(np.isfinite(raw_scores)):
             raise ValueError("nll_per_dimension must be finite")
         scores = raw_scores[np.asarray(candidate_order, dtype=np.int64)]
 
-        minimum_group_count = _strict_integer(
-            self.minimum_group_count,
-            name="minimum_group_count",
+        minimum_source_unit_count = _strict_integer(
+            self.minimum_source_unit_count,
+            name="minimum_source_unit_count",
         )
-        if minimum_group_count < 2:
-            raise ValueError("minimum_group_count must be at least two")
+        if minimum_source_unit_count < 2:
+            raise ValueError("minimum_source_unit_count must be at least two")
         minimum_advantage = _strict_real(
             self.minimum_mean_heldout_advantage_per_dimension,
             name="minimum_mean_heldout_advantage_per_dimension",
@@ -476,8 +553,8 @@ class SourceCorrelationGroupMixtureSelectionV1:
                 "maximum_heldout_nll_harm_per_dimension must be nonnegative"
             )
         maximum_harm = _validated_probability(
-            self.maximum_harmful_group_fraction,
-            name="maximum_harmful_group_fraction",
+            self.maximum_harmful_source_unit_fraction,
+            name="maximum_harmful_source_unit_fraction",
         )
         minimum_fold_fraction = _validated_probability(
             self.minimum_final_candidate_fold_fraction,
@@ -499,12 +576,12 @@ class SourceCorrelationGroupMixtureSelectionV1:
             candidates,
             tie_tolerance=tie_tolerance,
         )
-        folds: list[CorrelationGroupSelectionFoldV1] = []
+        folds: list[SourceUnitSelectionFoldV1] = []
         selected_indices: list[int] = []
         advantages: list[float] = []
         harmful_count = 0
-        for heldout_index, group_id in enumerate(group_ids):
-            retained = np.ones(len(group_ids), dtype=bool)
+        for heldout_index, source_unit_id in enumerate(source_unit_ids):
+            retained = np.ones(len(source_unit_ids), dtype=bool)
             retained[heldout_index] = False
             training_scores = np.mean(scores[:, retained], axis=1)
             selected_index = _choose_candidate(
@@ -520,10 +597,12 @@ class SourceCorrelationGroupMixtureSelectionV1:
             harmful_count += int(harmful)
             advantages.append(advantage)
             folds.append(
-                CorrelationGroupSelectionFoldV1(
-                    heldout_group_id=group_id,
+                SourceUnitSelectionFoldV1(
+                    heldout_source_unit_id=source_unit_id,
                     selected_spec_id=candidates[selected_index].spec_id,
-                    selected_is_robust=not candidates[selected_index].is_gaussian_fallback,
+                    selected_is_robust=(
+                        not candidates[selected_index].is_gaussian_fallback
+                    ),
                     heldout_selected_nll_per_dimension=selected_score,
                     heldout_gaussian_nll_per_dimension=gaussian_score,
                     heldout_nll_advantage_per_dimension=advantage,
@@ -532,17 +611,19 @@ class SourceCorrelationGroupMixtureSelectionV1:
             )
 
         mean_advantage = float(np.mean(advantages))
-        harmful_fraction = harmful_count / len(group_ids)
-        final_fold_fraction = selected_indices.count(unconstrained_index) / len(group_ids)
+        harmful_fraction = harmful_count / len(source_unit_ids)
+        final_fold_fraction = (
+            selected_indices.count(unconstrained_index) / len(source_unit_ids)
+        )
         reasons: list[str] = []
-        if len(group_ids) < minimum_group_count:
-            reasons.append("insufficient-independent-source-groups")
+        if len(source_unit_ids) < minimum_source_unit_count:
+            reasons.append("insufficient-independent-source-units")
         if candidates[unconstrained_index].is_gaussian_fallback:
             reasons.append("full-source-selection-is-gaussian")
         if mean_advantage + tie_tolerance < minimum_advantage:
             reasons.append("heldout-mean-nll-advantage-below-minimum")
         if harmful_fraction > maximum_harm + tie_tolerance:
-            reasons.append("harmful-heldout-group-fraction-exceeds-maximum")
+            reasons.append("harmful-heldout-source-unit-fraction-exceeds-maximum")
         if final_fold_fraction + tie_tolerance < minimum_fold_fraction:
             reasons.append("final-candidate-fold-fraction-below-minimum")
         robust_supported = not reasons
@@ -551,28 +632,33 @@ class SourceCorrelationGroupMixtureSelectionV1:
         identity = {
             "schema": CORRELATION_GROUP_ROBUST_SCHEMA,
             "version": CORRELATION_GROUP_ROBUST_VERSION,
-            "group_ids": list(group_ids),
-            "group_source_ids": list(source_ids),
-            "candidates": [item.summary() for item in candidates],
+            "source_unit_ids": list(source_unit_ids),
+            "source_unit_source_ids": list(source_ids),
+            "candidate_spec_ids": [item.spec_id for item in candidates],
             "nll_per_dimension": [
                 [float(value).hex() for value in row] for row in scores
             ],
-            "minimum_group_count": minimum_group_count,
+            "minimum_source_unit_count": minimum_source_unit_count,
             "minimum_mean_heldout_advantage_per_dimension_hex": minimum_advantage.hex(),
             "maximum_heldout_nll_harm_per_dimension_hex": (
                 maximum_harm_amount.hex()
             ),
-            "maximum_harmful_group_fraction_hex": maximum_harm.hex(),
+            "maximum_harmful_source_unit_fraction_hex": maximum_harm.hex(),
             "minimum_final_candidate_fold_fraction_hex": minimum_fold_fraction.hex(),
             "tie_tolerance_hex": tie_tolerance.hex(),
             "relative_rank_tolerance_hex": relative_rank_tolerance.hex(),
+            "claim_boundary": CORRELATION_GROUP_ROBUST_CLAIM_BOUNDARY,
         }
 
-        object.__setattr__(self, "group_ids", group_ids)
-        object.__setattr__(self, "group_source_ids", source_ids)
+        object.__setattr__(self, "source_unit_ids", source_unit_ids)
+        object.__setattr__(self, "source_unit_source_ids", source_ids)
         object.__setattr__(self, "candidates", candidates)
         object.__setattr__(self, "nll_per_dimension", _readonly(scores))
-        object.__setattr__(self, "minimum_group_count", minimum_group_count)
+        object.__setattr__(
+            self,
+            "minimum_source_unit_count",
+            minimum_source_unit_count,
+        )
         object.__setattr__(
             self,
             "minimum_mean_heldout_advantage_per_dimension",
@@ -583,7 +669,11 @@ class SourceCorrelationGroupMixtureSelectionV1:
             "maximum_heldout_nll_harm_per_dimension",
             maximum_harm_amount,
         )
-        object.__setattr__(self, "maximum_harmful_group_fraction", maximum_harm)
+        object.__setattr__(
+            self,
+            "maximum_harmful_source_unit_fraction",
+            maximum_harm,
+        )
         object.__setattr__(
             self,
             "minimum_final_candidate_fold_fraction",
@@ -596,18 +686,34 @@ class SourceCorrelationGroupMixtureSelectionV1:
             "unconstrained_spec_id",
             candidates[unconstrained_index].spec_id,
         )
-        object.__setattr__(self, "selected_spec_id", candidates[selected_index].spec_id)
+        object.__setattr__(
+            self,
+            "selected_spec_id",
+            candidates[selected_index].spec_id,
+        )
         object.__setattr__(self, "robust_supported", robust_supported)
         object.__setattr__(self, "decision_reasons", tuple(reasons))
         object.__setattr__(
             self,
-            "candidate_equal_group_mean_nll_per_dimension",
+            "candidate_equal_source_unit_mean_nll_per_dimension",
             candidate_means,
         )
         object.__setattr__(self, "folds", tuple(folds))
-        object.__setattr__(self, "mean_heldout_advantage_per_dimension", mean_advantage)
-        object.__setattr__(self, "harmful_group_fraction", harmful_fraction)
-        object.__setattr__(self, "final_candidate_fold_fraction", final_fold_fraction)
+        object.__setattr__(
+            self,
+            "mean_heldout_advantage_per_dimension",
+            mean_advantage,
+        )
+        object.__setattr__(
+            self,
+            "harmful_source_unit_fraction",
+            harmful_fraction,
+        )
+        object.__setattr__(
+            self,
+            "final_candidate_fold_fraction",
+            final_fold_fraction,
+        )
         object.__setattr__(
             self,
             "selection_id",
@@ -616,7 +722,9 @@ class SourceCorrelationGroupMixtureSelectionV1:
 
     @property
     def selected_spec(self) -> CorrelationGroupContaminationSpecV1:
-        return next(item for item in self.candidates if item.spec_id == self.selected_spec_id)
+        return next(
+            item for item in self.candidates if item.spec_id == self.selected_spec_id
+        )
 
     @property
     def unconstrained_spec(self) -> CorrelationGroupContaminationSpecV1:
@@ -629,13 +737,15 @@ class SourceCorrelationGroupMixtureSelectionV1:
             "schema": CORRELATION_GROUP_ROBUST_SCHEMA,
             "version": CORRELATION_GROUP_ROBUST_VERSION,
             "selection_id": self.selection_id,
-            "group_ids": list(self.group_ids),
-            "group_source_ids": list(self.group_source_ids),
+            "source_unit_ids": list(self.source_unit_ids),
+            "source_unit_source_ids": list(self.source_unit_source_ids),
             "candidate_specs": [item.summary() for item in self.candidates],
-            "candidate_equal_group_mean_nll_per_dimension": list(
-                self.candidate_equal_group_mean_nll_per_dimension
+            "candidate_equal_source_unit_mean_nll_per_dimension": list(
+                self.candidate_equal_source_unit_mean_nll_per_dimension
             ),
-            "candidate_by_group_nll_per_dimension": self.nll_per_dimension.tolist(),
+            "candidate_by_source_unit_nll_per_dimension": (
+                self.nll_per_dimension.tolist()
+            ),
             "unconstrained_spec_id": self.unconstrained_spec_id,
             "selected_spec_id": self.selected_spec_id,
             "robust_supported": self.robust_supported,
@@ -643,16 +753,18 @@ class SourceCorrelationGroupMixtureSelectionV1:
             "mean_heldout_advantage_per_dimension": (
                 self.mean_heldout_advantage_per_dimension
             ),
-            "harmful_group_fraction": self.harmful_group_fraction,
+            "harmful_source_unit_fraction": self.harmful_source_unit_fraction,
             "final_candidate_fold_fraction": self.final_candidate_fold_fraction,
-            "minimum_group_count": self.minimum_group_count,
+            "minimum_source_unit_count": self.minimum_source_unit_count,
             "minimum_mean_heldout_advantage_per_dimension": (
                 self.minimum_mean_heldout_advantage_per_dimension
             ),
             "maximum_heldout_nll_harm_per_dimension": (
                 self.maximum_heldout_nll_harm_per_dimension
             ),
-            "maximum_harmful_group_fraction": self.maximum_harmful_group_fraction,
+            "maximum_harmful_source_unit_fraction": (
+                self.maximum_harmful_source_unit_fraction
+            ),
             "minimum_final_candidate_fold_fraction": (
                 self.minimum_final_candidate_fold_fraction
             ),
@@ -664,29 +776,40 @@ class SourceCorrelationGroupMixtureSelectionV1:
 
 
 def select_source_correlation_group_mixture(
-    groups: Sequence[CorrelationGroupResidualV1],
+    source_units: Sequence[SourceCorrelationGroupUnitV1],
     candidates: Sequence[CorrelationGroupContaminationSpecV1],
     *,
-    minimum_group_count: int = 4,
+    minimum_source_unit_count: int = 4,
     minimum_mean_heldout_advantage_per_dimension: float = 0.0,
     maximum_heldout_nll_harm_per_dimension: float = 0.1,
-    maximum_harmful_group_fraction: float = 0.0,
+    maximum_harmful_source_unit_fraction: float = 0.0,
     minimum_final_candidate_fold_fraction: float = 0.5,
     tie_tolerance: float = 1e-12,
     relative_rank_tolerance: float = 1e-10,
 ) -> SourceCorrelationGroupMixtureSelectionV1:
-    """Select or reject a robust group likelihood using source groups only."""
+    """Select or reject a robust likelihood using independent source units."""
 
-    if isinstance(groups, (str, bytes)) or not isinstance(groups, Sequence):
-        raise TypeError("groups must be a sequence")
-    raw_groups = tuple(groups)
-    if not all(isinstance(item, CorrelationGroupResidualV1) for item in raw_groups):
-        raise TypeError("groups must contain CorrelationGroupResidualV1 values")
-    ordered_groups = tuple(sorted(raw_groups, key=lambda item: item.group_id))
-    if len(ordered_groups) < 2:
-        raise ValueError("at least two independent groups are required")
-    if len({item.group_id for item in ordered_groups}) != len(ordered_groups):
-        raise ValueError("group IDs must be unique")
+    if isinstance(source_units, (str, bytes)) or not isinstance(
+        source_units,
+        Sequence,
+    ):
+        raise TypeError("source_units must be a sequence")
+    raw_source_units = tuple(source_units)
+    if not all(
+        isinstance(item, SourceCorrelationGroupUnitV1) for item in raw_source_units
+    ):
+        raise TypeError(
+            "source_units must contain SourceCorrelationGroupUnitV1 values"
+        )
+    ordered_source_units = tuple(
+        sorted(raw_source_units, key=lambda item: item.source_unit_id)
+    )
+    if len(ordered_source_units) < 2:
+        raise ValueError("at least two independent source units are required")
+    if len({item.source_unit_id for item in ordered_source_units}) != len(
+        ordered_source_units
+    ):
+        raise ValueError("source-unit IDs must be unique")
     if isinstance(candidates, (str, bytes)) or not isinstance(candidates, Sequence):
         raise TypeError("candidates must be a sequence")
     raw_candidates = tuple(candidates)
@@ -695,31 +818,43 @@ def select_source_correlation_group_mixture(
         for item in raw_candidates
     ):
         raise TypeError("candidates must contain contamination specifications")
-    ordered_candidates = tuple(sorted(raw_candidates, key=lambda item: item.spec_id))
+    ordered_candidates = tuple(
+        sorted(raw_candidates, key=lambda item: item.spec_id)
+    )
 
-    scores = np.empty((len(ordered_candidates), len(ordered_groups)), dtype=np.float64)
+    scores = np.empty(
+        (len(ordered_candidates), len(ordered_source_units)),
+        dtype=np.float64,
+    )
     for candidate_index, candidate in enumerate(ordered_candidates):
-        for group_index, group in enumerate(ordered_groups):
-            evaluation = evaluate_correlation_group_mixture(
-                group,
-                candidate,
-                relative_rank_tolerance=relative_rank_tolerance,
-            )
-            scores[candidate_index, group_index] = evaluation.mixture_nll_per_dimension
+        for source_index, source_unit in enumerate(ordered_source_units):
+            total_nll = 0.0
+            total_dimension = 0
+            for group in source_unit.correlation_groups:
+                evaluation = evaluate_correlation_group_mixture(
+                    group,
+                    candidate,
+                    relative_rank_tolerance=relative_rank_tolerance,
+                )
+                total_nll += evaluation.mixture_nll
+                total_dimension += evaluation.dimension
+            scores[candidate_index, source_index] = total_nll / total_dimension
 
     return SourceCorrelationGroupMixtureSelectionV1(
-        group_ids=tuple(item.group_id for item in ordered_groups),
-        group_source_ids=tuple(item.source_id for item in ordered_groups),
+        source_unit_ids=tuple(item.source_unit_id for item in ordered_source_units),
+        source_unit_source_ids=tuple(
+            item.source_id for item in ordered_source_units
+        ),
         candidates=ordered_candidates,
         nll_per_dimension=scores,
-        minimum_group_count=minimum_group_count,
+        minimum_source_unit_count=minimum_source_unit_count,
         minimum_mean_heldout_advantage_per_dimension=(
             minimum_mean_heldout_advantage_per_dimension
         ),
         maximum_heldout_nll_harm_per_dimension=(
             maximum_heldout_nll_harm_per_dimension
         ),
-        maximum_harmful_group_fraction=maximum_harmful_group_fraction,
+        maximum_harmful_source_unit_fraction=maximum_harmful_source_unit_fraction,
         minimum_final_candidate_fold_fraction=minimum_final_candidate_fold_fraction,
         tie_tolerance=tie_tolerance,
         relative_rank_tolerance=relative_rank_tolerance,
@@ -734,8 +869,9 @@ __all__ = [
     "CorrelationGroupContaminationSpecV1",
     "CorrelationGroupMixtureEvaluationV1",
     "CorrelationGroupResidualV1",
-    "CorrelationGroupSelectionFoldV1",
+    "SourceUnitSelectionFoldV1",
     "SourceCorrelationGroupMixtureSelectionV1",
+    "SourceCorrelationGroupUnitV1",
     "evaluate_correlation_group_mixture",
     "select_source_correlation_group_mixture",
 ]
