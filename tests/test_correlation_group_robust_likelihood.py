@@ -13,6 +13,7 @@ from prob4d.correlation_group_robust_likelihood import (
     CorrelationGroupContaminationSpecV1,
     CorrelationGroupResidualV1,
     SourceCorrelationGroupMixtureSelectionV1,
+    SourceCorrelationGroupUnitV1,
     evaluate_correlation_group_mixture,
     select_source_correlation_group_mixture,
 )
@@ -34,13 +35,35 @@ def _group(
     return CorrelationGroupResidualV1(group_id, residual, local, factor)
 
 
+def _unit(
+    source_unit_id: str,
+    residual_x: float,
+    *,
+    correlation_group_count: int = 1,
+    sample_count: int = 1,
+    rank: int = 0,
+) -> SourceCorrelationGroupUnitV1:
+    return SourceCorrelationGroupUnitV1(
+        source_unit_id=source_unit_id,
+        correlation_groups=tuple(
+            _group(
+                f"{source_unit_id}:correlation-{index:02d}",
+                residual_x,
+                sample_count=sample_count,
+                rank=rank,
+            )
+            for index in range(correlation_group_count)
+        ),
+    )
+
+
 def _robust_spec() -> CorrelationGroupContaminationSpecV1:
     return CorrelationGroupContaminationSpecV1(0.2, 25.0)
 
 
-def _mixed_source_groups() -> tuple[CorrelationGroupResidualV1, ...]:
+def _mixed_source_units() -> tuple[SourceCorrelationGroupUnitV1, ...]:
     values = (0.0, 0.2, -0.2, 0.1, 0.3, -0.1, 8.0, 9.0)
-    return tuple(_group(f"group-{index:02d}", value) for index, value in enumerate(values))
+    return tuple(_unit(f"source-{index:02d}", value) for index, value in enumerate(values))
 
 
 def test_spec_identity_and_gaussian_fallback_are_deterministic() -> None:
@@ -142,6 +165,69 @@ def test_group_rejects_invalid_geometry_and_nonfinite_values() -> None:
         )
 
 
+def test_source_unit_canonicalizes_correlation_groups_and_binds_identity() -> None:
+    first = _group("corr-b", 1.0)
+    second = _group("corr-a", 2.0, sample_count=2)
+
+    unit = SourceCorrelationGroupUnitV1("source-a", (first, second))
+    reversed_unit = SourceCorrelationGroupUnitV1("source-a", (second, first))
+
+    assert tuple(item.group_id for item in unit.correlation_groups) == (
+        "corr-a",
+        "corr-b",
+    )
+    assert unit.source_id == reversed_unit.source_id
+    assert unit.correlation_group_count == 2
+    assert unit.sample_count == 3
+    assert unit.dimension == 9
+
+
+def test_source_unit_rejects_empty_duplicate_or_invalid_correlation_groups() -> None:
+    with pytest.raises(ValueError, match="must not be empty"):
+        SourceCorrelationGroupUnitV1("source-a", ())
+    group = _group("corr-a", 0.0)
+    with pytest.raises(ValueError, match="must be unique"):
+        SourceCorrelationGroupUnitV1("source-a", (group, group))
+    with pytest.raises(TypeError, match="CorrelationGroupResidualV1"):
+        SourceCorrelationGroupUnitV1("source-a", (object(),))  # type: ignore[arg-type]
+
+
+def test_source_scores_are_dimension_weighted_inside_and_equal_across_units() -> None:
+    robust = _robust_spec()
+    unit_a = SourceCorrelationGroupUnitV1(
+        "source-a",
+        (_group("a-clean", 0.0), _group("a-outlier", 8.0)),
+    )
+    unit_b = SourceCorrelationGroupUnitV1(
+        "source-b",
+        (_group("b-clean", 0.0, sample_count=2),),
+    )
+
+    selection = select_source_correlation_group_mixture(
+        (unit_a, unit_b),
+        (GAUSSIAN_GROUP_LIKELIHOOD_V1, robust),
+        minimum_source_unit_count=2,
+        maximum_harmful_source_unit_fraction=1.0,
+        minimum_final_candidate_fold_fraction=0.0,
+    )
+
+    candidate_index = next(
+        index for index, item in enumerate(selection.candidates) if item.spec_id == robust.spec_id
+    )
+    a_clean = evaluate_correlation_group_mixture(unit_a.correlation_groups[0], robust)
+    a_outlier = evaluate_correlation_group_mixture(unit_a.correlation_groups[1], robust)
+    b_clean = evaluate_correlation_group_mixture(unit_b.correlation_groups[0], robust)
+    expected_a = (a_clean.mixture_nll + a_outlier.mixture_nll) / (
+        a_clean.dimension + a_outlier.dimension
+    )
+    expected_b = b_clean.mixture_nll / b_clean.dimension
+    assert selection.nll_per_dimension[candidate_index, 0] == pytest.approx(expected_a)
+    assert selection.nll_per_dimension[candidate_index, 1] == pytest.approx(expected_b)
+    assert selection.candidate_equal_source_unit_mean_nll_per_dimension[candidate_index] == (
+        pytest.approx(0.5 * (expected_a + expected_b))
+    )
+
+
 def test_mixture_matches_dense_scaled_gaussian_formula() -> None:
     group = _group("group-a", 4.0, sample_count=2, rank=1)
     spec = _robust_spec()
@@ -214,7 +300,7 @@ def test_source_selection_promotes_robust_candidate_for_repeated_outlier_groups(
     robust = _robust_spec()
 
     selection = select_source_correlation_group_mixture(
-        _mixed_source_groups(),
+        _mixed_source_units(),
         (GAUSSIAN_GROUP_LIKELIHOOD_V1, robust),
     )
 
@@ -223,13 +309,13 @@ def test_source_selection_promotes_robust_candidate_for_repeated_outlier_groups(
     assert selection.unconstrained_spec_id == robust.spec_id
     assert selection.decision_reasons == ()
     assert selection.mean_heldout_advantage_per_dimension > 2.0
-    assert selection.harmful_group_fraction == 0.0
+    assert selection.harmful_source_unit_fraction == 0.0
     assert selection.final_candidate_fold_fraction == 1.0
     assert all(fold.selected_is_robust for fold in selection.folds)
 
 
 def test_clean_source_prefers_gaussian_by_deterministic_complexity_tie_break() -> None:
-    groups = tuple(_group(f"group-{index:02d}", 0.0) for index in range(8))
+    groups = tuple(_unit(f"source-{index:02d}", 0.0) for index in range(8))
 
     selection = select_source_correlation_group_mixture(
         groups,
@@ -247,30 +333,30 @@ def test_small_nominal_harm_margin_is_explicit_and_can_force_fallback() -> None:
     robust = _robust_spec()
 
     selection = select_source_correlation_group_mixture(
-        _mixed_source_groups(),
+        _mixed_source_units(),
         (GAUSSIAN_GROUP_LIKELIHOOD_V1, robust),
         maximum_heldout_nll_harm_per_dimension=0.01,
-        maximum_harmful_group_fraction=0.0,
+        maximum_harmful_source_unit_fraction=0.0,
     )
 
     assert not selection.robust_supported
     assert selection.unconstrained_spec_id == robust.spec_id
     assert selection.selected_spec.is_gaussian_fallback
-    assert selection.harmful_group_fraction == pytest.approx(0.75)
+    assert selection.harmful_source_unit_fraction == pytest.approx(0.75)
     assert selection.decision_reasons == (
-        "harmful-heldout-group-fraction-exceeds-maximum",
+        "harmful-heldout-source-unit-fraction-exceeds-maximum",
     )
 
 
 def test_nested_heldout_score_can_reject_one_outlier_despite_full_source_fit() -> None:
     values = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 8.0)
-    groups = tuple(_group(f"group-{index:02d}", value) for index, value in enumerate(values))
+    groups = tuple(_unit(f"source-{index:02d}", value) for index, value in enumerate(values))
     robust = CorrelationGroupContaminationSpecV1(0.1, 25.0)
 
     selection = select_source_correlation_group_mixture(
         groups,
         (GAUSSIAN_GROUP_LIKELIHOOD_V1, robust),
-        maximum_harmful_group_fraction=1.0,
+        maximum_harmful_source_unit_fraction=1.0,
     )
 
     assert selection.unconstrained_spec_id == robust.spec_id
@@ -282,23 +368,23 @@ def test_nested_heldout_score_can_reject_one_outlier_despite_full_source_fit() -
 
 def test_insufficient_group_count_is_valid_negative_evidence() -> None:
     robust = _robust_spec()
-    groups = (_group("a", 8.0), _group("b", 9.0))
+    groups = (_unit("a", 8.0), _unit("b", 9.0))
 
     selection = select_source_correlation_group_mixture(
         groups,
         (GAUSSIAN_GROUP_LIKELIHOOD_V1, robust),
-        minimum_group_count=4,
-        maximum_harmful_group_fraction=1.0,
+        minimum_source_unit_count=4,
+        maximum_harmful_source_unit_fraction=1.0,
         minimum_final_candidate_fold_fraction=0.0,
     )
 
     assert not selection.robust_supported
     assert selection.selected_spec.is_gaussian_fallback
-    assert "insufficient-independent-source-groups" in selection.decision_reasons
+    assert "insufficient-independent-source-units" in selection.decision_reasons
 
 
 def test_group_and_candidate_input_order_do_not_change_selection_identity() -> None:
-    groups = _mixed_source_groups()
+    groups = _mixed_source_units()
     robust = _robust_spec()
 
     forward = select_source_correlation_group_mixture(
@@ -320,25 +406,25 @@ def test_group_and_candidate_input_order_do_not_change_selection_identity() -> N
 
 def test_direct_selection_construction_reorders_candidate_rows_and_replays() -> None:
     original = select_source_correlation_group_mixture(
-        _mixed_source_groups(),
+        _mixed_source_units(),
         (GAUSSIAN_GROUP_LIKELIHOOD_V1, _robust_spec()),
     )
     reversed_candidates = tuple(reversed(original.candidates))
     reversed_scores = original.nll_per_dimension[::-1]
 
     reconstructed = SourceCorrelationGroupMixtureSelectionV1(
-        group_ids=original.group_ids,
-        group_source_ids=original.group_source_ids,
+        source_unit_ids=original.source_unit_ids,
+        source_unit_source_ids=original.source_unit_source_ids,
         candidates=reversed_candidates,
         nll_per_dimension=reversed_scores,
-        minimum_group_count=original.minimum_group_count,
+        minimum_source_unit_count=original.minimum_source_unit_count,
         minimum_mean_heldout_advantage_per_dimension=(
             original.minimum_mean_heldout_advantage_per_dimension
         ),
         maximum_heldout_nll_harm_per_dimension=(
             original.maximum_heldout_nll_harm_per_dimension
         ),
-        maximum_harmful_group_fraction=original.maximum_harmful_group_fraction,
+        maximum_harmful_source_unit_fraction=original.maximum_harmful_source_unit_fraction,
         minimum_final_candidate_fold_fraction=(
             original.minimum_final_candidate_fold_fraction
         ),
@@ -352,14 +438,14 @@ def test_direct_selection_construction_reorders_candidate_rows_and_replays() -> 
 
 
 def test_duplicate_groups_or_candidate_grid_without_one_fallback_fail_closed() -> None:
-    duplicate_groups = (_group("a", 0.0), _group("a", 8.0))
+    duplicate_groups = (_unit("a", 0.0), _unit("a", 8.0))
     robust = _robust_spec()
-    with pytest.raises(ValueError, match="group IDs must be unique"):
+    with pytest.raises(ValueError, match="source-unit IDs must be unique"):
         select_source_correlation_group_mixture(
             duplicate_groups,
             (GAUSSIAN_GROUP_LIKELIHOOD_V1, robust),
         )
-    groups = (_group("a", 0.0), _group("b", 8.0))
+    groups = (_unit("a", 0.0), _unit("b", 8.0))
     with pytest.raises(ValueError, match="one Gaussian fallback"):
         select_source_correlation_group_mixture(groups, (robust,))
     with pytest.raises(ValueError, match="unique"):
@@ -371,16 +457,16 @@ def test_duplicate_groups_or_candidate_grid_without_one_fallback_fail_closed() -
 
 def test_selection_thresholds_reject_coercive_or_out_of_range_values() -> None:
     selection = select_source_correlation_group_mixture(
-        _mixed_source_groups(),
+        _mixed_source_units(),
         (GAUSSIAN_GROUP_LIKELIHOOD_V1, _robust_spec()),
     )
 
-    with pytest.raises(TypeError, match="minimum_group_count"):
-        replace(selection, minimum_group_count=True)
+    with pytest.raises(TypeError, match="minimum_source_unit_count"):
+        replace(selection, minimum_source_unit_count=True)
     with pytest.raises(ValueError, match="must be nonnegative"):
         replace(selection, maximum_heldout_nll_harm_per_dimension=-0.1)
     with pytest.raises(ValueError, match="must lie"):
-        replace(selection, maximum_harmful_group_fraction=1.1)
+        replace(selection, maximum_harmful_source_unit_fraction=1.1)
     with pytest.raises(ValueError, match="must be finite"):
         replace(selection, tie_tolerance=np.nan)
     with pytest.raises(ValueError, match="must lie"):
@@ -390,7 +476,7 @@ def test_selection_thresholds_reject_coercive_or_out_of_range_values() -> None:
 def test_summary_keeps_responsibility_separate_and_states_claim_boundary() -> None:
     evaluation = evaluate_correlation_group_mixture(_group("a", 8.0), _robust_spec())
     selection = select_source_correlation_group_mixture(
-        _mixed_source_groups(),
+        _mixed_source_units(),
         (GAUSSIAN_GROUP_LIKELIHOOD_V1, _robust_spec()),
     )
 
