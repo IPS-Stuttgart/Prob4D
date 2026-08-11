@@ -1,0 +1,47 @@
+name: Apply race-safe artifact publication patch
+
+on:
+  push:
+    branches:
+      - agent/race-safe-artifact-publication
+    paths:
+      - ".github/workflows/apply-race-safe-artifact-publication.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-race-safe-artifact-publication
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: Apply verified patch and remove transport files
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the publication branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Verify and apply the exact local patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          payload=".github/.apply-race-safe-artifact-patch.gz.b64"
+          workflow=".github/workflows/apply-race-safe-artifact-publication.yml"
+          base64 --decode "${payload}" > /tmp/prob4d-full.patch.gz
+          echo "6fcb4860501e4df0fd45adf5e4a8435ab261e7195ffb4a5d58d335603dfa6253  /tmp/prob4d-full.patch.gz" \
+            | sha256sum --check -
+          gzip --decompress --stdout /tmp/prob4d-full.patch.gz > /tmp/prob4d-full.patch
+          echo "ef670912b2d84a6585ee1487b9c229091981c189a47f0500c686fb647af230b2  /tmp/prob4d-full.patch" \
+            | sha256sum --check -
+          git apply --index --whitespace=error-all /tmp/prob4d-full.patch
+          rm -- "${payload}" "${workflow}"
+          git add --all
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Make artifact publication race-safe"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
