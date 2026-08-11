@@ -5,13 +5,7 @@ release notes and scientific boundaries live under `docs/releases/`.
 
 ## Unreleased
 
-### Added
-
-- A source-only calibration-transport model and replayable target-prefix
-  evidence artifact over complete object/session units, with robust quantile
-  embeddings, finite-source nearest-unit support thresholds, localized feature
-  extrapolation diagnostics, conjunctive unsupported group/row gates, and an
-  explicit exact-fallback claim boundary.
+No changes yet.
 
 ## 0.4.0 — 2026-08-10
 
