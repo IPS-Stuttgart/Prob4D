@@ -76,6 +76,25 @@ def test_release_changelog_and_claim_boundary_are_published() -> None:
     assert "313/324" in normalized_boundary
 
 
+def test_compatibility_guide_matches_the_040_surface() -> None:
+    compatibility = (ROOT / "docs" / "compatibility.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "## Prob4D 0.4.x surfaces" in compatibility
+    assert "## Prob4D 0.3.x surfaces" not in compatibility
+    for surface in (
+        "`prob4d.api.v2`",
+        "`GaugeTreeSquareRootPriorV1`",
+        "`TreeSparseObservationArtifactV1`",
+        "`ClaimBearingTreeSparseObservationEnvelopeV1`",
+        "`prob4d.provider_v2_factors.v1`",
+    ):
+        assert surface in compatibility
+    assert "At the time Prob4D 0.3.0 was prepared" not in compatibility
+    assert "Do not maintain a table of mutable companion-repository" in compatibility
+
+
 def test_v1_v2_and_tree_sparse_manifest_boundaries_remain_distinct() -> None:
     revision = "a" * 40
     provider_v1 = prob4d_provider_manifest(provider_revision=revision)
