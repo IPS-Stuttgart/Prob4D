@@ -13,12 +13,17 @@ from prob4d.gauge_analytic import (
 )
 from prob4d.sim3 import Sim3
 
+_CENTRAL_DIFFERENCE_RELATIVE_STEP = float(np.cbrt(np.finfo(np.float64).eps))
+
 
 def _central_jacobian(function, vector: np.ndarray) -> np.ndarray:
     baseline = np.asarray(function(vector), dtype=np.float64)
     result = np.empty((baseline.size, vector.size), dtype=np.float64)
     for index in range(vector.size):
-        step = 1e-7 * max(1.0, abs(float(vector[index])))
+        step = _CENTRAL_DIFFERENCE_RELATIVE_STEP * max(
+            1.0,
+            abs(float(vector[index])),
+        )
         plus = vector.copy()
         minus = vector.copy()
         plus[index] += step
