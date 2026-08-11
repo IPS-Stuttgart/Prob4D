@@ -11,10 +11,15 @@ from prob4d.api import v2 as api_v2
 from prob4d.provider_v2_contract_bundle import (
     PROVIDER_V2_CONTRACT_BUNDLE,
     PROVIDER_V2_CONTRACT_BUNDLE_SHA256,
+    PROVIDER_V2_CONTRACT_MINIMAL_STACK_SEMANTIC_SHA256,
+    PROVIDER_V2_CONTRACT_NUMERICAL_ATOL,
+    PROVIDER_V2_CONTRACT_NUMERICAL_RTOL,
     invalid_provider_v2_contract_vectors,
     materialize_provider_v2_contract_vector,
     provider_v2_contract_bundle_manifest,
+    provider_v2_contract_runtime_stack_sha256,
     provider_v2_contract_schema,
+    provider_v2_contract_stack_semantic_sha256,
     provider_v2_contract_stack_sha256,
     provider_v2_contract_vector,
     validate_provider_v2_contract_materialization,
@@ -61,6 +66,10 @@ def test_minimal_vector_materializes_dense_sparse_and_tree_sparse_contracts() ->
 
     assert isinstance(materialization.bundle, api_v2.ObservationFactorBundle)
     assert isinstance(
+        materialization.dense_stack,
+        api_v2.StackedObservationFactors,
+    )
+    assert isinstance(
         materialization.sparse_stack,
         api_v2.SparseStackedObservationFactors,
     )
@@ -81,11 +90,25 @@ def test_minimal_vector_materializes_dense_sparse_and_tree_sparse_contracts() ->
         "window-0",
         "window-1",
     )
+    assert (
+        provider_v2_contract_stack_semantic_sha256(
+            materialization.tree_sparse_stack
+        )
+        == PROVIDER_V2_CONTRACT_MINIMAL_STACK_SEMANTIC_SHA256
+    )
+    runtime_digest = provider_v2_contract_runtime_stack_sha256(
+        materialization.tree_sparse_stack
+    )
+    assert len(runtime_digest) == 64
+    assert set(runtime_digest) <= set("0123456789abcdef")
     assert provider_v2_contract_stack_sha256(
         materialization.tree_sparse_stack
-    ) == vector.payload["expected"]["stack_sha256"]
+    ) == runtime_digest
+    assert len(vector.payload["expected"]["stack_sha256"]) == 64
 
     for value in (
+        materialization.dense_stack.world_mean_m,
+        materialization.dense_stack.gauge_jacobian,
         materialization.tree_sparse_stack.world_mean_m,
         materialization.tree_sparse_stack.conditional_world_covariance_m2,
         materialization.tree_sparse_stack.local_gauge_jacobian,
@@ -126,6 +149,7 @@ def test_contract_bundle_cli_reports_verified_identities() -> None:
         text=True,
     )
     summary = json.loads(completed.stdout)
+    vector = provider_v2_contract_vector()
 
     assert summary["bundle_sha256"] == PROVIDER_V2_CONTRACT_BUNDLE_SHA256
     assert summary["valid_vectors"] == 1
@@ -134,3 +158,14 @@ def test_contract_bundle_cli_reports_verified_identities() -> None:
     assert summary["provider_factor_api_version"] == 2
     assert summary["observation_factor_schema_version"] == 4
     assert summary["tree_sparse_observation_schema_version"] == 1
+    assert summary["minimal_stack_semantic_sha256"] == (
+        PROVIDER_V2_CONTRACT_MINIMAL_STACK_SEMANTIC_SHA256
+    )
+    assert summary["minimal_reference_runtime_stack_sha256"] == (
+        vector.payload["expected"]["stack_sha256"]
+    )
+    observed = summary["minimal_observed_runtime_stack_sha256"]
+    assert len(observed) == 64
+    assert set(observed) <= set("0123456789abcdef")
+    assert summary["numerical_atol"] == PROVIDER_V2_CONTRACT_NUMERICAL_ATOL
+    assert summary["numerical_rtol"] == PROVIDER_V2_CONTRACT_NUMERICAL_RTOL
