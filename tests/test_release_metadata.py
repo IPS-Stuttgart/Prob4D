@@ -90,8 +90,10 @@ def test_observation_export_documentation_uses_an_explicit_route() -> None:
     documentation = (ROOT / "docs" / "observation-belief-export.md").read_text(
         encoding="utf-8"
     )
-    assert "prob4d observation export-calibrated \\" in documentation
-    assert "prob4d observation export \\" not in documentation
+    calibrated_command = "prob4d observation export-calibrated \\"
+    ambiguous_command = "prob4d observation export \\"
+    assert calibrated_command in documentation
+    assert ambiguous_command not in documentation
     assert "prob4d observation export-v1" in documentation
 
 
