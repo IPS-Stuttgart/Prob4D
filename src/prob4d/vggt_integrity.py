@@ -11,14 +11,13 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-import os
-import tempfile
 from collections.abc import Mapping, Sequence
 from pathlib import Path, PurePosixPath
 from typing import Any, Final
 
 import numpy as np
 
+from ._atomic_file import atomic_write_text
 from ._strict_json import (
     load_json_object,
     require_exact_fields,
@@ -687,19 +686,6 @@ def load_vggt_run_metadata(path: str | Path) -> dict[str, Any]:
     return validate_run_record(record)
 
 
-def _fsync_directory(path: Path) -> None:
-    try:
-        descriptor = os.open(path, os.O_RDONLY)
-    except OSError:
-        return
-    try:
-        os.fsync(descriptor)
-    except OSError:
-        pass
-    finally:
-        os.close(descriptor)
-
-
 def save_vggt_run_metadata(
     path: str | Path,
     record: Mapping[str, Any],
@@ -709,27 +695,12 @@ def save_vggt_run_metadata(
     destination = Path(path)
     normalized = validate_run_record(record)
     content = json.dumps(normalized, indent=2, sort_keys=True, allow_nan=False) + "\n"
-    if destination.exists():
+    try:
+        atomic_write_text(destination, content, overwrite=False)
+    except FileExistsError:
         existing = load_vggt_run_metadata(destination)
         if existing["run_id"] != normalized["run_id"]:
-            raise ValueError("refusing to replace different VGGT run metadata")
-        return destination
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary_name = tempfile.mkstemp(
-        prefix=f".{destination.name}.",
-        suffix=".tmp",
-        dir=destination.parent,
-    )
-    try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
-            stream.write(content)
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.replace(temporary_name, destination)
-        _fsync_directory(destination.parent)
-    finally:
-        if os.path.exists(temporary_name):
-            os.unlink(temporary_name)
+            raise ValueError("refusing to replace different VGGT run metadata") from None
     return destination
 
 

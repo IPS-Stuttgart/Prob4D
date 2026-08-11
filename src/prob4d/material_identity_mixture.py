@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -25,6 +24,7 @@ from typing import Any, Literal, TypeAlias, cast
 import numpy as np
 from numpy.typing import NDArray
 
+from ._atomic_file import atomic_write_bytes
 from ._immutable_json import frozen_finite_json_mapping, plain_json
 
 FloatArray: TypeAlias = NDArray[np.floating[Any]]
@@ -794,27 +794,8 @@ def write_material_identity_mixture(
 
     if type(overwrite) is not bool:
         raise ValueError("overwrite must be a Boolean")
-    destination = Path(path)
-    if destination.exists() and not overwrite:
-        raise FileExistsError(destination)
-    destination.parent.mkdir(parents=True, exist_ok=True)
     payload = _canonical_json(mixture.to_record()) + b"\n"
-    temporary = destination.with_name(
-        f".{destination.name}.tmp-{os.getpid()}-{hashlib.sha256(payload).hexdigest()[:16]}"
-    )
-    try:
-        with temporary.open("xb") as stream:
-            stream.write(payload)
-            stream.flush()
-            os.fsync(stream.fileno())
-        if destination.exists() and not overwrite:
-            raise FileExistsError(destination)
-        os.replace(temporary, destination)
-    finally:
-        try:
-            temporary.unlink()
-        except FileNotFoundError:
-            pass
+    atomic_write_bytes(path, payload, overwrite=overwrite)
 
 
 def load_material_identity_mixture(path: str | Path) -> MaterialIdentityMixtureV1:

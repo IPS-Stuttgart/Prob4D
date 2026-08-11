@@ -16,6 +16,7 @@ from typing import Any
 
 import numpy as np
 
+from ._atomic_file import publish_temporary_file
 from .vggt_integrity import (
     VGGT_REPRESENTATIONS,
     build_run_record,
@@ -272,14 +273,15 @@ def write_prediction_archive(
             camera_extrinsics=np.asarray(camera_extrinsics, dtype=np.float32),
             camera_intrinsics=np.asarray(camera_intrinsics, dtype=np.float32),
         )
-        if path.exists():
+        try:
+            publish_temporary_file(temporary, path, overwrite=False)
+        except FileExistsError:
             if not _archives_equal(path, temporary):
-                raise ValueError(f"refusing to replace different VGGT prediction {path}")
-            return
-        os.replace(temporary, path)
+                raise ValueError(
+                    f"refusing to replace different VGGT prediction {path}"
+                ) from None
     finally:
-        if temporary.exists():
-            temporary.unlink()
+        temporary.unlink(missing_ok=True)
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:

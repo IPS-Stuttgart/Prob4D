@@ -12,8 +12,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
-import tempfile
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -21,6 +19,7 @@ from typing import Any, Final
 
 import numpy as np
 
+from ._atomic_file import atomic_write_text
 from ._immutable_json import plain_json
 from ._strict_json import load_json_object
 from .source_diagnostics import audit_common_mode_failures
@@ -68,37 +67,9 @@ def _positive_real(value: object, *, name: str, allow_zero: bool = False) -> flo
     return result
 
 
-def _fsync_directory(path: Path) -> None:
-    try:
-        descriptor = os.open(path, os.O_RDONLY)
-    except OSError:
-        return
-    try:
-        os.fsync(descriptor)
-    except OSError:
-        pass
-    finally:
-        os.close(descriptor)
-
-
 def _atomic_write_json(path: Path, record: Mapping[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary_name = tempfile.mkstemp(
-        prefix=f".{path.name}.",
-        suffix=".tmp",
-        dir=path.parent,
-    )
-    try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
-            json.dump(record, stream, indent=2, sort_keys=True, allow_nan=False)
-            stream.write("\n")
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.replace(temporary_name, path)
-        _fsync_directory(path.parent)
-    finally:
-        if os.path.exists(temporary_name):
-            os.unlink(temporary_name)
+    payload = json.dumps(record, indent=2, sort_keys=True, allow_nan=False) + "\n"
+    atomic_write_text(path, payload, overwrite=False)
 
 
 @dataclass(frozen=True)
@@ -538,12 +509,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     report = run_common_mode_stress(config)
     destination = Path(arguments.output)
-    if destination.exists():
+    record = report.to_record()
+    try:
+        _atomic_write_json(destination, record)
+    except FileExistsError:
         existing = load_json_object(destination, name="common-mode stress report")
-        if existing != report.to_record():
-            raise ValueError("refusing to replace a different common-mode stress report")
-    else:
-        _atomic_write_json(destination, report.to_record())
+        if existing != record:
+            raise ValueError(
+                "refusing to replace a different common-mode stress report"
+            ) from None
     print(json.dumps(report.to_record(), indent=2, sort_keys=True))
     return 0 if report.decision == "pass-controlled-common-mode-mechanism" else 3
 

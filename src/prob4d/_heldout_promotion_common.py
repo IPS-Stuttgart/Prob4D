@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
-import os
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal, cast
 
+from ._atomic_file import atomic_write_text
 from ._immutable_json import frozen_finite_json_mapping, plain_json
 from ._provider_evaluation_manifest import validate_finite_json
 from ._selection_evidence_common import (
@@ -122,9 +121,6 @@ def _atomic_write_json(
 ) -> None:
     if type(overwrite) is not bool:
         raise ValueError("overwrite must be a Boolean")
-    if path.exists() and not overwrite:
-        raise FileExistsError(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
     payload = (
         json.dumps(
             plain_json(value),
@@ -134,19 +130,7 @@ def _atomic_write_json(
         )
         + "\n"
     )
-    temporary = path.with_name(
-        f".{path.name}.tmp-{os.getpid()}-{hashlib.sha256(payload.encode()).hexdigest()[:16]}"
-    )
-    try:
-        with temporary.open("x", encoding="utf-8") as stream:
-            stream.write(payload)
-            stream.flush()
-            os.fsync(stream.fileno())
-        if path.exists() and not overwrite:
-            raise FileExistsError(path)
-        os.replace(temporary, path)
-    finally:
-        temporary.unlink(missing_ok=True)
+    atomic_write_text(path, payload, overwrite=overwrite)
 
 
 def _repository(value: Any, *, name: str) -> str:
