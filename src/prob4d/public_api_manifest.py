@@ -257,7 +257,7 @@ def validate_public_api_manifest(value: Any) -> dict[str, Any]:
     unsigned.pop("manifest_id")
     if manifest_id != _manifest_id(unsigned):
         raise ValueError("manifest_id does not match the canonical manifest content")
-    canonical: dict[str, Any] = json.loads(_canonical_json(payload))
+    canonical = cast(dict[str, Any], json.loads(_canonical_json(payload)))
     return canonical
 
 
