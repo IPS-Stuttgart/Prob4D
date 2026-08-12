@@ -4,8 +4,7 @@ import numpy as np
 import pytest
 
 import prob4d.fusion as fusion_module
-from prob4d import FusedSequence
-from prob4d.data import PredictionWindow
+from prob4d.data import FusedSequence, PredictionWindow
 
 
 def _inputs() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
