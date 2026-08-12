@@ -6,17 +6,17 @@ import importlib.util
 import re
 from pathlib import Path
 
-try:
-    import tomllib
-except ModuleNotFoundError:  # pragma: no cover - Python 3.10 compatibility.
-    import tomli as tomllib
-
 import prob4d
 import prob4d.provider_v1 as provider_v1_artifacts
 from prob4d.provider_v2 import prob4d_provider_manifest as provider_v2_manifest
 from prob4d.provider_v2_tree_sparse_manifest import (
     prob4d_tree_sparse_provider_manifest,
 )
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover - Python 3.10 compatibility.
+    import tomli as tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_VERSION = "0.5.0"
