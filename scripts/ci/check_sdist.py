@@ -22,15 +22,17 @@ REQUIRED_PATHS = frozenset(
         "docs/distribution-boundaries.md",
         "docs/public-api-manifest.md",
         "docs/public-api.md",
-        "docs/releases/0.4.1.md",
+        "docs/releases/0.5.0.md",
         "protocols/cycle-guard-normalization-v1.json",
         "pyproject.toml",
         "src/prob4d/__init__.py",
         "src/prob4d/__init__.pyi",
+        "src/prob4d/_provider_export_core.py",
         "src/prob4d/_version.py",
         "src/prob4d/api/__init__.py",
-        "src/prob4d/api/v1.py",
         "src/prob4d/api/v2.py",
+        "src/prob4d/provider_v1.py",
+        "src/prob4d/provider_v2.py",
         "src/prob4d/contract_data/observation_belief_v1/manifest.json",
         "src/prob4d/contract_data/observation_belief_v1/schema.json",
         "src/prob4d/public_api_manifest.py",
@@ -61,7 +63,9 @@ def _validated_members(archive: Path) -> tuple[str, tuple[tarfile.TarInfo, ...]]
             raise RuntimeError(f"unsafe source-distribution path: {member.name}")
         roots.add(path.parts[0])
         if member.issym() or member.islnk() or not (member.isdir() or member.isfile()):
-            raise RuntimeError(f"source distribution contains a non-regular member: {member.name}")
+            raise RuntimeError(
+                f"source distribution contains a non-regular member: {member.name}"
+            )
         if len(path.parts) > 1:
             relative_paths.add(PurePosixPath(*path.parts[1:]).as_posix())
 
@@ -76,11 +80,14 @@ def _validated_members(archive: Path) -> tuple[str, tuple[tarfile.TarInfo, ...]]
         path
         for path in relative_paths
         if any(
-            path == prefix.rstrip("/") or path.startswith(prefix) for prefix in FORBIDDEN_PREFIXES
+            path == prefix.rstrip("/") or path.startswith(prefix)
+            for prefix in FORBIDDEN_PREFIXES
         )
     )
     if forbidden:
-        raise RuntimeError(f"source distribution contains repository-only assets: {forbidden[:20]}")
+        raise RuntimeError(
+            f"source distribution contains repository-only assets: {forbidden[:20]}"
+        )
     return roots.pop(), members
 
 
@@ -135,42 +142,45 @@ def _smoke_installed_archive(archive: Path, destination: Path) -> None:
     _run([python, "-m", "pip", "check"])
 
     smoke = """
-from importlib import resources
+from importlib import resources, util
 from importlib.metadata import version
 import sys
 
 import prob4d
 
+assert prob4d.__all__ == ["__version__"]
 assert "prob4d.sim3" not in sys.modules
 assert "Sim3" not in prob4d.__dict__
+assert not hasattr(prob4d, "_LAZY_EXPORTS")
+assert util.find_spec("prob4d.api.v1") is None
+assert util.find_spec("prob4d.legacy_cli") is None
+assert util.find_spec("prob4d.causal_stream_cli") is None
 
-from prob4d.sim3 import Sim3
+import prob4d.provider_v1 as provider_v1_artifacts
+assert provider_v1_artifacts.PROVIDER_API_VERSION == 1
+assert not hasattr(provider_v1_artifacts, "export_observation_belief")
+assert not hasattr(provider_v1_artifacts, "export_calibrated_observation_belief")
 
-assert prob4d.Sim3 is Sim3
-assert prob4d.__dict__["Sim3"] is Sim3
-
-import prob4d.api.v1 as api_v1
 import prob4d.api.v2 as api_v2
-import prob4d.provider_v1 as provider_v1
-import prob4d.provider_v2 as provider_v2
 from prob4d.public_api_manifest import build_public_api_manifest
 
 installed = version("prob4d")
+assert installed == "0.5.0"
 assert prob4d.__version__ == installed
-assert api_v1.__version__ == installed
-assert api_v1.API_VERSION == 1
 assert api_v2.API_VERSION == 2
-assert api_v1.PROVIDER_API_VERSION == provider_v1.PROVIDER_API_VERSION == 1
-assert provider_v2.PROVIDER_API_VERSION == 2
-assert callable(api_v1.export_calibrated_observation_belief)
-assert callable(provider_v2.load_claim_bearing_observation_belief)
+assert api_v2.PROVIDER_API_VERSION == 2
+assert callable(api_v2.load_claim_bearing_observation_belief)
+assert "Sim3" not in prob4d.__dict__
 
 manifest = build_public_api_manifest()
 assert manifest["package"]["version"] == installed
-assert manifest["surfaces"]["compatibility_root"]["loading"] == (
-    "lazy-compatibility-shim-v1"
+assert manifest["schema_version"] == 2
+assert manifest["surfaces"]["package_root"]["loading"] == (
+    "minimal-version-root-v1"
 )
-assert manifest["surfaces"]["compatibility_root"]["exports"] == sorted(prob4d.__all__)
+assert manifest["surfaces"]["package_root"]["exports"] == ["__version__"]
+assert set(manifest["surfaces"]) == {"package_root", "api_v2"}
+assert manifest["surfaces"]["api_v2"]["lifecycle"] == "current"
 
 package = resources.files("prob4d")
 assert package.joinpath("__init__.pyi").is_file()
@@ -185,6 +195,9 @@ assert package.joinpath(
     cli = _venv_executable(environment, "prob4d")
     _run([cli, "--help"])
     _run([cli, "project", "identity", "--compact"])
+    removed = _venv_executable(environment, "prob4d-validate-observation")
+    if removed.exists():
+        raise RuntimeError("removed legacy executable is still installed")
 
 
 def audit_sdist(archive: Path) -> None:

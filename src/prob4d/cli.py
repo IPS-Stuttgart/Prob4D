@@ -10,7 +10,8 @@ from typing import Final
 from .command_registry import COMMANDS, Route
 
 _ROUTES: Final[dict[Route, tuple[str, str, str]]] = {
-    command.route: (command.module, command.function, command.description) for command in COMMANDS
+    command.route: (command.module, command.function, command.description)
+    for command in COMMANDS
 }
 
 
@@ -20,16 +21,14 @@ def _ambiguous_observation_export(argv: Sequence[str] | None = None) -> int:
     arguments = list(() if argv is None else argv)
     help_requested = any(value in {"-h", "--help"} for value in arguments)
     lines = [
-        "usage: prob4d observation <export-calibrated|export-exploratory|export-v1> [arguments]",
+        "usage: prob4d observation <export-calibrated|export-exploratory> [arguments]",
         "",
-        "'prob4d observation export' is intentionally ambiguous and does not run an exporter.",
+        "'prob4d observation export' is intentionally ambiguous and does not run an "
+        "exporter.",
         "",
         "Choose one explicit contract:",
         "  export-calibrated   claim-bearing provider-v2 export",
         "  export-exploratory  labelled provider-v2 control",
-        "  export-v1           frozen provider-v1 compatibility export",
-        "",
-        "The legacy 'prob4d-export-observation-belief' executable remains unchanged.",
     ]
     output = sys.stdout if help_requested else sys.stderr
     print("\n".join(lines), file=output)
@@ -51,12 +50,7 @@ def _render_help(prefix: Route = ()) -> str:
     command = "prob4d" + (" " + " ".join(prefix) if prefix else "")
     lines = [f"usage: {command} <command> [arguments]", ""]
     if not prefix:
-        lines.extend(
-            [
-                "Grouped access to Prob4D commands.",
-                "",
-            ]
-        )
+        lines.extend(["Grouped access to Prob4D commands.", ""])
     lines.append("commands:")
     for child in _children(prefix):
         candidate = (*prefix, child)
@@ -66,8 +60,8 @@ def _render_help(prefix: Route = ()) -> str:
     lines.extend(
         [
             "",
-            "Legacy prob4d-* entry points remain available for compatibility.",
-            "Use 'prob4d commands migrate <legacy-alias>' for the grouped replacement.",
+            "Prob4D 0.5 installs only this grouped 'prob4d' executable.",
+            "Use 'prob4d commands describe <id-or-route>' for command metadata.",
         ]
     )
     return "\n".join(lines) + "\n"

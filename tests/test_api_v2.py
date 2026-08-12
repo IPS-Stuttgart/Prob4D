@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import importlib.util
 from importlib.metadata import version
 
-import prob4d.api.v1 as api_v1
 import prob4d.api.v2 as api_v2
 from prob4d import provider_v2, provider_v2_factors
 from prob4d.gauge import GaugeEstimate
@@ -11,8 +11,8 @@ from prob4d.project_identity import PROB4D_PROJECT_ID
 from prob4d.sim3 import Sim3
 
 
-def test_api_v2_is_versioned_and_matches_the_installed_distribution() -> None:
-    assert api_v1.API_VERSION == 1
+def test_api_v2_is_the_only_current_versioned_facade() -> None:
+    assert importlib.util.find_spec("prob4d.api.v1") is None
     assert api_v2.API_VERSION == 2
     assert api_v2.PROVIDER_API_VERSION == provider_v2.PROVIDER_API_VERSION == 2
     assert (

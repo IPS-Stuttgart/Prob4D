@@ -103,6 +103,16 @@ def test_privileged_profiles_are_fixed_and_reports_bind_exact_source() -> None:
     assert "git push" not in text
 
 
+def test_full_validation_tracks_the_05_cleanup_surface() -> None:
+    text = TRUSTED_WORKFLOW.read_text(encoding="utf-8")
+
+    assert "src/prob4d/api/v1.py" not in text
+    assert "src/prob4d/_provider_export_core.py" in text
+    assert "src/prob4d/api/v2.py" in text
+    assert "src/prob4d/provider_v1.py" in text
+    assert "src/prob4d/public_api_manifest.py" in text
+
+
 def test_completed_temporary_inventory_workflows_are_removed() -> None:
     for path in REMOVED_TEMPORARY_WORKFLOWS:
         assert not path.exists(), path.relative_to(ROOT).as_posix()

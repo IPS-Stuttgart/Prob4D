@@ -8,26 +8,31 @@ explicit nonclaims.
 
 ```bash
 prob4d provider manifest \
-  --api-version 2 \
   --provider-revision 0123456789abcdef0123456789abcdef01234567 \
   --output outputs/prob4d-provider-v2.json
 ```
 
 ## Python import boundary
 
-Use the provider surface matching the experiment:
+New consumers must import the versioned façade:
 
-- `prob4d.provider_v1` is frozen for exact reproduction and historical artifacts;
-- `prob4d.provider_v2` is the safe-by-default surface for new calibrated or
-  explicitly exploratory development.
+```python
+from prob4d.api import v2
+```
 
-Provider v2 directly exposes its strict claim-bearing loader, explicit export
-functions, schema-v4 factor bundle, and append-only factor-stream contract.
-Downstream code should not import underscore-prefixed implementation modules or
-Prob4D experiment helpers.
+`prob4d.provider_v2` remains the implementation module named by the provider
+attestation. Direct implementation imports are supported inside Prob4D and in
+narrow compatibility code, but `prob4d.api.v2` is the stable ecosystem-facing
+contract.
+
+`prob4d.provider_v1` is no longer an estimator or exporter. Prob4D 0.5 retains
+only an artifact compatibility bridge containing immutable historical record
+types, schema-v3 factor IO, observation IO, causal binding, and manifest
+metadata. Pin the exact Prob4D 0.4.1 wheel or source revision for provider-v1
+execution.
 
 The Python call surface and the produced stream contract are versioned
-independently. A breaking Python signature requires another provider module. A
+independently. A breaking Python signature requires another API façade. A
 breaking gauge, factor-group, covariance, reliability, or lineage interpretation
 requires the corresponding artifact or stream-contract version to change. Exact
 Git revisions and artifact hashes remain mandatory for frozen experiments.
@@ -72,8 +77,9 @@ Provider v2 exposes `ObservationFactorBundle` schema v4 for consumers that keep
 explicit gauge nuisance variables. It stores one ordered joint `7K x 7K` gauge
 covariance and distinguishes `joint-cross-window` from `marginal-blocks-only`
 semantics. Schema-v2/v3 bundles upgrade conservatively as marginal-only because
-missing off-diagonal blocks cannot be reconstructed. The frozen provider-v1
-surface continues to advertise and write schema v3.
+missing off-diagonal blocks cannot be reconstructed. The artifact compatibility
+bridge can still read and write the frozen schema-v3 representation; it does not
+produce new observations.
 
 `ObservationFactorStreamV1` binds several causally disjoint schema-v4 delta
 bundles without rewriting old intervals. Update IDs cover bundle and payload
@@ -82,17 +88,22 @@ previous update ID. See [append-only observation-factor streams](observation-fac
 
 ## Validation and nonclaims
 
-Use `prob4d-validate-observation` to reject observation-schema drift, malformed
-archives, and content-address mismatches. Use
-`load_claim_bearing_observation_belief` from `prob4d.provider_v2` to require the
+Use the grouped validator to reject observation-schema drift, malformed archives,
+and content-address mismatches:
+
+```bash
+prob4d observation validate observation_belief.npz
+```
+
+Use `load_claim_bearing_observation_belief` from `prob4d.api.v2` to require the
 complete calibrated provider-v2 admission boundary.
 
 The manifest does **not** claim that exported covariance has passed prospective
 target calibration, that redundant dense-edge fusion is validated, or that a
 valid observation artifact improves a Bayesian physical twin.
 
-The grouped `prob4d` command is the preferred discoverable interface. New callers
-must choose `export-calibrated`, `export-exploratory`, or `export-v1`. The bare
-`prob4d observation export` route prints migration guidance and runs no exporter.
-Existing standalone `prob4d-*` commands remain available for historical run
-manifests.
+Prob4D 0.5 installs only the grouped `prob4d` command. New callers must choose
+`observation export-calibrated` or `observation export-exploratory`; the bare
+`prob4d observation export` route remains deliberately non-executing. Frozen
+workflows requiring a removed standalone executable or provider-v1 export must
+pin Prob4D 0.4.1.

@@ -210,6 +210,8 @@ jobs:
             tests/test_trusted_self_hosted_validation_policy.py \
             tests/test_security_scanning_workflow_policy.py
           "$python_bin" -m mypy \
+            src/prob4d/_provider_export_core.py \
+            src/prob4d/api/v2.py \
             src/prob4d/cli.py \
             src/prob4d/calibration_compatibility.py \
             src/prob4d/composition_jacobian.py \
@@ -226,6 +228,7 @@ jobs:
             src/prob4d/provider_v2.py \
             src/prob4d/provider_v2_cli.py \
             src/prob4d/provider_v2_loading.py \
+            src/prob4d/public_api_manifest.py \
             src/prob4d/runtime_revision.py \
             src/prob4d/source_diagnostics.py
           "$python_bin" -m pytest --tb=short \

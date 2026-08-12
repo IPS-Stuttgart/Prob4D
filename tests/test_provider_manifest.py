@@ -4,51 +4,28 @@ import hashlib
 import json
 from pathlib import Path
 
+import pytest
+
 import prob4d
-from prob4d.provider_manifest import (
-    PROB4D_PROVIDER_PACKAGE_VERSION,
-    prob4d_provider_manifest,
-)
 from prob4d.provider_manifest_cli import main
+from prob4d.provider_v2 import prob4d_provider_manifest
 
 
-def test_provider_manifest_declares_covariance_boundary() -> None:
+def test_provider_manifest_declares_current_v2_boundary() -> None:
     manifest = prob4d_provider_manifest(provider_revision="a" * 40)
 
-    assert PROB4D_PROVIDER_PACKAGE_VERSION == prob4d.__version__
     assert manifest["provider_version"] == prob4d.__version__
     assert manifest["provider_revision"] == "a" * 40
-    assert manifest["artifact_schema_versions"] == {
-        "GaugeCovarianceCalibrationV1": 1,
-        "MetricGaugeAnchor": 1,
-        "ObservationBeliefV1": 1,
-        "ObservationFactorBundle": 3,
-        "PointUncertaintyCalibrationV1": 1,
-        "Prob4DCausalObservationStream": 2,
-    }
+    assert manifest["provider_api_version"] == 2
+    assert manifest["artifact_schema_versions"]["ObservationFactorBundle"] == 4
+    assert manifest["artifact_schema_versions"]["ObservationFactorStreamV1"] == 1
     assert "joint_cross_window_sim3_gauge_covariance" in manifest["capabilities"]
-    assert "content_addressed_covariance_calibration" in manifest["capabilities"]
-    assert "content_addressed_metric_gauge_anchor" in manifest["capabilities"]
-    assert "metric_anchor_covariance_propagation" in manifest["capabilities"]
-    assert "provider_final_composite_group_weight" in manifest["capabilities"]
-    assert "sim3_observation_displacement_rank_reduction" in manifest["capabilities"]
-    assert "information_stratified_observation_sampling" in manifest["capabilities"]
-    assert "versioned_causal_stream_contract" in manifest["capabilities"]
-    assert manifest["metadata"]["source_repository"] == "FlorianPfaff/Prob4D"
-    assert manifest["metadata"]["python_import_boundary"] == "prob4d.provider_v1"
-    assert manifest["metadata"]["group_composite_weight_semantics"].startswith(
-        "final-per-row-effective-sample-cap-v1"
-    )
-    assert manifest["metadata"]["observation_stream_contract_version"] == 2
-    assert manifest["limitations"][
-        "joint_cross_window_gauge_covariance_in_observation_belief_v1"
-    ] is True
-    assert manifest["limitations"][
-        "fixed_lag_boundary_covariance_exactness_claim"
-    ] is False
-    assert manifest["limitations"][
-        "provider_pointwise_covariance_fallback_default"
-    ] is False
+    assert "runtime_revision_attestation" in manifest["capabilities"]
+    assert "strict_claim_bearing_observation_loading" in manifest["capabilities"]
+    assert "provider_attested_observation_artifacts" in manifest["capabilities"]
+    assert manifest["metadata"]["python_import_boundary"] == "prob4d.provider_v2"
+    assert manifest["limitations"]["uncalibrated_export_is_default"] is False
+
     descriptor = {key: value for key, value in manifest.items() if key != "manifest_id"}
     expected = hashlib.sha256(
         json.dumps(
@@ -61,35 +38,18 @@ def test_provider_manifest_declares_covariance_boundary() -> None:
     assert manifest["manifest_id"] == expected
 
 
-def test_provider_manifest_cli_writes_exact_payload(
+def test_provider_manifest_cli_writes_exact_v2_payload(
     tmp_path: Path, capsys
 ) -> None:
     output = tmp_path / "provider.json"
     assert main(["--provider-revision", "b" * 40, "--output", str(output)]) == 0
-    printed = capsys.readouterr().out
-    assert json.loads(printed) == json.loads(output.read_text(encoding="utf-8"))
+    printed = json.loads(capsys.readouterr().out)
+    persisted = json.loads(output.read_text(encoding="utf-8"))
+    assert printed == persisted
+    assert printed["provider_api_version"] == 2
+    assert printed["metadata"]["python_import_boundary"] == "prob4d.provider_v2"
 
 
-def test_provider_manifest_cli_can_emit_version_two(capsys) -> None:
-    assert (
-        main(
-            [
-                "--api-version",
-                "2",
-                "--provider-revision",
-                "c" * 40,
-            ]
-        )
-        == 0
-    )
-    payload = json.loads(capsys.readouterr().out)
-    assert payload["provider_api_version"] == 2
-    assert payload["artifact_schema_versions"]["ObservationFactorBundle"] == 4
-    assert "runtime_revision_attestation" in payload["capabilities"]
-    assert (
-        "joint_cross_window_sim3_gauge_covariance_in_factor_bundle"
-        in payload["capabilities"]
-    )
-    assert payload["limitations"][
-        "schema_v2_v3_factor_bundles_preserve_cross_window_gauge_covariance"
-    ] is False
+def test_provider_manifest_cli_no_longer_selects_provider_v1() -> None:
+    with pytest.raises(SystemExit):
+        main(["--api-version", "1"])

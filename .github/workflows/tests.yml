@@ -38,12 +38,11 @@ jobs:
       - name: Verify repository, release, API, and distribution policies
         run: >-
           python -m pytest -q
-          tests/test_api_v1.py
           tests/test_fail_closed_quality_workflow.py
           tests/test_github_action_pins.py
           tests/test_project_identity.py
           tests/test_release_metadata.py
-          tests/test_release_040_boundary.py
+          tests/test_release_050_boundary.py
           tests/test_sdist_boundary.py
       - name: Verify clean-checkout runtime revision attestation
         run: |
@@ -56,14 +55,9 @@ jobs:
           assert attestation.matched
           assert attestation.independently_verified
           PY
-      - name: Emit provider manifests
+      - name: Emit provider-v2 manifest and project identity
         run: |
           prob4d provider manifest \
-            --api-version 1 \
-            --provider-revision "${GITHUB_SHA}" \
-            --output provider-manifest.json
-          prob4d provider manifest \
-            --api-version 2 \
             --provider-revision "${GITHUB_SHA}" \
             --output provider-manifest-v2.json
           prob4d project identity --compact > project-identity.json
@@ -71,7 +65,6 @@ jobs:
         with:
           name: prob4d-provider-manifests
           path: |
-            provider-manifest.json
             provider-manifest-v2.json
             project-identity.json
           retention-days: 14
@@ -101,7 +94,8 @@ jobs:
           python - <<'PY'
           import sys
 
-          import prob4d.api.v1
+          import prob4d
+          import prob4d.api.v2
           import prob4d.cli
           import prob4d.composition_jacobian
           import prob4d.covariance_root
@@ -113,13 +107,19 @@ jobs:
           import prob4d.provider_attestation
           import prob4d.provider_evaluation
           import prob4d.provider_manifest
-          import prob4d.provider_v1
+          import prob4d.provider_v1 as provider_v1_artifacts
           import prob4d.provider_v2
           import prob4d.provider_v2_cli
           import prob4d.provider_v2_loading
           import prob4d.runtime_revision
           import prob4d.source_diagnostics
 
+          assert prob4d.__all__ == ["__version__"]
+          assert not hasattr(provider_v1_artifacts, "export_observation_belief")
+          assert not hasattr(
+              provider_v1_artifacts,
+              "export_calibrated_observation_belief",
+          )
           forbidden = {"torch", "diffusers", "decord"}
           loaded = sorted(forbidden & set(sys.modules))
           if loaded:
@@ -168,6 +168,7 @@ jobs:
 
           assert numpy.__version__ == "1.24.0"
           assert prob4d.__version__ == version("prob4d")
+          assert prob4d.__all__ == ["__version__"]
           PY
       - name: Run complete suite at the declared floor
         run: >-
@@ -245,21 +246,32 @@ jobs:
           "$python_bin" - <<'PY'
           from importlib import resources
           from importlib.metadata import version
+          import importlib.util
 
           import prob4d
-          import prob4d.api.v1 as api_v1
-          import prob4d.provider_v1 as provider_v1
+          import prob4d.api.v2 as api_v2
+          import prob4d.provider_v1 as provider_v1_artifacts
           import prob4d.provider_v2 as provider_v2
           from prob4d.composition_jacobian import current_composition_jacobian_mode
           from prob4d.prediction_store import load_prediction_bundle_store
           from prob4d.project_identity import prob4d_project_identity
+          from prob4d.public_api_manifest import build_public_api_manifest
 
           installed = version("prob4d")
           print(installed)
           assert prob4d.__version__ == installed
-          assert api_v1.__version__ == installed
-          assert api_v1.API_VERSION == 1
-          assert provider_v1.PROVIDER_API_VERSION == 1
+          assert prob4d.__all__ == ["__version__"]
+          assert not hasattr(prob4d, "Sim3")
+          assert importlib.util.find_spec("prob4d.api.v1") is None
+          assert importlib.util.find_spec("prob4d.legacy_cli") is None
+          assert importlib.util.find_spec("prob4d.causal_stream_cli") is None
+          assert api_v2.API_VERSION == 2
+          assert provider_v1_artifacts.PROVIDER_API_VERSION == 1
+          assert not hasattr(provider_v1_artifacts, "export_observation_belief")
+          assert not hasattr(
+              provider_v1_artifacts,
+              "export_calibrated_observation_belief",
+          )
           assert provider_v2.PROVIDER_API_VERSION == 2
           assert provider_v2.OBSERVATION_FACTOR_STREAM_VERSION == 1
           assert callable(provider_v2.load_claim_bearing_observation_belief)
@@ -267,38 +279,48 @@ jobs:
           assert resources.files("prob4d").joinpath("py.typed").is_file()
           assert current_composition_jacobian_mode() == "legacy_finite_difference"
           assert prob4d_project_identity()["canonical_repository"] == "IPS-Stuttgart/Prob4D"
+          manifest = build_public_api_manifest()
+          assert manifest["schema_version"] == 2
+          assert manifest["surfaces"]["package_root"]["exports"] == ["__version__"]
+          assert set(manifest["surfaces"]) == {"package_root", "api_v2"}
           PY
-      - name: Exercise grouped and legacy command help
+      - name: Exercise the canonical grouped command surface
         shell: bash
         run: |
           bin="$RUNNER_TEMP/prob4d-artifact-smoke/bin"
           "$bin/prob4d" --help
+          "$bin/prob4d" commands validate
           "$bin/prob4d" project identity --help
           "$bin/prob4d" provider manifest --help
-          "$bin/prob4d" provider manifest --api-version 2 --help
           "$bin/prob4d" evaluate provider --help
           "$bin/prob4d" experiment heldout-provider --help
           "$bin/prob4d" identity --help
           "$bin/prob4d" observation export --help
-          "$bin/prob4d" observation export-v1 --help
           "$bin/prob4d" observation export-calibrated --help
           "$bin/prob4d" observation export-exploratory --help
           "$bin/prob4d" motioncrafter --help
           "$bin/prob4d" storage benchmark --help
           "$bin/prob4d" storage materialize --help
           "$bin/prob4d" storage validate --help
-          "$bin/prob4d-provider-manifest" --help
-          "$bin/prob4d-ablate" --help
-          "$bin/prob4d-ablate-provider-v2-gauge" --help
-          "$bin/prob4d-benchmark" --help
-          "$bin/prob4d-evaluate-provider" --help
-          "$bin/prob4d-export-observation-belief" --help
-          "$bin/prob4d-export-calibrated-observation-belief" --help
-          "$bin/prob4d-export-exploratory-observation-belief" --help
-          "$bin/prob4d-motioncrafter" --help
-          "$bin/prob4d-phystwin" --help
-          "$bin/prob4d-phystwin-state" --help
-          "$bin/prob4d-phystwin-uncertainty" --help
-          "$bin/prob4d-sintel-uncertainty" --help
-          "$bin/prob4d-validate-observation" --help
-          "$bin/prob4d-vggt-baseline" --help
+          for removed in \
+            prob4d-provider-manifest \
+            prob4d-ablate \
+            prob4d-ablate-provider-v2-gauge \
+            prob4d-benchmark \
+            prob4d-evaluate-provider \
+            prob4d-export-observation-belief \
+            prob4d-export-calibrated-observation-belief \
+            prob4d-export-exploratory-observation-belief \
+            prob4d-finite-sample-preflight \
+            prob4d-motioncrafter \
+            prob4d-phystwin \
+            prob4d-phystwin-state \
+            prob4d-phystwin-uncertainty \
+            prob4d-sintel-uncertainty \
+            prob4d-target-admit \
+            prob4d-target-verify \
+            prob4d-validate-observation \
+            prob4d-vggt-baseline \
+            prob4d-visual-bias-calibration; do
+            test ! -e "$bin/$removed"
+          done

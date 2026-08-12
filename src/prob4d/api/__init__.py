@@ -5,9 +5,7 @@ from __future__ import annotations
 from importlib import import_module
 from types import ModuleType
 
-from . import v1
-
-__all__ = ["v1", "v2"]
+__all__ = ["v2"]
 
 
 def __getattr__(name: str) -> ModuleType:
