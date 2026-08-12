@@ -77,7 +77,10 @@ def _validated_members(archive: Path) -> tuple[str, tuple[tarfile.TarInfo, ...]]
     forbidden = sorted(
         path
         for path in relative_paths
-        if any(path == prefix.rstrip("/") or path.startswith(prefix) for prefix in FORBIDDEN_PREFIXES)
+        if any(
+            path == prefix.rstrip("/") or path.startswith(prefix)
+            for prefix in FORBIDDEN_PREFIXES
+        )
     )
     if forbidden:
         raise RuntimeError(f"source distribution contains repository-only assets: {forbidden[:20]}")
