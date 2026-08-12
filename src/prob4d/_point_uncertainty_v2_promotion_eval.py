@@ -233,5 +233,4 @@ def evaluate_point_uncertainty_v2_promotion(
     )
 
 
-
 __all__ = ["evaluate_point_uncertainty_v2_promotion"]
