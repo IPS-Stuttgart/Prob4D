@@ -27,9 +27,9 @@ _WHEEL_DIGESTS = {
     "causal4d": "c" * 64,
 }
 _PACKAGE_VERSIONS = {
-    "prob4d": "0.4.1",
+    "prob4d": "0.5.0",
     "bayesian_phystwin": "0.4.0",
-    "causal4d": "0.4.1",
+    "causal4d": "0.5.0",
 }
 
 
@@ -61,9 +61,9 @@ def _log() -> str:
     return "\n".join(
         [
             "ordinary build output",
-            f"{'a' * 64}  /tmp/wheelhouse/prob4d-0.4.1-py3-none-any.whl",
+            f"{'a' * 64}  /tmp/wheelhouse/prob4d-0.5.0-py3-none-any.whl",
             f"{'b' * 64}  /tmp/wheelhouse/bayesian_phystwin-0.4.0-py3-none-any.whl",
-            f"{'c' * 64}  /tmp/wheelhouse/causal4d-0.4.1-py3-none-any.whl",
+            f"{'c' * 64}  /tmp/wheelhouse/causal4d-0.5.0-py3-none-any.whl",
             "3 passed",
         ]
     )
@@ -158,30 +158,25 @@ def _selection(
 def _public_api_manifest() -> dict[str, Any]:
     descriptor = {
         "schema": "prob4d.public-api-manifest",
-        "schema_version": 1,
+        "schema_version": 2,
         "package": {
             "name": "prob4d",
             "version": _PACKAGE_VERSIONS["prob4d"],
             "project_id": "github-repository-id:1295794737",
         },
         "surfaces": {
-            "compatibility_root": {
+            "package_root": {
                 "module": "prob4d",
-                "surface_version": 1,
-                "loading": "lazy-compatibility-shim-v1",
-                "exports": ["Sim3", "__version__"],
-            },
-            "api_v1": {
-                "module": "prob4d.api.v1",
-                "api_version": 1,
-                "provider_api_version": 1,
-                "exports": ["API_VERSION"],
+                "surface_version": 2,
+                "loading": "minimal-version-root-v1",
+                "exports": ["__version__"],
             },
             "api_v2": {
                 "module": "prob4d.api.v2",
                 "api_version": 2,
                 "provider_api_version": 2,
                 "provider_factor_api_version": 2,
+                "lifecycle": "current",
                 "exports": ["API_VERSION"],
             },
         },
@@ -263,7 +258,7 @@ def test_parse_wheel_hashes_is_ordered_and_exact() -> None:
 
 def test_parse_wheel_hashes_rejects_missing_or_conflicting_wheels() -> None:
     with pytest.raises(ValueError, match="omitted wheel hashes"):
-        MODULE.parse_wheel_hashes(f"{'a' * 64}  prob4d-0.4.1-py3-none-any.whl")
+        MODULE.parse_wheel_hashes(f"{'a' * 64}  prob4d-0.5.0-py3-none-any.whl")
 
     conflicting = _log() + f"\n{'d' * 64}  /tmp/other/prob4d-0.4.2-py3-none-any.whl\n"
     with pytest.raises(ValueError, match="conflicting prob4d wheels"):
@@ -277,9 +272,7 @@ def test_capsule_round_trip_and_identity_are_deterministic(tmp_path: Path) -> No
     assert first["capsule_id"] == second["capsule_id"]
     assert MODULE.validate_capsule(first) == first
     assert first["schema_version"] == 2
-    assert first["evidence"]["public_api_manifest_id"] == (
-        _public_api_manifest()["manifest_id"]
-    )
+    assert first["evidence"]["public_api_manifest_id"] == (_public_api_manifest()["manifest_id"])
 
     path = tmp_path / "capsule.json"
     MODULE._atomic_write_json(path, first)
