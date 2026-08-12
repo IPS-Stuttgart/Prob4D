@@ -235,7 +235,7 @@ def _evidence_root(tmp_path: Path) -> Path:
         "lineage-bound-twin-belief.npz",
         "profile-bound.npz",
     ):
-        (root / name).write_bytes(f"fixture:{name}\n".encode("utf-8"))
+        (root / name).write_bytes(f"fixture:{name}\n".encode())
     return root
 
 
