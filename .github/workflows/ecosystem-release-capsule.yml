@@ -6,6 +6,7 @@ on:
     paths:
       - ".github/workflows/ecosystem-release-capsule.yml"
       - "MANIFEST.in"
+      - "docs/ecosystem-release-capsule.md"
       - "integration_tests/**"
       - "pyproject.toml"
       - "scripts/ci/build_ecosystem_release_capsule.py"
@@ -15,12 +16,15 @@ on:
       - "src/prob4d/observation_factors.py"
       - "src/prob4d/provider_v1.py"
       - "src/prob4d/provider_v2.py"
+      - "src/prob4d/public_api_manifest.py"
+      - "tests/test_ecosystem_capsule_workflow.py"
       - "tests/test_ecosystem_release_capsule.py"
   push:
     branches: [main]
     paths:
       - ".github/workflows/ecosystem-release-capsule.yml"
       - "MANIFEST.in"
+      - "docs/ecosystem-release-capsule.md"
       - "integration_tests/**"
       - "pyproject.toml"
       - "scripts/ci/build_ecosystem_release_capsule.py"
@@ -30,6 +34,8 @@ on:
       - "src/prob4d/observation_factors.py"
       - "src/prob4d/provider_v1.py"
       - "src/prob4d/provider_v2.py"
+      - "src/prob4d/public_api_manifest.py"
+      - "tests/test_ecosystem_capsule_workflow.py"
       - "tests/test_ecosystem_release_capsule.py"
   workflow_dispatch:
     inputs:
@@ -103,6 +109,9 @@ jobs:
             causal4d/pyproject.toml
 
       - name: Run the installed-wheel three-repository golden path
+        env:
+          THREE_REPOSITORY_EVIDENCE_OUTPUT: >-
+            ${{ runner.temp }}/prob4d-ecosystem-evidence
         shell: bash
         run: |
           set -euo pipefail
@@ -119,9 +128,11 @@ jobs:
           set -euo pipefail
           python -m pip install --disable-pip-version-check pytest
           python -m pytest -p no:cacheprovider -q \
-            prob4d/tests/test_ecosystem_release_capsule.py
+            prob4d/tests/test_ecosystem_release_capsule.py \
+            prob4d/tests/test_ecosystem_capsule_workflow.py
           python -m py_compile \
-            prob4d/scripts/ci/build_ecosystem_release_capsule.py
+            prob4d/scripts/ci/build_ecosystem_release_capsule.py \
+            prob4d/integration_tests/test_three_repository_prob4d_public_api_manifest.py
 
       - name: Build and verify the content-addressed capsule
         shell: bash
@@ -134,9 +145,12 @@ jobs:
           causal4d_revision="$(git -C causal4d rev-parse --verify 'HEAD^{commit}')"
           python_version="$(python -c 'import platform; print(platform.python_version())')"
           run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          evidence_root="${RUNNER_TEMP}/prob4d-ecosystem-evidence"
+          test -d "${evidence_root}"
 
           python prob4d/scripts/ci/build_ecosystem_release_capsule.py build \
             --golden-path-log ecosystem-golden-path.log \
+            --evidence-root "${evidence_root}" \
             --prob4d-revision "${prob4d_revision}" \
             --bayesian-phystwin-revision "${bayesian_phystwin_revision}" \
             --causal4d-revision "${causal4d_revision}" \
@@ -149,12 +163,37 @@ jobs:
 
           capsule_id="$(
             python prob4d/scripts/ci/build_ecosystem_release_capsule.py verify \
-              ecosystem-release-capsule.json
+              ecosystem-release-capsule.json \
+              --golden-path-log ecosystem-golden-path.log \
+              --evidence-root "${evidence_root}"
           )"
+          readarray -t evidence_ids < <(
+            python - <<'PY'
+          import json
+
+          with open("ecosystem-release-capsule.json", encoding="utf-8") as stream:
+              evidence = json.load(stream)["evidence"]
+          for key in (
+              "public_api_manifest_id",
+              "run_manifest_id",
+              "golden_path_bundle_id",
+              "accepted_selection_artifact_id",
+              "rejected_selection_artifact_id",
+              "exact_fallback_identity",
+          ):
+              print(evidence[key])
+          PY
+          )
           {
-            echo "### Ecosystem installed-wheel release capsule"
+            echo "### Ecosystem installed-wheel release capsule v2"
             echo
             echo "- Capsule ID: \`${capsule_id}\`"
+            echo "- Public API manifest: \`${evidence_ids[0]}\`"
+            echo "- Run manifest: \`${evidence_ids[1]}\`"
+            echo "- Decision bundle: \`${evidence_ids[2]}\`"
+            echo "- Accepted decision: \`${evidence_ids[3]}\`"
+            echo "- Rejected decision: \`${evidence_ids[4]}\`"
+            echo "- Exact fallback: \`${evidence_ids[5]}\`"
             echo "- Prob4D: \`${prob4d_revision}\`"
             echo "- BayesianPhysTwin: \`${bayesian_phystwin_revision}\`"
             echo "- Causal4D: \`${causal4d_revision}\`"
@@ -162,7 +201,7 @@ jobs:
             echo "This is interoperability and provenance evidence, not scientific promotion."
           } >> "${GITHUB_STEP_SUMMARY}"
 
-      - name: Upload capsule and execution log
+      - name: Upload capsule, log, and bound evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
@@ -170,5 +209,6 @@ jobs:
           path: |
             ecosystem-release-capsule.json
             ecosystem-golden-path.log
-          if-no-files-found: warn
-          retention-days: 30
+            ${{ runner.temp }}/prob4d-ecosystem-evidence/
+          if-no-files-found: error
+          retention-days: 90
