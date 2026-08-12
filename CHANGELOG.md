@@ -5,7 +5,19 @@ release notes and scientific boundaries live under `docs/releases/`.
 
 ## Unreleased
 
-No changes yet.
+### Added
+
+- A content-addressed trusted-validation boundary attestation that keeps GitHub
+  environment policy, runner-host hardening, dataset isolation, and exact-head
+  positive and negative controls as separately evidenced external boundaries.
+  Unverified templates and repository-local files cannot claim readiness.
+
+### Scientific boundary
+
+This is operational evidence infrastructure. It does not configure or sandbox a
+runner, authorize protected target access, establish provider accuracy or
+calibration, establish BayesianPhysTwin or Causal4D benefit, approve deployment,
+or establish state of the art.
 
 ## 0.4.1 — 2026-08-12
 
