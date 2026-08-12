@@ -1,13 +1,14 @@
 """Stable ecosystem-facing Prob4D API version 2.
 
-This façade is the supported dependency boundary for new BayesianPhysTwin,
+This façade is the supported dependency boundary for BayesianPhysTwin,
 Causal4D, and independent provider integrations that consume claim-bearing
-provider-v2 observations or explicit-gauge factors.  It intentionally exposes
+provider-v2 observations or explicit-gauge factors. It intentionally exposes
 versioned contracts and strict loaders while leaving experiment runners, CLI
 implementation details, and MotionCrafter internals outside the stable API.
 
-Breaking changes require a new :mod:`prob4d.api.vN` module.  The frozen
-:mod:`prob4d.api.v1` surface remains unchanged.
+Breaking changes require a new :mod:`prob4d.api.vN` module. Provider-v1
+reproduction is pinned to the Prob4D 0.4.1 distribution rather than carried
+forward inside the 0.5 runtime.
 """
 
 from __future__ import annotations

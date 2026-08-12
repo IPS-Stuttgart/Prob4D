@@ -75,7 +75,7 @@ jobs:
           set -o pipefail
           python -m mypy \
             src/prob4d/_version.py \
-            src/prob4d/api/v1.py \
+            src/prob4d/_provider_export_core.py \
             src/prob4d/api/v2.py \
             src/prob4d/cli.py \
             src/prob4d/calibration_compatibility.py \
@@ -95,6 +95,7 @@ jobs:
             src/prob4d/provider_v2_factor_bundle.py \
             src/prob4d/provider_v2_factors.py \
             src/prob4d/provider_v2_loading.py \
+            src/prob4d/public_api_manifest.py \
             src/prob4d/runtime_revision.py \
             src/prob4d/source_diagnostics.py \
             src/prob4d/sparse_observation_factors.py \

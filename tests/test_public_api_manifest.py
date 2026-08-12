@@ -6,9 +6,10 @@ from copy import deepcopy
 import pytest
 
 import prob4d
-from prob4d.api import v1 as api_v1
 from prob4d.api import v2 as api_v2
 from prob4d.public_api_manifest import (
+    PACKAGE_ROOT_LOADING_MODE,
+    PACKAGE_ROOT_SURFACE_VERSION,
     PUBLIC_API_MANIFEST_CLAIM_BOUNDARY,
     PUBLIC_API_MANIFEST_SCHEMA,
     PUBLIC_API_MANIFEST_VERSION,
@@ -26,30 +27,40 @@ def test_public_api_manifest_is_deterministic_and_complete() -> None:
 
     assert first == second
     assert first["schema"] == PUBLIC_API_MANIFEST_SCHEMA
-    assert first["schema_version"] == PUBLIC_API_MANIFEST_VERSION
+    assert first["schema_version"] == PUBLIC_API_MANIFEST_VERSION == 2
     assert first["package"]["version"] == prob4d.__version__
     assert first["claim_boundary"] == PUBLIC_API_MANIFEST_CLAIM_BOUNDARY
 
     surfaces = first["surfaces"]
-    assert surfaces["compatibility_root"]["loading"] == "lazy-compatibility-shim-v1"
-    assert surfaces["compatibility_root"]["exports"] == sorted(prob4d.__all__)
-    assert surfaces["api_v1"]["api_version"] == api_v1.API_VERSION == 1
-    assert surfaces["api_v1"]["exports"] == sorted(api_v1.__all__)
+    assert set(surfaces) == {"package_root", "api_v2"}
+    assert surfaces["package_root"]["surface_version"] == PACKAGE_ROOT_SURFACE_VERSION
+    assert surfaces["package_root"]["loading"] == PACKAGE_ROOT_LOADING_MODE
+    assert surfaces["package_root"]["exports"] == ["__version__"]
     assert surfaces["api_v2"]["api_version"] == api_v2.API_VERSION == 2
+    assert surfaces["api_v2"]["lifecycle"] == "current"
     assert surfaces["api_v2"]["exports"] == sorted(api_v2.__all__)
     assert validate_public_api_manifest(first) == first
 
 
-def test_public_api_manifest_rejects_tampering() -> None:
+def test_public_api_manifest_rejects_tampering_and_retired_surfaces() -> None:
     manifest = build_public_api_manifest()
     tampered = deepcopy(manifest)
     tampered["package"]["version"] = "999.0.0"
     with pytest.raises(ValueError, match="manifest_id does not match"):
         validate_public_api_manifest(tampered)
 
+    retired = deepcopy(manifest)
+    retired["surfaces"]["api_v1"] = {
+        "module": "prob4d.api.v1",
+        "api_version": 1,
+        "exports": [],
+    }
+    with pytest.raises(ValueError, match="noncanonical keys"):
+        validate_public_api_manifest(retired)
+
     unsorted = deepcopy(manifest)
-    unsorted["surfaces"]["api_v1"]["exports"] = list(
-        reversed(unsorted["surfaces"]["api_v1"]["exports"])
+    unsorted["surfaces"]["api_v2"]["exports"] = list(
+        reversed(unsorted["surfaces"]["api_v2"]["exports"])
     )
     with pytest.raises(ValueError, match="sorted canonically"):
         validate_public_api_manifest(unsorted)

@@ -9,9 +9,12 @@ on:
       - "docs/visual-bias-calibration.md"
       - "pyproject.toml"
       - "src/prob4d/_joint_visual_bias_*.py"
+      - "src/prob4d/cli.py"
+      - "src/prob4d/command_registry.py"
       - "src/prob4d/joint_visual_bias_calibration.py"
       - "src/prob4d/visual_bias_calibration.py"
       - "tests/test_joint_visual_bias_calibration.py"
+      - "tests/test_release_050_boundary.py"
       - "tests/test_visual_bias_calibration.py"
   workflow_dispatch:
 
@@ -120,7 +123,7 @@ jobs:
             tests/test_immutable_json.py \
             | tee "${VISUAL_BIAS_CALIBRATION_EVIDENCE}/pytest.txt"
           python -m compileall -q src/prob4d
-          prob4d-visual-bias-calibration --help
+          prob4d diagnostic visual-bias-calibration --help
 
       - name: Build and inspect distributions
         shell: bash

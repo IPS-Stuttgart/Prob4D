@@ -1,28 +1,24 @@
 # Causally sealed observation-belief export
 
-Prob4D exposes independently decoded MotionCrafter windows through the
-provider-neutral `phys4d.observation_belief` version-1 container consumed by
-Bayesian-PhysTwin and validated independently by Causal4D. Prob4D-specific
-statistical semantics are versioned separately; the strict causal stream contract
-is version 2.
+Prob4D exports independently decoded prediction windows through the portable
+`phys4d.observation_belief` version-1 container consumed by BayesianPhysTwin and
+validated independently by Causal4D. Prob4D-specific statistical semantics are
+versioned separately; the strict causal stream contract is version 2.
 
-The export is deliberately distinct from reconstruction products. A row is
-admissible only when the entire independently decoded source window lies before
-an exclusive causal cutoff. The exporter reads the JSON manifest to decide which
-payloads are admissible, opens only those payloads, and then recomputes alignment,
-gauge estimation, overlap disagreement, uncertainty, and prior reliability on
-that admitted prefix. It never estimates on a full sequence and then slices the
-final rows.
+The export is distinct from reconstruction products. A row is admissible only
+when the complete independently decoded source window lies before the exclusive
+causal cutoff. The exporter opens only admitted payloads and recomputes
+alignment, gauge estimation, overlap disagreement, uncertainty, and prior
+reliability on that prefix.
 
 ## Metric gauge anchor
 
-MotionCrafter points have an unresolved global `Sim(3)` gauge. An artifact whose
-coordinates and covariance are labelled in metres therefore requires an
-independent metric prior for the first retained overlap window. The anchor is a
-content-addressed JSON document:
+MotionCrafter points have an unresolved global `Sim(3)` gauge. Metric coordinates
+and covariance require an independent prior for the first retained overlap
+window:
 
 ```python
-from prob4d.provider_v2 import MetricGaugeAnchor, save_metric_gauge_anchor
+from prob4d.api.v2 import MetricGaugeAnchor, save_metric_gauge_anchor
 
 anchor = MetricGaugeAnchor(
     window_id="window_0000",
@@ -39,26 +35,12 @@ anchor = MetricGaugeAnchor(
 save_metric_gauge_anchor("outputs/metric_gauge_anchor.json", anchor)
 ```
 
-`source_artifact_sha256` must identify the exact first admitted prediction
-payload. `calibration_artifact_sha256` must identify the exact external
-registration or calibration artifact from which the transform and covariance
-were obtained. Strict stream-v2 export rejects anchors without either binding.
+The anchor must bind the exact first admitted prediction payload and the external
+registration/calibration artifact. Strict stream-v2 export rejects incomplete or
+post-cutoff provenance. Nonzero anchor covariance is propagated into the shared
+joint gauge factor.
 
-The registration and its covariance must use only information authorized before
-the causal cutoff. Simulated benchmark truth may be used only for an explicitly
-labelled sensor-assisted ablation, not for a monocular claim.
-
-A zero `7 x 7` anchor covariance is declared as
-`fixed_external_calibration`. A nonzero covariance is declared as
-`propagated_external_prior` and is included in the shared joint gauge factor.
-The embedded anchor record states the case, world frame, exact source and
-calibration digests, and covariance treatment so consumers do not infer these
-semantics from factor names.
-
-## Command
-
-New claim-bearing experiments must select the calibrated provider-v2 route
-explicitly:
+## Claim-bearing command
 
 ```bash
 prob4d observation export-calibrated \
@@ -76,123 +58,56 @@ prob4d observation export-calibrated \
   --source-revision <full-prob4d-commit> \
   --summary-json outputs/sequence/observation_belief_summary.json
 
-prob4d-validate-observation outputs/sequence/observation_belief.npz
+prob4d observation validate outputs/sequence/observation_belief.npz
 ```
 
-Use `prob4d observation export-v1` only for frozen provider-v1 reproduction and
-`prob4d observation export-exploratory` for explicitly labelled controls. The
-bare `prob4d observation export` command is intentionally ambiguous: it prints
-migration guidance and runs no exporter.
+Use `prob4d observation export-exploratory` only for explicitly labelled
+uncalibrated, pointwise-fallback, alternate-root, or fixed-lag controls. The bare
+`prob4d observation export` route prints guidance and runs no exporter.
+Provider-v1 execution and `export-v1` were removed in Prob4D 0.5; pin Prob4D
+0.4.1 to reproduce those runs.
 
-`--causal-frame-stop` is exclusive. An overlap-window manifest entry is admitted
-only when its declared stop is at most the cutoff and its payload contains the
-exact absolute frame IDs implied by the declared bounds and frame stride.
-Unknown lineage schemas, path traversal, inconsistent frame IDs, non-prefix
-window selections, an anchor for the wrong first payload, and incomplete
-calibration provenance fail closed. The exporter records an exact 40- or
-64-character Prob4D commit.
-The export fails when that revision cannot be
-obtained from the checkout and is not provided explicitly.
-
-`fixed_grid` sampling remains available to reproduce frozen artifacts.
-`information_stratified` partitions each frame into `pixel_stride` tiles and
-selects at most one valid row per tile using a deterministic score combining
-source reliability, depth leverage, and conditional precision. This avoids
-dropping an otherwise valid tile merely because its upper-left grid pixel is
-invalid. The selected mode is content-addressed metadata.
-
-The strict command first writes a hidden temporary archive, reloads it through
-the strict validator, verifies the content address, flushes it, and atomically
-replaces the requested output. The summary JSON uses the same temporary-file and
-atomic-replace discipline.
+`--causal-frame-stop` is exclusive. Unknown lineage schemas, path traversal,
+inconsistent frame IDs, non-prefix selections, a mismatched anchor, incomplete
+calibration provenance, or unverifiable runtime revision fail closed.
 
 ## Joint gauge posterior
 
-The production default is `--gauge-mode sequential`. Prob4D chooses one causal
-spanning-tree parent for every retained window, preferring more correspondences,
-then lower residual RMS, then the earlier reference window. It propagates the
-metric-anchor covariance and every selected relative-alignment covariance into
-one joint matrix
+The production default is a causal sequential spanning tree. Prob4D propagates
+the metric-anchor covariance and every selected relative-alignment covariance
+into one joint matrix, including cross-window covariance. Redundant edges are
+reported but not fused under an unverified independence assumption.
 
-```text
-Sigma_g in R^(7K x 7K),
-```
-
-including the cross-covariance between windows. Redundant alignment edges are
-reported but are not fused into the production tree, which avoids silently
-assuming independence between dense shared-backbone constraints.
-
-A deterministic eigendecomposition produces a shared covariance root. Before
-truncation, each window's log-scale and rotation coordinates are normalized by a
-robust representative metric point radius; translation already has displacement
-units. The retained trace is therefore an observation-displacement proxy rather
-than a raw sum of squared radians, metres, and dimensionless log scale. It is
-invariant to expressing the same metric geometry in metres or millimetres. The
-export fails when `--max-gauge-rank` would retain less than
-`--minimum-retained-gauge-trace` under this declared metric. Rank reduction is
-therefore explicit and auditable rather than a silent memory optimization.
-
-The `--gauge-mode fixed_lag` path remains available only with
-`--allow-approximate-fixed-lag-covariance`. When the oldest active gauge expires,
-its factors and the previous boundary prior are linearized and eliminated through
-a Schur complement. The active boundary therefore retains that uncertainty. The
-portable all-window artifact still exports only block-diagonal historical
-marginals and cannot reconstruct historical cross-window covariance. Fixed-lag
-mode is consequently suitable for a labelled reconstruction ablation, not for
-the strict stream-v2 Bayesian uncertainty claim.
+A deterministic eigendecomposition produces a shared covariance root. Rank
+truncation is accepted only when the retained observation-displacement covariance
+trace passes the declared threshold. Fixed-lag mode carries an uncertainty-bearing
+Schur-complement boundary prior but remains an explicitly labelled
+reconstruction control because historical all-window cross-covariance is not
+portable after marginalization.
 
 ## Artifact semantics
 
-The archive contains metric 3-D means, full conditional `3 x 3` covariance,
-absolute frame/entity/view/window identities, separate association probability
-and prior reliability, effective correlation groups, and composite-likelihood
-weights. For row `i` from window `k`, the shared low-rank factor is
+The archive binds metric 3-D means, conditional `3 x 3` covariance, absolute
+frame/entity/view/window identities, association probability, prior reliability,
+effective correlation groups, composite-likelihood weights, and shared low-rank
+gauge factors.
 
-```text
-U_i = J_i L_k,
-Sigma_g = L L^T,
-L_k = rows 7k : 7(k + 1) of L.
-```
+A consumer that keeps gauge terms as explicit nuisance variables must use the
+conditional covariance and must not add the shared factor covariance again.
+Association probability describes decoded-pixel identity support, not physical
+node association. Prior reliability is source-derived and independent of the
+downstream physical innovation.
 
-Every row uses one common factor group because the latent vector is joint across
-all windows. This preserves both per-window gauge marginal covariance and
-cross-window covariance. A consumer that keeps the gauge terms as explicit
-nuisance variables must use the local conditional covariance and must not add
-`U_i U_i^T` to it again.
-
-Association probability is diagnostic support for the decoded pixel identity;
-it is not a MotionCrafter-to-physical-node association probability. Prior
-reliability is derived from overlap disagreement without reading the downstream
-physical innovation.
-
-The exporter has no independently calibrated group-level nominal/outlier prior.
-It therefore writes the neutral value `1.0` for
-`group_prior_nominal_probability`; overlap reliability is not applied a second
-time. `group_composite_weight` is the final per-row generalized-Bayes power
-that caps dense duplicate information. The artifact declares
-`group_composite_weight_semantics = final-per-row-effective-sample-cap-v1`;
-downstream consumers must not apply a second effective-sample cap to those rows.
-Per-group raw-row, unique-entity, effective-sample, and per-row-weight statistics
-are embedded for audit.
-
-The descriptor, all array names, dtypes, shapes, and bytes are covered by the
-artifact ID. The source digest covers only admitted payload hashes and stable
-prediction-affecting provenance. Consequently, appending post-cutoff windows to
-the manifest cannot change an already valid prefix artifact. The operational
-summary may report how many future or crossing entries were skipped, but that
-post-cutoff bookkeeping is intentionally excluded from the artifact content
-address.
+The descriptor, array roster, dtypes, shapes, and bytes are covered by the
+artifact ID. Appending post-cutoff windows cannot change an already valid prefix
+artifact.
 
 ## Cross-repository checks
 
-Prob4D, Bayesian-PhysTwin, and Causal4D share a golden contract fixture. The same
-artifact must have the same content address in all three repositories.
-Bayesian-PhysTwin consumes the shared low-rank gauge factor as explicit nuisance
-parameters, keeps association probability separate from reliability, and uses
-the group prior and composite weight as distinct inputs. Causal4D independently
-checks the version, rank, parent lineage, exact anchor/calibration bindings, and
-covariance treatment before it binds the resulting twin belief to the
-observation artifact.
+Prob4D, BayesianPhysTwin, and Causal4D share an installed-wheel contract corpus.
+BayesianPhysTwin independently revalidates the producer artifact and owns
+physical-update guards. Causal4D consumes the resulting BayesianPhysTwin belief
+and independently validates observation lineage before counterfactual use.
 
 For release-facing interoperability evidence, run the
 [three-repository installed-wheel release capsule](ecosystem-release-capsule.md).

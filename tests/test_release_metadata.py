@@ -86,7 +86,7 @@ def test_license_and_typing_metadata_are_explicit() -> None:
     assert 'THE SOFTWARE IS PROVIDED "AS IS"' in license_text
 
 
-def test_observation_export_documentation_uses_an_explicit_route() -> None:
+def test_observation_export_documentation_uses_current_routes() -> None:
     documentation = (ROOT / "docs" / "observation-belief-export.md").read_text(
         encoding="utf-8"
     )
@@ -94,7 +94,9 @@ def test_observation_export_documentation_uses_an_explicit_route() -> None:
     ambiguous_command = "prob4d observation export \\"
     assert calibrated_command in documentation
     assert ambiguous_command not in documentation
-    assert "prob4d observation export-v1" in documentation
+    assert "prob4d observation export-v1" not in documentation
+    assert "prob4d-validate-observation" not in documentation
+    assert "prob4d observation validate" in documentation
 
 
 def test_current_release_note_exists() -> None:

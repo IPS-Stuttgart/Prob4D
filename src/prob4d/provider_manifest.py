@@ -1,4 +1,4 @@
-"""Versioned capability manifest for the Prob4D observation provider."""
+"""Versioned capability manifest for the historical Prob4D provider contract."""
 
 from __future__ import annotations
 
@@ -86,12 +86,14 @@ def prob4d_provider_manifest(
     *,
     provider_revision: str | None = None,
 ) -> dict[str, object]:
-    """Return the auditable producer contract for Bayesian consumers.
+    """Return the frozen provider-v1 contract descriptor.
 
     Provider API v1 intentionally retains its historical repository and import
     boundary because both fields contribute to content-addressed manifest IDs.
-    Current project identity and the additive public API façade are published
-    separately through :mod:`prob4d.project_identity` and :mod:`prob4d.api.v1`.
+    Prob4D 0.5 exposes this descriptor only through the artifact compatibility
+    bridge; it does not imply that provider-v1 execution remains available.
+    Current project identity and the stable public façade are published through
+    :mod:`prob4d.project_identity` and :mod:`prob4d.api.v2`.
     """
 
     revision = (

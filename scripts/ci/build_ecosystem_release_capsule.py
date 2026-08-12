@@ -81,9 +81,7 @@ _SELECTION_FIELDS: Final = frozenset(
         "metadata",
     }
 )
-_ARRAY_FIELDS: Final = frozenset(
-    {"array_id", "dtype", "shape", "nbytes", "payload_sha256"}
-)
+_ARRAY_FIELDS: Final = frozenset({"array_id", "dtype", "shape", "nbytes", "payload_sha256"})
 _BUNDLE_FIELDS: Final = frozenset(
     {"bundle_id", "schema_name", "schema_version", "accepted", "rejected"}
 )
@@ -271,15 +269,16 @@ def _validate_array_identity(value: Any, *, name: str) -> dict[str, Any]:
 def _validate_selection(value: Any, *, decision: str) -> dict[str, Any]:
     record = _strict_mapping(value, name=f"{decision} selection")
     _exact_keys(record, _SELECTION_FIELDS, name=f"{decision} selection")
-    if _strict_string(record["schema_name"], name=f"{decision}.schema_name") != (
-        _SELECTION_SCHEMA
-    ):
+    if _strict_string(record["schema_name"], name=f"{decision}.schema_name") != (_SELECTION_SCHEMA):
         raise ValueError(f"{decision} selection schema changed")
-    if _strict_integer(
-        record["schema_version"],
-        name=f"{decision}.schema_version",
-        minimum=1,
-    ) != 1:
+    if (
+        _strict_integer(
+            record["schema_version"],
+            name=f"{decision}.schema_version",
+            minimum=1,
+        )
+        != 1
+    ):
         raise ValueError(f"{decision} selection schema changed")
     if record["decision"] != decision:
         raise ValueError(f"{decision} selection decision changed")
@@ -335,12 +334,7 @@ def _validate_selection(value: Any, *, decision: str) -> dict[str, Any]:
     if decision == "accepted":
         if reason != "candidate-accepted":
             raise ValueError("accepted selection reason changed")
-        if not (
-            inference_admissible
-            and guard_present
-            and guard_accepted
-            and candidate_accepted
-        ):
+        if not (inference_admissible and guard_present and guard_accepted and candidate_accepted):
             raise ValueError("accepted selection did not pass every admission gate")
         if selected["array_id"] != candidate["array_id"]:
             raise ValueError("accepted selection did not preserve exact candidate bytes")
@@ -375,42 +369,42 @@ def _validate_public_api_manifest(value: Any) -> dict[str, Any]:
         {"schema", "schema_version", "package", "surfaces", "claim_boundary", "manifest_id"},
         name="public API manifest",
     )
-    if _strict_string(manifest["schema"], name="public API schema") != (
-        _PUBLIC_API_SCHEMA
-    ):
+    if _strict_string(manifest["schema"], name="public API schema") != _PUBLIC_API_SCHEMA:
         raise ValueError("public API manifest schema changed")
-    if _strict_integer(
-        manifest["schema_version"],
-        name="public API schema_version",
-        minimum=1,
-    ) != 1:
+    if (
+        _strict_integer(
+            manifest["schema_version"],
+            name="public API schema_version",
+            minimum=1,
+        )
+        != 2
+    ):
         raise ValueError("public API manifest schema changed")
     if manifest["claim_boundary"] != _PUBLIC_API_CLAIM_BOUNDARY:
         raise ValueError("public API manifest claim boundary changed")
+
     package = _strict_mapping(manifest["package"], name="public API package")
     _exact_keys(package, {"name", "version", "project_id"}, name="public API package")
     if _strict_string(package["name"], name="public API package name") != "prob4d":
         raise ValueError("public API manifest package identity changed")
-    if _strict_string(
-        package["project_id"],
-        name="public API project identity",
-    ) != _PUBLIC_API_PROJECT_ID:
+    if (
+        _strict_string(
+            package["project_id"],
+            name="public API project identity",
+        )
+        != _PUBLIC_API_PROJECT_ID
+    ):
         raise ValueError("public API manifest package identity changed")
     _strict_string(package["version"], name="public API package version")
+
     surfaces = _strict_mapping(manifest["surfaces"], name="public API surfaces")
-    _exact_keys(surfaces, {"compatibility_root", "api_v1", "api_v2"}, name="public API surfaces")
-    root = _strict_mapping(surfaces["compatibility_root"], name="compatibility root")
-    api1 = _strict_mapping(surfaces["api_v1"], name="api_v1")
+    _exact_keys(surfaces, {"package_root", "api_v2"}, name="public API surfaces")
+    package_root = _strict_mapping(surfaces["package_root"], name="package root")
     api2 = _strict_mapping(surfaces["api_v2"], name="api_v2")
     _exact_keys(
-        root,
+        package_root,
         {"module", "surface_version", "loading", "exports"},
-        name="compatibility root",
-    )
-    _exact_keys(
-        api1,
-        {"module", "api_version", "provider_api_version", "exports"},
-        name="api_v1",
+        name="package root",
     )
     _exact_keys(
         api2,
@@ -419,41 +413,31 @@ def _validate_public_api_manifest(value: Any) -> dict[str, Any]:
             "api_version",
             "provider_api_version",
             "provider_factor_api_version",
+            "lifecycle",
             "exports",
         },
         name="api_v2",
     )
     if (
-        _strict_string(root.get("module"), name="compatibility root module") != "prob4d"
+        _strict_string(package_root.get("module"), name="package root module") != "prob4d"
         or _strict_integer(
-            root.get("surface_version"),
-            name="compatibility root surface_version",
+            package_root.get("surface_version"),
+            name="package root surface_version",
             minimum=1,
         )
-        != 1
+        != 2
         or _strict_string(
-            root.get("loading"),
-            name="compatibility root loading",
+            package_root.get("loading"),
+            name="package root loading",
         )
-        != "lazy-compatibility-shim-v1"
+        != "minimal-version-root-v1"
+        or package_root.get("exports") != ["__version__"]
     ):
-        raise ValueError("public API compatibility-root semantics changed")
-    if (
-        _strict_string(api1.get("module"), name="api_v1 module") != "prob4d.api.v1"
-        or _strict_integer(api1.get("api_version"), name="api_v1 version", minimum=1)
-        != 1
-        or _strict_integer(
-            api1.get("provider_api_version"),
-            name="api_v1 provider version",
-            minimum=1,
-        )
-        != 1
-    ):
-        raise ValueError("public API v1 semantics changed")
+        raise ValueError("public API package-root semantics changed")
     if (
         _strict_string(api2.get("module"), name="api_v2 module") != "prob4d.api.v2"
-        or _strict_integer(api2.get("api_version"), name="api_v2 version", minimum=1)
-        != 2
+        or _strict_integer(api2.get("api_version"), name="api_v2 version", minimum=1) != 2
+        or _strict_string(api2.get("lifecycle"), name="api_v2 lifecycle") != "current"
     ):
         raise ValueError("public API v2 semantics changed")
     if (
@@ -471,6 +455,7 @@ def _validate_public_api_manifest(value: Any) -> dict[str, Any]:
         != 2
     ):
         raise ValueError("public API v2 provider versions changed")
+
     for surface_name, surface in surfaces.items():
         exports = surface.get("exports")
         if (
@@ -491,11 +476,14 @@ def _validate_run_manifest(value: Any) -> dict[str, Any]:
         "bayesian_phystwin.run_manifest"
     ):
         raise ValueError("run-manifest schema changed")
-    if _strict_integer(
-        manifest.get("schema_version"),
-        name="run-manifest version",
-        minimum=1,
-    ) != 2:
+    if (
+        _strict_integer(
+            manifest.get("schema_version"),
+            name="run-manifest version",
+            minimum=1,
+        )
+        != 2
+    ):
         raise ValueError("run-manifest version changed")
     manifest_id = _content_id(manifest, id_field="manifest_id")
     evidence_fingerprint = _strict_digest(
@@ -529,11 +517,14 @@ def _validate_bundle(value: Any) -> tuple[dict[str, Any], dict[str, Any], dict[s
     _exact_keys(bundle, _BUNDLE_FIELDS, name="golden-path bundle")
     if _strict_string(bundle["schema_name"], name="bundle schema_name") != _BUNDLE_SCHEMA:
         raise ValueError("golden-path bundle schema changed")
-    if _strict_integer(
-        bundle["schema_version"],
-        name="bundle schema_version",
-        minimum=1,
-    ) != 1:
+    if (
+        _strict_integer(
+            bundle["schema_version"],
+            name="bundle schema_version",
+            minimum=1,
+        )
+        != 1
+    ):
         raise ValueError("golden-path bundle schema changed")
     bundle_id = _content_id(bundle, id_field="bundle_id")
     accepted = _validate_selection(bundle["accepted"], decision="accepted")
@@ -830,8 +821,7 @@ def verify_capsule_evidence(
 
     validated = validate_capsule(capsule)
     revisions = {
-        component: validated["repositories"][component]["revision"]
-        for component in _COMPONENTS
+        component: validated["repositories"][component]["revision"] for component in _COMPONENTS
     }
     current = build_evidence_record(
         golden_path_log=golden_path_log,

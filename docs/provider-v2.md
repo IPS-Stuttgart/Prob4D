@@ -1,8 +1,10 @@
 # Provider API version 2
 
-`prob4d.provider_v2` is the safe-by-default Python surface for new claim-bearing
-experiments. It preserves the neutral `ObservationBeliefV1` schema, the Prob4D
-causal-stream-v2 contract, and frozen `prob4d.provider_v1` behavior.
+`prob4d.api.v2` is the stable ecosystem-facing surface for new claim-bearing
+experiments. `prob4d.provider_v2` is its attested implementation module. The
+provider preserves the portable `ObservationBeliefV1` schema and the Prob4D
+causal-stream-v2 contract while removing provider-v1 execution from the current
+package.
 
 ## Explicit export modes
 
@@ -34,18 +36,19 @@ prob4d observation export-calibrated \
   --summary-json outputs/test/observation_belief_summary.json
 ```
 
-Use `prob4d observation export-exploratory` for labelled reconstruction controls
-and `prob4d observation export-v1` for the frozen grouped provider-v1 route. The
-bare `prob4d observation export` command is intentionally ambiguous: it prints
-migration guidance and does not execute an exporter. The historical
-`prob4d-export-observation-belief` executable remains unchanged.
+Use `prob4d observation export-exploratory` for labelled reconstruction controls.
+The bare `prob4d observation export` command is intentionally ambiguous: it
+prints the two current choices and does not execute an exporter. Provider-v1
+execution and standalone `prob4d-*` executables belong to the exact Prob4D 0.4.1
+reproduction environment.
 
 ## Strict claim-bearing loading
 
-Provider v2 also exposes the corresponding admission boundary:
+Provider v2 exposes the corresponding admission boundary through the stable
+façade:
 
 ```python
-from prob4d.provider_v2 import load_claim_bearing_observation_belief
+from prob4d.api.v2 import load_claim_bearing_observation_belief
 
 validated = load_claim_bearing_observation_belief(
     "outputs/test/observation_belief.npz"
@@ -56,8 +59,8 @@ observation = validated.observation
 This validates causal stream version 2, joint cross-window covariance, complete
 alignment-level covariance calibration, zero fallback permission/use, canonical
 numerical modes, calibration identities, and independently verified runtime
-provenance. The neutral `load_observation_belief_export` remains available for
-frozen and exploratory artifacts.
+provenance. The neutral `load_observation_belief_export` remains available from
+`prob4d.api.v2` for explicit artifact inspection.
 
 ## Provider and runtime attestation
 
@@ -82,11 +85,10 @@ at the declared revision.
 unauthenticated environment variable cannot prove the executing code bytes and
 never satisfies the claim-bearing entry point.
 
-CI emits both manifests with:
+CI emits the current manifest with:
 
 ```bash
-prob4d provider manifest --api-version 1 --provider-revision "<commit>"
-prob4d provider manifest --api-version 2 --provider-revision "<commit>"
+prob4d provider manifest --provider-revision "<commit>"
 ```
 
 ## Analytic `Sim(3)` composition Jacobians
@@ -103,20 +105,23 @@ rotation transport of relative translation, and direct translation blocks. The
 SO(3) logarithm is nondifferentiable at its pi branch cut; provider-v2 sequential
 export fails closed there rather than exporting platform-dependent covariance.
 
-A task-local dispatcher preserves compatibility:
+A task-local dispatcher preserves explicit numerical semantics:
 
 - provider-v2 sequential export uses `analytic`;
-- provider v1 defaults to `legacy_finite_difference`;
-- exploratory fixed-lag reconstruction retains its frozen derivative path; and
-- nested or concurrent contexts cannot leak modes across provider versions.
+- exploratory fixed-lag reconstruction retains its declared finite-difference
+  path; and
+- nested or concurrent contexts cannot leak modes between runs.
+
+The historical provider-v1 defaults are reproduced only by Prob4D 0.4.1.
 
 ## Canonical covariance-root basis
 
-Provider v1 retains its frozen eigenvector/sign convention. Provider v2 derives a
-canonical basis from repeated-eigenspace projectors and fails closed when an
-eigenvalue floor or rank boundary would split a numerically repeated eigenspace.
-The claim-bearing entry point always uses `canonical_eigenspaces`; exploratory
-callers can request legacy roots for reproduction.
+Provider v2 derives a canonical basis from repeated-eigenspace projectors and
+fails closed when an eigenvalue floor or rank boundary would split a numerically
+repeated eigenspace. The claim-bearing entry point always uses
+`canonical_eigenspaces`; exploratory callers can request legacy roots as a
+labelled numerical control. Full provider-v1 reproduction remains pinned to
+Prob4D 0.4.1.
 
 ## Calibration compatibility
 
@@ -148,7 +153,7 @@ identity. See [append-only observation-factor streams](observation-factor-stream
 ## Python export example
 
 ```python
-from prob4d.provider_v2 import (
+from prob4d.api.v2 import (
     export_calibrated_observation_belief,
     load_gauge_covariance_calibration,
     load_metric_gauge_anchor,
@@ -170,6 +175,7 @@ artifact = export_calibrated_observation_belief(
 )
 ```
 
-Provider v1 remains available for frozen runs. New experiments should use
-provider v2 unless they intentionally reproduce earlier API semantics. See the
-[compatibility boundaries](compatibility.md) for the complete matrix.
+Prob4D 0.5 retains `prob4d.provider_v1` only as an artifact compatibility bridge.
+It exposes no provider-v1 estimator or exporter. See the
+[compatibility boundaries](compatibility.md) and pin Prob4D 0.4.1 for full
+provider-v1 execution.

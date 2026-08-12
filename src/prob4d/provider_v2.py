@@ -1,8 +1,9 @@
 """Safe-by-default Prob4D provider API for claim-bearing development.
 
-Version 1 remains frozen for exact reproduction. Version 2 separates exploratory
-and calibrated export entry points, validates calibration compatibility before
-opening prediction payloads, and binds provider/runtime provenance into exports.
+Prob4D 0.4.1 remains the frozen environment for provider-v1 reproduction.
+Version 2 separates exploratory and calibrated export entry points, validates
+calibration compatibility before opening prediction payloads, and binds
+provider/runtime provenance into exports.
 """
 
 from __future__ import annotations
@@ -14,7 +15,35 @@ from dataclasses import replace
 from pathlib import Path
 from typing import cast
 
-from . import provider_v1 as _v1
+from . import _provider_export_core as _v1
+from ._provider_export_core import (
+    GAUGE_COVARIANCE_CALIBRATION_SCHEMA,
+    GAUGE_COVARIANCE_CALIBRATION_VERSION,
+    METRIC_GAUGE_ANCHOR_SCHEMA,
+    METRIC_GAUGE_ANCHOR_VERSION,
+    OBSERVATION_BELIEF_SCHEMA,
+    OBSERVATION_BELIEF_VERSION,
+    POINT_UNCERTAINTY_CALIBRATION_SCHEMA,
+    POINT_UNCERTAINTY_CALIBRATION_VERSION,
+    PROB4D_CAUSAL_STREAM_CONTRACT_VERSION,
+    CausalOverlapSelection,
+    GaugeCovarianceCalibrationV1,
+    MetricGaugeAnchor,
+    ObservationBeliefExportV1,
+    PointUncertaintyCalibrationV1,
+    SamplingMode,
+    SelectedOverlapWindow,
+    bind_causal_stream_contract_v2,
+    load_gauge_covariance_calibration,
+    load_metric_gauge_anchor,
+    load_observation_belief_export,
+    load_point_uncertainty_calibration,
+    save_gauge_covariance_calibration,
+    save_metric_gauge_anchor,
+    save_observation_belief_export,
+    save_point_uncertainty_calibration,
+    select_causal_source,
+)
 from .calibration_compatibility import (
     CalibrationCompatibilityError,
     PredictionCalibrationTargetV1,
@@ -51,34 +80,6 @@ from .provider_attestation import (
     validate_provider_attestation,
     validate_provider_manifest,
 )
-from .provider_v1 import (
-    GAUGE_COVARIANCE_CALIBRATION_SCHEMA,
-    GAUGE_COVARIANCE_CALIBRATION_VERSION,
-    METRIC_GAUGE_ANCHOR_SCHEMA,
-    METRIC_GAUGE_ANCHOR_VERSION,
-    OBSERVATION_BELIEF_SCHEMA,
-    OBSERVATION_BELIEF_VERSION,
-    POINT_UNCERTAINTY_CALIBRATION_SCHEMA,
-    POINT_UNCERTAINTY_CALIBRATION_VERSION,
-    PROB4D_CAUSAL_STREAM_CONTRACT_VERSION,
-    CausalOverlapSelection,
-    GaugeCovarianceCalibrationV1,
-    MetricGaugeAnchor,
-    ObservationBeliefExportV1,
-    PointUncertaintyCalibrationV1,
-    SamplingMode,
-    SelectedOverlapWindow,
-    bind_causal_stream_contract_v2,
-    load_gauge_covariance_calibration,
-    load_metric_gauge_anchor,
-    load_observation_belief_export,
-    load_point_uncertainty_calibration,
-    save_gauge_covariance_calibration,
-    save_metric_gauge_anchor,
-    save_observation_belief_export,
-    save_point_uncertainty_calibration,
-    select_causal_source,
-)
 from .provider_v2_loading import (
     ValidatedClaimBearingObservation,
     load_claim_bearing_observation_belief,
@@ -108,7 +109,7 @@ def prob4d_provider_manifest(
     *,
     provider_revision: str | None = None,
 ) -> dict[str, object]:
-    """Return the version-2 capability descriptor without altering v1."""
+    """Return the version-2 capability descriptor."""
 
     inherited = dict(
         _v1.prob4d_provider_manifest(provider_revision=provider_revision)
@@ -141,14 +142,15 @@ def prob4d_provider_manifest(
             "composition_jacobian_semantics": (
                 "provider-v2 sequential joint-gauge propagation uses closed-form "
                 "derivatives in log-scale, axis-angle, and translation coordinates; "
-                "the SO(3) log branch cut fails closed, while provider v1 and the "
-                "exploratory fixed-lag reconstruction path retain frozen finite-"
-                "difference behavior"
+                "the SO(3) log branch cut fails closed, while the 0.4.1 reproduction "
+                "environment and exploratory fixed-lag reconstruction path retain "
+                "their frozen finite-difference behavior"
             ),
             "covariance_root_semantics": (
                 "version 2 uses a context-local canonical basis for numerically "
                 "repeated covariance eigenspaces and fails closed if a rank boundary "
-                "would split one; provider v1 retains its frozen legacy basis"
+                "would split one; the 0.4.1 reproduction environment retains its "
+                "frozen historical basis"
             ),
             "export_mode_semantics": (
                 "exploratory and calibrated entry points are distinct; calibrated "
@@ -173,9 +175,9 @@ def prob4d_provider_manifest(
                 "can validate the attestation without importing Prob4D"
             ),
             "claim_bearing_loading_semantics": (
-                "prob4d.provider_v2 re-exports a strict loader that requires causal "
-                "stream-v2 joint covariance, complete calibration metadata, and an "
-                "independently verified provider-v2 attestation before admission"
+                "prob4d.api.v2 exposes a strict loader that requires causal stream-v2 "
+                "joint covariance, complete calibration metadata, and an independently "
+                "verified provider-v2 attestation before admission"
             ),
         }
     )
@@ -265,9 +267,10 @@ def export_exploratory_observation_belief(
 ) -> ObservationBeliefExportV1:
     """Export an explicitly exploratory, provider-attested observation belief.
 
-    The output retains v1 artifact and causal-stream schemas. The distinct function
-    name prevents an uncalibrated run from being mistaken for the claim-bearing API.
-    Runtime provenance is recorded but is not required to be independently verified.
+    The output retains the established observation artifact and causal-stream schemas.
+    The distinct function name prevents an uncalibrated run from being mistaken for
+    the claim-bearing API. Runtime provenance is recorded but is not required to be
+    independently verified.
     """
 
     selected_composition_mode: CompositionJacobianMode = (

@@ -31,7 +31,11 @@ def test_sdist_audit_installs_and_smoke_tests_the_archive() -> None:
     assert '"-m", "pip", "check"' in audit
     assert '"--no-deps"' not in audit
     assert "system_site_packages=True" not in audit
-    assert "prob4d.api.v1" in audit
+    assert 'util.find_spec("prob4d.api.v1") is None' in audit
+    assert 'util.find_spec("prob4d.legacy_cli") is None' in audit
+    assert "prob4d.api.v2" in audit
+    assert "src/prob4d/_provider_export_core.py" in audit
+    assert "export_observation_belief" in audit
     assert "REPRESENTATIVE_TESTS" not in audit
 
 

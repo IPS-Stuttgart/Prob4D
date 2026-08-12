@@ -9,8 +9,11 @@ on:
       - "docs/target-provider-admission.md"
       - "pyproject.toml"
       - "scripts/ci/check_sdist.py"
+      - "src/prob4d/cli.py"
+      - "src/prob4d/command_registry.py"
       - "src/prob4d/target_provider_admission.py"
       - "src/prob4d/target_provider_admission_cli.py"
+      - "tests/test_release_050_boundary.py"
       - "tests/test_target_provider_admission.py"
   workflow_dispatch:
 
@@ -93,8 +96,8 @@ jobs:
           python -m venv "$environment"
           "$environment/bin/python" -m pip install "$wheel"
           "$environment/bin/python" -m pip check
-          "$environment/bin/prob4d-target-admit" --help
-          "$environment/bin/prob4d-target-verify" --help
+          "$environment/bin/prob4d" provider target-admit --help
+          "$environment/bin/prob4d" provider target-verify --help
 
       - name: Verify clean exact-head execution
         run: |

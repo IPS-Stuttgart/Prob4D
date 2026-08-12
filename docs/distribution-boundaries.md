@@ -1,37 +1,52 @@
 # Distribution boundaries
 
-Prob4D publishes two conceptually different artifacts.
+Prob4D publishes an installable Python distribution and separate scientific
+evidence artifacts.
 
 ## Python distribution
 
-The wheel and source distribution contain the installable library, typed contract
-data, project metadata, documentation, and frozen protocol descriptions. They do
-not contain GitHub workflows, generated evidence, CI environments, repository
-tests, or one-off maintenance scripts.
+The wheel and source distribution contain the library, typed contract data,
+project metadata, documentation, and frozen protocol descriptions. They do not
+contain GitHub workflows, generated evidence, CI environments, repository tests,
+or one-off maintenance scripts.
 
-The package includes both `py.typed` and the root `__init__.pyi` compatibility
-stub. Runtime root exports are lazy, while static type checkers retain the exact
-historical root inventory. The installed distribution can emit a
-content-addressed public API manifest covering the root and both versioned
-façades.
+The package includes `py.typed` and a deliberately minimal root
+`__init__.py`/`__init__.pyi`. The supported ecosystem boundary is
+`prob4d.api.v2`.
 
-The source-distribution audit installs the built archive into an isolated virtual
-environment and exercises the installed package, lazy root behavior, versioned
-public APIs, public API manifest, contract data, and canonical CLI. It
-intentionally does not run tests copied into the archive.
+Prob4D 0.5 installs one executable:
 
-## Evidence capsule
+```text
+prob4d
+```
 
-Scientific evidence remains a separate, content-addressed artifact. Evidence
-capsules bind the exact Prob4D, BayesianPhysTwin, and Causal4D revisions,
-dependency locks, protocol identifiers, execution identity, and checksums needed
-to reproduce a declared result. They are produced by explicit evidence workflows
-and are not part of the package consumed by normal Python users.
+It does not install standalone `prob4d-*` aliases. It also omits
+`prob4d.api.v1`, `prob4d.legacy_cli`, and provider-v1 execution/export entry
+points.
 
-A public API manifest or green installed-wheel capsule is compatibility and
-provenance evidence. Neither is provider-accuracy, calibration, physical-query,
-Causal4D intervention, deployment-safety, or state-of-the-art evidence.
+A narrow `prob4d.provider_v1` artifact compatibility bridge remains in the
+library because immutable historical observation and schema-v3 factor artifacts
+must still be inspectable by the installed-wheel three-repository capsule. It is
+not an estimator or exporter. Pin Prob4D 0.4.1 for full v1 execution.
 
-This separation prevents repository-maintenance state from changing package
-installation semantics and prevents stale copied tests or workflows from
-blocking a valid source distribution.
+## Scientific evidence
+
+Claim-bearing evidence must remain content-addressed and bind exact source
+revisions, distribution hashes, provider/model identity, protocol identity,
+calibration and fallback artifacts, dataset split, and all input/output digests.
+Generated evidence is not bundled into the Python distribution merely because a
+workflow produced it.
+
+## Source-distribution audit
+
+`scripts/ci/check_sdist.py` verifies a single safe archive root, rejects links and
+repository-only paths, requires the current release documentation and contract
+data, installs the archive in an isolated environment, and smoke-tests:
+
+- the minimal package root;
+- the current `prob4d.api.v2` façade;
+- the historical artifact compatibility bridge without v1 exporters;
+- the content-addressed public API manifest; and
+- the single grouped command surface.
+
+Distribution conformance is infrastructure evidence only.

@@ -15,15 +15,16 @@ def test_grouped_cli_lists_provider_and_observation(capsys) -> None:
     assert "identity" in output
     assert "prediction" in output
     assert "gauge" in output
+    assert "installs only this grouped 'prob4d' executable" in output
 
 
-def test_grouped_cli_lists_explicit_provider_v2_exports(capsys) -> None:
+def test_grouped_cli_lists_only_provider_v2_exports(capsys) -> None:
     assert main(["observation"]) == 0
     output = capsys.readouterr().out
     assert "export" in output
     assert "export-calibrated" in output
     assert "export-exploratory" in output
-    assert "export-v1" in output
+    assert "export-v1" not in output
     assert "bias-binding" in output
     assert "visual-bias" in output
     assert "visual-bias-stream" in output
@@ -35,14 +36,16 @@ def test_grouped_cli_requires_explicit_observation_export_mode(capsys) -> None:
     assert "intentionally ambiguous" in error
     assert "export-calibrated" in error
     assert "export-exploratory" in error
-    assert "export-v1" in error
+    assert "export-v1" not in error
 
 
 def test_ambiguous_observation_export_help_is_informational(capsys) -> None:
     assert main(["observation", "export", "--help"]) == 0
     output = capsys.readouterr().out
     assert "Choose one explicit contract" in output
-    assert "prob4d-export-observation-belief" in output
+    assert "claim-bearing provider-v2 export" in output
+    assert "labelled provider-v2 control" in output
+    assert "prob4d-export-observation-belief" not in output
 
 
 def test_grouped_cli_rejects_unknown_command(capsys) -> None:
