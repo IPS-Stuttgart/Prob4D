@@ -18,6 +18,7 @@ from prob4d.gauge_propagation_readiness import (
     load_gauge_propagation_readiness,
     write_gauge_propagation_readiness,
 )
+from prob4d.point_uncertainty_v2 import fit_point_uncertainty_calibration_v2
 from prob4d.source_covariance_localization import (
     SourceCovarianceLocalizationGroupV1,
     SourceCovarianceLocalizationPolicyV1,
@@ -347,3 +348,26 @@ def test_readiness_loader_rejects_tampered_derived_status(tmp_path: Path) -> Non
 
     with pytest.raises(ValueError, match="derived fields changed"):
         load_gauge_propagation_readiness(path)
+
+
+def test_point_v2_fitter_rejects_inadequate_propagation_before_arrays() -> None:
+    localization = _localization(conditional=2.0)
+    readiness = build_gauge_propagation_readiness(
+        localization,
+        _first_order_policy(),
+        query_definition_id=QUERY_ID,
+        certificate=_certificate(localization, adequate=False),
+    )
+
+    with pytest.raises(ValueError, match="passing gauge propagation readiness"):
+        fit_point_uncertainty_calibration_v2(
+            localization,
+            readiness,
+            residual_xyz=object(),
+            ray_directions=object(),
+            tangent_reference=object(),
+            features=object(),
+            feature_names=(),
+            group_ids=(),
+            source_training_sha256="7" * 64,
+        )
