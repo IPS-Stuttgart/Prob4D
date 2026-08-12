@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Mapping
+from typing import cast
 
 from ._metric_gauge_anchor import (
     METRIC_GAUGE_ANCHOR_SCHEMA,
@@ -54,6 +56,8 @@ from .observation_validation import load_observation_belief_export
 from .provider_manifest import (
     PROB4D_PROVIDER_API_VERSION,
     PROB4D_PROVIDER_PACKAGE_VERSION,
+)
+from .provider_manifest import (
     prob4d_provider_manifest as _historical_provider_manifest,
 )
 
@@ -73,7 +77,7 @@ def prob4d_provider_manifest(
         _historical_provider_manifest(provider_revision=provider_revision)
     )
     inherited.pop("manifest_id", None)
-    metadata = dict(inherited["metadata"])
+    metadata = dict(cast(Mapping[str, object], inherited["metadata"]))
     metadata.update(
         {
             "artifact_compatibility_only": True,
@@ -81,7 +85,7 @@ def prob4d_provider_manifest(
             "python_import_boundary": "prob4d.provider_v1",
         }
     )
-    limitations = dict(inherited["limitations"])
+    limitations = dict(cast(Mapping[str, object], inherited["limitations"]))
     limitations["provider_v1_execution_available"] = False
     descriptor = {
         **inherited,
