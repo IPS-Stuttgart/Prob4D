@@ -8,9 +8,12 @@ on:
       - "docs/finite-sample-capability.md"
       - "pyproject.toml"
       - "src/prob4d/_finite_sample_capability_*.py"
+      - "src/prob4d/cli.py"
+      - "src/prob4d/command_registry.py"
       - "src/prob4d/finite_sample_capability.py"
       - "tests/test_finite_sample_capability.py"
       - "tests/test_finite_sample_capability_io.py"
+      - "tests/test_release_050_boundary.py"
   workflow_dispatch:
 
 permissions:
@@ -96,11 +99,11 @@ jobs:
 
       - name: Smoke-test installed command
         run: |
-          prob4d-finite-sample-preflight --help
+          prob4d diagnostic finite-sample-preflight --help
           prob4d experiment heldout-provider freeze \
             docs/examples/heldout-provider-promotion-config.json \
             --output "$RUNNER_TEMP/promotion-lock.json"
-          prob4d-finite-sample-preflight \
+          prob4d diagnostic finite-sample-preflight \
             "$RUNNER_TEMP/promotion-lock.json" \
             --coverage 0.90 \
             --output "$RUNNER_TEMP/finite-sample-capability.json"
