@@ -4,6 +4,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github" / "workflows" / "ecosystem-release-capsule.yml"
+BAYESIAN_PHYSTWIN_PIN = "322458dfc23f1db9419ed1eb0f4728dcde9135b0"
+CAUSAL4D_PIN = "e6a7047ed479879810a9c6b4aba1bcdc41566a4d"
 
 
 def test_repository_owned_integration_tests_trigger_ecosystem_capsule() -> None:
@@ -50,3 +52,21 @@ def test_workflow_keeps_external_actions_and_checkouts_fail_closed() -> None:
     assert "actions/upload-artifact@v" not in text
     assert text.count("persist-credentials: false") == 3
     assert "permissions:\n  contents: read" in text
+
+
+def test_automatic_capsule_runs_pin_exact_companion_revisions() -> None:
+    text = WORKFLOW.read_text(encoding="utf-8")
+
+    assert text.count(BAYESIAN_PHYSTWIN_PIN) == 3
+    assert text.count(CAUSAL4D_PIN) == 3
+    assert "BAYESIAN_PHYSTWIN_REF: ${{ inputs.bayesian_phystwin_ref || 'main' }}" not in text
+    assert "CAUSAL4D_REF: ${{ inputs.causal4d_ref || 'main' }}" not in text
+
+
+def test_manual_dispatch_retains_explicit_companion_overrides() -> None:
+    text = WORKFLOW.read_text(encoding="utf-8")
+
+    assert "bayesian_phystwin_ref:" in text
+    assert "causal4d_ref:" in text
+    assert "ref: ${{ env.BAYESIAN_PHYSTWIN_REF }}" in text
+    assert "ref: ${{ env.CAUSAL4D_REF }}" in text
