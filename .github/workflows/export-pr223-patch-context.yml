@@ -1,0 +1,32 @@
+name: Export PR 223 patch context
+
+on:
+  push:
+    branches:
+      - release/prob4d-0.5.0-cleanup
+    paths:
+      - ".github/workflows/export-pr223-patch-context.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact branch head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          clean: true
+
+      - name: Upload exact patch context
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: pr223-patch-context
+          path: |
+            scripts/ci/build_ecosystem_release_capsule.py
+            tests/test_ecosystem_release_capsule.py
+            .github/workflows/ecosystem-release-capsule.yml
+          if-no-files-found: error
+          retention-days: 1
