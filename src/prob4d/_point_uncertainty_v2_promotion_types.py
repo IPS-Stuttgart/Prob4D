@@ -6,8 +6,6 @@ import math
 from dataclasses import dataclass
 from typing import Any, cast
 
-import numpy as np
-
 from ._scientific_scalars import require_finite_real, require_genuine_integer
 from ._strict_json import (
     require_exact_fields,
