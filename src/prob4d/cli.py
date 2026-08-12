@@ -10,8 +10,7 @@ from typing import Final
 from .command_registry import COMMANDS, Route
 
 _ROUTES: Final[dict[Route, tuple[str, str, str]]] = {
-    command.route: (command.module, command.function, command.description)
-    for command in COMMANDS
+    command.route: (command.module, command.function, command.description) for command in COMMANDS
 }
 
 
@@ -23,8 +22,7 @@ def _ambiguous_observation_export(argv: Sequence[str] | None = None) -> int:
     lines = [
         "usage: prob4d observation <export-calibrated|export-exploratory> [arguments]",
         "",
-        "'prob4d observation export' is intentionally ambiguous and does not run an "
-        "exporter.",
+        "'prob4d observation export' is intentionally ambiguous and does not run an exporter.",
         "",
         "Choose one explicit contract:",
         "  export-calibrated   claim-bearing provider-v2 export",
