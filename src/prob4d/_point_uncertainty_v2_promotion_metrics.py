@@ -7,9 +7,9 @@ from collections.abc import Mapping, Sequence
 import numpy as np
 
 from ._point_uncertainty_v2_promotion_types import (
+    _NOMINAL_COVERAGE,
     PointUncertaintyGroupMetricsV1,
     PointUncertaintyPromotionPolicyV1,
-    _NOMINAL_COVERAGE,
 )
 
 _SUMMARY_FIELDS = frozenset(
