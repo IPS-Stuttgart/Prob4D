@@ -5,6 +5,10 @@ import copy
 import numpy as np
 import pytest
 
+from prob4d.gauge_propagation_readiness import (
+    GaugePropagationReadinessPolicyV1,
+    build_gauge_propagation_readiness,
+)
 from prob4d.point_uncertainty_v2 import (
     PointUncertaintyCalibrationPolicyV2,
     PointUncertaintyCalibrationV2,
@@ -54,6 +58,14 @@ def _localization(*, conditional_energy: float) -> SourceCovarianceLocalizationV
         groups=groups,
         source_mean_status="pass",
         identity_reliability_status="pass",
+    )
+
+
+def _propagation(localization: SourceCovarianceLocalizationV1):
+    return build_gauge_propagation_readiness(
+        localization,
+        GaugePropagationReadinessPolicyV1.explicit_latent(),
+        query_definition_id="7" * 64,
     )
 
 
@@ -123,6 +135,7 @@ def test_fit_requires_explicit_point_covariance_localization() -> None:
     with pytest.raises(ValueError, match="point-covariance-localized"):
         fit_point_uncertainty_calibration_v2(
             localization,
+            _propagation(localization),
             residual_xyz=residuals,
             ray_directions=rays,
             tangent_reference=references,
@@ -139,11 +152,13 @@ def test_fit_requires_explicit_point_covariance_localization() -> None:
 
 def test_fit_is_group_balanced_anisotropic_and_roundtrips() -> None:
     localization = _localization(conditional_energy=2.0)
+    propagation = _propagation(localization)
     residuals, rays, references, features, group_ids = _synthetic_training(
         localization
     )
     calibration = fit_point_uncertainty_calibration_v2(
         localization,
+        propagation,
         residual_xyz=residuals,
         ray_directions=rays,
         tangent_reference=references,
@@ -158,6 +173,9 @@ def test_fit_is_group_balanced_anisotropic_and_roundtrips() -> None:
     )
 
     assert calibration.fit_converged
+    assert calibration.gauge_propagation_readiness_id == (
+        propagation.gauge_propagation_readiness_id
+    )
     assert calibration.group_counts == (96, 96, 96, 96)
     np.testing.assert_allclose(
         calibration.training_normalized_energy,
@@ -186,6 +204,9 @@ def test_fit_is_group_balanced_anisotropic_and_roundtrips() -> None:
         restored.point_uncertainty_calibration_id
         == calibration.point_uncertainty_calibration_id
     )
+    assert restored.gauge_propagation_readiness_id == (
+        propagation.gauge_propagation_readiness_id
+    )
 
 
 def test_fit_rejects_group_roster_mismatch() -> None:
@@ -198,6 +219,7 @@ def test_fit_rejects_group_roster_mismatch() -> None:
     with pytest.raises(ValueError, match="exactly match"):
         fit_point_uncertainty_calibration_v2(
             localization,
+            _propagation(localization),
             residual_xyz=residuals,
             ray_directions=rays,
             tangent_reference=references,
@@ -219,6 +241,7 @@ def test_calibration_content_address_detects_tampering() -> None:
     )
     calibration = fit_point_uncertainty_calibration_v2(
         localization,
+        _propagation(localization),
         residual_xyz=residuals,
         ray_directions=rays,
         tangent_reference=references,
@@ -236,3 +259,21 @@ def test_calibration_content_address_detects_tampering() -> None:
 
     with pytest.raises(ValueError, match="identity mismatch"):
         PointUncertaintyCalibrationV2.from_dict(tampered)
+
+
+def test_fit_rejects_mismatched_propagation_before_training_access() -> None:
+    localization = _localization(conditional_energy=2.0)
+    propagation = _propagation(_localization(conditional_energy=1.0))
+
+    with pytest.raises(ValueError, match="different covariance localization"):
+        fit_point_uncertainty_calibration_v2(
+            localization,
+            propagation,
+            residual_xyz=object(),
+            ray_directions=object(),
+            tangent_reference=object(),
+            features=object(),
+            feature_names=(),
+            group_ids=(),
+            source_training_sha256="6" * 64,
+        )
