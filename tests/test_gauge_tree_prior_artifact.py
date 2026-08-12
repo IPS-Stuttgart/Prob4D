@@ -9,11 +9,6 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from prob4d import (
-    gauge_tree_prior_artifact_id,
-    load_gauge_tree_prior,
-    write_gauge_tree_prior,
-)
 from prob4d._gauge_tree_common import canonical_json_sha256
 from prob4d.cli import main as grouped_main
 from prob4d.gauge_tree_prior import GaugeTreeSquareRootPriorV1
@@ -25,6 +20,11 @@ from prob4d.gauge_tree_prior_artifact import (
 )
 from prob4d.gauge_tree_prior_artifact import (
     main as artifact_main,
+)
+from prob4d.gauge_tree_prior_io import (
+    gauge_tree_prior_artifact_id,
+    load_gauge_tree_prior,
+    write_gauge_tree_prior,
 )
 
 
