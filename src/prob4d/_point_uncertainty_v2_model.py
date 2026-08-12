@@ -32,10 +32,12 @@ POINT_UNCERTAINTY_CALIBRATION_SCHEMA = "prob4d.point-uncertainty-calibration"
 POINT_UNCERTAINTY_CALIBRATION_VERSION = 2
 POINT_UNCERTAINTY_CALIBRATION_CLAIM_BOUNDARY = (
     "This source/calibration-only artifact is an experimental conditional point-covariance "
-    "model authorized by an explicit point-covariance-localized source diagnostic. It does "
-    "not absorb shared Sim(3) gauge uncertainty, use protected target outcomes, establish "
-    "provider competence or transfer, authorize a BayesianPhysTwin update, establish "
-    "Causal4D intervention benefit, deployment safety, or state of the art."
+    "model authorized by an explicit point-covariance-localized source diagnostic and a "
+    "passing gauge-propagation readiness decision for the same provider, cohort, source "
+    "groups, and physical query. It does not absorb shared Sim(3) gauge uncertainty, use "
+    "protected target outcomes, establish provider competence or transfer, authorize a "
+    "BayesianPhysTwin update, establish Causal4D intervention benefit, deployment safety, "
+    "or state of the art."
 )
 
 _ARTIFACT_FIELDS = frozenset(
@@ -45,6 +47,7 @@ _ARTIFACT_FIELDS = frozenset(
         "provider_manifest_id",
         "cohort_binding_id",
         "source_covariance_localization_id",
+        "gauge_propagation_readiness_id",
         "source_training_sha256",
         "feature_names",
         "feature_mean",
@@ -82,6 +85,7 @@ class PointUncertaintyCalibrationV2:
     provider_manifest_id: str
     cohort_binding_id: str
     source_covariance_localization_id: str
+    gauge_propagation_readiness_id: str
     source_training_sha256: str
     feature_names: tuple[str, ...]
     feature_mean: tuple[float, ...]
@@ -103,6 +107,7 @@ class PointUncertaintyCalibrationV2:
             "provider_manifest_id",
             "cohort_binding_id",
             "source_covariance_localization_id",
+            "gauge_propagation_readiness_id",
             "source_training_sha256",
         ):
             object.__setattr__(self, name, require_sha256(getattr(self, name), name=name))
@@ -191,6 +196,7 @@ class PointUncertaintyCalibrationV2:
             "provider_manifest_id": self.provider_manifest_id,
             "cohort_binding_id": self.cohort_binding_id,
             "source_covariance_localization_id": self.source_covariance_localization_id,
+            "gauge_propagation_readiness_id": self.gauge_propagation_readiness_id,
             "source_training_sha256": self.source_training_sha256,
             "feature_names": list(self.feature_names),
             "feature_mean": list(self.feature_mean),
@@ -234,6 +240,9 @@ class PointUncertaintyCalibrationV2:
             cohort_binding_id=mapping["cohort_binding_id"],
             source_covariance_localization_id=mapping[
                 "source_covariance_localization_id"
+            ],
+            gauge_propagation_readiness_id=mapping[
+                "gauge_propagation_readiness_id"
             ],
             source_training_sha256=mapping["source_training_sha256"],
             feature_names=tuple(cast(list[Any], mapping["feature_names"])),

@@ -3,7 +3,8 @@
 Version 2 models conditional point covariance in a local orthonormal basis:
 the viewing ray, a prediction-only reference tangent, and the orthogonal tangent.
 It can be fitted only after SourceCovarianceLocalizationV1 has explicitly
-localized the remaining failure to conditional point covariance.
+localized the remaining failure to conditional point covariance and a matching
+GaugePropagationReadinessV1 has admitted the declared gauge-propagation path.
 
 The shared Sim(3) gauge covariance remains outside this model.
 """
@@ -22,7 +23,10 @@ from ._point_uncertainty_v2_common import (
     PointUncertaintyCalibrationPolicyV2,
     local_point_basis,
 )
-from ._point_uncertainty_v2_fit import fit_point_uncertainty_calibration_v2
+from ._point_uncertainty_v2_fit import (
+    fit_point_uncertainty_calibration_v2,
+    validate_point_uncertainty_v2_eligibility,
+)
 from ._point_uncertainty_v2_model import (
     POINT_UNCERTAINTY_CALIBRATION_CLAIM_BOUNDARY,
     POINT_UNCERTAINTY_CALIBRATION_SCHEMA,
@@ -32,6 +36,7 @@ from ._point_uncertainty_v2_model import (
     write_point_uncertainty_calibration_v2,
 )
 from ._strict_json import load_json_object
+from .gauge_propagation_readiness import load_gauge_propagation_readiness
 from .source_covariance_localization import load_source_covariance_localization
 
 
@@ -40,6 +45,7 @@ def _parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
     fit = subparsers.add_parser("fit")
     fit.add_argument("--localization", type=Path, required=True)
+    fit.add_argument("--propagation", type=Path, required=True)
     fit.add_argument("--training", type=Path, required=True)
     fit.add_argument("--policy", type=Path)
     fit.add_argument("--output", type=Path, required=True)
@@ -52,6 +58,9 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = _parser().parse_args(argv)
     if arguments.command == "fit":
+        localization = load_source_covariance_localization(arguments.localization)
+        propagation = load_gauge_propagation_readiness(arguments.propagation)
+        validate_point_uncertainty_v2_eligibility(localization, propagation)
         training_bytes = arguments.training.read_bytes()
         with np.load(arguments.training, allow_pickle=False) as archive:
             expected = {
@@ -73,7 +82,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         )
         calibration = fit_point_uncertainty_calibration_v2(
-            load_source_covariance_localization(arguments.localization),
+            localization,
+            propagation,
             residual_xyz=arrays["residual_xyz"],
             ray_directions=arrays["ray_directions"],
             tangent_reference=arrays["tangent_reference"],

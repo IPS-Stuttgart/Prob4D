@@ -14,6 +14,7 @@ from ._point_uncertainty_v2_common import (
 )
 from ._point_uncertainty_v2_model import PointUncertaintyCalibrationV2
 from ._strict_json import require_exact_string, require_sha256
+from .gauge_propagation_readiness import GaugePropagationReadinessV1
 from .source_covariance_localization import SourceCovarianceLocalizationV1
 
 
@@ -203,8 +204,51 @@ def _fit_lateral(
     return first, second, policy.maximum_iterations, False
 
 
+def validate_point_uncertainty_v2_eligibility(
+    localization: SourceCovarianceLocalizationV1,
+    propagation: GaugePropagationReadinessV1,
+) -> tuple[str, ...]:
+    """Validate source localization and gauge propagation before residual access."""
+
+    if not isinstance(localization, SourceCovarianceLocalizationV1):
+        raise TypeError("localization must be SourceCovarianceLocalizationV1")
+    if (
+        localization.classification != "point-covariance-localized"
+        or not localization.authorize_point_uncertainty_development
+    ):
+        raise ValueError(
+            "PointUncertaintyCalibrationV2 requires point-covariance-localized authorization"
+        )
+    if not isinstance(propagation, GaugePropagationReadinessV1):
+        raise TypeError("propagation must be GaugePropagationReadinessV1")
+    if propagation.provider_manifest_id != localization.provider_manifest_id:
+        raise ValueError("propagation and localization provider IDs differ")
+    if propagation.cohort_binding_id != localization.cohort_binding_id:
+        raise ValueError("propagation and localization cohort IDs differ")
+    if propagation.source_covariance_localization_id != (
+        localization.source_covariance_localization_id
+    ):
+        raise ValueError("propagation references a different covariance localization")
+    required_groups = tuple(group.group_id for group in localization.groups)
+    if propagation.source_group_ids != required_groups:
+        raise ValueError("propagation and localization source groups differ")
+    if propagation.gate_status != "pass":
+        raise ValueError(
+            "PointUncertaintyCalibrationV2 requires passing gauge propagation readiness"
+        )
+    if propagation.explicit_latent_or_exact_fallback_required:
+        raise ValueError("gauge propagation requires the explicit latent or exact fallback")
+    if propagation.classification not in {
+        "explicit-gauge-latent-retained",
+        "first-order-adequate",
+    }:
+        raise ValueError("gauge propagation classification does not authorize fitting")
+    return required_groups
+
+
 def fit_point_uncertainty_calibration_v2(
     localization: SourceCovarianceLocalizationV1,
+    propagation: GaugePropagationReadinessV1,
     *,
     residual_xyz: object,
     ray_directions: object,
@@ -218,15 +262,10 @@ def fit_point_uncertainty_calibration_v2(
 ) -> PointUncertaintyCalibrationV2:
     """Fit the gated equal-group Gaussian variance model."""
 
-    if not isinstance(localization, SourceCovarianceLocalizationV1):
-        raise TypeError("localization must be SourceCovarianceLocalizationV1")
-    if (
-        localization.classification != "point-covariance-localized"
-        or not localization.authorize_point_uncertainty_development
-    ):
-        raise ValueError(
-            "PointUncertaintyCalibrationV2 requires point-covariance-localized authorization"
-        )
+    required_groups = validate_point_uncertainty_v2_eligibility(
+        localization,
+        propagation,
+    )
     fit_policy = PointUncertaintyCalibrationPolicyV2() if policy is None else policy
     if not isinstance(fit_policy, PointUncertaintyCalibrationPolicyV2):
         raise TypeError("policy must be PointUncertaintyCalibrationPolicyV2")
@@ -244,7 +283,6 @@ def fit_point_uncertainty_calibration_v2(
     if len(group_ids) != residuals.shape[0]:
         raise ValueError("group_ids and residual_xyz must have matching rows")
 
-    required_groups = tuple(group.group_id for group in localization.groups)
     weights, group_counts = _group_weights(
         group_ids,
         required_groups=required_groups,
@@ -299,6 +337,7 @@ def fit_point_uncertainty_calibration_v2(
         provider_manifest_id=localization.provider_manifest_id,
         cohort_binding_id=localization.cohort_binding_id,
         source_covariance_localization_id=localization.source_covariance_localization_id,
+        gauge_propagation_readiness_id=propagation.gauge_propagation_readiness_id,
         source_training_sha256=require_sha256(
             source_training_sha256,
             name="source_training_sha256",
@@ -319,4 +358,7 @@ def fit_point_uncertainty_calibration_v2(
     )
 
 
-__all__ = ["fit_point_uncertainty_calibration_v2"]
+__all__ = [
+    "fit_point_uncertainty_calibration_v2",
+    "validate_point_uncertainty_v2_eligibility",
+]

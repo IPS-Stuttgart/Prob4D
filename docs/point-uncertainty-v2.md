@@ -1,17 +1,22 @@
 # Point uncertainty calibration v2
 
 `PointUncertaintyCalibrationV2` is an **experimental, source/calibration-only**
-conditional point-covariance model. It is deliberately downstream of
-`SourceCovarianceLocalizationV1` and refuses to fit unless that artifact classifies
-the remaining source-side failure as `point-covariance-localized`.
+conditional point-covariance model. It is deliberately downstream of both
+`SourceCovarianceLocalizationV1` and `GaugePropagationReadinessV1`. It refuses to
+fit unless the localization classifies the remaining source-side failure as
+`point-covariance-localized` and the declared gauge-propagation path passes for
+the same provider, cohort, source groups, and frozen physical query.
 
 This preserves the provider stop rule:
 
 1. support failure redirects the provider;
 2. observation-mean failure redirects the provider;
 3. identity/association failure redirects the provider;
-4. gauge/dependence failure redirects the gauge or dependence model; and
-5. only a conditional point-covariance failure authorizes this model.
+4. gauge/dependence failure redirects the gauge or dependence model;
+5. inadequate or incomplete first-order gauge propagation retains the explicit
+   gauge latent or exact fallback; and
+6. only a conditional point-covariance failure after propagation admission
+   authorizes this model.
 
 The model is not enabled in provider v2 exports by this implementation.
 
@@ -106,19 +111,29 @@ source-validation or fresh-target evaluation.
 
 ## Authorization
 
-The Python API requires an actual `SourceCovarianceLocalizationV1` instance and
-checks both:
+The Python API requires actual `SourceCovarianceLocalizationV1` and
+`GaugePropagationReadinessV1` instances. Before reading or validating any training
+array it checks:
 
 ```text
-classification == "point-covariance-localized"
-authorize_point_uncertainty_development == true
+localization.classification == "point-covariance-localized"
+localization.authorize_point_uncertainty_development == true
+propagation.gate_status == "pass"
+propagation.classification in {
+    "explicit-gauge-latent-retained",
+    "first-order-adequate",
+}
 ```
 
-Any other source classification raises an error before training rows are used.
+It also requires exact provider, cohort, source-localization, and independent-group
+identity agreement. A failed or technically incomplete propagation decision is
+terminal for this fitter even when conditional point covariance appears poor. This
+prevents nonlinear gauge-propagation error from being absorbed into local point
+variance.
 
-The training group roster must exactly equal the localization's independent group
-roster. This prevents a richer covariance model from silently being fitted on a
-different or partial source cohort.
+The training group roster must exactly equal both the localization and propagation
+source-group roster. This prevents a richer covariance model from silently being
+fitted on a different or partial source cohort.
 
 ## Training data
 
@@ -133,13 +148,16 @@ The CLI accepts one NPZ with exactly these arrays:
 - `group_ids`: shape `(N,)`, physical object/session IDs; and
 - `feature_names`: shape `(F,)`.
 
-The complete NPZ bytes are SHA-256 bound into the output artifact.
+The complete NPZ bytes are SHA-256 bound into the output artifact. The artifact
+also binds the exact `gauge_propagation_readiness_id`; a calibration cannot be
+replayed under a different explicit-latent or first-order propagation decision.
 
 Example:
 
 ```bash
 python -m prob4d.point_uncertainty_v2 fit \
   --localization outputs/source-covariance-localization.json \
+  --propagation outputs/gauge-propagation-readiness.json \
   --training outputs/point-uncertainty-source-v2.npz \
   --policy protocols/point-uncertainty-v2-policy.json \
   --output outputs/point-uncertainty-v2.json
@@ -193,7 +211,8 @@ that demonstrates, on disjoint source-validation or fresh object/session units:
 - acceptable interval/covariance width;
 - no degradation of point-mean or identity competence;
 - no evidence that the remaining error is actually shared gauge/common-mode
-  error; and
+  error or first-order propagation distortion;
+- the same passing gauge-propagation readiness artifact used for fitting; and
 - downstream BayesianPhysTwin benefit under the same regret guard and exact
   fallback rule.
 

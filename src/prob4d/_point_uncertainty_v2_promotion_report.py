@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -66,7 +67,6 @@ def _canonical_json_bytes(value: Mapping[str, Any]) -> bytes:
 
 def _sha256_json(value: Mapping[str, Any]) -> str:
     return hashlib.sha256(_canonical_json_bytes(value)).hexdigest()
-
 
 
 @dataclass(frozen=True, slots=True)
@@ -221,7 +221,6 @@ class PointUncertaintyPromotionReportV1:
         if plain_json(mapping) != result.to_dict():
             raise ValueError("point uncertainty promotion derived fields changed")
         return result
-
 
 
 def write_point_uncertainty_promotion_report_v1(
