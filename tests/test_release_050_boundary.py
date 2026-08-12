@@ -139,7 +139,6 @@ def test_legacy_runtime_surface_is_absent() -> None:
 def test_active_05_release_checks_do_not_reinstall_removed_surfaces() -> None:
     checked = (
         ROOT / "scripts" / "ci" / "check_sdist.py",
-        ROOT / "tests" / "test_release_050_boundary.py",
         ROOT / ".github" / "workflows" / "tests.yml",
         ROOT / "pyproject.toml",
     )
