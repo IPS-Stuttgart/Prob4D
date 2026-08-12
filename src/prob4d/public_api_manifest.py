@@ -5,12 +5,12 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, Final, cast
 
 from . import __all__ as ROOT_PUBLIC_EXPORTS
+from ._atomic_file import atomic_write_bytes
 from ._version import __version__
 from .api import v1 as api_v1
 from .api import v2 as api_v2
@@ -297,19 +297,16 @@ def write_public_api_manifest(
     destination = Path(path)
     if destination.is_symlink():
         raise ValueError("public-API manifest destination must not be a symbolic link")
-    destination.parent.mkdir(parents=True, exist_ok=True)
     encoded = _canonical_json(payload)
-    if destination.exists():
+    try:
+        atomic_write_bytes(destination, encoded, overwrite=False)
+    except FileExistsError:
         existing = load_public_api_manifest(destination)
         if existing != payload:
             raise FileExistsError(
                 f"refusing to replace a different public-API manifest: {destination}"
-            )
+            ) from None
         return existing
-    with destination.open("xb") as stream:
-        stream.write(encoded)
-        stream.flush()
-        os.fsync(stream.fileno())
     return payload
 
 

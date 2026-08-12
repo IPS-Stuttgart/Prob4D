@@ -61,9 +61,7 @@ def _validated_members(archive: Path) -> tuple[str, tuple[tarfile.TarInfo, ...]]
             raise RuntimeError(f"unsafe source-distribution path: {member.name}")
         roots.add(path.parts[0])
         if member.issym() or member.islnk() or not (member.isdir() or member.isfile()):
-            raise RuntimeError(
-                f"source distribution contains a non-regular member: {member.name}"
-            )
+            raise RuntimeError(f"source distribution contains a non-regular member: {member.name}")
         if len(path.parts) > 1:
             relative_paths.add(PurePosixPath(*path.parts[1:]).as_posix())
 
@@ -78,14 +76,11 @@ def _validated_members(archive: Path) -> tuple[str, tuple[tarfile.TarInfo, ...]]
         path
         for path in relative_paths
         if any(
-            path == prefix.rstrip("/") or path.startswith(prefix)
-            for prefix in FORBIDDEN_PREFIXES
+            path == prefix.rstrip("/") or path.startswith(prefix) for prefix in FORBIDDEN_PREFIXES
         )
     )
     if forbidden:
-        raise RuntimeError(
-            f"source distribution contains repository-only assets: {forbidden[:20]}"
-        )
+        raise RuntimeError(f"source distribution contains repository-only assets: {forbidden[:20]}")
     return roots.pop(), members
 
 

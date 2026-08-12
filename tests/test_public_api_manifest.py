@@ -4,6 +4,7 @@ import json
 from copy import deepcopy
 
 import pytest
+
 import prob4d
 from prob4d.api import v1 as api_v1
 from prob4d.api import v2 as api_v2
