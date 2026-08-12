@@ -52,11 +52,7 @@ from .observation_contract import (
     save_observation_belief_export,
 )
 from .observation_export import SamplingMode, build_prob4d_observation_belief
-from .observation_factors import (
-    OBSERVATION_FACTOR_SCHEMA,
-    PREVIOUS_OBSERVATION_FACTOR_SCHEMA_VERSION,
-    ObservationFactorBundle,
-)
+from .observation_factors import PREVIOUS_OBSERVATION_FACTOR_SCHEMA_VERSION
 from .observation_validation import load_observation_belief_export
 from .provider_manifest import (
     PROB4D_PROVIDER_API_VERSION,
