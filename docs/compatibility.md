@@ -57,7 +57,7 @@ Manifest schema version 2 records only:
 - `prob4d.api.v2` as the current façade.
 
 Schema-v1 manifests remain immutable evidence about 0.4.x installations. They
-are not rewritten or treated as current 0.5 manifests.
+must not be rewritten or treated as current 0.5 manifests.
 
 ## Repository transfer identity
 
