@@ -8,8 +8,6 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
-import numpy as np
-
 from .._immutable_json import plain_json
 from .._strict_json import (
     load_json_object,
