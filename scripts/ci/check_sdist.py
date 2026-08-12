@@ -20,16 +20,20 @@ REQUIRED_PATHS = frozenset(
         "README.md",
         "SECURITY.md",
         "docs/distribution-boundaries.md",
+        "docs/public-api-manifest.md",
         "docs/public-api.md",
-        "docs/releases/0.4.0.md",
+        "docs/releases/0.4.1.md",
         "protocols/cycle-guard-normalization-v1.json",
         "pyproject.toml",
         "src/prob4d/__init__.py",
+        "src/prob4d/__init__.pyi",
         "src/prob4d/_version.py",
         "src/prob4d/api/__init__.py",
         "src/prob4d/api/v1.py",
+        "src/prob4d/api/v2.py",
         "src/prob4d/contract_data/observation_belief_v1/manifest.json",
         "src/prob4d/contract_data/observation_belief_v1/schema.json",
+        "src/prob4d/public_api_manifest.py",
         "src/prob4d/py.typed",
     }
 )
@@ -133,26 +137,50 @@ def _smoke_installed_archive(archive: Path, destination: Path) -> None:
     smoke = """
 from importlib import resources
 from importlib.metadata import version
+import sys
 
 import prob4d
+
+assert "prob4d.sim3" not in sys.modules
+assert "Sim3" not in prob4d.__dict__
+
+from prob4d.sim3 import Sim3
+
+assert prob4d.Sim3 is Sim3
+assert prob4d.__dict__["Sim3"] is Sim3
+
 import prob4d.api.v1 as api_v1
+import prob4d.api.v2 as api_v2
 import prob4d.provider_v1 as provider_v1
 import prob4d.provider_v2 as provider_v2
+from prob4d.public_api_manifest import build_public_api_manifest
 
 installed = version("prob4d")
 assert prob4d.__version__ == installed
 assert api_v1.__version__ == installed
 assert api_v1.API_VERSION == 1
+assert api_v2.API_VERSION == 2
 assert api_v1.PROVIDER_API_VERSION == provider_v1.PROVIDER_API_VERSION == 1
 assert provider_v2.PROVIDER_API_VERSION == 2
 assert callable(api_v1.export_calibrated_observation_belief)
 assert callable(provider_v2.load_claim_bearing_observation_belief)
-assert resources.files("prob4d").joinpath("py.typed").is_file()
-assert resources.files("prob4d").joinpath(
+
+manifest = build_public_api_manifest()
+assert manifest["package"]["version"] == installed
+assert manifest["surfaces"]["compatibility_root"]["loading"] == (
+    "lazy-compatibility-shim-v1"
+)
+assert manifest["surfaces"]["compatibility_root"]["exports"] == sorted(prob4d.__all__)
+
+package = resources.files("prob4d")
+assert package.joinpath("__init__.pyi").is_file()
+assert package.joinpath("py.typed").is_file()
+assert package.joinpath(
     "contract_data/observation_belief_v1/manifest.json"
 ).is_file()
 """
     _run([python, "-c", smoke])
+    _run([python, "-m", "prob4d.public_api_manifest", "print"])
 
     cli = _venv_executable(environment, "prob4d")
     _run([cli, "--help"])

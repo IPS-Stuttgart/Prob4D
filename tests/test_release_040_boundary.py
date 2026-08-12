@@ -1,3 +1,5 @@
+"""Current 0.4.x release checks; the historical filename is retained for CI stability."""
+
 from __future__ import annotations
 
 import re
@@ -13,7 +15,7 @@ from prob4d.provider_v2_tree_sparse_manifest import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
-EXPECTED_VERSION = "0.4.0"
+EXPECTED_VERSION = "0.4.1"
 
 
 def _declared_version(path: Path, pattern: str) -> str:
@@ -54,29 +56,25 @@ def test_all_source_release_version_declarations_are_synchronized() -> None:
 def test_release_changelog_and_claim_boundary_are_published() -> None:
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     assert "## Unreleased\n\nNo changes yet." in changelog
-    assert "## 0.4.0 — 2026-08-10" in changelog
+    assert "## 0.4.1 — 2026-08-12" in changelog
     lower_changelog = changelog.lower()
-    assert "claim-bearing tree-sparse observation artifacts" in lower_changelog
-    assert "outcome-blind provider support feasibility" in lower_changelog
-    assert "replay-complete held-out provider evidence" in lower_changelog
-    assert "canonical grouped `prob4d` registry" in lower_changelog
-    assert "compatibility wrappers" in lower_changelog
-    assert "versioned `prob4d.api.v1`" in lower_changelog
-    assert "installed source distribution" in lower_changelog
+    assert "correlation-group robust likelihood" in lower_changelog
+    assert "analytic `sim(3)`" in lower_changelog
+    assert "fresh-provider cohort lock" in lower_changelog
+    assert "content-addressed public api manifest" in lower_changelog
+    assert "historical exports load on first access" in lower_changelog
 
-    boundary = (ROOT / "docs" / "releases" / "0.4.0.md").read_text(
+    boundary = (ROOT / "docs" / "releases" / "0.4.1.md").read_text(
         encoding="utf-8"
     )
     normalized_boundary = " ".join(boundary.split())
-    assert (
-        "does not publish to a package registry or create a Git tag"
-        in normalized_boundary
-    )
-    assert "does not establish real-provider competence" in normalized_boundary
-    assert "313/324" in normalized_boundary
+    assert "does not create a Git tag or publish to a package registry" in normalized_boundary
+    assert "does not add fresh physical evidence" in normalized_boundary
+    assert "lazy compatibility root" in normalized_boundary
+    assert "one-shot target authorization" in normalized_boundary
 
 
-def test_compatibility_guide_matches_the_040_surface() -> None:
+def test_compatibility_guide_matches_the_04x_surface() -> None:
     compatibility = (ROOT / "docs" / "compatibility.md").read_text(
         encoding="utf-8"
     )
@@ -118,15 +116,16 @@ def test_v1_v2_and_tree_sparse_manifest_boundaries_remain_distinct() -> None:
 
 
 def test_release_boundary_contains_no_self_mutating_workflow() -> None:
-    assert not (ROOT / ".github" / "workflows" / "prepare-release-040.yml").exists()
-    assert not (ROOT / "scripts" / "ci" / "prepare_release_040.py").exists()
+    assert not (ROOT / ".github" / "workflows" / "prepare-release-041.yml").exists()
+    assert not (ROOT / "scripts" / "ci" / "prepare_release_041.py").exists()
 
 
-def test_ci_and_release_tests_do_not_retain_the_previous_version() -> None:
+def test_current_ci_and_release_checks_do_not_retain_the_previous_version() -> None:
     checked = (
         ROOT / ".github" / "workflows" / "tests.yml",
+        ROOT / "scripts" / "ci" / "check_sdist.py",
         ROOT / "tests" / "test_release_metadata.py",
         ROOT / "tests" / "test_provider_manifest.py",
     )
     for path in checked:
-        assert "0.3.1" not in path.read_text(encoding="utf-8"), path
+        assert "0.4.0" not in path.read_text(encoding="utf-8"), path
