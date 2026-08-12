@@ -8,10 +8,10 @@ import numpy as np
 
 from ._point_uncertainty_v2_promotion_report import PointUncertaintyPromotionReportV1
 from ._point_uncertainty_v2_promotion_types import (
-    PointUncertaintyGroupMetricsV1,
-    PointUncertaintyPromotionPolicyV1,
     _CHI2_DF3_90,
     _LOG_2PI,
+    PointUncertaintyGroupMetricsV1,
+    PointUncertaintyPromotionPolicyV1,
 )
 from ._strict_calibration import PointUncertaintyCalibrationV1
 from ._strict_json import require_exact_string, require_mapping, require_sha256
