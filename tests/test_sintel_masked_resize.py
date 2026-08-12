@@ -5,7 +5,12 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from prob4d.sintel_uncertainty import _resize_masked_bilinear, load_sintel_truth
+from prob4d.sintel_uncertainty import (
+    _relative_camera_poses,
+    _resize_masked_bilinear,
+    _validated_rigid_camera_poses,
+    load_sintel_truth,
+)
 
 
 def _corner_problem() -> tuple[np.ndarray, np.ndarray]:
@@ -90,3 +95,96 @@ def test_load_sintel_truth_uses_mask_normalized_resize(tmp_path: Path) -> None:
     np.testing.assert_allclose(truth.point_map[0, 1, 1], [0.0, 0.0, 10.0])
     assert not truth.valid_mask[0, 2, 2]
     assert np.all(np.isfinite(truth.point_map))
+
+
+def _rigid_pose(rotation: np.ndarray, translation: np.ndarray) -> np.ndarray:
+    pose = np.eye(4, dtype=np.float64)
+    pose[:3, :3] = rotation
+    pose[:3, 3] = translation
+    return pose
+
+
+def test_rigid_camera_pose_validation_and_analytic_relative_transform() -> None:
+    first_rotation = np.array(
+        [[0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]],
+        dtype=np.float64,
+    )
+    first = _rigid_pose(first_rotation, np.array([1.0, 2.0, 3.0]))
+    delta = _rigid_pose(np.eye(3), np.array([0.5, -0.25, 1.0]))
+    poses = _validated_rigid_camera_poses(
+        np.stack([first, first @ delta]),
+        expected_frames=2,
+    )
+
+    relative = _relative_camera_poses(poses)
+
+    np.testing.assert_allclose(relative[0], np.eye(4), atol=1e-12)
+    np.testing.assert_allclose(relative[1], delta, atol=1e-12)
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        ("nonfinite", "finite"),
+        ("last-row", "homogeneous"),
+        ("scaled", "orthogonal"),
+        ("reflection", "determinant"),
+    ],
+)
+def test_rigid_camera_pose_validation_rejects_invalid_geometry(
+    mutation: str,
+    message: str,
+) -> None:
+    poses = np.eye(4, dtype=np.float64)[None, ...]
+    if mutation == "nonfinite":
+        poses[0, 0, 0] = np.nan
+    elif mutation == "last-row":
+        poses[0, 3, 0] = 1.0
+    elif mutation == "scaled":
+        poses[0, 0, 0] = 2.0
+    else:
+        poses[0, 0, 0] = -1.0
+
+    with pytest.raises(ValueError, match=message):
+        _validated_rigid_camera_poses(poses, expected_frames=1)
+
+
+def test_rigid_camera_pose_validation_rejects_frame_count_mismatch() -> None:
+    with pytest.raises(ValueError, match="camera_pose must have shape"):
+        _validated_rigid_camera_poses(
+            np.repeat(np.eye(4, dtype=np.float64)[None, ...], 2, axis=0),
+            expected_frames=1,
+        )
+
+
+@pytest.mark.parametrize("max_depth", [True, 0.0, -1.0, np.nan, "70"])
+def test_load_sintel_truth_rejects_invalid_max_depth(
+    tmp_path: Path,
+    max_depth: object,
+) -> None:
+    h5py = pytest.importorskip("h5py")
+    path = tmp_path / "truth.hdf5"
+    with h5py.File(path, "w") as handle:
+        handle.create_dataset("point_map", data=np.zeros((1, 1, 1, 3)))
+        handle.create_dataset("valid_mask", data=np.ones((1, 1, 1)))
+        handle.create_dataset("camera_pose", data=np.eye(4)[None, ...])
+
+    with pytest.raises((TypeError, ValueError), match="max_depth"):
+        load_sintel_truth(path, output_shape=(1, 1), max_depth=max_depth)
+
+
+def test_load_sintel_truth_rejects_pose_frame_mismatch(tmp_path: Path) -> None:
+    h5py = pytest.importorskip("h5py")
+    path = tmp_path / "truth.hdf5"
+    points = np.zeros((1, 1, 1, 3), dtype=np.float32)
+    points[..., 2] = 1.0
+    with h5py.File(path, "w") as handle:
+        handle.create_dataset("point_map", data=points)
+        handle.create_dataset("valid_mask", data=np.ones((1, 1, 1)))
+        handle.create_dataset(
+            "camera_pose",
+            data=np.repeat(np.eye(4)[None, ...], 2, axis=0),
+        )
+
+    with pytest.raises(ValueError, match="camera_pose must have shape"):
+        load_sintel_truth(path, output_shape=(1, 1))

@@ -107,6 +107,55 @@ def _resize_masked_bilinear(
     return output, output_mask
 
 
+def _validated_rigid_camera_poses(
+    value: np.ndarray,
+    *,
+    expected_frames: int,
+) -> np.ndarray:
+    """Validate finite proper-rigid homogeneous camera poses."""
+
+    poses = np.asarray(value, dtype=np.float64)
+    expected_shape = (expected_frames, 4, 4)
+    if poses.shape != expected_shape:
+        raise ValueError(f"camera_pose must have shape {expected_shape}")
+    if expected_frames < 1:
+        raise ValueError("camera_pose must contain at least one frame")
+    if not np.all(np.isfinite(poses)):
+        raise ValueError("camera_pose must be finite")
+
+    expected_last_row = np.array([0.0, 0.0, 0.0, 1.0], dtype=np.float64)
+    if not np.allclose(
+        poses[:, 3, :],
+        expected_last_row[None, :],
+        atol=1e-8,
+        rtol=0.0,
+    ):
+        raise ValueError("camera_pose must use homogeneous rigid-transform rows")
+
+    rotations = poses[:, :3, :3]
+    gram = np.einsum("tji,tjk->tik", rotations, rotations)
+    identity = np.eye(3, dtype=np.float64)[None, :, :]
+    if not np.allclose(gram, identity, atol=1e-6, rtol=1e-6):
+        raise ValueError("camera_pose rotations must be orthogonal")
+    determinants = np.linalg.det(rotations)
+    if not np.allclose(determinants, 1.0, atol=1e-6, rtol=1e-6):
+        raise ValueError("camera_pose rotations must be proper with determinant +1")
+    return poses.copy()
+
+
+def _relative_camera_poses(poses: np.ndarray) -> np.ndarray:
+    """Express validated world-from-camera poses relative to the first camera."""
+
+    if poses.ndim != 3 or poses.shape[0] < 1 or poses.shape[1:] != (4, 4):
+        raise ValueError("camera_pose must have shape (T, 4, 4) with T >= 1")
+    first_rotation = poses[0, :3, :3]
+    first_translation = poses[0, :3, 3]
+    first_inverse = np.eye(4, dtype=np.float64)
+    first_inverse[:3, :3] = first_rotation.T
+    first_inverse[:3, 3] = -(first_rotation.T @ first_translation)
+    return first_inverse[None, :, :] @ poses
+
+
 def load_sintel_truth(
     path: Path,
     *,
@@ -116,6 +165,12 @@ def load_sintel_truth(
 ) -> TruthSequence:
     """Load camera-space Sintel HDF5 truth and return first-pose world coordinates."""
 
+    depth_limit = require_finite_real(
+        max_depth,
+        name="max_depth",
+        minimum=0.0,
+        minimum_inclusive=False,
+    )
     try:
         import h5py
     except ImportError as error:
@@ -125,8 +180,16 @@ def load_sintel_truth(
         points = handle["point_map"][:].astype(np.float32)
         mask = handle["valid_mask"][:].astype(bool)
         poses = handle["camera_pose"][:].astype(np.float64)
+    if points.ndim != 4 or points.shape[0] < 1 or points.shape[-1] != 3:
+        raise ValueError("point_map must have shape (T, H, W, 3) with T >= 1")
+    if mask.shape != points.shape[:3]:
+        raise ValueError("valid_mask must have shape point_map.shape[:3]")
+    poses = _validated_rigid_camera_poses(
+        poses,
+        expected_frames=points.shape[0],
+    )
     finite = np.isfinite(points).all(axis=-1)
-    mask &= finite & (points[..., 2] > 1e-5) & (points[..., 2] < max_depth)
+    mask &= finite & (points[..., 2] > 1e-5) & (points[..., 2] < depth_limit)
     points = np.where(mask[..., None], points, 0.0)
     points, mask = _resize_masked_bilinear(
         points,
@@ -135,7 +198,7 @@ def load_sintel_truth(
         minimum_support=minimum_resize_support,
     )
 
-    poses = np.linalg.inv(poses[0])[None] @ poses
+    poses = _relative_camera_poses(poses)
     world = np.einsum("tij,thwj->thwi", poses[:, :3, :3], points)
     world += poses[:, None, None, :3, 3]
     return TruthSequence(
