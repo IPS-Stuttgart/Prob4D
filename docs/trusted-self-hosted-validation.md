@@ -9,6 +9,13 @@ The only repository workflow allowed to execute reviewed pull-request source on
 manual, exact-revision validation path for work that genuinely needs local GPU,
 large-memory, or approved data access.
 
+The workflow and this repository document the intended controls, but repository
+files cannot prove current external settings or host state. Record those through
+the separately validated, machine-readable
+[trusted validation boundary attestation](trusted-validation-boundary-attestation.md).
+An unverified template or repository-local statement never counts as operational
+proof.
+
 ## Required repository environment
 
 Create an environment named exactly:
@@ -46,9 +53,8 @@ From the default branch, open **Actions → Trusted exact-head validation → Ru
 workflow** and provide:
 
 1. the open pull-request number;
-2. the exact reviewed 40-character head SHA;
-3. whether to run the complete pytest suite; and
-4. whether to run the optional full-resolution memory profile.
+2. the exact reviewed 40-character head SHA; and
+3. the fixed reviewed profile: `full-validation` or `production-memory`.
 
 The self-hosted job pauses at the protected environment. After approval, it
 checks out only the authorized SHA with persisted Git credentials disabled,
@@ -87,7 +93,10 @@ code from reading any resource available to the runner account.
 ## Evidence and claim boundary
 
 A successful run proves that one exact source revision passed the selected
-implementation checks in the recorded environment. It does not establish:
+implementation checks in the recorded environment. A ready boundary attestation
+additionally records independent evidence for the GitHub environment, runner
+host, dataset namespace, and registered positive and negative controls at one
+snapshot. Neither establishes:
 
 - observation accuracy or uncertainty calibration;
 - BayesianPhysTwin or Causal4D benefit;
