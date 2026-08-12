@@ -526,9 +526,7 @@ _COMMAND_ROWS: Final[tuple[CommandRow, ...]] = (
     ),
 )
 
-COMMANDS: Final[tuple[CommandSpec, ...]] = tuple(
-    _command(*row) for row in _COMMAND_ROWS
-)
+COMMANDS: Final[tuple[CommandSpec, ...]] = tuple(_command(*row) for row in _COMMAND_ROWS)
 
 
 def validate_registry(commands: Iterable[CommandSpec] = COMMANDS) -> None:
@@ -541,9 +539,7 @@ def validate_registry(commands: Iterable[CommandSpec] = COMMANDS) -> None:
             raise ValueError(f"invalid command id: {command.command_id!r}")
         if command.command_id in command_ids:
             raise ValueError(f"duplicate command id: {command.command_id}")
-        if not command.route or any(
-            not token or token.startswith("-") for token in command.route
-        ):
+        if not command.route or any(not token or token.startswith("-") for token in command.route):
             raise ValueError(f"invalid grouped route: {command.route!r}")
         if command.route in routes:
             raise ValueError("duplicate grouped route: " + " ".join(command.route))
@@ -565,9 +561,7 @@ def iter_commands(*, lifecycle: CommandLifecycle | None = None) -> tuple[Command
     """Return registry entries in deterministic command-id order."""
 
     selected = (
-        command
-        for command in COMMANDS
-        if lifecycle is None or command.lifecycle is lifecycle
+        command for command in COMMANDS if lifecycle is None or command.lifecycle is lifecycle
     )
     return tuple(sorted(selected, key=lambda command: command.command_id))
 
