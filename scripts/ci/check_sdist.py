@@ -49,6 +49,13 @@ FORBIDDEN_PREFIXES = (
 )
 
 
+def _has_forbidden_prefix(path: str) -> bool:
+    for prefix in FORBIDDEN_PREFIXES:
+        if path == prefix.rstrip("/") or path.startswith(prefix):
+            return True
+    return False
+
+
 def _validated_members(archive: Path) -> tuple[str, tuple[tarfile.TarInfo, ...]]:
     with tarfile.open(archive, "r:gz") as handle:
         members = tuple(handle.getmembers())
@@ -74,13 +81,7 @@ def _validated_members(archive: Path) -> tuple[str, tuple[tarfile.TarInfo, ...]]
     if missing:
         raise RuntimeError(f"source distribution omitted required assets: {missing}")
 
-    forbidden = sorted(
-        path
-        for path in relative_paths
-        if any(
-            path == prefix.rstrip("/") or path.startswith(prefix) for prefix in FORBIDDEN_PREFIXES
-        )
-    )
+    forbidden = sorted(path for path in relative_paths if _has_forbidden_prefix(path))
     if forbidden:
         raise RuntimeError(f"source distribution contains repository-only assets: {forbidden[:20]}")
     return roots.pop(), members
