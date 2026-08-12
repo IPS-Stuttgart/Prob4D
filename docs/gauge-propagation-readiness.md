@@ -161,6 +161,19 @@ allow the conditional point-covariance result to enter the final fresh-provider
 readiness request. A source gauge/dependence failure remains terminal and cannot
 be overridden by a separately adequate linearization certificate.
 
+## Point-uncertainty-v2 enforcement
+
+`fit_point_uncertainty_calibration_v2` requires this propagation artifact in
+addition to `SourceCovarianceLocalizationV1`. The fitter validates the provider,
+cohort, source-localization, source-group, and propagation identities before it
+reads any residual, feature, or basis array. The resulting calibration artifact
+binds `gauge_propagation_readiness_id` into its content identity.
+
+A propagation failure, technical failure, binding mismatch, or fallback-required
+result therefore cannot be bypassed by calling the point-v2 fitter directly. The
+research CLI likewise loads and validates `--localization` and `--propagation`
+before opening `--training`.
+
 ## Scientific boundary
 
 These artifacts are source-only readiness and failure-localization evidence. They
