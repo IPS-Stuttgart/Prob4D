@@ -78,8 +78,7 @@ def _validated_members(archive: Path) -> tuple[str, tuple[tarfile.TarInfo, ...]]
         path
         for path in relative_paths
         if any(
-            path == prefix.rstrip("/") or path.startswith(prefix)
-            for prefix in FORBIDDEN_PREFIXES
+            path == prefix.rstrip("/") or path.startswith(prefix) for prefix in FORBIDDEN_PREFIXES
         )
     )
     if forbidden:
