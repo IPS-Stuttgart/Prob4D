@@ -6,6 +6,7 @@ on:
     paths:
       - ".github/workflows/ecosystem-release-capsule.yml"
       - "MANIFEST.in"
+      - "integration_tests/**"
       - "pyproject.toml"
       - "scripts/ci/build_ecosystem_release_capsule.py"
       - "scripts/ci/check_sdist.py"
@@ -20,6 +21,7 @@ on:
     paths:
       - ".github/workflows/ecosystem-release-capsule.yml"
       - "MANIFEST.in"
+      - "integration_tests/**"
       - "pyproject.toml"
       - "scripts/ci/build_ecosystem_release_capsule.py"
       - "scripts/ci/check_sdist.py"
