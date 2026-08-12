@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from importlib import import_module
 from types import ModuleType
-from typing import Any, Mapping
+from typing import Any
 
 import numpy as np
 import pytest
