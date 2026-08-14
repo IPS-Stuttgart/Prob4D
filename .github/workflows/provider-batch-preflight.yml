@@ -1,0 +1,45 @@
+name: Provider batch preflight
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: provider-batch-preflight-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  focused:
+    name: Causal batch and terminal contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install package and test tools
+        run: python -m pip install -e ".[dev]"
+      - name: Run focused regressions
+        run: >-
+          python -m pytest -q
+          tests/test_prediction_batch_preflight.py
+          tests/test_provider_terminal_decision.py
+      - name: Exercise module command help
+        run: |
+          python -m prob4d.prediction_batch_preflight --help
+          python -m prob4d.provider_terminal_decision --help
