@@ -46,7 +46,7 @@ independence assumption is made between edges.
 ## API
 
 ```python
-from prob4d import estimate_causal_multi_edge_gauge_graph
+from prob4d.causal_gauge_graph import estimate_causal_multi_edge_gauge_graph
 
 posterior, report = estimate_causal_multi_edge_gauge_graph(
     windows,
@@ -73,7 +73,9 @@ still move the graph mean. The optional guarded API uses the existing directed
 three-window cycle audit before the graph is admitted:
 
 ```python
-from prob4d import estimate_guarded_causal_multi_edge_gauge_graph
+from prob4d.guarded_causal_gauge_graph import (
+    estimate_guarded_causal_multi_edge_gauge_graph,
+)
 
 posterior, guarded_report = estimate_guarded_causal_multi_edge_gauge_graph(
     windows,
