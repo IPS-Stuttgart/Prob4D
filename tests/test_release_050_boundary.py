@@ -58,8 +58,11 @@ def test_all_release_version_declarations_are_synchronized() -> None:
 
 def test_cleanup_release_changelog_and_boundary_are_published() -> None:
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## Unreleased\n\nNo changes yet." in changelog
-    assert "## 0.5.0 — 2026-08-12" in changelog
+    unreleased_heading = "## Unreleased"
+    release_heading = "## 0.5.0 — 2026-08-12"
+    assert unreleased_heading in changelog
+    assert release_heading in changelog
+    assert changelog.index(unreleased_heading) < changelog.index(release_heading)
     lower_changelog = changelog.lower()
     assert "standalone `prob4d-*`" in lower_changelog
     assert "package-root export inventory" in lower_changelog
