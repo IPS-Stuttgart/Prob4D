@@ -13,7 +13,7 @@ quantity. It does not alter the current provider-v1/v2 export defaults.
 ## Source-only features
 
 ```python
-from prob4d import build_source_reliability_features
+from prob4d.source_reliability import build_source_reliability_features
 
 features = build_source_reliability_features(
     prediction_window,
@@ -43,7 +43,7 @@ not hard-coded as reliability one.
 ## Equal-group logistic calibration
 
 ```python
-from prob4d import fit_group_balanced_source_reliability
+from prob4d.source_reliability import fit_group_balanced_source_reliability
 
 model = fit_group_balanced_source_reliability(
     calibration_features,
@@ -75,7 +75,7 @@ The fitted artifact records:
 Save and load with:
 
 ```python
-from prob4d import (
+from prob4d.source_reliability import (
     load_source_reliability_model,
     save_source_reliability_model,
 )
