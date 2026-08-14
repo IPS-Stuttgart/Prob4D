@@ -22,7 +22,7 @@ env:
 
 jobs:
   authoritative-quality:
-    name: Authoritative Ruff and mypy
+    name: Authoritative Ruff, mypy, and docs surface
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -68,6 +68,13 @@ jobs:
           else
             echo "No changed Python files require Ruff." | tee ruff-output.txt
           fi
+      - name: Validate active documentation public surfaces
+        if: always()
+        shell: bash
+        run: |
+          set -o pipefail
+          python scripts/ci/check_documentation_surface.py \
+            2>&1 | tee documentation-surface-output.txt
       - name: Run stable-interface mypy with fail-closed diagnostics
         if: always()
         shell: bash
@@ -107,6 +114,7 @@ jobs:
           name: fail-closed-quality-diagnostics
           path: |
             changed-python.txt
+            documentation-surface-output.txt
             ruff-output.txt
             mypy-output.txt
           if-no-files-found: warn
