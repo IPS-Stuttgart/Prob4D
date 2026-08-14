@@ -39,7 +39,7 @@ def _marginals_from_assignments(
 ) -> tuple[JointIdentityMarginalV1, ...]:
     results: list[JointIdentityMarginalV1] = []
     for mixture_index, mixture in enumerate(mixtures):
-        values = np.zeros(len(mixture.candidates), dtype=np.float64)
+        values: FloatArray = np.zeros(len(mixture.candidates), dtype=np.float64)
         index_by_id = {
             candidate_id: index for index, candidate_id in enumerate(mixture.candidate_ids)
         }
