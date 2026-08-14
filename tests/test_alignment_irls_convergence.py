@@ -67,16 +67,74 @@ def test_covariance_uses_weights_that_fit_returned_transform(monkeypatch) -> Non
     np.testing.assert_array_equal(covariance_weights[0], fit_weights[-1])
 
 
-def test_nonconverged_irls_fails_closed() -> None:
+def test_certified_irls_requires_at_least_two_fits() -> None:
     source, target, weights = _outlier_problem()
 
-    with pytest.raises(ValueError, match=r"did not converge.*max_iterations=1"):
+    with pytest.raises(ValueError, match="max_iterations must be at least 2"):
         alignment.estimate_sim3_robust(
             source,
             target,
             weights=weights,
             max_iterations=1,
         )
+
+
+def test_nonconverged_irls_fails_closed_with_typed_diagnostics() -> None:
+    source, target, weights = _outlier_problem()
+
+    with pytest.raises(alignment.AlignmentNonConvergenceError) as caught:
+        alignment.estimate_sim3_robust(
+            source,
+            target,
+            weights=weights,
+            max_iterations=2,
+            tolerance=np.nextafter(0.0, 1.0),
+        )
+
+    error = caught.value
+    assert error.reason_code == "alignment_irls_nonconvergence"
+    assert error.max_iterations == 2
+    assert np.isfinite(error.transform_delta)
+    assert np.isfinite(error.relative_weight_delta)
+
+
+def test_convergence_is_invariant_to_coordinate_units(monkeypatch) -> None:
+    source, target, weights = _outlier_problem()
+    original_fit = alignment._weighted_umeyama
+    call_count = 0
+
+    def counted_fit(
+        source_array: np.ndarray,
+        target_array: np.ndarray,
+        weight_array: np.ndarray,
+    ) -> Sim3:
+        nonlocal call_count
+        call_count += 1
+        return original_fit(source_array, target_array, weight_array)
+
+    monkeypatch.setattr(alignment, "_weighted_umeyama", counted_fit)
+    baseline = alignment.estimate_sim3_robust(source, target, weights=weights)
+    baseline_call_count = call_count
+    call_count = 0
+    scaled = alignment.estimate_sim3_robust(
+        1_000.0 * source,
+        1_000.0 * target,
+        weights=weights,
+    )
+
+    assert call_count == baseline_call_count
+    np.testing.assert_allclose(
+        scaled.transform.as_vector()[:4],
+        baseline.transform.as_vector()[:4],
+        rtol=1e-11,
+        atol=1e-11,
+    )
+    np.testing.assert_allclose(
+        scaled.transform.translation,
+        1_000.0 * baseline.transform.translation,
+        rtol=1e-11,
+        atol=1e-9,
+    )
 
 
 def test_uniform_weight_scaling_is_metamorphically_invariant() -> None:

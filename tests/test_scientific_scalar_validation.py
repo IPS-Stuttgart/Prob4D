@@ -156,10 +156,10 @@ def test_group_report_rejects_coercible_per_group_values() -> None:
         _group_report(group_parallel_scale_updates=(True, 1.0))
 
 
-@pytest.mark.parametrize("max_iterations", (0, -1))
-def test_alignment_rejects_nonpositive_iteration_budget(max_iterations: int) -> None:
+@pytest.mark.parametrize("max_iterations", (1, 0, -1))
+def test_alignment_rejects_insufficient_iteration_budget(max_iterations: int) -> None:
     source, target = _nondegenerate_correspondences()
-    with pytest.raises(ValueError, match="max_iterations must be at least 1"):
+    with pytest.raises(ValueError, match="max_iterations must be at least 2"):
         estimate_sim3_robust(source, target, max_iterations=max_iterations)
 
 
@@ -212,7 +212,7 @@ def test_numpy_integer_and_float_scalars_remain_supported() -> None:
     result = estimate_sim3_robust(
         source,
         target,
-        max_iterations=np.int64(1),
+        max_iterations=np.int64(2),
         huber_multiplier=np.float32(2.5),
         tolerance=np.float64(1e-8),
     )
