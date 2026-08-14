@@ -1,0 +1,4 @@
+A batch-incompatible or technical-failure terminal decision is infrastructure
+evidence only. It authorizes no provider-competence, calibration,
+BayesianPhysTwin-benefit, Causal4D-benefit, deployment-safety, or state-of-the-art
+claim.
