@@ -397,12 +397,14 @@ def estimate_sim3_robust(
     huber_multiplier: float = 2.5,
     tolerance: float = 1e-8,
 ) -> AlignmentResult:
-    """Estimate a similarity transform with Huber iteratively reweighted least squares.
+    """Estimate a similarity transform with fail-closed Huber IRLS.
 
     ``covariance_cluster_ids`` enables a cluster-robust sandwich covariance while
     leaving the fitted transform unchanged. Dense-window alignment supplies
     frame-by-spatial-tile clusters; sparse registrations retain the IID model by
-    default.
+    default. The returned covariance and residual summary always use the exact
+    weights that produced the returned transform. If the transform does not
+    stabilize within ``max_iterations``, the fit is rejected.
     """
 
     iteration_count = require_genuine_integer(
@@ -455,8 +457,12 @@ def estimate_sim3_robust(
     previous_vector: FloatArray | None = None
     cutoff = np.inf
     transform = Sim3.identity()
+    transform_delta = np.inf
+    relative_weight_delta = np.inf
+    converged = False
     for _ in range(iteration_count):
-        transform = _weighted_umeyama(source, target, robust_weights)
+        fit_weights = robust_weights
+        transform = _weighted_umeyama(source, target, fit_weights)
         residual_norms = np.linalg.norm(target - transform.transform_points(source), axis=1)
         median = float(np.median(residual_norms))
         mad = float(np.median(np.abs(residual_norms - median)))
@@ -466,14 +472,37 @@ def estimate_sim3_robust(
             np.finfo(np.float64).eps,
         )
         huber_weights = np.minimum(1.0, cutoff / np.maximum(residual_norms, cutoff))
-        robust_weights = base_weights * huber_weights
+        next_weights = base_weights * huber_weights
         current_vector = transform.as_vector()
+        transform_delta = (
+            np.inf
+            if previous_vector is None
+            else float(np.linalg.norm(current_vector - previous_vector))
+        )
+        weight_norm = max(
+            float(np.linalg.norm(fit_weights)),
+            np.finfo(np.float64).eps,
+        )
+        relative_weight_delta = float(
+            np.linalg.norm(next_weights - fit_weights) / weight_norm
+        )
         if (
             previous_vector is not None
-            and np.linalg.norm(current_vector - previous_vector) < convergence_tolerance
+            and transform_delta < convergence_tolerance
         ):
+            robust_weights = fit_weights
+            converged = True
             break
         previous_vector = current_vector
+        robust_weights = next_weights
+
+    if not converged:
+        raise ValueError(
+            "robust Sim(3) alignment did not converge within its iteration budget "
+            f"(max_iterations={iteration_count}, "
+            f"transform_delta={transform_delta:.3e}, "
+            f"relative_weight_delta={relative_weight_delta:.3e})"
+        )
 
     residuals = target - transform.transform_points(source)
     residual_norms = np.linalg.norm(residuals, axis=1)
