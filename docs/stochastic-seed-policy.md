@@ -13,7 +13,7 @@ changing frozen runs.
 
 ## Policies
 
-`prob4d-motioncrafter` and `prob4d-benchmark` accept:
+`prob4d motioncrafter` and `prob4d benchmark` accept:
 
 ```text
 --seed-policy legacy-common
