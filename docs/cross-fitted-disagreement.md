@@ -11,7 +11,7 @@ clusters, refits the relative gauge without one fold, and evaluates residual
 energy only on the held-out clusters.
 
 ```python
-from prob4d import accumulate_cross_fitted_disagreement
+from prob4d.cross_fitted_disagreement import accumulate_cross_fitted_disagreement
 
 evidence, report = accumulate_cross_fitted_disagreement(
     windows,
@@ -45,6 +45,7 @@ by `DepthDisagreementModel`. They can therefore be compared directly with the
 ordinary in-sample result:
 
 ```python
+from prob4d.cross_fitted_disagreement import accumulate_cross_fitted_disagreement
 from prob4d.uncertainty import accumulate_disagreement
 
 in_sample = accumulate_disagreement(windows, alignments)
