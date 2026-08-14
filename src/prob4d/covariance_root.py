@@ -1,33 +1,98 @@
-"""Context-local covariance-root selection for versioned provider APIs.
+"""Versioned covariance-root implementations for observation export.
 
-The frozen provider-v1 path retains the historical eigendecomposition basis.
-Provider v2 can select a canonical basis for numerically repeated eigenspaces
-without changing the portable observation schema or mutating process-global mode.
+The frozen provider-v1 eigendecomposition basis and provider-v2 canonical basis
+are exposed as explicit callables.  A task-local mode remains for compatibility,
+but importing this module never replaces functions in another module.
 """
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Literal
 
 import numpy as np
 
-from . import observation_export as _observation_export
-
 CovarianceRootMode = Literal["legacy_eigenvectors", "canonical_eigenspaces"]
+CovarianceRootFunction = Callable[..., tuple[np.ndarray, float]]
 COVARIANCE_ROOT_MODES: tuple[CovarianceRootMode, ...] = (
     "legacy_eigenvectors",
     "canonical_eigenspaces",
 )
-
-_LEGACY_ROOT = _observation_export.deterministic_covariance_root
 _ROOT_MODE: ContextVar[CovarianceRootMode] = ContextVar(
     "prob4d_covariance_root_mode",
     default="legacy_eigenvectors",
 )
-_DISPATCH_INSTALLED = False
+
+
+def _validated_mode(mode: CovarianceRootMode) -> CovarianceRootMode:
+    if mode not in COVARIANCE_ROOT_MODES:
+        raise ValueError(f"mode must be one of {COVARIANCE_ROOT_MODES}")
+    return mode
+
+
+def legacy_covariance_root(
+    covariance: np.ndarray,
+    *,
+    max_rank: int | None = None,
+    relative_eigenvalue_floor: float = 1e-12,
+    coordinate_normalizer: np.ndarray | None = None,
+) -> tuple[np.ndarray, float]:
+    """Return the frozen provider-v1 deterministic PSD root."""
+
+    matrix = np.asarray(covariance, dtype=np.float64)
+    if matrix.ndim != 2 or matrix.shape[0] != matrix.shape[1]:
+        raise ValueError("covariance root requires a square matrix")
+    if not np.all(np.isfinite(matrix)):
+        raise ValueError("covariance root requires finite values")
+    if max_rank is not None and max_rank < 1:
+        raise ValueError("max_rank must be positive when supplied")
+    if not 0.0 <= relative_eigenvalue_floor < 1.0:
+        raise ValueError("relative_eigenvalue_floor must lie in [0, 1)")
+    if coordinate_normalizer is None:
+        normalizer = np.ones(matrix.shape[0], dtype=np.float64)
+    else:
+        normalizer = np.asarray(coordinate_normalizer, dtype=np.float64)
+        if normalizer.shape != (matrix.shape[0],):
+            raise ValueError("coordinate_normalizer must match covariance dimension")
+        if not np.all(np.isfinite(normalizer)) or np.any(normalizer <= 0.0):
+            raise ValueError("coordinate_normalizer must be finite and positive")
+
+    symmetric = 0.5 * (matrix + matrix.T)
+    normalized = normalizer[:, None] * symmetric * normalizer[None, :]
+    eigenvalues, eigenvectors = np.linalg.eigh(normalized)
+    spectral_scale = max(
+        float(np.max(np.abs(eigenvalues), initial=0.0)),
+        float(np.finfo(np.float64).tiny),
+    )
+    if float(np.min(eigenvalues, initial=0.0)) < -(
+        1e-14 + 1e-10 * spectral_scale
+    ):
+        raise ValueError("covariance root requires positive semidefinite input")
+    order = np.argsort(eigenvalues)[::-1]
+    eigenvalues = np.maximum(eigenvalues[order], 0.0)
+    eigenvectors = eigenvectors[:, order]
+    maximum = float(eigenvalues[0]) if len(eigenvalues) else 0.0
+    keep = eigenvalues > maximum * relative_eigenvalue_floor
+    indices = np.flatnonzero(keep)
+    if max_rank is not None:
+        indices = indices[:max_rank]
+    total_trace = float(np.sum(eigenvalues))
+    retained_trace = float(np.sum(eigenvalues[indices]))
+    retained_fraction = 1.0 if total_trace == 0.0 else retained_trace / total_trace
+    selected_vectors = eigenvectors[:, indices].copy()
+    for column in range(selected_vectors.shape[1]):
+        pivot = int(np.argmax(np.abs(selected_vectors[:, column])))
+        if selected_vectors[pivot, column] < 0.0:
+            selected_vectors[:, column] *= -1.0
+    normalized_root = selected_vectors * np.sqrt(eigenvalues[indices])[None]
+    root = normalized_root / normalizer[:, None]
+    return root, retained_fraction
+
+
+# Retained for source compatibility with focused tests and diagnostics.
+_LEGACY_ROOT = legacy_covariance_root
 
 
 def _eigenvalues_numerically_equal(
@@ -206,8 +271,35 @@ def canonical_covariance_root(
     return normalized_root / normalizer[:, None], retained_fraction
 
 
+def covariance_root_function(mode: CovarianceRootMode) -> CovarianceRootFunction:
+    """Return the implementation associated with one declared mode."""
+
+    selected = _validated_mode(mode)
+    if selected == "canonical_eigenspaces":
+        return canonical_covariance_root
+    return legacy_covariance_root
+
+
+def covariance_root_for_mode(
+    mode: CovarianceRootMode,
+    covariance: np.ndarray,
+    *,
+    max_rank: int | None = None,
+    relative_eigenvalue_floor: float = 1e-12,
+    coordinate_normalizer: np.ndarray | None = None,
+) -> tuple[np.ndarray, float]:
+    """Evaluate one explicitly declared covariance-root mode."""
+
+    return covariance_root_function(mode)(
+        covariance,
+        max_rank=max_rank,
+        relative_eigenvalue_floor=relative_eigenvalue_floor,
+        coordinate_normalizer=coordinate_normalizer,
+    )
+
+
 def current_covariance_root_mode() -> CovarianceRootMode:
-    """Return the context-local mode used by the observation exporter."""
+    """Return the task-local compatibility mode."""
 
     return _ROOT_MODE.get()
 
@@ -219,14 +311,10 @@ def _dispatch_covariance_root(
     relative_eigenvalue_floor: float = 1e-12,
     coordinate_normalizer: np.ndarray | None = None,
 ) -> tuple[np.ndarray, float]:
-    if _ROOT_MODE.get() == "legacy_eigenvectors":
-        return _LEGACY_ROOT(
-            covariance,
-            max_rank=max_rank,
-            relative_eigenvalue_floor=relative_eigenvalue_floor,
-            coordinate_normalizer=coordinate_normalizer,
-        )
-    return canonical_covariance_root(
+    """Compatibility dispatcher used by the stable exporter wrapper."""
+
+    return covariance_root_for_mode(
+        current_covariance_root_mode(),
         covariance,
         max_rank=max_rank,
         relative_eigenvalue_floor=relative_eigenvalue_floor,
@@ -235,26 +323,14 @@ def _dispatch_covariance_root(
 
 
 def install_covariance_root_dispatch() -> None:
-    """Install the context-aware dispatcher once, preserving legacy defaults."""
-
-    global _DISPATCH_INSTALLED
-    if _DISPATCH_INSTALLED:
-        return
-    current = _observation_export.deterministic_covariance_root
-    if current is not _LEGACY_ROOT:
-        raise RuntimeError("observation covariance-root function changed before dispatch")
-    _observation_export.deterministic_covariance_root = _dispatch_covariance_root
-    _DISPATCH_INSTALLED = True
+    """Compatibility no-op; dispatch now occurs through a stable wrapper."""
 
 
 @contextmanager
 def covariance_root_mode(mode: CovarianceRootMode) -> Iterator[None]:
-    """Select a root basis for one task without changing other execution contexts."""
+    """Select a compatibility mode without process-global function mutation."""
 
-    if mode not in COVARIANCE_ROOT_MODES:
-        raise ValueError(f"mode must be one of {COVARIANCE_ROOT_MODES}")
-    install_covariance_root_dispatch()
-    token = _ROOT_MODE.set(mode)
+    token = _ROOT_MODE.set(_validated_mode(mode))
     try:
         yield
     finally:
@@ -263,9 +339,13 @@ def covariance_root_mode(mode: CovarianceRootMode) -> Iterator[None]:
 
 __all__ = [
     "COVARIANCE_ROOT_MODES",
+    "CovarianceRootFunction",
     "CovarianceRootMode",
     "canonical_covariance_root",
+    "covariance_root_for_mode",
+    "covariance_root_function",
     "covariance_root_mode",
     "current_covariance_root_mode",
     "install_covariance_root_dispatch",
+    "legacy_covariance_root",
 ]
