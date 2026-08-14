@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import json
 from dataclasses import replace
 from pathlib import Path
@@ -81,6 +82,19 @@ def test_provider_readiness_routes_preserve_lifecycle_and_claim_boundaries() -> 
         assert command.claim_bearing is claim_bearing
         assert command.requires_gpu is False
         assert command.target == target
+
+
+def test_provider_readiness_route_targets_are_installed_and_callable() -> None:
+    for command_id in (
+        "provider-support-envelope",
+        "source-covariance-localization",
+        "provider-prefix-admission",
+        "fresh-provider-readiness",
+    ):
+        command = find_command(command_id)
+        assert command is not None
+        module = importlib.import_module(command.module)
+        assert callable(getattr(module, command.function))
 
 
 def test_commands_list_json_is_machine_readable(capsys) -> None:
