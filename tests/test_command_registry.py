@@ -38,13 +38,49 @@ def test_package_installs_only_the_grouped_executable() -> None:
 def test_registry_exposes_explicit_grouped_routes() -> None:
     expected_routes = {
         ("diagnostic", "finite-sample-preflight"),
+        ("diagnostic", "provider-support-envelope"),
         ("diagnostic", "provider-v2-gauge-ablation"),
+        ("diagnostic", "source-covariance-localization"),
         ("diagnostic", "visual-bias-calibration"),
+        ("experiment", "fresh-provider-readiness"),
         ("observation", "validate"),
+        ("provider", "prefix-admission"),
         ("provider", "target-admit"),
         ("provider", "target-verify"),
     }
     assert expected_routes <= set(_ROUTES)
+
+
+def test_provider_readiness_routes_preserve_lifecycle_and_claim_boundaries() -> None:
+    expected = {
+        "provider-support-envelope": (
+            CommandLifecycle.DIAGNOSTIC,
+            False,
+            "prob4d.provider_support_envelope:main",
+        ),
+        "source-covariance-localization": (
+            CommandLifecycle.DIAGNOSTIC,
+            False,
+            "prob4d.source_covariance_localization:main",
+        ),
+        "provider-prefix-admission": (
+            CommandLifecycle.STABLE,
+            True,
+            "prob4d.provider_prefix_admission:main",
+        ),
+        "fresh-provider-readiness": (
+            CommandLifecycle.EXPERIMENTAL,
+            True,
+            "prob4d.fresh_provider_readiness:main",
+        ),
+    }
+    for command_id, (lifecycle, claim_bearing, target) in expected.items():
+        command = find_command(command_id)
+        assert command is not None
+        assert command.lifecycle is lifecycle
+        assert command.claim_bearing is claim_bearing
+        assert command.requires_gpu is False
+        assert command.target == target
 
 
 def test_commands_list_json_is_machine_readable(capsys) -> None:
@@ -65,6 +101,13 @@ def test_commands_describe_resolves_only_id_and_canonical_route(capsys) -> None:
     assert main(["commands", "describe", "observation", "validate"]) == 0
     route_output = capsys.readouterr().out
     assert "id: observation-validate" in route_output
+
+    assert main(["commands", "describe", "fresh-provider-readiness", "--json"]) == 0
+    readiness_payload = json.loads(capsys.readouterr().out)
+    assert readiness_payload["grouped_command"] == (
+        "prob4d experiment fresh-provider-readiness"
+    )
+    assert readiness_payload["claim_bearing"] is True
 
     assert main(["commands", "describe", "prob4d-target-admit"]) == 2
     assert "unknown command" in capsys.readouterr().err
@@ -94,6 +137,10 @@ def test_find_command_resolves_canonical_route() -> None:
     command = find_command("prob4d observation export-calibrated")
     assert command is not None
     assert command.lifecycle is CommandLifecycle.STABLE
+
+    readiness = find_command("prob4d experiment fresh-provider-readiness")
+    assert readiness is not None
+    assert readiness.lifecycle is CommandLifecycle.EXPERIMENTAL
 
 
 def test_registry_has_no_provider_v1_or_archived_routes() -> None:
