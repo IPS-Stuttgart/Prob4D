@@ -11,7 +11,6 @@ import numpy as np
 
 from ._joint_material_identity_common import (
     FloatArray,
-    _WindowUniqueForest,
     _canonical_mixtures,
     _endpoint_key,
     _finite_real,
@@ -19,6 +18,7 @@ from ._joint_material_identity_common import (
     _logsumexp,
     _selection_is_feasible,
     _sha256,
+    _WindowUniqueForest,
 )
 from ._joint_material_identity_likelihood import MarginalizedJointIdentityLikelihood
 from ._joint_material_identity_model import JointMaterialIdentityPosteriorV1
