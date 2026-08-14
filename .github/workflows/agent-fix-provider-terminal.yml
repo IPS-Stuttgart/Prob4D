@@ -1,0 +1,71 @@
+name: Apply provider terminal validation correction
+
+on:
+  push:
+    branches:
+      - agent/provider-batch-preflight-v2
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: agent/provider-batch-preflight-v2
+          fetch-depth: 0
+
+      - name: Apply focused validation correction
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/prob4d/provider_terminal_decision.py")
+          text = path.read_text(encoding="utf-8")
+          old = '''        if set(self.authorized_inferences) & set(self.forbidden_inferences):
+              raise ValueError("an inference cannot be both authorized and forbidden")
+          if self.source_outcomes_accessed and not self.source_payloads_accessed:
+          '''
+          new = '''        if (
+              self.classification in _INFRASTRUCTURE_CLASSIFICATIONS
+              and self.authorized_inferences
+          ):
+              raise ValueError(
+                  "infrastructure terminal decisions authorize no scientific inference"
+              )
+          if set(self.authorized_inferences) & set(self.forbidden_inferences):
+              raise ValueError("an inference cannot be both authorized and forbidden")
+          if self.source_outcomes_accessed and not self.source_payloads_accessed:
+          '''
+          if text.count(old) != 1:
+              raise RuntimeError("failed to locate inference validation block")
+          text = text.replace(old, new)
+          old = '''        if self.classification in _INFRASTRUCTURE_CLASSIFICATIONS:
+              if self.authorized_inferences:
+                  raise ValueError(
+                      "infrastructure terminal decisions authorize no scientific inference"
+                  )
+              missing = _FORBIDDEN_INFRASTRUCTURE_CLAIMS - set(
+          '''
+          new = '''        if self.classification in _INFRASTRUCTURE_CLASSIFICATIONS:
+              missing = _FORBIDDEN_INFRASTRUCTURE_CLAIMS - set(
+          '''
+          if text.count(old) != 1:
+              raise RuntimeError("failed to locate duplicate infrastructure validation")
+          path.write_text(text.replace(old, new), encoding="utf-8")
+          PY
+
+      - name: Commit correction and remove helper workflow
+        shell: bash
+        run: |
+          rm .github/workflows/agent-fix-provider-terminal.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/prob4d/provider_terminal_decision.py \
+            .github/workflows/agent-fix-provider-terminal.yml
+          git commit -m "Prioritize terminal scientific-boundary validation"
+          git push origin HEAD:agent/provider-batch-preflight-v2
