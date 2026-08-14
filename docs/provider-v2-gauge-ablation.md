@@ -1,6 +1,6 @@
 # Provider-v2 gauge-backend ablation
 
-`prob4d-ablate real` is retained as a frozen reproduction surface. Its sequential
+`prob4d ablate real` is retained as a frozen reproduction surface. Its sequential
 initialization combines every available earlier-window candidate with covariance
 intersection. Claim-bearing provider-v2 export instead selects one deterministic
 causal spanning tree and propagates its full joint cross-window `Sim(3)` covariance
@@ -11,7 +11,7 @@ same gauge-tree and composition backend that feeds a provider-v2 observation
 export:
 
 ```bash
-prob4d-ablate-provider-v2-gauge \
+prob4d diagnostic provider-v2-gauge-ablation \
   --predictions outputs/test/predictions.json \
   --truth data/test_truth.npz \
   --calibration-predictions outputs/calibration/predictions.json \
