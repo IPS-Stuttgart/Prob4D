@@ -117,7 +117,7 @@ the dense provider.
 Validate an installed artifact with:
 
 ```bash
-prob4d-visual-bias-calibration \
+prob4d diagnostic visual-bias-calibration \
   outputs/calibration/visual-bias.json
 ```
 
