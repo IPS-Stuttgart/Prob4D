@@ -180,6 +180,13 @@ class ProviderTerminalDecisionV1:
                 raise ValueError(f"{name} must not contain duplicates")
             for item in roster:
                 _require_string(item, name=f"{name} item")
+        if (
+            self.classification in _INFRASTRUCTURE_CLASSIFICATIONS
+            and self.authorized_inferences
+        ):
+            raise ValueError(
+                "infrastructure terminal decisions authorize no scientific inference"
+            )
         if set(self.authorized_inferences) & set(self.forbidden_inferences):
             raise ValueError("an inference cannot be both authorized and forbidden")
         if self.source_outcomes_accessed and not self.source_payloads_accessed:
@@ -189,10 +196,6 @@ class ProviderTerminalDecisionV1:
         if self.target_payloads_accessed and not self.source_payloads_accessed:
             raise ValueError("target payload access requires source payload access")
         if self.classification in _INFRASTRUCTURE_CLASSIFICATIONS:
-            if self.authorized_inferences:
-                raise ValueError(
-                    "infrastructure terminal decisions authorize no scientific inference"
-                )
             missing = _FORBIDDEN_INFRASTRUCTURE_CLAIMS - set(
                 self.forbidden_inferences
             )
