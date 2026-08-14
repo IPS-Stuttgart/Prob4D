@@ -18,7 +18,7 @@ A <- B <- C.
 ```
 
 ```python
-from prob4d import audit_alignment_cycles
+from prob4d.alignment_cycles import audit_alignment_cycles
 
 audit = audit_alignment_cycles(
     alignments,
