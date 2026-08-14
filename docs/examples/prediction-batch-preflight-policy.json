@@ -1,0 +1,9 @@
+{
+  "schema": "prob4d.prediction-batch-policy",
+  "schema_version": 1,
+  "require_nonempty": true,
+  "require_common_frame_count": true,
+  "require_common_spatial_shape": true,
+  "require_common_point_dtype": true,
+  "require_common_optional_fields": true
+}
