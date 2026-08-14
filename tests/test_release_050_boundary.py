@@ -58,7 +58,7 @@ def test_all_release_version_declarations_are_synchronized() -> None:
 
 def test_cleanup_release_changelog_and_boundary_are_published() -> None:
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## Unreleased\n\nNo changes yet." in changelog
+    assert "## Unreleased" in changelog
     assert "## 0.5.0 — 2026-08-12" in changelog
     lower_changelog = changelog.lower()
     assert "standalone `prob4d-*`" in lower_changelog
@@ -87,6 +87,30 @@ def test_compatibility_guide_matches_the_05_surface() -> None:
     assert "artifact compatibility bridge" in compatibility
     assert "All historical `prob4d-*`" in compatibility
     assert "must not be rewritten" in compatibility
+
+
+def test_architecture_guide_matches_the_05_runtime_and_readiness_surface() -> None:
+    architecture = (ROOT / "docs" / "architecture.md").read_text(encoding="utf-8")
+    normalized = " ".join(architecture.split())
+
+    assert "`prob4d.api.v2` façade" in architecture
+    assert "only a narrow artifact-compatibility bridge" in normalized
+    assert "does not expose a provider-v1 estimator or exporter" in normalized
+    assert "require the Prob4D 0.4.1 wheel" in normalized
+    assert "emits the current provider-v2 capability descriptor" in normalized
+    assert "the only installed executable in Prob4D 0.5" in normalized
+    assert "historical standalone `prob4d-*` commands" in normalized
+    assert "prob4d experiment fresh-provider-readiness --help" in architecture
+    assert "prob4d provider prefix-admission --help" in architecture
+
+    forbidden = (
+        "provider_v1` is frozen for existing experiments",
+        "emit the version-1 descriptor for frozen CLI compatibility",
+        "legacy `prob4d-*` commands remain available",
+        "The `prob4d-phystwin*` commands",
+    )
+    for statement in forbidden:
+        assert statement not in architecture
 
 
 def test_current_and_historical_artifact_boundaries_remain_distinct() -> None:

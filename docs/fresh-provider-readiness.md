@@ -1,9 +1,11 @@
 # Fresh-provider readiness and failure localization
 
-`prob4d.fresh_provider_readiness` implements the pre-target orchestration needed
+`FreshProviderReadinessDecisionV1` implements the pre-target orchestration needed
 before one frozen real-provider evaluation. It composes existing support,
 calibration, identity, covariance, query, and fallback evidence without changing
-the stable provider-v2 or held-out promotion contracts.
+the stable provider-v2 or held-out promotion contracts. The canonical command is
+`prob4d experiment fresh-provider-readiness`; the Python implementation remains
+in `prob4d.fresh_provider_readiness`.
 
 ## Cohort lock
 
@@ -114,22 +116,22 @@ evaluated after a source-mean failure.
 
 ## Command-line replay
 
-The module provides a grouped module command without adding another historical
+The grouped route preserves the existing subcommands and does not add a second
 console-script alias:
 
 ```bash
-python -m prob4d.fresh_provider_readiness evaluate \
+prob4d experiment fresh-provider-readiness evaluate \
   --request readiness-request.json \
   --output readiness-decision.json
 
-python -m prob4d.fresh_provider_readiness verify-decision \
+prob4d experiment fresh-provider-readiness verify-decision \
   --artifact readiness-decision.json
 
-python -m prob4d.fresh_provider_readiness authorize-target \
+prob4d experiment fresh-provider-readiness authorize-target \
   --decision readiness-decision.json \
   --output target-authorization.json
 
-python -m prob4d.fresh_provider_readiness verify-authorization \
+prob4d experiment fresh-provider-readiness verify-authorization \
   --artifact target-authorization.json
 ```
 
