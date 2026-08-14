@@ -1,0 +1,185 @@
+name: Temporary provider matrix PR finalizer v2
+
+on:
+  push:
+    branches: [agent/provider-adapter-readiness-matrix]
+    paths:
+      - ".github/workflows/temporary-provider-matrix-finalizer-v2.yml"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  checks: read
+  contents: write
+  pull-requests: write
+
+jobs:
+  finalize:
+    if: >-
+      github.repository == 'IPS-Stuttgart/Prob4D' &&
+      github.ref == 'refs/heads/agent/provider-adapter-readiness-matrix'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Check out the exact provider-matrix branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: agent/provider-adapter-readiness-matrix
+          fetch-depth: 0
+      - name: Remove this helper and publish the cleanup head
+        id: cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/temporary-provider-matrix-finalizer-v2.yml
+          git commit -m "Correct provider matrix final validation orchestration"
+          git push origin HEAD:agent/provider-adapter-readiness-matrix
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Wait for the exact cleanup-head workflow set
+        id: checks
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ steps.cleanup.outputs.sha }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          import subprocess
+          import time
+
+          repository = os.environ["REPOSITORY"]
+          head_sha = os.environ["HEAD_SHA"]
+          required_names = {
+              "Fail-closed quality",
+              "Provider adapter and readiness matrix",
+              "Tests",
+          }
+          stable_complete_polls = 0
+          last_runs = []
+
+          for attempt in range(120):
+              result = subprocess.run(
+                  [
+                      "gh",
+                      "api",
+                      "--method",
+                      "GET",
+                      f"repos/{repository}/actions/runs",
+                      "-f",
+                      f"head_sha={head_sha}",
+                      "-f",
+                      "per_page=100",
+                  ],
+                  check=True,
+                  capture_output=True,
+                  text=True,
+              )
+              payload = json.loads(result.stdout)
+              runs = [
+                  run
+                  for run in payload.get("workflow_runs", [])
+                  if run.get("head_sha") == head_sha
+              ]
+              last_runs = runs
+              names = {str(run.get("name")) for run in runs}
+              active = [run for run in runs if run.get("status") != "completed"]
+              required_present = required_names.issubset(names)
+              print(
+                  json.dumps(
+                      {
+                          "attempt": attempt + 1,
+                          "head_sha": head_sha,
+                          "run_count": len(runs),
+                          "required_present": required_present,
+                          "missing_required": sorted(required_names - names),
+                          "active": [run.get("name") for run in active],
+                          "conclusions": {
+                              str(run.get("name")): run.get("conclusion")
+                              for run in runs
+                              if run.get("status") == "completed"
+                          },
+                      },
+                      sort_keys=True,
+                  )
+              )
+
+              if required_present and not active:
+                  stable_complete_polls += 1
+                  if stable_complete_polls >= 3:
+                      break
+              else:
+                  stable_complete_polls = 0
+              time.sleep(15)
+          else:
+              summary = {
+                  "head_sha": head_sha,
+                  "classification": "workflow-timeout",
+                  "run_count": len(last_runs),
+                  "runs": [
+                      {
+                          "name": run.get("name"),
+                          "status": run.get("status"),
+                          "conclusion": run.get("conclusion"),
+                          "url": run.get("html_url"),
+                      }
+                      for run in last_runs
+                  ],
+              }
+              with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+                  output.write("passed=false\n")
+                  output.write("summary=" + json.dumps(summary, separators=(",", ":")) + "\n")
+              raise SystemExit(0)
+
+          unsuccessful = [
+              run
+              for run in last_runs
+              if run.get("conclusion") not in {"success", "skipped", "neutral"}
+          ]
+          summary = {
+              "head_sha": head_sha,
+              "classification": (
+                  "all-discovered-workflows-passed"
+                  if not unsuccessful
+                  else "workflow-failure"
+              ),
+              "run_count": len(last_runs),
+              "unsuccessful": [
+                  {
+                      "name": run.get("name"),
+                      "conclusion": run.get("conclusion"),
+                      "url": run.get("html_url"),
+                  }
+                  for run in unsuccessful
+              ],
+          }
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write("passed=" + ("true" if not unsuccessful else "false") + "\n")
+              output.write("summary=" + json.dumps(summary, separators=(",", ":")) + "\n")
+          PY
+      - name: Mark PR ready and record success
+        if: steps.checks.outputs.passed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ steps.cleanup.outputs.sha }}
+          CHECK_SUMMARY: ${{ steps.checks.outputs.summary }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh pr ready 234 --repo IPS-Stuttgart/Prob4D || true
+          gh pr comment 234 --repo IPS-Stuttgart/Prob4D --body "Final exact-head validation succeeded for \`${HEAD_SHA}\`. The required Tests, Fail-closed quality, and Provider adapter and readiness matrix workflows appeared, all discovered runs completed, and none had a failing or cancelled conclusion. Temporary helper workflows are absent from the cleanup head. Machine summary: \`${CHECK_SUMMARY}\`."
+      - name: Preserve a visible failure decision
+        if: steps.checks.outputs.passed != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ steps.cleanup.outputs.sha }}
+          CHECK_SUMMARY: ${{ steps.checks.outputs.summary }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh pr comment 234 --repo IPS-Stuttgart/Prob4D --body "Final exact-head validation did not authorize review readiness for \`${HEAD_SHA}\`. The PR remains draft. Machine summary: \`${CHECK_SUMMARY}\`."
+          exit 1
