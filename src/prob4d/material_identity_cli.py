@@ -183,17 +183,13 @@ def _confined_config_path(config: Path, value: Any, *, index: int) -> Path:
         raise ValueError(f"mixture_paths[{index}] must be a canonical string")
     relative = Path(value)
     if relative.is_absolute() or ".." in relative.parts:
-        raise ValueError(
-            f"mixture_paths[{index}] must be a confined relative path"
-        )
+        raise ValueError(f"mixture_paths[{index}] must be a confined relative path")
     root = config.parent.resolve()
     resolved = (config.parent / relative).resolve()
     try:
         resolved.relative_to(root)
     except ValueError as error:
-        raise ValueError(
-            f"mixture_paths[{index}] escapes the configuration directory"
-        ) from error
+        raise ValueError(f"mixture_paths[{index}] escapes the configuration directory") from error
     return resolved
 
 
@@ -291,15 +287,11 @@ def _build_joint(arguments: Sequence[str]) -> int:
 def _validate_joint(arguments: Sequence[str]) -> int:
     parser = argparse.ArgumentParser(
         prog="prob4d identity validate-joint",
-        description=(
-            "strictly validate and exactly replay one joint identity posterior"
-        ),
+        description=("strictly validate and exactly replay one joint identity posterior"),
     )
     parser.add_argument("posterior", type=Path)
     parsed = parser.parse_args(arguments)
-    _print_json(
-        _joint_summary(load_joint_material_identity_posterior(parsed.posterior))
-    )
+    _print_json(_joint_summary(load_joint_material_identity_posterior(parsed.posterior)))
     return 0
 
 
@@ -369,8 +361,7 @@ def _marginalize_joint(arguments: Sequence[str]) -> int:
     parser = argparse.ArgumentParser(
         prog="prob4d identity marginalize-joint",
         description=(
-            "marginalize downstream log likelihoods over feasible joint "
-            "identity assignments"
+            "marginalize downstream log likelihoods over feasible joint identity assignments"
         ),
     )
     parser.add_argument("posterior", type=Path)
@@ -383,9 +374,7 @@ def _marginalize_joint(arguments: Sequence[str]) -> int:
         {"assignment_ids", "log_likelihoods", "likelihood_power"},
         name="joint identity likelihood input",
     )
-    assignment_ids = tuple(
-        _list(value["assignment_ids"], name="assignment_ids")
-    )
+    assignment_ids = tuple(_list(value["assignment_ids"], name="assignment_ids"))
     result = marginalize_joint_assignment_log_likelihoods(
         posterior,
         assignment_ids,
