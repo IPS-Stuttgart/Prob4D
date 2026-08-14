@@ -9,7 +9,7 @@ resolution.
 The command is target-free:
 
 ```bash
-prob4d-finite-sample-preflight \
+prob4d diagnostic finite-sample-preflight \
   promotion-lock.json \
   --cohort-binding deform360-cohort-binding.json \
   --coverage 0.90 \
