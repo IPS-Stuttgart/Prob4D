@@ -5,7 +5,28 @@ release notes and scientific boundaries live under `docs/releases/`.
 
 ## Unreleased
 
-No changes yet.
+### Added
+
+- Canonical grouped routes for outcome-blind provider-support envelopes,
+  source-covariance failure localization, causal-prefix admission, and complete
+  fresh-provider readiness decisions.
+- Registry and import checks that preserve the lifecycle, claim-bearing, and
+  runtime boundaries of those provider-readiness commands.
+
+### Fixed
+
+- The architecture guide now matches the Prob4D 0.5 runtime: provider v1 is an
+  artifact-only compatibility bridge, provider manifests are v2, and historical
+  standalone executables are not installed.
+- Release regression checks now reject reintroduction of the stale provider-v1
+  execution and legacy-command documentation.
+
+### Scientific boundary
+
+These changes expose already-existing readiness contracts through the canonical
+CLI and correct documentation. They change no estimator equation, covariance fit,
+provider artifact, target-access decision, physical-update guard, exact fallback,
+or scientific result.
 
 ## 0.5.0 — 2026-08-12
 
@@ -159,7 +180,7 @@ intervention benefit, deployment safety, or state of the art.
 ### Added
 
 - Provider API v2 with claim-bearing observation loading, schema-4 joint gauge
-  covariance, analytic Sim(3) composition Jacobians, runtime source attestation,
+  covariance, analytic `Sim(3)` composition Jacobians, runtime source attestation,
   and version-selectable provider manifests.
 - Append-only causal observation-factor streams, content-addressed covariance
   calibration, source reliability, causal tracklets, cycle audits, and strict

@@ -21,27 +21,29 @@ Prob4D experiment helpers or underscore-prefixed modules.
 
 ## Stable provider surfaces
 
-`prob4d.provider_v1` is frozen for existing experiments and exact reproduction. It
-exposes the causal source selector, fixed metric-anchor contract, portable
-observation belief, strict artifact loader, factor-bundle contract, and the
-version-1 provider manifest.
+New integrations use the current `prob4d.api.v2` façade. It exposes the strict
+provider-v2 loaders, calibrated and explicitly exploratory export contracts,
+portable observation and factor records, sparse gauge priors, project identity,
+and the serialization helpers required by downstream consumers. Breaking
+changes require another versioned façade rather than silently changing v2.
 
-New claim-bearing development should import `prob4d.provider_v2`. Version 2 keeps
-the same artifact and causal-stream schemas, but separates exploratory and
-calibrated exports. Its calibrated entry point validates the prediction manifest
-against both covariance calibrations before opening decoded payloads, requires an
-exact Prob4D source revision, fixes sequential gauge propagation, and forbids the
-pointwise covariance fallback. See [Provider API version 2](provider-v2.md).
+`prob4d.provider_v1` in Prob4D 0.5 is only a narrow artifact-compatibility bridge
+for immutable provider-v1 records, manifests, serializers, validators, and
+schema-v3 factor IO retained by frozen evidence. It does not expose a provider-v1
+estimator or exporter. Exact provider-v1 execution and reproduction require the
+Prob4D 0.4.1 wheel or the corresponding tagged source revision.
 
-A breaking change requires another versioned provider module rather than silently
-changing version 1 or 2. Frozen experiments must still record exact repository
-commits and input artifact hashes.
+Provider v2 separates exploratory and calibrated exports. Its calibrated entry
+point validates the prediction manifest against both covariance calibrations
+before opening decoded payloads, requires an exact Prob4D source revision, fixes
+sequential gauge propagation, and forbids the pointwise covariance fallback. See
+[Provider API version 2](provider-v2.md).
 
-`prob4d provider manifest` continues to emit the version-1 descriptor for frozen
-CLI compatibility. `prob4d.provider_v2.prob4d_provider_manifest()` emits the
-version-2 Python capability descriptor. The grouped `prob4d` CLI is the
-discoverable command surface; legacy `prob4d-*` commands remain available for
-frozen run manifests.
+`prob4d provider manifest` emits the current provider-v2 capability descriptor.
+The grouped `prob4d` CLI is the only installed executable in Prob4D 0.5; the
+historical standalone `prob4d-*` commands are available only from frozen older
+releases. Use `prob4d commands list` and `prob4d commands describe ...` to inspect
+the canonical command surface.
 
 ## Causal information boundary
 
@@ -75,6 +77,26 @@ portable all-window covariance still exports only historical marginal blocks and
 therefore remains an opt-in reconstruction control. The provider makes no
 prospective calibration or physical-twin-improvement claim.
 
+## Provider readiness boundary
+
+Provider support, source mean quality, identity reliability, gauge dependence,
+point covariance, downstream query relevance, and exact fallback are distinct,
+ordered gates. The canonical grouped commands expose the existing immutable
+readiness contracts without changing their scientific meaning:
+
+```bash
+prob4d diagnostic provider-support-envelope --help
+prob4d diagnostic source-covariance-localization --help
+prob4d provider prefix-admission --help
+prob4d experiment fresh-provider-readiness --help
+```
+
+A richer point-uncertainty model is authorized only when source means and
+identities pass, shared gauge/dependence uncertainty is adequate, and the
+remaining failure is localized to conditional point covariance. A target
+readiness authorization permits exactly one evaluation of the bound unopened
+target roster; it is not evidence of provider competence or physical benefit.
+
 ## Immutable validated inputs
 
 `PredictionWindow` defensively copies and freezes every NumPy field after
@@ -91,6 +113,6 @@ Bayesian-PhysTwin owns physical priors, guarded updates, fallback behavior, and
 accepted twin beliefs. Causal4D owns realized-intervention inference downstream
 of an accepted, content-bound twin belief.
 
-The `prob4d-phystwin*` commands are integration experiments, not the stable
-provider interface. Paper-facing tables, figures, and sealed result manifests
-belong in the corresponding paper or reproduction repository.
+The grouped `prob4d phystwin ...` commands are integration experiments, not the
+stable provider interface. Paper-facing tables, figures, and sealed result
+manifests belong in the corresponding paper or reproduction repository.
