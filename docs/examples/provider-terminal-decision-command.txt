@@ -1,0 +1,3 @@
+python -m prob4d.provider_terminal_decision build \
+  docs/examples/provider-terminal-batch-incompatible.json \
+  outputs/provider/provider-terminal-decision.json
