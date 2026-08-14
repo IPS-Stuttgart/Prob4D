@@ -105,12 +105,17 @@ rotation transport of relative translation, and direct translation blocks. The
 SO(3) logarithm is nondifferentiable at its pi branch cut; provider-v2 sequential
 export fails closed there rather than exporting platform-dependent covariance.
 
-A task-local dispatcher preserves explicit numerical semantics:
+Provider v2 passes an immutable `ExportNumericsPolicy` through the export
+core. The policy binds the declared composition-Jacobian and covariance-root
+callables for the complete export, so import order cannot change provider
+semantics. Compatibility context managers remain task-local for existing
+internal callers and tests, but importing the numerical modules never replaces
+private functions in `observation_export`.
 
 - provider-v2 sequential export uses `analytic`;
 - exploratory fixed-lag reconstruction retains its declared finite-difference
   path; and
-- nested or concurrent contexts cannot leak modes between runs.
+- explicit policies remain authoritative inside nested or concurrent contexts.
 
 The historical provider-v1 defaults are reproduced only by Prob4D 0.4.1.
 

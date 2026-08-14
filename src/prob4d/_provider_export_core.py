@@ -45,6 +45,7 @@ from .causal_stream_contract import (
     PROB4D_CAUSAL_STREAM_CONTRACT_VERSION,
     bind_causal_stream_contract_v2,
 )
+from .export_numerics import ExportNumericsPolicy
 from .observation_contract import (
     OBSERVATION_BELIEF_SCHEMA,
     OBSERVATION_BELIEF_VERSION,
@@ -104,11 +105,12 @@ def export_observation_belief(
     point_uncertainty_calibration: PointUncertaintyCalibrationV1 | None = None,
     allow_uncalibrated_exploratory_covariance: bool = True,
     allow_pointwise_covariance_fallback: bool = False,
+    numerics_policy: ExportNumericsPolicy | None = None,
 ) -> ObservationBeliefExportV1:
     """Build a causally sealed portable observation belief.
 
-    Provider v2 selects the covariance-root and composition-Jacobian modes before
-    entering this implementation.  Missing claim-bearing calibration fails closed;
+    Provider v2 passes an immutable covariance-root and composition-Jacobian
+    policy into this implementation. Missing claim-bearing calibration fails closed;
     pointwise covariance fallback remains an explicit exploratory control.
     """
 
@@ -156,6 +158,7 @@ def export_observation_belief(
             view_name=view_name,
             source_revision=source_revision,
             uncertainty_model=resolved_uncertainty_model,
+            numerics_policy=numerics_policy,
         )
 
     if isinstance(artifact, ObservationBeliefExportV1):

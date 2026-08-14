@@ -5,6 +5,10 @@ gauge/dependence diagnostics, point covariance, query relevance, and exact
 fallback. This note documents three additive tools that close the remaining
 integration gaps without changing provider-v2 or fitting a new uncertainty model.
 
+All three tools are available through the canonical grouped `prob4d` executable.
+The underlying module entry points remain implementation details rather than
+separate installed console scripts.
+
 ## 1. Contiguous support envelopes before residuals
 
 `ProviderSupportFeasibilityV1` answers whether one frozen required-frame set is
@@ -13,11 +17,11 @@ frame intervals** that are supported by the same already-frozen camera/robot
 metadata.
 
 ```bash
-python -m prob4d.provider_support_envelope derive \
+prob4d diagnostic provider-support-envelope derive \
   --request support-request.json \
   --output support-envelope.json
 
-python -m prob4d.provider_support_envelope verify \
+prob4d diagnostic provider-support-envelope verify \
   --artifact support-envelope.json
 ```
 
@@ -88,11 +92,14 @@ These numbers are examples only; a real study must freeze its policy from the
 source/calibration protocol rather than copy them.
 
 ```bash
-python -m prob4d.source_covariance_localization evaluate \
+prob4d diagnostic source-covariance-localization evaluate \
   --source-competence source-provider-competence.json \
   --joint-diagnostic joint-covariance.json \
   --policy covariance-localization-policy.json \
   --output covariance-localization.json
+
+prob4d diagnostic source-covariance-localization verify \
+  --artifact covariance-localization.json
 ```
 
 `readiness_gates()` converts the result directly into the existing
@@ -130,13 +137,16 @@ transport result instead produces `admitted=false` and
 `exact_fallback_required=true`.
 
 ```bash
-python -m prob4d.provider_prefix_admission build \
+prob4d provider prefix-admission build \
   --support provider-support.json \
   --transport-model calibration-transport-model.json \
   --transport-evidence calibration-transport-evidence.json \
   --provider-manifest-id <sha256> \
   --target-prefix-id <sha256> \
   --output provider-prefix-admission.json
+
+prob4d provider prefix-admission verify \
+  --artifact provider-prefix-admission.json
 ```
 
 This certificate remains upstream of BayesianPhysTwin. Passing it means only
@@ -145,9 +155,24 @@ source-calibration support region. BayesianPhysTwin still owns physical-query
 relevance, update admission, regret guards, and exact physical fallback;
 Causal4D still consumes only the resulting accepted physical belief.
 
+## Ordered readiness composition
+
+The complete target-free decision is exposed as:
+
+```bash
+prob4d experiment fresh-provider-readiness evaluate \
+  --request readiness-request.json \
+  --output readiness-decision.json
+```
+
+The command preserves the seven-gate order and produces exactly one terminal
+classification. Only `point-covariance-localized` authorizes source-only
+point-uncertainty development. Only `ready-for-one-target-evaluation` permits a
+single evaluation of the exact bound unopened target roster.
+
 ## Scientific stop rule
 
-These additions deliberately do **not** implement `PointUncertaintyCalibrationV2`.
+These additions deliberately do **not** promote `PointUncertaintyCalibrationV2`.
 A richer point model is justified only after a real source/calibration execution
 produces `point-covariance-localized`. A support, mean, identity, gauge/dependence,
 transport, or query failure redirects the provider instead of increasing

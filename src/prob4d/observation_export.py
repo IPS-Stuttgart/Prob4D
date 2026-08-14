@@ -26,7 +26,19 @@ from ._metric_gauge_anchor import (
     save_metric_gauge_anchor,
 )
 from .alignment import WindowAlignment, align_windows
+from .composition_jacobian import (
+    compose_jacobians_for_mode,
+    current_composition_jacobian_mode,
+)
+from .covariance_root import (
+    covariance_root_for_mode,
+    current_covariance_root_mode,
+)
 from .data import PredictionWindow
+from .export_numerics import (
+    ExportNumericsPolicy,
+    resolve_export_numerics_policy,
+)
 from .gauge import RelativeGaugeConstraint, SequentialGaugeEstimator
 from .marginalized_gauge import MarginalizedFixedLagGaugeSmoother
 from .observation_contract import (
@@ -268,60 +280,20 @@ def deterministic_covariance_root(
     relative_eigenvalue_floor: float = 1e-12,
     coordinate_normalizer: np.ndarray | None = None,
 ) -> tuple[np.ndarray, float]:
-    """Return a deterministic PSD root and retained normalized-trace fraction.
+    """Return a deterministic root using the compatibility-local mode.
 
-    ``coordinate_normalizer`` maps covariance coordinates into a common metric
-    before truncation. The returned root remains in the original coordinates.
+    New provider entry points inject an :class:`ExportNumericsPolicy` directly.
+    This wrapper preserves the historical context-manager surface without any
+    import-time replacement of functions in this module.
     """
 
-    matrix = np.asarray(covariance, dtype=np.float64)
-    if matrix.ndim != 2 or matrix.shape[0] != matrix.shape[1]:
-        raise ValueError("covariance root requires a square matrix")
-    if not np.all(np.isfinite(matrix)):
-        raise ValueError("covariance root requires finite values")
-    if max_rank is not None and max_rank < 1:
-        raise ValueError("max_rank must be positive when supplied")
-    if not 0.0 <= relative_eigenvalue_floor < 1.0:
-        raise ValueError("relative_eigenvalue_floor must lie in [0, 1)")
-    if coordinate_normalizer is None:
-        normalizer = np.ones(matrix.shape[0], dtype=np.float64)
-    else:
-        normalizer = np.asarray(coordinate_normalizer, dtype=np.float64)
-        if normalizer.shape != (matrix.shape[0],):
-            raise ValueError("coordinate_normalizer must match covariance dimension")
-        if not np.all(np.isfinite(normalizer)) or np.any(normalizer <= 0.0):
-            raise ValueError("coordinate_normalizer must be finite and positive")
-
-    symmetric = 0.5 * (matrix + matrix.T)
-    normalized = normalizer[:, None] * symmetric * normalizer[None, :]
-    eigenvalues, eigenvectors = np.linalg.eigh(normalized)
-    spectral_scale = max(
-        float(np.max(np.abs(eigenvalues), initial=0.0)),
-        np.finfo(np.float64).tiny,
+    return covariance_root_for_mode(
+        current_covariance_root_mode(),
+        covariance,
+        max_rank=max_rank,
+        relative_eigenvalue_floor=relative_eigenvalue_floor,
+        coordinate_normalizer=coordinate_normalizer,
     )
-    if float(np.min(eigenvalues, initial=0.0)) < -(
-        1e-14 + 1e-10 * spectral_scale
-    ):
-        raise ValueError("covariance root requires positive semidefinite input")
-    order = np.argsort(eigenvalues)[::-1]
-    eigenvalues = np.maximum(eigenvalues[order], 0.0)
-    eigenvectors = eigenvectors[:, order]
-    maximum = float(eigenvalues[0]) if len(eigenvalues) else 0.0
-    keep = eigenvalues > maximum * relative_eigenvalue_floor
-    indices = np.flatnonzero(keep)
-    if max_rank is not None:
-        indices = indices[:max_rank]
-    total_trace = float(np.sum(eigenvalues))
-    retained_trace = float(np.sum(eigenvalues[indices]))
-    retained_fraction = 1.0 if total_trace == 0.0 else retained_trace / total_trace
-    selected_vectors = eigenvectors[:, indices].copy()
-    for column in range(selected_vectors.shape[1]):
-        pivot = int(np.argmax(np.abs(selected_vectors[:, column])))
-        if selected_vectors[pivot, column] < 0.0:
-            selected_vectors[:, column] *= -1.0
-    normalized_root = selected_vectors * np.sqrt(eigenvalues[indices])[None]
-    root = normalized_root / normalizer[:, None]
-    return root, retained_fraction
 
 
 def _deterministic_covariance_root(covariance: np.ndarray) -> np.ndarray:
@@ -406,35 +378,17 @@ def _build_alignments(windows: Sequence[PredictionWindow]) -> list[WindowAlignme
     return alignments
 
 
-def _numerical_jacobian(function, vector: np.ndarray) -> np.ndarray:
-    vector = np.asarray(vector, dtype=np.float64)
-    baseline = np.asarray(function(vector), dtype=np.float64)
-    jacobian = np.empty((baseline.size, vector.size), dtype=np.float64)
-    for index in range(vector.size):
-        step = 1e-6 * max(1.0, abs(float(vector[index])))
-        plus = vector.copy()
-        minus = vector.copy()
-        plus[index] += step
-        minus[index] -= step
-        jacobian[:, index] = (
-            np.asarray(function(plus), dtype=np.float64)
-            - np.asarray(function(minus), dtype=np.float64)
-        ) / (2.0 * step)
-    return jacobian
+def _compose_jacobians(
+    parent: Sim3,
+    relative: Sim3,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return composition derivatives using the compatibility-local mode."""
 
-
-def _compose_jacobians(parent: Sim3, relative: Sim3) -> tuple[np.ndarray, np.ndarray]:
-    parent_vector = parent.as_vector()
-    relative_vector = relative.as_vector()
-    parent_jacobian = _numerical_jacobian(
-        lambda value: Sim3.from_vector(value).compose(relative).as_vector(),
-        parent_vector,
+    return compose_jacobians_for_mode(
+        current_composition_jacobian_mode(),
+        parent,
+        relative,
     )
-    relative_jacobian = _numerical_jacobian(
-        lambda value: parent.compose(Sim3.from_vector(value)).as_vector(),
-        relative_vector,
-    )
-    return parent_jacobian, relative_jacobian
 
 
 def estimate_joint_gauge_tree(
@@ -443,9 +397,11 @@ def estimate_joint_gauge_tree(
     *,
     initial_transform: Sim3,
     initial_covariance: np.ndarray,
+    numerics_policy: ExportNumericsPolicy | None = None,
 ) -> JointGaugePosterior:
     """Propagate one causal spanning tree into a full joint gauge covariance."""
 
+    numerics = resolve_export_numerics_policy(numerics_policy)
     if not windows:
         raise ValueError("joint gauge estimation requires at least one window")
     window_ids = tuple(window.window_id for window in windows)
@@ -490,7 +446,9 @@ def estimate_joint_gauge_tree(
         parent = estimates[parent_id]
         relative = selected.result.transform
         child = parent.compose(relative)
-        parent_jacobian, relative_jacobian = _compose_jacobians(parent, relative)
+        parent_jacobian, relative_jacobian = numerics.compose_jacobians(
+            parent, relative
+        )
         parent_slice = slice(7 * parent_index, 7 * (parent_index + 1))
         child_slice = slice(7 * child_index, 7 * (child_index + 1))
         for previous_index in range(child_index):
@@ -588,6 +546,7 @@ def _gauge_posterior(
     fixed_lag: int,
     metric_anchor: MetricGaugeAnchor,
     allow_approximate_fixed_lag_covariance: bool,
+    numerics_policy: ExportNumericsPolicy,
 ) -> tuple[list[WindowAlignment], JointGaugePosterior]:
     if gauge_mode not in {"sequential", "fixed_lag"}:
         raise ValueError("gauge_mode must be 'sequential' or 'fixed_lag'")
@@ -604,6 +563,7 @@ def _gauge_posterior(
             alignments,
             initial_transform=metric_anchor.global_from_local,
             initial_covariance=metric_anchor.covariance,
+            numerics_policy=numerics_policy,
         )
     else:
         posterior = _fixed_lag_marginal_posterior(
@@ -671,9 +631,11 @@ def _build_prob4d_observation_belief(
     source_revision: str | None = None,
     uncertainty_model: DepthDisagreementModel | None = None,
     sampling_mode: SamplingMode = "fixed_grid",
+    numerics_policy: ExportNumericsPolicy | None = None,
 ) -> ObservationBeliefExportV1:
     """Build an artifact without opening or using post-cutoff prediction payloads."""
 
+    numerics = resolve_export_numerics_policy(numerics_policy)
     if not case_id or not view_name:
         raise ValueError("case_id and view_name must be nonempty")
     if pixel_stride < 1:
@@ -696,11 +658,12 @@ def _build_prob4d_observation_belief(
         allow_approximate_fixed_lag_covariance=(
             allow_approximate_fixed_lag_covariance
         ),
+        numerics_policy=numerics,
     )
     gauge_coordinate_normalizer, gauge_reference_radii = (
         _joint_gauge_coordinate_normalizer(windows, posterior)
     )
-    joint_root, retained_trace_fraction = deterministic_covariance_root(
+    joint_root, retained_trace_fraction = numerics.covariance_root(
         posterior.joint_covariance,
         max_rank=max_gauge_rank,
         coordinate_normalizer=gauge_coordinate_normalizer,
@@ -996,6 +959,7 @@ def build_prob4d_observation_belief(
     source_revision: str | None = None,
     uncertainty_model: DepthDisagreementModel | None = None,
     sampling_mode: SamplingMode = "fixed_grid",
+    numerics_policy: ExportNumericsPolicy | None = None,
 ) -> ObservationBeliefExportV1:
     """Select a causal source prefix and export a portable observation belief."""
 
@@ -1023,6 +987,7 @@ def build_prob4d_observation_belief(
         source_revision=source_revision,
         uncertainty_model=uncertainty_model,
         sampling_mode=sampling_mode,
+        numerics_policy=numerics_policy,
     )
 
 
