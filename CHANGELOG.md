@@ -180,7 +180,7 @@ intervention benefit, deployment safety, or state of the art.
 ### Added
 
 - Provider API v2 with claim-bearing observation loading, schema-4 joint gauge
-  covariance, analytic Sim3 composition Jacobians, runtime source attestation,
+  covariance, analytic `Sim(3)` composition Jacobians, runtime source attestation,
   and version-selectable provider manifests.
 - Append-only causal observation-factor streams, content-addressed covariance
   calibration, source reliability, causal tracklets, cycle audits, and strict
