@@ -3,7 +3,12 @@
 - `prediction-batch-preflight-policy.json` is the strict default scorer-batch policy.
 - `provider-terminal-batch-incompatible.json` is an input specification for
   `python -m prob4d.provider_terminal_decision build`.
+- `provider-readiness-matrix-lock-spec.json` freezes a finite provider set,
+  adapter-conformance identities, common comparison policy, and priority before
+  source execution.
+- `provider-readiness-matrix-decision-spec.json` binds the frozen lock to one
+  source-only readiness decision per provider.
 
-The example terminal specification intentionally contains no `artifact_id`; the
-builder derives it from the canonical content. Replace every placeholder identity
-with the exact content identity from the frozen provider protocol.
+The example specifications intentionally omit derived content addresses. Replace
+every `REPLACE_WITH_...` value with the exact identity from the frozen provider
+protocol; builders derive and validate the resulting artifact IDs.

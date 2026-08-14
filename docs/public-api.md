@@ -24,7 +24,7 @@ bundles are no longer available through `from prob4d import ...`. Use
 inside Prob4D itself. The packaged `prob4d/__init__.pyi` mirrors this minimal
 runtime surface.
 
-## Version 2 boundary
+## Version 2 consumer boundary
 
 `prob4d.api.v2` is the current ecosystem surface for calibrated or explicitly
 exploratory provider-v2 work. It exposes:
@@ -41,6 +41,26 @@ provider-evaluation studies, and paper-specific evidence code remain outside the
 façade. A breaking current ecosystem change requires a new façade such as
 `prob4d.api.v3`; it must not silently alter `prob4d.api.v2`.
 
+## Versioned provider-authoring SDK
+
+External provider authors can use the separate `prob4d.adapter.v1` namespace:
+
+```python
+from prob4d.adapter.v1 import (
+    PredictionProviderAdapterV1,
+    ProviderAdapterIdentityV1,
+    ProviderAdapterRequestV1,
+    ProviderAdapterWindowV1,
+    materialize_provider_adapter,
+)
+```
+
+This namespace converts provider-native output into the provider-neutral
+prediction contract and supports deterministic causal-prefix conformance. It is
+not a downstream observation-consumer façade and does not widen
+`prob4d.api.v2`. Adapter conformance remains interoperability evidence rather
+than provider competence. See [provider adapter SDK](provider-adapter-sdk.md).
+
 ## Historical provider-v1 artifacts
 
 `prob4d.api.v1` and provider-v1 execution are not part of Prob4D 0.5. Pin the
@@ -53,7 +73,8 @@ provider estimator or exporters and is not a supported boundary for new code.
 
 ## Machine-readable inventory
 
-Generate the content-addressed API manifest from the exact installed wheel:
+Generate the content-addressed consumer API manifest from the exact installed
+wheel:
 
 ```bash
 python -m prob4d.public_api_manifest print
@@ -65,7 +86,9 @@ python -m prob4d.public_api_manifest verify \
 ```
 
 Manifest schema version 2 records the minimal package root and current v2
-façade. See [public API manifest](public-api-manifest.md).
+consumer façade. The provider-authoring SDK is separately versioned and is not
+silently folded into that consumer inventory. See
+[public API manifest](public-api-manifest.md).
 
 ## Version reporting
 

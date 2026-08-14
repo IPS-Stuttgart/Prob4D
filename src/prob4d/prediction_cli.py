@@ -12,7 +12,7 @@ from .prediction_provider_manifest import main as legacy_prediction_main
 def _help_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="prob4d prediction",
-        description="import, validate, and execute provider-neutral predictions",
+        description="import, validate, execute, and qualify provider-neutral predictions",
     )
     subparsers = parser.add_subparsers(dest="command")
     subparsers.add_parser(
@@ -30,6 +30,14 @@ def _help_parser() -> argparse.ArgumentParser:
     subparsers.add_parser(
         "scaffold-generic",
         help="create a no-clobber external-provider import scaffold",
+    )
+    subparsers.add_parser(
+        "adapter-conformance",
+        help="run deterministic and causal conformance for a trusted adapter",
+    )
+    subparsers.add_parser(
+        "readiness-matrix",
+        help="compare source-only readiness decisions and select one target route",
     )
     subparsers.add_parser(
         "validate",
@@ -62,6 +70,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         from .prediction_provider_scaffold import main as scaffold_main
 
         return int(scaffold_main(arguments[1:]))
+    if arguments[0] == "adapter-conformance":
+        from .provider_adapter_conformance import main as conformance_main
+
+        return int(conformance_main(arguments[1:]))
+    if arguments[0] == "readiness-matrix":
+        from .provider_readiness_matrix import main as matrix_main
+
+        return int(matrix_main(arguments[1:]))
     if arguments[0] == "runtime":
         from .provider_runtime import main as runtime_main
 

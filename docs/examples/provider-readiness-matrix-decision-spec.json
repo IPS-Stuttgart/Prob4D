@@ -1,0 +1,20 @@
+{
+  "schema": "prob4d.provider-readiness-matrix-decision-spec",
+  "schema_version": 1,
+  "matrix_lock_path": "matrix-lock.json",
+  "entries": [
+    {
+      "provider_id": "motion-provider",
+      "decision_path": "decisions/motion-provider.json",
+      "metadata": {}
+    },
+    {
+      "provider_id": "geometry-provider",
+      "decision_path": "decisions/geometry-provider.json",
+      "metadata": {}
+    }
+  ],
+  "metadata": {
+    "stage": "source-only-decisions-complete"
+  }
+}

@@ -29,6 +29,8 @@ prob4d experiment heldout-provider
 prob4d provider manifest
 prob4d provider target-admit
 prob4d provider target-verify
+prob4d prediction adapter-conformance
+prob4d prediction readiness-matrix
 prob4d phystwin evaluate
 prob4d phystwin state
 prob4d phystwin uncertainty
@@ -38,6 +40,14 @@ prob4d storage materialize
 prob4d storage validate
 prob4d vggt baseline
 ```
+
+`prob4d prediction adapter-conformance` builds target-closed adapter requests and
+checks exact repeatability, adapter-output order invariance, identity stability,
+and causal-prefix invariance. `prob4d prediction readiness-matrix` freezes a
+comparative provider program before source execution, composes the later
+source-only readiness decisions, and authorizes at most one selected target
+route. See [provider adapter SDK](provider-adapter-sdk.md) and
+[provider-readiness matrix](provider-readiness-matrix.md).
 
 The bare `prob4d observation export` route prints guidance and deliberately runs
 no exporter. Claim-bearing work must select `export-calibrated`; uncalibrated or

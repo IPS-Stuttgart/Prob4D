@@ -1,0 +1,64 @@
+{
+  "schema": "prob4d.provider-readiness-matrix-lock-spec",
+  "schema_version": 1,
+  "matrix_id": "fresh-provider-comparison-v1",
+  "selection_rule": "first-ready-by-frozen-priority-v1",
+  "maximum_target_evaluations": 1,
+  "source_repository": "IPS-Stuttgart/Prob4D",
+  "source_revision": "REPLACE_WITH_EXACT_40_CHARACTER_COMMIT",
+  "cohort_binding_id": "REPLACE_WITH_64_CHARACTER_SHA256",
+  "query_definition_id": "REPLACE_WITH_64_CHARACTER_SHA256",
+  "fallback_identity_id": "REPLACE_WITH_64_CHARACTER_SHA256",
+  "development_group_ids": [
+    "development-object-session-001"
+  ],
+  "calibration_group_ids": [
+    "calibration-object-session-001"
+  ],
+  "target_group_ids": [
+    "target-object-session-001"
+  ],
+  "confirmation_group_ids": [],
+  "comparison_policy": {
+    "group_definition": "complete-physical-object-or-acquisition-session-v1",
+    "support_policy_id": "REPLACE_WITH_64_CHARACTER_SHA256",
+    "source_competence_policy_id": "REPLACE_WITH_64_CHARACTER_SHA256",
+    "covariance_localization_policy_id": "REPLACE_WITH_64_CHARACTER_SHA256",
+    "query_relevance_policy_id": "REPLACE_WITH_64_CHARACTER_SHA256",
+    "exact_fallback_policy_id": "REPLACE_WITH_64_CHARACTER_SHA256"
+  },
+  "providers": [
+    {
+      "provider_id": "motion-provider",
+      "priority": 10,
+      "provider_repository": "owner/provider-a",
+      "provider_revision": "REPLACE_WITH_EXACT_40_CHARACTER_COMMIT",
+      "model_set_id": "REPLACE_WITH_64_CHARACTER_SHA256",
+      "loader_id": "REPLACE_WITH_64_CHARACTER_SHA256",
+      "promotion_lock_id": "REPLACE_WITH_64_CHARACTER_SHA256",
+      "adapter_identity_id": "REPLACE_WITH_64_CHARACTER_SHA256",
+      "adapter_conformance_id": "REPLACE_WITH_64_CHARACTER_SHA256",
+      "metadata": {}
+    },
+    {
+      "provider_id": "geometry-provider",
+      "priority": 20,
+      "provider_repository": "owner/provider-b",
+      "provider_revision": "REPLACE_WITH_EXACT_40_CHARACTER_COMMIT",
+      "model_set_id": "REPLACE_WITH_64_CHARACTER_SHA256",
+      "loader_id": "REPLACE_WITH_64_CHARACTER_SHA256",
+      "promotion_lock_id": "REPLACE_WITH_64_CHARACTER_SHA256",
+      "adapter_identity_id": "REPLACE_WITH_64_CHARACTER_SHA256",
+      "adapter_conformance_id": "REPLACE_WITH_64_CHARACTER_SHA256",
+      "metadata": {}
+    }
+  ],
+  "source_payloads_opened": false,
+  "source_outcomes_opened": false,
+  "target_payloads_opened": false,
+  "target_outcomes_opened": false,
+  "confirmation_payloads_opened": false,
+  "metadata": {
+    "stage": "before-source-execution"
+  }
+}

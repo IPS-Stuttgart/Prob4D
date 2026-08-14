@@ -1,0 +1,97 @@
+name: Provider adapter and readiness matrix
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/provider-adapter-readiness-matrix.yml"
+      - "CHANGELOG.d/provider-adapter-readiness-matrix.md"
+      - "docs/command-line.md"
+      - "docs/examples/README.md"
+      - "docs/examples/provider-readiness-matrix-*.json"
+      - "docs/provider-adapter-sdk.md"
+      - "docs/public-api.md"
+      - "docs/provider-readiness-matrix.md"
+      - "src/prob4d/adapter/**"
+      - "src/prob4d/prediction_cli.py"
+      - "src/prob4d/provider_adapter.py"
+      - "src/prob4d/provider_adapter_conformance.py"
+      - "src/prob4d/provider_readiness_matrix.py"
+      - "tests/test_prediction_extension_cli.py"
+      - "tests/test_provider_adapter*.py"
+      - "tests/test_provider_readiness_matrix.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: provider-adapter-matrix-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  contracts:
+    name: Adapter and source-only matrix contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact reviewed source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install package and development tools
+        run: |
+          python -m pip install -e ".[dev]"
+          python -m pip check
+
+      - name: Validate focused source quality
+        run: |
+          python -m ruff check \
+            src/prob4d/adapter \
+            src/prob4d/prediction_cli.py \
+            src/prob4d/provider_adapter.py \
+            src/prob4d/provider_adapter_conformance.py \
+            src/prob4d/provider_readiness_matrix.py \
+            tests/test_prediction_extension_cli.py \
+            tests/test_provider_adapter.py \
+            tests/test_provider_adapter_conformance.py \
+            tests/test_provider_readiness_matrix.py
+          python -m ruff format --check \
+            src/prob4d/adapter \
+            src/prob4d/prediction_cli.py \
+            src/prob4d/provider_adapter.py \
+            src/prob4d/provider_adapter_conformance.py \
+            src/prob4d/provider_readiness_matrix.py \
+            tests/test_prediction_extension_cli.py \
+            tests/test_provider_adapter.py \
+            tests/test_provider_adapter_conformance.py \
+            tests/test_provider_readiness_matrix.py
+          python -m mypy \
+            src/prob4d/adapter/v1.py \
+            src/prob4d/provider_adapter.py \
+            src/prob4d/provider_adapter_conformance.py \
+            src/prob4d/provider_readiness_matrix.py
+
+      - name: Run focused regressions and CLI smoke tests
+        run: |
+          python -m pytest -q \
+            tests/test_prediction_extension_cli.py \
+            tests/test_provider_adapter.py \
+            tests/test_provider_adapter_conformance.py \
+            tests/test_provider_readiness_matrix.py \
+            tests/test_cli.py
+          prob4d prediction adapter-conformance --help
+          prob4d prediction readiness-matrix --help
