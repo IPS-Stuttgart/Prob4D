@@ -12,6 +12,8 @@ from ._joint_material_identity_json import (
 )
 from .material_identity_mixture import (
     CLAIM_BOUNDARY as LOCAL_CLAIM_BOUNDARY,
+)
+from .material_identity_mixture import (
     MATERIAL_IDENTITY_MIXTURE_SCHEMA,
     MATERIAL_IDENTITY_MIXTURE_VERSION,
     LocalTrackEndpoint,
