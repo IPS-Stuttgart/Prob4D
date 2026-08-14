@@ -13,8 +13,10 @@ Transforms use the seven-vector
 [log_scale, rotation_vector(3), translation(3)].
 ```
 
-Composition uses the existing context-local analytic Jacobians from
-`prob4d.composition_jacobian`. Inversion uses the exact derivative of
+Composition uses the analytic Jacobian callable selected by the immutable
+observation-export numerical policy. Compatibility context selection remains
+available in `prob4d.composition_jacobian`, but it no longer relies on replacing
+private exporter functions. Inversion uses the exact derivative of
 
 ```text
 scale_inverse       = 1 / scale

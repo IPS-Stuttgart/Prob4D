@@ -56,6 +56,7 @@ from .composition_jacobian import (
     composition_jacobian_mode,
 )
 from .covariance_root import CovarianceRootMode, covariance_root_mode
+from .export_numerics import PROVIDER_V2_NUMERICS, export_numerics_policy
 from .observation_factor_stream import (
     OBSERVATION_FACTOR_STREAM_SCHEMA,
     OBSERVATION_FACTOR_STREAM_VERSION,
@@ -276,6 +277,10 @@ def export_exploratory_observation_belief(
     selected_composition_mode: CompositionJacobianMode = (
         "analytic" if gauge_mode == "sequential" else "legacy_finite_difference"
     )
+    numerics_policy = export_numerics_policy(
+        covariance_root_mode=gauge_root_mode,
+        composition_jacobian_mode=selected_composition_mode,
+    )
     with (
         covariance_root_mode(gauge_root_mode),
         composition_jacobian_mode(selected_composition_mode),
@@ -302,7 +307,10 @@ def export_exploratory_observation_belief(
             gauge_covariance_calibration=gauge_covariance_calibration,
             point_uncertainty_calibration=point_uncertainty_calibration,
             allow_uncalibrated_exploratory_covariance=True,
-            allow_pointwise_covariance_fallback=allow_pointwise_covariance_fallback,
+            allow_pointwise_covariance_fallback=(
+                allow_pointwise_covariance_fallback
+            ),
+            numerics_policy=numerics_policy,
         )
     runtime_attestation = inspect_runtime_revision(artifact.source_revision)
     return _provider_attested_artifact(
@@ -362,6 +370,7 @@ def export_calibrated_observation_belief(
             minimum_retained_gauge_trace=minimum_retained_gauge_trace,
             view_name=view_name,
             allow_pointwise_covariance_fallback=False,
+            numerics_policy=PROVIDER_V2_NUMERICS,
         )
     return _provider_attested_artifact(
         artifact,

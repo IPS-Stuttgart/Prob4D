@@ -5,7 +5,24 @@ release notes and scientific boundaries live under `docs/releases/`.
 
 ## Unreleased
 
-No changes yet.
+### Added
+
+- An immutable `ExportNumericsPolicy` that binds the covariance-root and
+  composition-Jacobian implementations used by one observation export.
+
+### Changed
+
+- Provider-v2 exploratory and calibrated exports now pass their declared
+  numerical policy explicitly through the private export core.
+- Compatibility context managers remain task-local, but dispatch through stable
+  wrappers rather than import-time replacement of private exporter functions.
+
+### Scientific boundary
+
+This refactor changes numerical dependency injection and import ordering only.
+It changes no estimator equations, numerical modes, artifact schemas, provider
+manifest, calibration, guard, fallback decision, target-access rule, or
+scientific claim.
 
 ## 0.5.0 — 2026-08-12
 

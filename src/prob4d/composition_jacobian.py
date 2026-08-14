@@ -1,25 +1,27 @@
-"""Context-local analytic Jacobians for seven-coordinate ``Sim(3)`` composition.
+"""Versioned Jacobians for seven-coordinate ``Sim(3)`` composition.
 
-Provider v1 retains the historical central-finite-difference implementation.
-Provider v2 selects the analytic implementation through a task-local context,
-so importing the new provider cannot silently reinterpret frozen v1 artifacts.
-Explicit array annotations also keep the Python-3.10-targeted static check stable
-across supported NumPy stub generations.
+The legacy central-finite-difference implementation and the provider-v2 analytic
+implementation live behind explicit callables.  A task-local mode remains for
+backward-compatible internal callers, but importing this module never replaces
+functions in :mod:`prob4d.observation_export`.
 """
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Literal
 
 import numpy as np
 
-from . import observation_export as _observation_export
 from .sim3 import Sim3, skew, so3_log, so3_right_jacobian
 
 CompositionJacobianMode = Literal["legacy_finite_difference", "analytic"]
+CompositionJacobianFunction = Callable[
+    [Sim3, Sim3],
+    tuple[np.ndarray, np.ndarray],
+]
 COMPOSITION_JACOBIAN_MODES: tuple[CompositionJacobianMode, ...] = (
     "legacy_finite_difference",
     "analytic",
@@ -28,7 +30,58 @@ _MODE: ContextVar[CompositionJacobianMode] = ContextVar(
     "prob4d_composition_jacobian_mode",
     default="legacy_finite_difference",
 )
-_LEGACY_COMPOSE_JACOBIANS = _observation_export._compose_jacobians
+
+
+def _validated_mode(mode: CompositionJacobianMode) -> CompositionJacobianMode:
+    if mode not in COMPOSITION_JACOBIAN_MODES:
+        raise ValueError(
+            "composition Jacobian mode must be one of "
+            f"{COMPOSITION_JACOBIAN_MODES}"
+        )
+    return mode
+
+
+def _numerical_jacobian(
+    function: Callable[[np.ndarray], np.ndarray],
+    vector: np.ndarray,
+) -> np.ndarray:
+    vector = np.asarray(vector, dtype=np.float64)
+    baseline = np.asarray(function(vector), dtype=np.float64)
+    jacobian = np.empty((baseline.size, vector.size), dtype=np.float64)
+    for index in range(vector.size):
+        step = 1e-6 * max(1.0, abs(float(vector[index])))
+        plus = vector.copy()
+        minus = vector.copy()
+        plus[index] += step
+        minus[index] -= step
+        jacobian[:, index] = (
+            np.asarray(function(plus), dtype=np.float64)
+            - np.asarray(function(minus), dtype=np.float64)
+        ) / (2.0 * step)
+    return jacobian
+
+
+def legacy_sim3_compose_jacobians(
+    parent: Sim3,
+    relative: Sim3,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return the frozen provider-v1 central-finite-difference Jacobians."""
+
+    parent_vector = parent.as_vector()
+    relative_vector = relative.as_vector()
+    parent_jacobian = _numerical_jacobian(
+        lambda value: Sim3.from_vector(value).compose(relative).as_vector(),
+        parent_vector,
+    )
+    relative_jacobian = _numerical_jacobian(
+        lambda value: parent.compose(Sim3.from_vector(value)).as_vector(),
+        relative_vector,
+    )
+    return parent_jacobian, relative_jacobian
+
+
+# Retained for source compatibility with focused tests and diagnostic modules.
+_LEGACY_COMPOSE_JACOBIANS = legacy_sim3_compose_jacobians
 
 
 def so3_right_jacobian_inverse(rotation_vector: np.ndarray) -> np.ndarray:
@@ -40,11 +93,7 @@ def so3_right_jacobian_inverse(rotation_vector: np.ndarray) -> np.ndarray:
     angle = float(np.linalg.norm(vector))
     generator = skew(vector)
     if angle < 1e-4:
-        coefficient = (
-            1.0 / 12.0
-            + angle**2 / 720.0
-            + angle**4 / 30_240.0
-        )
+        coefficient = 1.0 / 12.0 + angle**2 / 720.0 + angle**4 / 30_240.0
     else:
         coefficient = 1.0 / angle**2 - 1.0 / (
             2.0 * angle * np.tan(0.5 * angle)
@@ -118,8 +167,29 @@ def analytic_sim3_compose_jacobians(
     return parent_jacobian, relative_jacobian
 
 
+def composition_jacobian_function(
+    mode: CompositionJacobianMode,
+) -> CompositionJacobianFunction:
+    """Return the implementation associated with one declared mode."""
+
+    selected = _validated_mode(mode)
+    if selected == "analytic":
+        return analytic_sim3_compose_jacobians
+    return legacy_sim3_compose_jacobians
+
+
+def compose_jacobians_for_mode(
+    mode: CompositionJacobianMode,
+    parent: Sim3,
+    relative: Sim3,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Evaluate one explicitly declared composition-Jacobian mode."""
+
+    return composition_jacobian_function(mode)(parent, relative)
+
+
 def current_composition_jacobian_mode() -> CompositionJacobianMode:
-    """Return the task-local composition-Jacobian mode."""
+    """Return the task-local compatibility mode."""
 
     return _MODE.get()
 
@@ -128,13 +198,9 @@ def current_composition_jacobian_mode() -> CompositionJacobianMode:
 def composition_jacobian_mode(
     mode: CompositionJacobianMode,
 ) -> Iterator[None]:
-    """Select composition derivatives without process-global mode leakage."""
+    """Select a compatibility mode without process-global function mutation."""
 
-    if mode not in COMPOSITION_JACOBIAN_MODES:
-        raise ValueError(
-            f"composition Jacobian mode must be one of {COMPOSITION_JACOBIAN_MODES}"
-        )
-    token = _MODE.set(mode)
+    token = _MODE.set(_validated_mode(mode))
     try:
         yield
     finally:
@@ -145,28 +211,24 @@ def _dispatch_compose_jacobians(
     parent: Sim3,
     relative: Sim3,
 ) -> tuple[np.ndarray, np.ndarray]:
-    if current_composition_jacobian_mode() == "analytic":
-        return analytic_sim3_compose_jacobians(parent, relative)
-    return _LEGACY_COMPOSE_JACOBIANS(parent, relative)
+    """Compatibility dispatcher used by the stable exporter wrapper."""
 
-
-def _install_dispatcher() -> None:
-    current = _observation_export._compose_jacobians
-    if current is _dispatch_compose_jacobians:
-        return
-    if current is not _LEGACY_COMPOSE_JACOBIANS:
-        raise RuntimeError("Prob4D composition-Jacobian implementation changed unexpectedly")
-    _observation_export._compose_jacobians = _dispatch_compose_jacobians
-
-
-_install_dispatcher()
+    return compose_jacobians_for_mode(
+        current_composition_jacobian_mode(),
+        parent,
+        relative,
+    )
 
 
 __all__ = [
     "COMPOSITION_JACOBIAN_MODES",
+    "CompositionJacobianFunction",
     "CompositionJacobianMode",
     "analytic_sim3_compose_jacobians",
+    "compose_jacobians_for_mode",
+    "composition_jacobian_function",
     "composition_jacobian_mode",
     "current_composition_jacobian_mode",
+    "legacy_sim3_compose_jacobians",
     "so3_right_jacobian_inverse",
 ]
