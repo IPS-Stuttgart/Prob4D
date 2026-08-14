@@ -118,9 +118,7 @@ def test_commands_describe_resolves_only_id_and_canonical_route(capsys) -> None:
 
     assert main(["commands", "describe", "fresh-provider-readiness", "--json"]) == 0
     readiness_payload = json.loads(capsys.readouterr().out)
-    assert readiness_payload["grouped_command"] == (
-        "prob4d experiment fresh-provider-readiness"
-    )
+    assert readiness_payload["grouped_command"] == ("prob4d experiment fresh-provider-readiness")
     assert readiness_payload["claim_bearing"] is True
 
     assert main(["commands", "describe", "prob4d-target-admit"]) == 2
