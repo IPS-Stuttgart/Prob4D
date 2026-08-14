@@ -1,0 +1,30 @@
+{
+  "schema": "prob4d.provider-terminal-decision",
+  "schema_version": 1,
+  "protocol_id": "fresh-provider-v7-source",
+  "provider_manifest_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "classification": "batch-incompatible",
+  "failed_stage": "source-batch-preflight",
+  "source_payloads_accessed": true,
+  "source_outcomes_accessed": false,
+  "target_payloads_accessed": false,
+  "target_outcomes_accessed": false,
+  "rerun_authorized": false,
+  "successor_protocol_required": true,
+  "evidence_ids": [
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  ],
+  "authorized_inferences": [],
+  "forbidden_inferences": [
+    "provider-competence",
+    "provider-calibration",
+    "bayesian-phystwin-benefit",
+    "causal4d-intervention-benefit",
+    "deployment-safety",
+    "state-of-the-art"
+  ],
+  "summary": "The admitted source payloads cannot form the frozen scorer batch.",
+  "metadata": {
+    "future_prediction_payloads_opened": 0
+  }
+}

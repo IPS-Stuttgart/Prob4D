@@ -1,0 +1,4 @@
+python -m prob4d.prediction_batch_preflight build \
+  outputs/provider/provider-neutral.json \
+  outputs/provider/prediction-batch-preflight.json \
+  --causal-frame-stop 134
