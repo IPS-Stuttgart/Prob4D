@@ -85,35 +85,44 @@ def _replay(value: Mapping[str, Any]) -> JointMaterialIdentityPosteriorV1:
     assignments = _list(value["assignments"], name="assignments")
     if len(assignments) != len(posterior.assignments):
         raise ValueError("assignments differ from exact joint-posterior replay")
-    for index, (raw, expected) in enumerate(
+    for index, (raw, expected_assignment) in enumerate(
         zip(assignments, posterior.assignments, strict=True)
     ):
         record = _mapping(raw, name=f"assignments[{index}]")
         if (
-            record.get("assignment_id") != expected.assignment_id
-            or record.get("mixture_ids") != list(expected.mixture_ids)
-            or record.get("candidate_ids") != list(expected.candidate_ids)
+            record.get("assignment_id") != expected_assignment.assignment_id
+            or record.get("mixture_ids") != list(expected_assignment.mixture_ids)
+            or record.get("candidate_ids") != list(expected_assignment.candidate_ids)
         ):
             raise ValueError("assignments differ from exact joint-posterior replay")
-        _close(record.get("log_weight"), expected.log_weight, name="assignment.log_weight")
-        _close(record.get("probability"), expected.probability, name="assignment.probability")
+        _close(
+            record.get("log_weight"),
+            expected_assignment.log_weight,
+            name="assignment.log_weight",
+        )
+        _close(
+            record.get("probability"),
+            expected_assignment.probability,
+            name="assignment.probability",
+        )
     marginals = _list(value["marginals"], name="marginals")
     if len(marginals) != len(posterior.marginals):
         raise ValueError("marginals differ from exact joint-posterior replay")
-    for index, (raw, expected) in enumerate(
+    for index, (raw, expected_marginal) in enumerate(
         zip(marginals, posterior.marginals, strict=True)
     ):
         record = _mapping(raw, name=f"marginals[{index}]")
         if (
-            record.get("mixture_id") != expected.mixture_id
-            or record.get("candidate_ids") != list(expected.candidate_ids)
-            or record.get("target_endpoint") != expected.target_endpoint.to_dict()
+            record.get("mixture_id") != expected_marginal.mixture_id
+            or record.get("candidate_ids") != list(expected_marginal.candidate_ids)
+            or record.get("target_endpoint")
+            != expected_marginal.target_endpoint.to_dict()
         ):
             raise ValueError("marginals differ from exact joint-posterior replay")
         probabilities = np.asarray(record.get("probabilities"), dtype=np.float64)
         if not np.allclose(
             probabilities,
-            expected.probabilities,
+            expected_marginal.probabilities,
             atol=1e-12,
             rtol=1e-10,
         ):
