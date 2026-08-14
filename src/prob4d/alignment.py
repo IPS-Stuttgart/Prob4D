@@ -26,6 +26,30 @@ POINTWISE_COVARIANCE_FALLBACK = "insufficient_spatial_clusters_pointwise_v1"
 IID_COVARIANCE_FALLBACK = "insufficient_spatial_clusters_iid_v1"
 
 
+class AlignmentNonConvergenceError(ValueError):
+    """Raised when robust alignment exhausts its certified IRLS budget."""
+
+    reason_code = "alignment_irls_nonconvergence"
+
+    def __init__(
+        self,
+        *,
+        max_iterations: int,
+        transform_delta: float,
+        relative_weight_delta: float,
+    ) -> None:
+        self.max_iterations = int(max_iterations)
+        self.transform_delta = float(transform_delta)
+        self.relative_weight_delta = float(relative_weight_delta)
+        super().__init__(
+            "robust Sim(3) alignment did not converge within its certified "
+            "IRLS iteration budget "
+            f"(max_iterations={self.max_iterations}, "
+            f"transform_delta={self.transform_delta:.3e}, "
+            f"relative_weight_delta={self.relative_weight_delta:.3e})"
+        )
+
+
 class AlignmentCovarianceCalibration(Protocol):
     """Structural contract used by the provider without importing artifact types."""
 
@@ -387,28 +411,66 @@ def _alignment_covariance(
     ).covariance
 
 
+def _normalized_transform_step(
+    source: FloatArray,
+    weights: FloatArray,
+    previous: Sim3,
+    current: Sim3,
+) -> float:
+    """Return unitless RMS motion of the transformed correspondence cloud."""
+
+    weight_sum = float(weights.sum())
+    if weight_sum <= np.finfo(np.float64).eps:
+        raise ValueError("alignment weights have zero total mass")
+    normalized_weights = weights / weight_sum
+    previous_points = previous.transform_points(source)
+    current_points = current.transform_points(source)
+    center = np.sum(normalized_weights[:, None] * previous_points, axis=0)
+    cloud_scale = float(
+        np.sqrt(
+            np.sum(
+                normalized_weights
+                * np.sum((previous_points - center) ** 2, axis=1)
+            )
+        )
+    )
+    displacement = float(
+        np.sqrt(
+            np.sum(
+                normalized_weights
+                * np.sum((current_points - previous_points) ** 2, axis=1)
+            )
+        )
+    )
+    return displacement / max(cloud_scale, np.finfo(np.float64).eps)
+
+
 def estimate_sim3_robust(
     source: FloatArray,
     target: FloatArray,
     *,
     weights: FloatArray | None = None,
     covariance_cluster_ids: IntArray | None = None,
-    max_iterations: int = 20,
+    max_iterations: int = 64,
     huber_multiplier: float = 2.5,
     tolerance: float = 1e-8,
 ) -> AlignmentResult:
-    """Estimate a similarity transform with Huber iteratively reweighted least squares.
+    """Estimate a similarity transform with fail-closed Huber IRLS.
 
     ``covariance_cluster_ids`` enables a cluster-robust sandwich covariance while
     leaving the fitted transform unchanged. Dense-window alignment supplies
     frame-by-spatial-tile clusters; sparse registrations retain the IID model by
-    default.
+    default. The returned covariance and residual summary always use the exact
+    weights that produced the returned transform. Convergence is measured as
+    normalized motion of the transformed correspondence cloud, avoiding mixed
+    rotation, log-scale, and translation units. If the transform does not stabilize
+    within ``max_iterations``, the fit is rejected.
     """
 
     iteration_count = require_genuine_integer(
         max_iterations,
         name="max_iterations",
-        minimum=1,
+        minimum=2,
     )
     robust_multiplier = require_finite_real(
         huber_multiplier,
@@ -452,11 +514,15 @@ def estimate_sim3_robust(
         clusters = supplied_clusters[finite]
 
     robust_weights = base_weights.copy()
-    previous_vector: FloatArray | None = None
+    previous_transform: Sim3 | None = None
     cutoff = np.inf
     transform = Sim3.identity()
+    transform_delta = np.inf
+    relative_weight_delta = np.inf
+    converged = False
     for _ in range(iteration_count):
-        transform = _weighted_umeyama(source, target, robust_weights)
+        fit_weights = robust_weights
+        transform = _weighted_umeyama(source, target, fit_weights)
         residual_norms = np.linalg.norm(target - transform.transform_points(source), axis=1)
         median = float(np.median(residual_norms))
         mad = float(np.median(np.abs(residual_norms - median)))
@@ -466,14 +532,40 @@ def estimate_sim3_robust(
             np.finfo(np.float64).eps,
         )
         huber_weights = np.minimum(1.0, cutoff / np.maximum(residual_norms, cutoff))
-        robust_weights = base_weights * huber_weights
-        current_vector = transform.as_vector()
+        next_weights = base_weights * huber_weights
+        transform_delta = (
+            np.inf
+            if previous_transform is None
+            else _normalized_transform_step(
+                source,
+                base_weights,
+                previous_transform,
+                transform,
+            )
+        )
+        weight_norm = max(
+            float(np.linalg.norm(fit_weights)),
+            np.finfo(np.float64).eps,
+        )
+        relative_weight_delta = float(
+            np.linalg.norm(next_weights - fit_weights) / weight_norm
+        )
         if (
-            previous_vector is not None
-            and np.linalg.norm(current_vector - previous_vector) < convergence_tolerance
+            previous_transform is not None
+            and transform_delta < convergence_tolerance
         ):
+            robust_weights = fit_weights
+            converged = True
             break
-        previous_vector = current_vector
+        previous_transform = transform
+        robust_weights = next_weights
+
+    if not converged:
+        raise AlignmentNonConvergenceError(
+            max_iterations=iteration_count,
+            transform_delta=transform_delta,
+            relative_weight_delta=relative_weight_delta,
+        )
 
     residuals = target - transform.transform_points(source)
     residual_norms = np.linalg.norm(residuals, axis=1)
@@ -675,6 +767,7 @@ __all__ = [
     "POINTWISE_COVARIANCE_FALLBACK",
     "AlignmentCovarianceCalibration",
     "AlignmentCovarianceDiagnostics",
+    "AlignmentNonConvergenceError",
     "AlignmentResult",
     "CovarianceFallbackPolicy",
     "WindowAlignment",
