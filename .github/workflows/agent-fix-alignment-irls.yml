@@ -1,0 +1,361 @@
+name: Apply robust alignment convergence correction
+
+on:
+  push:
+    branches:
+      - agent/harden-alignment-irls
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: agent/harden-alignment-irls
+          fetch-depth: 0
+
+      - name: Apply focused correction
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+
+          def replace_once(path: Path, old: str, new: str) -> None:
+              text = path.read_text(encoding="utf-8")
+              count = text.count(old)
+              if count != 1:
+                  raise RuntimeError(
+                      f"expected one match in {path}, found {count}: {old[:80]!r}"
+                  )
+              path.write_text(text.replace(old, new), encoding="utf-8")
+
+
+          alignment = Path("src/prob4d/alignment.py")
+          replace_once(
+              alignment,
+              '''IID_COVARIANCE_FALLBACK = "insufficient_spatial_clusters_iid_v1"
+
+
+          class AlignmentCovarianceCalibration(Protocol):
+          ''',
+              '''IID_COVARIANCE_FALLBACK = "insufficient_spatial_clusters_iid_v1"
+
+
+          class AlignmentNonConvergenceError(ValueError):
+              """Raised when robust alignment exhausts its certified IRLS budget."""
+
+              reason_code = "alignment_irls_nonconvergence"
+
+              def __init__(
+                  self,
+                  *,
+                  max_iterations: int,
+                  transform_delta: float,
+                  relative_weight_delta: float,
+              ) -> None:
+                  self.max_iterations = int(max_iterations)
+                  self.transform_delta = float(transform_delta)
+                  self.relative_weight_delta = float(relative_weight_delta)
+                  super().__init__(
+                      "robust Sim(3) alignment did not converge within its certified "
+                      "IRLS iteration budget "
+                      f"(max_iterations={self.max_iterations}, "
+                      f"transform_delta={self.transform_delta:.3e}, "
+                      f"relative_weight_delta={self.relative_weight_delta:.3e})"
+                  )
+
+
+          class AlignmentCovarianceCalibration(Protocol):
+          ''',
+          )
+          replace_once(
+              alignment,
+              '''    ).covariance
+
+
+          def estimate_sim3_robust(
+          ''',
+              '''    ).covariance
+
+
+          def _normalized_transform_step(
+              source: FloatArray,
+              weights: FloatArray,
+              previous: Sim3,
+              current: Sim3,
+          ) -> float:
+              """Return unitless RMS motion of the transformed correspondence cloud."""
+
+              weight_sum = float(weights.sum())
+              if weight_sum <= np.finfo(np.float64).eps:
+                  raise ValueError("alignment weights have zero total mass")
+              normalized_weights = weights / weight_sum
+              previous_points = previous.transform_points(source)
+              current_points = current.transform_points(source)
+              center = np.sum(normalized_weights[:, None] * previous_points, axis=0)
+              cloud_scale = float(
+                  np.sqrt(
+                      np.sum(
+                          normalized_weights
+                          * np.sum((previous_points - center) ** 2, axis=1)
+                      )
+                  )
+              )
+              displacement = float(
+                  np.sqrt(
+                      np.sum(
+                          normalized_weights
+                          * np.sum((current_points - previous_points) ** 2, axis=1)
+                      )
+                  )
+              )
+              return displacement / max(cloud_scale, np.finfo(np.float64).eps)
+
+
+          def estimate_sim3_robust(
+          ''',
+          )
+          replace_once(
+              alignment,
+              "    max_iterations: int = 20,\n",
+              "    max_iterations: int = 64,\n",
+          )
+          replace_once(
+              alignment,
+              '''    weights that produced the returned transform. If the transform does not
+              stabilize within ``max_iterations``, the fit is rejected.
+          ''',
+              '''    weights that produced the returned transform. Convergence is measured as
+              normalized motion of the transformed correspondence cloud, avoiding mixed
+              rotation, log-scale, and translation units. If the transform does not stabilize
+              within ``max_iterations``, the fit is rejected.
+          ''',
+          )
+          replace_once(
+              alignment,
+              '''    iteration_count = require_genuine_integer(
+                  max_iterations,
+                  name="max_iterations",
+                  minimum=1,
+              )
+          ''',
+              '''    iteration_count = require_genuine_integer(
+                  max_iterations,
+                  name="max_iterations",
+                  minimum=2,
+              )
+          ''',
+          )
+          replace_once(
+              alignment,
+              '''    robust_weights = base_weights.copy()
+              previous_vector: FloatArray | None = None
+          ''',
+              '''    robust_weights = base_weights.copy()
+              previous_transform: Sim3 | None = None
+          ''',
+          )
+          replace_once(
+              alignment,
+              '''        current_vector = transform.as_vector()
+                  transform_delta = (
+                      np.inf
+                      if previous_vector is None
+                      else float(np.linalg.norm(current_vector - previous_vector))
+                  )
+          ''',
+              '''        transform_delta = (
+                      np.inf
+                      if previous_transform is None
+                      else _normalized_transform_step(
+                          source,
+                          base_weights,
+                          previous_transform,
+                          transform,
+                      )
+                  )
+          ''',
+          )
+          replace_once(
+              alignment,
+              '''        if (
+                      previous_vector is not None
+                      and transform_delta < convergence_tolerance
+                  ):
+          ''',
+              '''        if (
+                      previous_transform is not None
+                      and transform_delta < convergence_tolerance
+                  ):
+          ''',
+          )
+          replace_once(
+              alignment,
+              "        previous_vector = current_vector\n",
+              "        previous_transform = transform\n",
+          )
+          replace_once(
+              alignment,
+              '''    if not converged:
+                  raise ValueError(
+                      "robust Sim(3) alignment did not converge within its iteration budget "
+                      f"(max_iterations={iteration_count}, "
+                      f"transform_delta={transform_delta:.3e}, "
+                      f"relative_weight_delta={relative_weight_delta:.3e})"
+                  )
+          ''',
+              '''    if not converged:
+                  raise AlignmentNonConvergenceError(
+                      max_iterations=iteration_count,
+                      transform_delta=transform_delta,
+                      relative_weight_delta=relative_weight_delta,
+                  )
+          ''',
+          )
+          replace_once(
+              alignment,
+              '''    "AlignmentCovarianceDiagnostics",
+              "AlignmentResult",
+          ''',
+              '''    "AlignmentCovarianceDiagnostics",
+              "AlignmentNonConvergenceError",
+              "AlignmentResult",
+          ''',
+          )
+
+          irls_tests = Path("tests/test_alignment_irls_convergence.py")
+          replace_once(
+              irls_tests,
+              '''def test_nonconverged_irls_fails_closed() -> None:
+              source, target, weights = _outlier_problem()
+
+              with pytest.raises(ValueError, match=r"did not converge.*max_iterations=1"):
+                  alignment.estimate_sim3_robust(
+                      source,
+                      target,
+                      weights=weights,
+                      max_iterations=1,
+                  )
+          ''',
+              '''def test_certified_irls_requires_at_least_two_fits() -> None:
+              source, target, weights = _outlier_problem()
+
+              with pytest.raises(ValueError, match="max_iterations must be at least 2"):
+                  alignment.estimate_sim3_robust(
+                      source,
+                      target,
+                      weights=weights,
+                      max_iterations=1,
+                  )
+
+
+          def test_nonconverged_irls_fails_closed_with_typed_diagnostics() -> None:
+              source, target, weights = _outlier_problem()
+
+              with pytest.raises(alignment.AlignmentNonConvergenceError) as caught:
+                  alignment.estimate_sim3_robust(
+                      source,
+                      target,
+                      weights=weights,
+                      max_iterations=2,
+                      tolerance=np.nextafter(0.0, 1.0),
+                  )
+
+              error = caught.value
+              assert error.reason_code == "alignment_irls_nonconvergence"
+              assert error.max_iterations == 2
+              assert np.isfinite(error.transform_delta)
+              assert np.isfinite(error.relative_weight_delta)
+          ''',
+          )
+          replace_once(
+              irls_tests,
+              '''
+
+          def test_uniform_weight_scaling_is_metamorphically_invariant() -> None:
+          ''',
+              '''
+
+          def test_convergence_is_invariant_to_coordinate_units(monkeypatch) -> None:
+              source, target, weights = _outlier_problem()
+              original_fit = alignment._weighted_umeyama
+              call_count = 0
+
+              def counted_fit(
+                  source_array: np.ndarray,
+                  target_array: np.ndarray,
+                  weight_array: np.ndarray,
+              ) -> Sim3:
+                  nonlocal call_count
+                  call_count += 1
+                  return original_fit(source_array, target_array, weight_array)
+
+              monkeypatch.setattr(alignment, "_weighted_umeyama", counted_fit)
+              baseline = alignment.estimate_sim3_robust(source, target, weights=weights)
+              baseline_call_count = call_count
+              call_count = 0
+              scaled = alignment.estimate_sim3_robust(
+                  1_000.0 * source,
+                  1_000.0 * target,
+                  weights=weights,
+              )
+
+              assert call_count == baseline_call_count
+              np.testing.assert_allclose(
+                  scaled.transform.as_vector()[:4],
+                  baseline.transform.as_vector()[:4],
+                  rtol=1e-11,
+                  atol=1e-11,
+              )
+              np.testing.assert_allclose(
+                  scaled.transform.translation,
+                  1_000.0 * baseline.transform.translation,
+                  rtol=1e-11,
+                  atol=1e-9,
+              )
+
+
+          def test_uniform_weight_scaling_is_metamorphically_invariant() -> None:
+          ''',
+          )
+
+          scalar_tests = Path("tests/test_scientific_scalar_validation.py")
+          replace_once(
+              scalar_tests,
+              '''@pytest.mark.parametrize("max_iterations", (0, -1))
+          def test_alignment_rejects_nonpositive_iteration_budget(max_iterations: int) -> None:
+              source, target = _nondegenerate_correspondences()
+              with pytest.raises(ValueError, match="max_iterations must be at least 1"):
+                  estimate_sim3_robust(source, target, max_iterations=max_iterations)
+          ''',
+              '''@pytest.mark.parametrize("max_iterations", (1, 0, -1))
+          def test_alignment_rejects_insufficient_iteration_budget(max_iterations: int) -> None:
+              source, target = _nondegenerate_correspondences()
+              with pytest.raises(ValueError, match="max_iterations must be at least 2"):
+                  estimate_sim3_robust(source, target, max_iterations=max_iterations)
+          ''',
+          )
+          replace_once(
+              scalar_tests,
+              "        max_iterations=np.int64(1),\n",
+              "        max_iterations=np.int64(2),\n",
+          )
+          PY
+
+      - name: Commit correction and remove helper workflow
+        shell: bash
+        run: |
+          rm .github/workflows/agent-fix-alignment-irls.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/prob4d/alignment.py \
+            tests/test_alignment_irls_convergence.py \
+            tests/test_scientific_scalar_validation.py \
+            .github/workflows/agent-fix-alignment-irls.yml
+          git commit -m "Correct robust alignment convergence certification"
+          git push origin HEAD:agent/harden-alignment-irls
