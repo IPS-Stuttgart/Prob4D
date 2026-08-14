@@ -127,6 +127,26 @@ retained covariance trace passes the declared threshold. See
 [observation export](docs/observation-belief-export.md), and
 [compatibility boundaries](docs/compatibility.md).
 
+## Provider readiness and failure localization
+
+The target-free provider workflow keeps support, source means, identities,
+gauge/dependence, conditional point covariance, downstream query relevance, and
+exact fallback as ordered gates:
+
+```bash
+prob4d diagnostic provider-support-envelope --help
+prob4d diagnostic source-covariance-localization --help
+prob4d provider prefix-admission --help
+prob4d experiment fresh-provider-readiness --help
+```
+
+Only an explicit `point-covariance-localized` result authorizes source-only
+point-uncertainty development. Only a complete
+`ready-for-one-target-evaluation` decision authorizes one evaluation of the exact
+bound unopened target roster. See
+[provider readiness localization](docs/provider-readiness-localization.md) and
+[fresh-provider readiness](docs/fresh-provider-readiness.md).
+
 ## Recursive factors and provider promotion
 
 Provider v2 includes append-only `ObservationFactorStreamV1`, schema-v4
@@ -160,8 +180,12 @@ Passing infrastructure checks is not scientific promotion.
 ## Additional grouped routes
 
 ```bash
+prob4d diagnostic provider-support-envelope --help
+prob4d diagnostic source-covariance-localization --help
 prob4d evaluate provider --help
+prob4d experiment fresh-provider-readiness --help
 prob4d identity --help
+prob4d provider prefix-admission --help
 prob4d provider target-admit --help
 prob4d provider target-verify --help
 prob4d sintel uncertainty --help
