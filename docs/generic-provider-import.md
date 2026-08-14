@@ -35,6 +35,23 @@ It refuses to replace an existing directory. The generated JSON is intentionally
 not admissible: every `REPLACE_WITH_...` value must be replaced with exact
 provenance before import.
 
+## CUT3R online profile
+
+For a strictly recurrent single-pass CUT3R challenger, select the specialized
+profile rather than editing every semantic field by hand:
+
+```bash
+prob4d prediction scaffold-generic \
+  outputs/sequence-a/cut3r-online \
+  --profile cut3r-online
+```
+
+The profile freezes revisiting off, declares a sequence-local gauge, starts with
+cumulative causal-prefix lineage, and keeps CUT3R confidence separate from
+calibrated covariance and source reliability. Expand the generated lineage so
+each output frame records the complete prefix actually consumed. See
+[the CUT3R online provider profile](cut3r-online-provider.md).
+
 ## Export canonical payloads
 
 Each payload must be a versioned `PredictionWindow` archive. The provider owns
@@ -90,6 +107,7 @@ from prob4d.prediction_provider_import import (
     import_prediction_provider_specification,
 )
 from prob4d.prediction_provider_scaffold import (
+    scaffold_cut3r_online_provider_import,
     scaffold_prediction_provider_import,
 )
 ```
