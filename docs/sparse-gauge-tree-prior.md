@@ -104,21 +104,21 @@ nonzero.
 Write and reload a prior without materializing the dense covariance:
 
 ```python
-from prob4d import (
+from prob4d.api.v2 import (
     gauge_tree_prior_artifact_id,
-    load_gauge_tree_prior,
-    write_gauge_tree_prior,
+    load_gauge_tree_prior_artifact,
+    write_gauge_tree_prior_artifact,
 )
 
 expected_id = gauge_tree_prior_artifact_id(prior)
-published = write_gauge_tree_prior(
+published = write_gauge_tree_prior_artifact(
     prior,
     "outputs/gauge-prior.json",
 )
-reloaded = load_gauge_tree_prior("outputs/gauge-prior.json")
+reloaded = load_gauge_tree_prior_artifact("outputs/gauge-prior.json")
 
 assert published.manifest.artifact_id == expected_id
-assert reloaded.prior_id == prior.prior_id
+assert reloaded.prior.prior_id == prior.prior_id
 ```
 
 The manifest binds three content-addressed, non-pickled NPY members:
