@@ -85,10 +85,18 @@ produces a different capsule.
 
 ## Running the workflow
 
-Use the workflow's manual dispatch and select the BayesianPhysTwin and Causal4D
-branch, tag, or commit to validate. The selected refs are resolved to exact commit
+Normal pull-request, push, and scheduled executions use the exact
+release-compatible BayesianPhysTwin and Causal4D commit SHAs declared in the
+workflow. A rerun of the same Prob4D revision therefore cannot silently switch to
+new companion repository contents merely because either `main` branch moved.
+Updating either pinned companion revision is a reviewed Prob4D change and reruns
+the complete installed-wheel path.
+
+Use the workflow's manual dispatch to test another BayesianPhysTwin or Causal4D
+branch, tag, or commit explicitly. The selected refs are resolved to exact commit
 SHAs before the capsule is written. Prob4D is always the exact reviewed workflow
 revision: a pull-request head on pull-request events and `github.sha` otherwise.
+The resulting capsule records the actual resolved revisions in either mode.
 
 The workflow also runs weekly and whenever the release-capsule implementation,
 Prob4D-owned integration tests, public API manifest, or stable provider/observation

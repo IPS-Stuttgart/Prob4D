@@ -42,11 +42,11 @@ on:
       bayesian_phystwin_ref:
         description: BayesianPhysTwin branch, tag, or commit to validate
         required: false
-        default: main
+        default: 322458dfc23f1db9419ed1eb0f4728dcde9135b0
       causal4d_ref:
         description: Causal4D branch, tag, or commit to validate
         required: false
-        default: main
+        default: e6a7047ed479879810a9c6b4aba1bcdc41566a4d
   schedule:
     - cron: "23 5 * * 1"
 
@@ -56,13 +56,17 @@ permissions:
 concurrency:
   group: >-
     ecosystem-release-capsule-${{ github.workflow }}-${{ github.ref }}-
-    ${{ inputs.bayesian_phystwin_ref || 'main' }}-
-    ${{ inputs.causal4d_ref || 'main' }}
+    ${{ inputs.bayesian_phystwin_ref || '322458dfc23f1db9419ed1eb0f4728dcde9135b0' }}-
+    ${{ inputs.causal4d_ref || 'e6a7047ed479879810a9c6b4aba1bcdc41566a4d' }}
   cancel-in-progress: true
 
 env:
-  BAYESIAN_PHYSTWIN_REF: ${{ inputs.bayesian_phystwin_ref || 'main' }}
-  CAUSAL4D_REF: ${{ inputs.causal4d_ref || 'main' }}
+  # Normal PR, push, and scheduled runs use exact release-compatible revisions.
+  # workflow_dispatch remains the explicit escape hatch for testing another pair.
+  BAYESIAN_PHYSTWIN_REF: >-
+    ${{ inputs.bayesian_phystwin_ref || '322458dfc23f1db9419ed1eb0f4728dcde9135b0' }}
+  CAUSAL4D_REF: >-
+    ${{ inputs.causal4d_ref || 'e6a7047ed479879810a9c6b4aba1bcdc41566a4d' }}
 
 jobs:
   capsule:
