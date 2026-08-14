@@ -5,7 +5,19 @@ release notes and scientific boundaries live under `docs/releases/`.
 
 ## Unreleased
 
-No changes yet.
+### Added
+
+- A bounded exact joint multi-window material-identity posterior that conditions
+  source-calibrated local mixtures on a window-unique forest constraint, embeds
+  and replays every source mixture, preserves exact local null fallback, and
+  exposes grouped build, validation, and downstream marginalization commands.
+
+### Scientific boundary
+
+The joint posterior is source-side identity and consistency infrastructure. It
+requires separately calibrated local weights and does not establish association
+precision, real-provider competence, BayesianPhysTwin benefit, Causal4D benefit,
+physical-state identifiability, deployment safety, or state of the art.
 
 ## 0.5.0 — 2026-08-12
 

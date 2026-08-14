@@ -1,0 +1,17 @@
+{
+  "window_order": [
+    "window-000",
+    "window-001",
+    "window-002"
+  ],
+  "mixture_paths": [
+    "mixtures/window-001-track-000.json",
+    "mixtures/window-002-track-000.json"
+  ],
+  "maximum_joint_assignments": 100000,
+  "metadata": {
+    "stage": "source-only",
+    "uses_target_truth": false,
+    "uses_downstream_physical_innovation": false
+  }
+}

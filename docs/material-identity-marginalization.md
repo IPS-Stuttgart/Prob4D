@@ -56,6 +56,18 @@ cov  = sum_a q_a cov_a
 
 The second term is retained explicitly as between-hypothesis uncertainty.
 
+## Joint consistency across target tracks and windows
+
+Independent local mixtures can still be mutually inconsistent. For example, two
+target tracks in one window may both select the same source material endpoint,
+or a conflict may appear only after several pairwise links become transitive.
+`prob4d.joint_material_identity` conditions the local mixture product on one
+window-unique forest constraint and returns exact assignment and candidate
+marginals under a declared combinatorial bound. It preserves the same local null
+fallbacks and never emits a rewritten global point ID.
+
+See [joint multi-window material-identity posterior](joint-material-identity-posterior.md).
+
 ## Fallback behavior
 
 A mixture containing only the null hypothesis returns the null likelihood, mean,

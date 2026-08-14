@@ -1,9 +1,9 @@
-"""Grouped CLI for portable material-identity streams and mixtures.
+"""Grouped CLI for local and joint material-identity artifacts.
 
 The commands in this module do not fit calibration parameters or decide whether a
 BayesianPhysTwin update is accepted. They seal externally source-calibrated
-mixtures, validate stream/mixture artifacts, and exercise exact downstream
-likelihood marginalization or Gaussian moment matching with candidate-ID checks.
+mixtures, condition bounded sets of mixtures on global consistency, validate
+portable artifacts, and exercise candidate-aligned downstream marginalization.
 """
 
 from __future__ import annotations
@@ -17,6 +17,14 @@ from typing import Any
 
 import numpy as np
 
+from .joint_material_identity import (
+    JointMaterialIdentityPosteriorV1,
+    build_joint_material_identity_posterior,
+    joint_candidate_marginals,
+    load_joint_material_identity_posterior,
+    marginalize_joint_assignment_log_likelihoods,
+    write_joint_material_identity_posterior,
+)
 from .material_identity_mixture import (
     LocalTrackEndpoint,
     MaterialIdentityCandidateV1,
@@ -152,6 +160,43 @@ def _mixture_summary(mixture: MaterialIdentityMixtureV1) -> dict[str, object]:
     }
 
 
+def _joint_summary(
+    posterior: JointMaterialIdentityPosteriorV1,
+) -> dict[str, object]:
+    return {
+        "posterior_id": posterior.posterior_id,
+        "window_order": list(posterior.window_order),
+        "mixture_ids": list(posterior.mixture_ids),
+        "assignment_ids": list(posterior.assignment_ids),
+        "unconstrained_assignment_count": posterior.unconstrained_assignment_count,
+        "feasible_assignment_count": posterior.feasible_assignment_count,
+        "rejected_assignment_count": posterior.rejected_assignment_count,
+        "constraint_rejection_fraction": posterior.constraint_rejection_fraction,
+        "joint_entropy_nats": posterior.joint_entropy_nats,
+        "effective_assignment_count": posterior.effective_assignment_count,
+        "marginals": [marginal.to_record() for marginal in posterior.marginals],
+    }
+
+
+def _confined_config_path(config: Path, value: Any, *, index: int) -> Path:
+    if type(value) is not str or not value or value.strip() != value:
+        raise ValueError(f"mixture_paths[{index}] must be a canonical string")
+    relative = Path(value)
+    if relative.is_absolute() or ".." in relative.parts:
+        raise ValueError(
+            f"mixture_paths[{index}] must be a confined relative path"
+        )
+    root = config.parent.resolve()
+    resolved = (config.parent / relative).resolve()
+    try:
+        resolved.relative_to(root)
+    except ValueError as error:
+        raise ValueError(
+            f"mixture_paths[{index}] escapes the configuration directory"
+        ) from error
+    return resolved
+
+
 def _stream_summary(path: Path) -> dict[str, object]:
     stream = load_material_identity_stream(path)
     return {
@@ -193,6 +238,68 @@ def _build(arguments: Sequence[str]) -> int:
         overwrite=parsed.overwrite,
     )
     _print_json(_mixture_summary(mixture))
+    return 0
+
+
+def _build_joint(arguments: Sequence[str]) -> int:
+    parser = argparse.ArgumentParser(
+        prog="prob4d identity build-joint",
+        description=(
+            "condition source-calibrated local identity mixtures on one exact "
+            "window-unique forest constraint"
+        ),
+    )
+    parser.add_argument("config", type=Path)
+    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--overwrite", action="store_true")
+    parsed = parser.parse_args(arguments)
+    value = _load_json(parsed.config, name="joint identity configuration")
+    _exact_fields(
+        value,
+        {
+            "window_order",
+            "mixture_paths",
+            "maximum_joint_assignments",
+            "metadata",
+        },
+        name="joint identity configuration",
+    )
+    raw_paths = _list(value["mixture_paths"], name="mixture_paths")
+    if not raw_paths:
+        raise ValueError("mixture_paths must not be empty")
+    paths = tuple(
+        _confined_config_path(parsed.config, item, index=index)
+        for index, item in enumerate(raw_paths)
+    )
+    if len(set(paths)) != len(paths):
+        raise ValueError("mixture_paths must be unique")
+    posterior = build_joint_material_identity_posterior(
+        [load_material_identity_mixture(path) for path in paths],
+        window_order=tuple(_list(value["window_order"], name="window_order")),
+        maximum_joint_assignments=value["maximum_joint_assignments"],
+        metadata=_mapping(value["metadata"], name="metadata"),
+    )
+    write_joint_material_identity_posterior(
+        parsed.output,
+        posterior,
+        overwrite=parsed.overwrite,
+    )
+    _print_json(_joint_summary(posterior))
+    return 0
+
+
+def _validate_joint(arguments: Sequence[str]) -> int:
+    parser = argparse.ArgumentParser(
+        prog="prob4d identity validate-joint",
+        description=(
+            "strictly validate and exactly replay one joint identity posterior"
+        ),
+    )
+    parser.add_argument("posterior", type=Path)
+    parsed = parser.parse_args(arguments)
+    _print_json(
+        _joint_summary(load_joint_material_identity_posterior(parsed.posterior))
+    )
     return 0
 
 
@@ -258,6 +365,55 @@ def _marginalize(arguments: Sequence[str]) -> int:
     return 0
 
 
+def _marginalize_joint(arguments: Sequence[str]) -> int:
+    parser = argparse.ArgumentParser(
+        prog="prob4d identity marginalize-joint",
+        description=(
+            "marginalize downstream log likelihoods over feasible joint "
+            "identity assignments"
+        ),
+    )
+    parser.add_argument("posterior", type=Path)
+    parser.add_argument("likelihoods", type=Path)
+    parsed = parser.parse_args(arguments)
+    posterior = load_joint_material_identity_posterior(parsed.posterior)
+    value = _load_json(parsed.likelihoods, name="joint identity likelihood input")
+    _exact_fields(
+        value,
+        {"assignment_ids", "log_likelihoods", "likelihood_power"},
+        name="joint identity likelihood input",
+    )
+    assignment_ids = tuple(
+        _list(value["assignment_ids"], name="assignment_ids")
+    )
+    result = marginalize_joint_assignment_log_likelihoods(
+        posterior,
+        assignment_ids,
+        np.asarray(
+            _list(value["log_likelihoods"], name="log_likelihoods"),
+            dtype=np.float64,
+        ),
+        likelihood_power=value["likelihood_power"],
+    )
+    marginals = joint_candidate_marginals(
+        posterior,
+        assignment_probabilities=result.posterior_probabilities,
+    )
+    _print_json(
+        {
+            "assignment_ids": list(result.assignment_ids),
+            "log_marginal_likelihood": result.log_marginal_likelihood,
+            "posterior_probabilities": result.posterior_probabilities.tolist(),
+            "joint_entropy_nats": result.joint_entropy_nats,
+            "effective_assignment_count": result.effective_assignment_count,
+            "likelihood_power": result.likelihood_power,
+            "semantics": result.semantics,
+            "marginals": [marginal.to_record() for marginal in marginals],
+        }
+    )
+    return 0
+
+
 def _moment_match(arguments: Sequence[str]) -> int:
     parser = argparse.ArgumentParser(
         prog="prob4d identity moment-match",
@@ -314,10 +470,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "command",
         choices=(
+            "build-joint",
             "build-mixture",
+            "validate-joint",
             "validate-mixture",
             "validate-stream",
             "marginalize",
+            "marginalize-joint",
             "moment-match",
         ),
         help=(
@@ -329,14 +488,20 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.print_help()
         return 0
     parsed, remaining = parser.parse_known_args(arguments)
+    if parsed.command == "build-joint":
+        return _build_joint(remaining)
     if parsed.command == "build-mixture":
         return _build(remaining)
+    if parsed.command == "validate-joint":
+        return _validate_joint(remaining)
     if parsed.command == "validate-mixture":
         return _validate_mixture(remaining)
     if parsed.command == "validate-stream":
         return _validate_stream(remaining)
     if parsed.command == "marginalize":
         return _marginalize(remaining)
+    if parsed.command == "marginalize-joint":
+        return _marginalize_joint(remaining)
     if parsed.command == "moment-match":
         return _moment_match(remaining)
     raise AssertionError("unreachable material-identity command")

@@ -5,8 +5,17 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/material-identity-marginalization.yml"
+      - "docs/examples/joint-material-identity-posterior-config.json"
+      - "docs/joint-material-identity-posterior.md"
+      - "docs/material-identity-cli.md"
       - "docs/material-identity-marginalization.md"
+      - "src/prob4d/command_registry.py"
+      - "src/prob4d/_joint_material_identity_*.py"
+      - "src/prob4d/joint_material_identity.py"
+      - "src/prob4d/material_identity_cli.py"
       - "src/prob4d/material_identity_mixture.py"
+      - "tests/*joint_material_identity*.py"
+      - "tests/test_material_identity_cli.py"
       - "tests/test_material_identity_mixture.py"
   workflow_dispatch:
 
@@ -23,7 +32,7 @@ env:
 
 jobs:
   contract:
-    name: Local-ID mixture and marginalization contract
+    name: Local and joint material-identity contracts
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -45,14 +54,31 @@ jobs:
       - name: Check focused source quality
         run: |
           python -m ruff check \
+            src/prob4d/_joint_material_identity_*.py \
+            src/prob4d/joint_material_identity.py \
+            src/prob4d/material_identity_cli.py \
             src/prob4d/material_identity_mixture.py \
+            tests/test_joint_material_identity*.py \
+            tests/test_material_identity_cli.py \
             tests/test_material_identity_mixture.py
-          python -m mypy src/prob4d/material_identity_mixture.py
+          python -m mypy \
+            src/prob4d/_joint_material_identity_*.py \
+            src/prob4d/joint_material_identity.py \
+            src/prob4d/material_identity_mixture.py
       - name: Run focused regressions
-        run: python -m pytest -q tests/test_material_identity_mixture.py
-      - name: Verify installed public module
+        run: |
+          python -m pytest -q \
+            tests/test_joint_material_identity*.py \
+            tests/test_material_identity_cli.py \
+            tests/test_material_identity_mixture.py
+      - name: Verify installed public modules
         run: |
           python - <<'PY'
+          from prob4d.joint_material_identity import (
+              JOINT_ASSIGNMENT_SEMANTICS,
+              JOINT_LIKELIHOOD_SEMANTICS,
+              JOINT_MATERIAL_IDENTITY_POSTERIOR_SCHEMA,
+          )
           from prob4d.material_identity_mixture import (
               LIKELIHOOD_MARGINALIZATION_SEMANTICS,
               MATERIAL_IDENTITY_MIXTURE_SCHEMA,
@@ -64,4 +90,7 @@ jobs:
           assert LIKELIHOOD_MARGINALIZATION_SEMANTICS.startswith("logsumexp-")
           assert MOMENT_MATCH_SEMANTICS == "law-of-total-covariance-v1"
           assert NULL_HYPOTHESIS_SEMANTICS == "newest-window-local-reference-v1"
+          assert JOINT_MATERIAL_IDENTITY_POSTERIOR_SCHEMA.startswith("prob4d.")
+          assert JOINT_ASSIGNMENT_SEMANTICS.endswith("forest-v1")
+          assert JOINT_LIKELIHOOD_SEMANTICS.startswith("logsumexp-")
           PY

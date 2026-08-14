@@ -1,8 +1,8 @@
 # Material-identity command line
 
-`prob4d identity` exposes the existing append-only hypothesis stream and
-source-calibrated identity-mixture contracts without promoting global material
-IDs or changing provider-v2 observation identities.
+`prob4d identity` exposes append-only hypothesis streams, source-calibrated
+local mixtures, and bounded exact joint posteriors without promoting global
+material IDs or changing provider-v2 observation identities.
 
 The commands do not fit weights and do not accept BayesianPhysTwin updates.
 Calibration must be completed on declared source/calibration objects or sessions
@@ -29,6 +29,36 @@ Validate an append-only multi-window stream independently with:
 ```bash
 prob4d identity validate-stream material-identities.json
 ```
+
+## Joint multi-window consistency
+
+Several local mixtures can be conditioned on the exact window-unique forest
+constraint before a downstream physical likelihood is evaluated:
+
+```bash
+cp docs/examples/joint-material-identity-posterior-config.json joint-config.json
+prob4d identity build-joint joint-config.json \
+  --output joint-material-identity.json
+prob4d identity validate-joint joint-material-identity.json
+```
+
+The joint artifact embeds every source mixture, rejects assignments whose
+connected component would contain two endpoints from one prediction window, and
+fails before enumeration when the declared Cartesian-product bound is exceeded.
+It retains the mandatory null candidate for every target mixture.
+
+Evaluate assignment-aligned downstream likelihoods with:
+
+```bash
+prob4d identity marginalize-joint \
+  joint-material-identity.json \
+  joint-assignment-likelihoods.json
+```
+
+The output includes exact assignment probabilities and candidate-aligned local
+marginals after global conditioning. See the
+[joint material-identity posterior](joint-material-identity-posterior.md) for the
+constraint, replay, and claim boundaries.
 
 ## Likelihood marginalization
 
