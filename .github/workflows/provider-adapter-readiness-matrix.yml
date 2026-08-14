@@ -16,6 +16,7 @@ on:
       - "src/prob4d/prediction_cli.py"
       - "src/prob4d/provider_adapter.py"
       - "src/prob4d/provider_adapter_conformance.py"
+      - "src/prob4d/_provider_readiness_matrix_core.py"
       - "src/prob4d/provider_readiness_matrix.py"
       - "tests/test_prediction_extension_cli.py"
       - "tests/test_provider_adapter*.py"
@@ -64,6 +65,7 @@ jobs:
             src/prob4d/prediction_cli.py \
             src/prob4d/provider_adapter.py \
             src/prob4d/provider_adapter_conformance.py \
+            src/prob4d/_provider_readiness_matrix_core.py \
             src/prob4d/provider_readiness_matrix.py \
             tests/test_prediction_extension_cli.py \
             tests/test_provider_adapter.py \
@@ -74,6 +76,7 @@ jobs:
             src/prob4d/prediction_cli.py \
             src/prob4d/provider_adapter.py \
             src/prob4d/provider_adapter_conformance.py \
+            src/prob4d/_provider_readiness_matrix_core.py \
             src/prob4d/provider_readiness_matrix.py \
             tests/test_prediction_extension_cli.py \
             tests/test_provider_adapter.py \
@@ -83,6 +86,7 @@ jobs:
             src/prob4d/adapter/v1.py \
             src/prob4d/provider_adapter.py \
             src/prob4d/provider_adapter_conformance.py \
+            src/prob4d/_provider_readiness_matrix_core.py \
             src/prob4d/provider_readiness_matrix.py
 
       - name: Run focused regressions and CLI smoke tests
