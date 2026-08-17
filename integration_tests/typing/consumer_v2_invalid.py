@@ -1,0 +1,3 @@
+from prob4d.api.v2 import load_claim_bearing_observation_belief
+
+load_claim_bearing_observation_belief(123)

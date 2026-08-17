@@ -43,7 +43,10 @@ def publish_temporary_file(
     if temporary_path.parent.resolve() != destination_path.parent.resolve():
         raise ValueError("temporary and destination must share one directory")
 
-    with temporary_path.open("rb") as stream:
+    # Windows requires a writable descriptor for fsync. The temporary file is
+    # owned by this publication path, so opening it read/write changes no bytes
+    # while preserving the same durability barrier on every supported platform.
+    with temporary_path.open("rb+") as stream:
         os.fsync(stream.fileno())
     if overwrite:
         os.replace(temporary_path, destination_path)
