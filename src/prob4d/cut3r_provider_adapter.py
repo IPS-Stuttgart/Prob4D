@@ -98,9 +98,7 @@ def _validated_source_directory(root: Path, name: str, suffix: str) -> dict[int,
         if member.is_symlink() or not member.is_file():
             raise ValueError(f"CUT3R {name!r} directory contains a non-regular member")
         if member.suffix != suffix or len(member.stem) != 6 or not member.stem.isdigit():
-            raise ValueError(
-                f"CUT3R {name!r} members must use six-digit {suffix} filenames"
-            )
+            raise ValueError(f"CUT3R {name!r} members must use six-digit {suffix} filenames")
         index = int(member.stem)
         if index in indexed:
             raise ValueError(f"duplicate CUT3R frame index {index} in {name!r}")
@@ -271,9 +269,7 @@ def _canonical_window(
             raise ValueError("CUT3R frames must share one spatial prediction grid")
         points.append(world)
         masks.append(valid)
-        descriptors.extend(
-            (depth_descriptor, confidence_descriptor, camera_descriptor)
-        )
+        descriptors.extend((depth_descriptor, confidence_descriptor, camera_descriptor))
 
     valid_stack = np.stack(masks, axis=0)
     if not np.any(valid_stack):
@@ -382,9 +378,7 @@ def import_cut3r_online_prediction_manifest(
     )
     start = require_exact_integer(frame_start, name="frame_start", minimum=0)
     if storage_dtype not in DENSE_STORAGE_DTYPES:
-        raise ValueError(
-            "storage_dtype must be one of " + ", ".join(DENSE_STORAGE_DTYPES)
-        )
+        raise ValueError("storage_dtype must be one of " + ", ".join(DENSE_STORAGE_DTYPES))
     if type(sequence_id) is not str or not sequence_id:
         raise ValueError("sequence_id must be a nonempty string")
     if type(view_id) is not str or not view_id:
@@ -497,9 +491,7 @@ def import_cut3r_online_prediction_manifest(
             "source_layout": CUT3R_ONLINE_SOURCE_LAYOUT,
             "source_bundle_id": source_bundle_id,
             "source_member_count": len(source_members),
-            "source_member_total_bytes": sum(
-                member["byte_count"] for member in source_members
-            ),
+            "source_member_total_bytes": sum(member["byte_count"] for member in source_members),
             "input_video_sha256": video_sha256,
             "input_video_byte_count": video_bytes,
             "checkpoint_sha256": checkpoint,
