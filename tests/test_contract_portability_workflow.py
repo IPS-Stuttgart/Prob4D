@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-WORKFLOW = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "contract-portability.yml"
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+WORKFLOW = REPOSITORY_ROOT / ".github" / "workflows" / "contract-portability.yml"
 
 
 def _workflow_text() -> str:
