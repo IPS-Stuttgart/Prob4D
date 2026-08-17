@@ -1,11 +1,16 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pytest
 
-from prob4d.cut3r_provider_adapter import import_cut3r_online_prediction_manifest
+from prob4d.cut3r_provider_adapter import (
+    Cut3RImportLimits,
+    import_cut3r_online_prediction_manifest,
+)
+from prob4d.cut3r_provider_adapter import main as cut3r_main
 from prob4d.data import PredictionWindow
 from prob4d.prediction_provider_manifest import (
     load_prediction_provider_manifest,
@@ -73,6 +78,10 @@ def test_import_builds_world_points_and_prefix_lineage(tmp_path: Path) -> None:
     assert manifest.coordinate_semantics == "sequence-local-sim3"
     assert manifest.metadata["execution_mode"] == "recurrent-online"
     assert manifest.metadata["metric_scale_claimed"] is False
+    assert manifest.metadata["canonicalization_backend"] == "frame-streamed-npy-memmap-v1"
+    assert manifest.metadata["sequence_wide_dense_stack_avoided"] is True
+    assert manifest.metadata["dense_array_byte_count"] == 120
+    assert manifest.metadata["source_adapter_sha256"] == manifest.loader_id
     assert len(manifest.payloads) == 1
     payload = manifest.payloads[0]
     assert payload.output_frame_ids == (10, 11)
@@ -102,6 +111,42 @@ def test_import_builds_world_points_and_prefix_lineage(tmp_path: Path) -> None:
         expected_first + np.asarray([1.0, 0.0, 0.0]),
     )
     assert np.all(window.point_map[~window.valid_mask] == 0.0)
+
+
+def test_import_streams_without_sequence_wide_vector_stack(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = tmp_path / "cut3r"
+    _write_frame(source, 0)
+    _write_frame(source, 1)
+    real_stack = np.stack
+
+    def bounded_stack(arrays: Any, *args: Any, **kwargs: Any) -> np.ndarray:
+        materialized = tuple(arrays)
+        if materialized and np.asarray(materialized[0]).ndim == 3:
+            raise AssertionError("sequence-wide vector stacking is forbidden")
+        return real_stack(materialized, *args, **kwargs)
+
+    monkeypatch.setattr(
+        "prob4d._cut3r_limits.np.stack",
+        bounded_stack,
+    )
+
+    manifest = _import(source, tmp_path / "bundle/provider.json")
+
+    assert manifest.metadata["sequence_wide_dense_stack_avoided"] is True
+
+
+def test_cli_help_exposes_resource_limits(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit) as exit_info:
+        cut3r_main(["--help"])
+
+    assert exit_info.value.code == 0
+    output = capsys.readouterr().out
+    assert "--max-frames" in output
+    assert "--max-source-bytes" in output
+    assert "--max-dense-bytes" in output
 
 
 def test_identical_import_is_idempotent(tmp_path: Path) -> None:
@@ -147,6 +192,18 @@ def test_import_rejects_nonrigid_camera(tmp_path: Path) -> None:
         _import(source, tmp_path / "bundle/provider.json")
 
 
+def test_import_rejects_singular_intrinsics(tmp_path: Path) -> None:
+    source = tmp_path / "cut3r"
+    intrinsics = np.asarray(
+        [[1.0, 1.0, 0.0], [1.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+        dtype=np.float64,
+    )
+    _write_frame(source, 0, intrinsics=intrinsics)
+
+    with pytest.raises(ValueError, match="nonsingular"):
+        _import(source, tmp_path / "bundle/provider.json")
+
+
 def test_import_rejects_empty_selected_support(tmp_path: Path) -> None:
     source = tmp_path / "cut3r"
     _write_frame(
@@ -169,3 +226,57 @@ def test_import_rejects_boolean_threshold(tmp_path: Path) -> None:
             tmp_path / "bundle/provider.json",
             confidence_threshold=True,
         )
+
+
+def test_import_rejects_frame_count_above_limit(tmp_path: Path) -> None:
+    source = tmp_path / "cut3r"
+    _write_frame(source, 0)
+    _write_frame(source, 1)
+
+    with pytest.raises(ValueError, match="frame count 2 exceeds max_frames=1"):
+        _import(
+            source,
+            tmp_path / "bundle/provider.json",
+            limits=Cut3RImportLimits(max_frames=1),
+        )
+
+
+def test_import_rejects_spatial_grid_above_limit(tmp_path: Path) -> None:
+    source = tmp_path / "cut3r"
+    _write_frame(source, 0)
+
+    with pytest.raises(ValueError, match="height 2 exceeds max_height=1"):
+        _import(
+            source,
+            tmp_path / "bundle/provider.json",
+            limits=Cut3RImportLimits(max_height=1),
+        )
+
+
+def test_import_rejects_source_tree_above_byte_limit(tmp_path: Path) -> None:
+    source = tmp_path / "cut3r"
+    _write_frame(source, 0)
+
+    with pytest.raises(ValueError, match="source tree byte count .* max_source_bytes=1"):
+        _import(
+            source,
+            tmp_path / "bundle/provider.json",
+            limits=Cut3RImportLimits(max_source_bytes=1),
+        )
+
+
+def test_import_rejects_dense_arrays_above_byte_limit(tmp_path: Path) -> None:
+    source = tmp_path / "cut3r"
+    _write_frame(source, 0)
+
+    with pytest.raises(ValueError, match="dense array byte count .* max_dense_bytes=1"):
+        _import(
+            source,
+            tmp_path / "bundle/provider.json",
+            limits=Cut3RImportLimits(max_dense_bytes=1),
+        )
+
+
+def test_import_limits_reject_booleans() -> None:
+    with pytest.raises(ValueError, match="max_frames must be an integer"):
+        Cut3RImportLimits(max_frames=True)
