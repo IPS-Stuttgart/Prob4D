@@ -30,7 +30,7 @@ updated.
 ## Load and validate
 
 ```python
-from prob4d import load_prediction_bundle_store
+from prob4d.prediction_store import load_prediction_bundle_store
 
 bundle = load_prediction_bundle_store(
     "outputs/sequence/prediction-store",

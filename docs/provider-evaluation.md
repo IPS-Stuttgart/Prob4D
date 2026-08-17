@@ -54,13 +54,13 @@ estimator, uncertainty-calibration status, and the prediction-manifest digest.
 
 ## Producing evaluable benchmark artifacts
 
-`prob4d-benchmark` now uses the same immutable model-source contract as the
-standalone MotionCrafter producer while preserving one model-loading session for
-the complete batch. Supply either local content-addressed snapshots or exact
-remote revisions for the UNet, geometry/motion VAE, and base pipeline:
+`prob4d benchmark` uses the same immutable model-source contract as the
+MotionCrafter producer while preserving one model-loading session for the
+complete batch. Supply either local content-addressed snapshots or exact remote
+revisions for the UNet, geometry/motion VAE, and base pipeline:
 
 ```bash
-prob4d-benchmark \
+prob4d benchmark \
   --dataset-dir /data/benchmark \
   --output-dir outputs/benchmark \
   --upstream-root ../MotionCrafter \
@@ -172,12 +172,9 @@ prob4d evaluate provider protocols/provider-evaluation.json \
   --seed 7
 ```
 
-The installed compatibility entry point is:
-
-```bash
-prob4d-evaluate-provider protocols/provider-evaluation.json \
-  --output-dir outputs/provider-evaluation
-```
+Prob4D 0.5 installs no standalone `prob4d-evaluate-provider` alias. Frozen
+scripts that require that executable must pin Prob4D 0.4.1; current scripts use
+the grouped command above.
 
 Outputs are:
 

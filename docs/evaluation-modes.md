@@ -1,7 +1,7 @@
 # Explicit evaluation modes
 
-`prob4d.evaluate_sequence_modes` reports three distinct interpretations instead
-of using one truth-derived alignment for every result.
+`prob4d.evaluation_modes.evaluate_sequence_modes` reports three distinct
+interpretations instead of using one truth-derived alignment for every result.
 
 ## Metric
 
@@ -32,7 +32,7 @@ prediction result.
 ## Example
 
 ```python
-from prob4d import evaluate_sequence_modes
+from prob4d.evaluation_modes import evaluate_sequence_modes
 
 results = evaluate_sequence_modes(
     prediction,

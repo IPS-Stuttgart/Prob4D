@@ -1,6 +1,6 @@
 # MotionCrafter artifact integrity and resume contract
 
-`prob4d-motioncrafter` publishes prediction bundles through the crash-safe runner
+`prob4d motioncrafter` publishes prediction bundles through the crash-safe runner
 in `prob4d.motioncrafter_safe`. The public route adds an evidence boundary around
 each expensive inference call and loads models only through an immutable,
 portable model-set contract.
@@ -50,7 +50,7 @@ Resume only the identical recorded run, supplying the same local snapshots or
 exact remote revisions used initially:
 
 ```bash
-prob4d-motioncrafter input.mp4 \
+prob4d motioncrafter input.mp4 \
   --upstream-root ../MotionCrafter \
   --output-dir outputs/sequence_name \
   --unet-path TencentARC/MotionCrafter \
@@ -73,7 +73,7 @@ verified and returned without loading the GPU models.
 Verify a portable bundle without the MotionCrafter environment or model sources:
 
 ```bash
-prob4d-motioncrafter \
+prob4d motioncrafter \
   --output-dir outputs/sequence_name \
   --verify-only
 ```
@@ -93,7 +93,7 @@ A dirty MotionCrafter checkout is rejected by default. Exploratory runs may opt
 in explicitly:
 
 ```bash
-prob4d-motioncrafter input.mp4 \
+prob4d motioncrafter input.mp4 \
   --upstream-root ../MotionCrafter \
   --output-dir outputs/exploratory \
   --unet-path /snapshots/motioncrafter \

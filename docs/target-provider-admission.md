@@ -76,13 +76,13 @@ those per-object run identities are recorded separately in the admission artifac
 ## Admit and replay
 
 ```bash
-prob4d-target-admit \
+prob4d provider target-admit \
   promotion-lock.json \
   deform360-cohort-binding.json \
   target-provider-admission-config.json \
   --output target-provider-admission.json
 
-prob4d-target-verify \
+prob4d provider target-verify \
   target-provider-admission.json \
   promotion-lock.json \
   deform360-cohort-binding.json \

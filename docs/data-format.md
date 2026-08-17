@@ -2,7 +2,7 @@
 
 ## Prediction Manifest
 
-`prob4d-motioncrafter` writes a versioned `predictions.json`:
+`prob4d motioncrafter` writes a versioned `predictions.json`:
 
 ```json
 {
@@ -101,14 +101,14 @@ global video indices. Negative absolute frame IDs, non-finite valid points,
 active non-finite flow, deformation outside valid geometry, and invalid active
 ray directions are rejected.
 
-`prob4d-motioncrafter --frame-start/--frame-stop/--frame-stride` writes source
+`prob4d motioncrafter --frame-start/--frame-stop/--frame-stride` writes source
 video frame IDs directly into every baseline and overlap window. PhysTwin
 evaluation requires these absolute IDs because its calibration, depth frames,
 manual tracks, and physical trajectories all use the original sequence index.
 
 ## Portable Observation Belief
 
-`prob4d-export-observation-belief` writes the provider-neutral
+`prob4d observation export-calibrated` writes the provider-neutral
 `phys4d.observation_belief` version-1 NPZ consumed by Bayesian-PhysTwin and
 validated independently by Causal4D. Its descriptor and every array name, dtype,
 shape, and byte payload are covered by one artifact ID.
@@ -189,13 +189,13 @@ Each ablation writes:
 The JSON metadata distinguishes exact upstream baselines from synthetic
 proxies and records when metric anchors are simulated from benchmark truth.
 
-`prob4d-phystwin` writes one `experiment_zero.json` with a separately fitted
-gauge for each MotionCrafter baseline, same-view geometry summaries, manual
-track flow methods and frozen fusion weights, held-out-view surface coverage,
-input and output hashes, and explicit claim boundaries.
+`prob4d phystwin evaluate` writes one `experiment_zero.json` with a separately
+fitted gauge for each MotionCrafter baseline, same-view geometry summaries,
+manual track flow methods and frozen fusion weights, held-out-view surface
+coverage, input and output hashes, and explicit claim boundaries.
 
-`prob4d-phystwin-state` writes a `causal_source_lineage` audit containing the
+`prob4d phystwin state` writes a `causal_source_lineage` audit containing the
 endpoint output frame, inclusive source-frame bounds, contributing internal
-window IDs, the causal cutoff, and the fail-closed admission decision. The
-state experiment does not open metric or manual-track evaluation data when the
-endpoint depends on a source frame at or after the cutoff.
+window IDs, the causal cutoff, and the fail-closed admission decision. The state
+experiment does not open metric or manual-track evaluation data when the endpoint
+depends on a source frame at or after the cutoff.

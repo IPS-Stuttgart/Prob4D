@@ -12,7 +12,7 @@ supply the missing within-window temporal identity layer.
 ## Builder
 
 ```python
-from prob4d import build_causal_scene_flow_tracklets
+from prob4d.causal_tracklets import build_causal_scene_flow_tracklets
 
 tracklets, report = build_causal_scene_flow_tracklets(
     prediction_window,
@@ -98,7 +98,7 @@ validated semantics before the values enter an observation artifact.
 ## Unfused factors
 
 ```python
-from prob4d import tracklets_to_observation_factors
+from prob4d.causal_tracklets import tracklets_to_observation_factors
 
 factors = tracklets_to_observation_factors(
     tracklets,

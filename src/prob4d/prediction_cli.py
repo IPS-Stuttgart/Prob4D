@@ -24,6 +24,10 @@ def _help_parser() -> argparse.ArgumentParser:
         help="convert an integrity-bound official VGGT sample",
     )
     subparsers.add_parser(
+        "import-cut3r-online",
+        help="convert official recurrent-online CUT3R outputs",
+    )
+    subparsers.add_parser(
         "import-generic",
         help="import external canonical PredictionWindow payloads",
     )
@@ -54,6 +58,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         from .vggt_provider_adapter import main as vggt_main
 
         return int(vggt_main(arguments[1:]))
+    if arguments[0] == "import-cut3r-online":
+        from .cut3r_provider_adapter import main as cut3r_main
+
+        return int(cut3r_main(arguments[1:]))
     if arguments[0] == "import-generic":
         from .prediction_provider_import import main as generic_main
 

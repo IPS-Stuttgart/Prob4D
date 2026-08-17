@@ -1,7 +1,7 @@
 # Immutable MotionCrafter model sources
 
-The public `prob4d motioncrafter` and `prob4d-motioncrafter` routes require an
-immutable identity for every model component used during inference:
+The public `prob4d motioncrafter` route requires an immutable identity for every
+model component used during inference:
 
 1. the MotionCrafter UNet;
 2. the geometry/motion VAE; and
@@ -20,7 +20,7 @@ Pass a Hugging Face repository and an exact lowercase 40- or 64-character commit
 revision:
 
 ```bash
-prob4d-motioncrafter input.mp4 \
+prob4d motioncrafter input.mp4 \
   --upstream-root ../MotionCrafter \
   --output-dir outputs/sequence \
   --unet-path TencentARC/MotionCrafter \
@@ -39,7 +39,7 @@ short revisions, and omitted revisions fail closed.
 Pass a local directory and omit the corresponding revision option:
 
 ```bash
-prob4d-motioncrafter input.mp4 \
+prob4d motioncrafter input.mp4 \
   --upstream-root ../MotionCrafter \
   --output-dir outputs/sequence \
   --unet-path /snapshots/motioncrafter \
