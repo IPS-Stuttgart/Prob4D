@@ -15,7 +15,7 @@ from typing import Final
 
 import numpy as np
 
-from ._cut3r_limits import Cut3RImportLimits, DEFAULT_CUT3R_IMPORT_LIMITS
+from ._cut3r_limits import DEFAULT_CUT3R_IMPORT_LIMITS, Cut3RImportLimits
 from ._cut3r_source import (
     _adapter_implementation_sha256,
     _file_sha256,

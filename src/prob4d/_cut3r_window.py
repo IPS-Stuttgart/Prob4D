@@ -19,10 +19,10 @@ from ._cut3r_limits import (
     _validated_grid_shape,
 )
 from ._cut3r_source import (
-    _SourceMemberDescriptor,
     _load_camera,
     _load_npy,
     _source_tree_byte_count,
+    _SourceMemberDescriptor,
     _validated_source_members,
 )
 from .data import DenseStorageDType, PredictionWindow

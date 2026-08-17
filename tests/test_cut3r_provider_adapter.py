@@ -9,8 +9,8 @@ import pytest
 from prob4d.cut3r_provider_adapter import (
     Cut3RImportLimits,
     import_cut3r_online_prediction_manifest,
-    main as cut3r_main,
 )
+from prob4d.cut3r_provider_adapter import main as cut3r_main
 from prob4d.data import PredictionWindow
 from prob4d.prediction_provider_manifest import (
     load_prediction_provider_manifest,

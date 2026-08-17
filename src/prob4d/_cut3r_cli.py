@@ -7,7 +7,7 @@ import json
 from collections.abc import Sequence
 from typing import Any, cast
 
-from ._cut3r_limits import Cut3RImportLimits, DEFAULT_CUT3R_IMPORT_LIMITS
+from ._cut3r_limits import DEFAULT_CUT3R_IMPORT_LIMITS, Cut3RImportLimits
 from .data import DENSE_STORAGE_DTYPES, DenseStorageDType
 from .prediction_provider_manifest import verify_prediction_provider_manifest
 
