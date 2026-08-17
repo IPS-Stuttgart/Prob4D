@@ -8,9 +8,11 @@ that ordinary Linux editable-install tests do not cover.
 
 The workflow builds one wheel, installs it into an isolated environment together
 with the authoritative MyPy version, and type-checks only the public
-`prob4d.api.v2` consumer fixture. The positive fixture runs with strict checking,
-`disallow-any-expr`, and `disallow-any-unimported` so a façade that silently
-returns `Any` cannot pass merely because its re-export module is annotated.
+`prob4d.api.v2` consumer fixture. A dedicated consumer configuration overrides
+the repository development setting `follow_imports = skip`, targets Python 3.12,
+and enables strict checking, `disallow_any_expr`, and
+`disallow_any_unimported`. A façade that silently returns `Any` therefore cannot
+pass merely because its re-export module is annotated.
 
 A separate invalid fixture passes an integer to
 `load_claim_bearing_observation_belief`. CI requires that fixture to fail with an
@@ -31,6 +33,11 @@ version.
 
 This matrix checks the actual hard-link no-clobber path, explicit atomic
 replacement, temporary-file cleanup, NPZ round trips, and read-only memory maps.
+The first Windows execution exposed that `os.fsync` rejects a descriptor opened
+read-only. The publication path now reopens its owned temporary file read/write
+for synchronization without changing bytes, then retains the same hard-link or
+atomic-replacement publication rule.
+
 A platform failure is treated as a portability failure; the implementation must
 not silently weaken create-once semantics on that platform.
 

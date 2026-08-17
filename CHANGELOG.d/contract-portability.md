@@ -9,8 +9,18 @@
 - Repository policy tests and documentation for the installed typing and
   filesystem portability boundaries.
 
+### Fixed
+
+- Immutable temporary-file publication now synchronizes through a read/write
+  descriptor, which preserves the durability barrier on Windows instead of
+  failing with `EBADF`; the hard-link no-clobber and atomic-replacement semantics
+  are unchanged.
+- Installed-wheel typing uses an explicit consumer configuration rather than the
+  repository development setting that intentionally skips followed imports.
+
 ### Scientific boundary
 
-These checks strengthen installed-package typing and local-filesystem portability
-only. They change no estimator, covariance, provider output, cohort, target-access
-decision, physical update, exact fallback, empirical result, or scientific claim.
+These changes strengthen installed-package typing and local-filesystem
+portability only. They change no estimator, covariance, provider output, cohort,
+target-access decision, physical update, exact fallback, empirical result, or
+scientific claim.

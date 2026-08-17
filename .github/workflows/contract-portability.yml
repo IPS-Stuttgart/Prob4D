@@ -85,10 +85,7 @@ jobs:
           set -euo pipefail
           python_bin="$RUNNER_TEMP/prob4d-installed-typing/bin/python"
           "$python_bin" -m mypy \
-            --strict \
-            --disallow-any-expr \
-            --disallow-any-unimported \
-            --show-error-codes \
+            --config-file integration_tests/typing/mypy.ini \
             integration_tests/typing/consumer_v2.py \
             2>&1 | tee typing-valid.txt
       - name: Require the invalid consumer to fail
@@ -98,8 +95,7 @@ jobs:
           python_bin="$RUNNER_TEMP/prob4d-installed-typing/bin/python"
           set +e
           "$python_bin" -m mypy \
-            --strict \
-            --show-error-codes \
+            --config-file integration_tests/typing/mypy.ini \
             integration_tests/typing/consumer_v2_invalid.py \
             > typing-invalid.txt 2>&1
           status=$?
