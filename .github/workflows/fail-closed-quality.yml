@@ -83,6 +83,7 @@ jobs:
           python -m mypy \
             src/prob4d/_version.py \
             src/prob4d/_provider_export_core.py \
+            src/prob4d/_provider_evaluation_provider_neutral.py \
             src/prob4d/api/v2.py \
             src/prob4d/cli.py \
             src/prob4d/calibration_compatibility.py \
@@ -94,6 +95,7 @@ jobs:
             src/prob4d/prediction_store_cli.py \
             src/prob4d/project_identity.py \
             src/prob4d/provider_attestation.py \
+            src/prob4d/provider_evaluation_identity.py \
             src/prob4d/provider_manifest.py \
             src/prob4d/provider_manifest_cli.py \
             src/prob4d/provider_v1.py \

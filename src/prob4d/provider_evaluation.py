@@ -8,10 +8,6 @@ from pathlib import Path
 from typing import Any
 
 from ._heldout_promotion_lock import load_promotion_lock
-from ._provider_evaluation_compute import (
-    aggregate_provider_records,
-    evaluate_provider_cases,
-)
 from ._provider_evaluation_decision import evaluate_provider_decision_policy
 from ._provider_evaluation_manifest import (
     PROVIDER_EVALUATION_DECISION_VERSION,
@@ -25,6 +21,10 @@ from ._provider_evaluation_manifest import (
     validate_finite_json,
 )
 from ._provider_evaluation_output import write_provider_evaluation_outputs
+from ._provider_evaluation_provider_neutral import (
+    aggregate_provider_records,
+    evaluate_provider_cases,
+)
 from .metrics import DEFAULT_EVALUATION_CHUNK_SIZE
 from .provider_evaluation_target_authorization import (
     PROVIDER_EVALUATION_TARGET_AUTHORIZATION_FIELD,

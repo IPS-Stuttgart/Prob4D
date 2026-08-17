@@ -9,11 +9,13 @@ The evaluator is deliberately paired and fail-closed:
 - every case must contain the same method set;
 - every prediction archive must carry its fusion, covariance, and dependence
   semantics;
-- one method cannot mix Prob4D revisions, MotionCrafter revisions, model-set
-  identities, seed policies, gauge estimators, or calibration statuses across
-  cases;
-- every nonlegacy archive binds the exact prediction-manifest SHA-256 and declares
-  that covariance fields are present;
+- one method cannot mix Prob4D revisions, provider contracts, model-set and
+  loader identities, coordinate or payload semantics, gauge estimators, or
+  calibration statuses across cases;
+- every generic nonlegacy archive binds a content-addressed provider-manifest ID,
+  the exact manifest-byte SHA-256, and the provider run ID;
+- historical MotionCrafter archives retain their exact legacy identity adapter
+  and are never rewritten;
 - historical archives without embedded semantics are rejected unless the run is
   explicitly labelled with `--allow-legacy-artifacts`;
 - primary metrics use only frames and pixels supported by truth and every
@@ -47,17 +49,32 @@ covariance field has one of three explicit meanings:
 
 These meanings are not interchangeable. The evaluator verifies that the
 manifest method label agrees with the archive and that one method retains one
-semantic signature across all held-out cases. Nonlegacy artifacts must also
-declare exact Prob4D and MotionCrafter revisions, the immutable
-`prob4d.motioncrafter-model-set.v1` digest, MotionCrafter seed policy, gauge
-estimator, uncertainty-calibration status, and the prediction-manifest digest.
+semantic signature across all held-out cases. Generic artifacts declare the
+provider family, repository and exact revision, model set, loader, coordinate,
+point, flow, ray and source-dependency semantics through the versioned
+`provider_identity` record. Per-case manifest IDs, manifest-byte digests and run
+IDs are validated and retained but may differ across objects or sessions.
+See [provider-neutral evaluation identity](provider-evaluation-identity.md).
+
+Historical MotionCrafter archives remain replayable through their original exact
+MotionCrafter revision, model-set digest, seed policy and prediction-manifest
+digest. That compatibility path does not require rewriting old evidence and is
+not the schema for new CUT3R, VGGT or other provider exports.
 
 ## Producing evaluable benchmark artifacts
 
-`prob4d benchmark` uses the same immutable model-source contract as the
-MotionCrafter producer while preserving one model-loading session for the
-complete batch. Supply either local content-addressed snapshots or exact remote
-revisions for the UNet, geometry/motion VAE, and base pipeline:
+Provider-neutral imports first produce and verify
+`PredictionProviderManifestV1` payloads. A fused evaluation export then copies the
+manifest identity and contract into `metadata.provider_identity` as specified in
+[provider-neutral evaluation identity](provider-evaluation-identity.md). This
+keeps source lineage and provider semantics explicit without requiring a
+provider-specific evaluator.
+
+The MotionCrafter benchmark producer remains available as a historical and
+comparison route. It uses the same immutable model-source contract while
+preserving one model-loading session for the complete batch. Supply either local
+content-addressed snapshots or exact remote revisions for the UNet,
+geometry/motion VAE, and base pipeline:
 
 ```bash
 prob4d benchmark \
@@ -80,8 +97,8 @@ manifest records the complete compact model-source manifest, model-set digest,
 Prob4D and MotionCrafter revisions, inference/loading/fusion/export timings, and
 method semantics.
 
-`--skip-existing` is not a file-existence shortcut. Before skipping one case it
-validates:
+`--skip-existing` is not a file-existence shortcut. Before skipping one
+MotionCrafter case it validates:
 
 - the prediction manifest's MotionCrafter revision, seed policy, and model-set
   identity;
