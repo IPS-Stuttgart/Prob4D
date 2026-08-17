@@ -3,15 +3,24 @@
 from __future__ import annotations
 
 import json
-import os
-import tempfile
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 
+from ._atomic_file import atomic_write_text
+from ._immutable_json import frozen_finite_json_mapping, plain_json
+from ._strict_json import (
+    load_json_object,
+    require_exact_fields,
+    require_exact_integer,
+    require_exact_string,
+    require_json_number,
+    require_mapping,
+    require_sha256,
+)
 from .observation_contract import canonical_json_sha256
 from .sim3 import Sim3
 
@@ -21,40 +30,55 @@ CALIBRATION_ARTIFACT_SHA256_KEY = "calibration_artifact_sha256"
 FIXED_EXTERNAL_CALIBRATION = "fixed_external_calibration"
 PROPAGATED_EXTERNAL_PRIOR = "propagated_external_prior"
 
+_ANCHOR_DESCRIPTOR_FIELDS = frozenset(
+    {
+        "schema_name",
+        "schema_version",
+        "window_id",
+        "global_from_local",
+        "covariance",
+        "coordinate_frame",
+        "metric_units",
+        "source_kind",
+        "source_artifact_sha256",
+        "metadata",
+    }
+)
+_ANCHOR_SERIALIZED_FIELDS = _ANCHOR_DESCRIPTOR_FIELDS | {"artifact_id"}
 
-def _require_sha256(value: str, *, name: str) -> None:
-    if len(value) != 64 or any(
-        character not in "0123456789abcdef" for character in value
-    ):
-        raise ValueError(f"{name} must be a lowercase SHA-256 digest")
 
-
-def _finite_json_copy(value: Mapping[str, Any], *, name: str) -> dict[str, Any]:
+def _require_numeric_array(
+    value: object,
+    *,
+    shape: tuple[int, ...],
+    name: str,
+) -> np.ndarray:
+    if isinstance(value, (str, bytes)) or not isinstance(value, Sequence):
+        raise ValueError(f"{name} must have shape {shape}")
     try:
-        return json.loads(json.dumps(dict(value), sort_keys=True, allow_nan=False))
+        object_array = np.asarray(value, dtype=object)
     except (TypeError, ValueError) as error:
-        raise ValueError(f"{name} must be finite JSON data") from error
+        raise ValueError(f"{name} must have shape {shape}") from error
+    if object_array.shape != shape:
+        raise ValueError(f"{name} must have shape {shape}")
+    normalized = np.empty(shape, dtype=np.float64)
+    for index in np.ndindex(shape):
+        normalized[index] = require_json_number(
+            object_array[index],
+            name=f"{name}{index}",
+        )
+    return normalized
 
 
-def _atomic_write_text(path: Path, content: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    handle = tempfile.NamedTemporaryFile(
-        mode="w",
-        encoding="utf-8",
-        dir=path.parent,
-        prefix=f".{path.name}.",
-        suffix=".tmp",
-        delete=False,
+def _require_anchor_fields(payload: Mapping[str, Any]) -> None:
+    actual = frozenset(payload)
+    if actual in {_ANCHOR_DESCRIPTOR_FIELDS, _ANCHOR_SERIALIZED_FIELDS}:
+        return
+    require_exact_fields(
+        payload,
+        _ANCHOR_SERIALIZED_FIELDS,
+        name="metric gauge-anchor artifact",
     )
-    temporary = Path(handle.name)
-    try:
-        with handle:
-            handle.write(content)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, path)
-    finally:
-        temporary.unlink(missing_ok=True)
 
 
 @dataclass(frozen=True)
@@ -76,12 +100,25 @@ class MetricGaugeAnchor:
     metadata: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        if not self.window_id or not self.coordinate_frame or not self.source_kind:
-            raise ValueError("metric gauge-anchor identities must be nonempty")
-        _require_sha256(
+        window_id = require_exact_string(
+            self.window_id,
+            name="metric gauge-anchor window_id",
+        )
+        coordinate_frame = require_exact_string(
+            self.coordinate_frame,
+            name="metric gauge-anchor coordinate_frame",
+        )
+        source_kind = require_exact_string(
+            self.source_kind,
+            name="metric gauge-anchor source_kind",
+        )
+        source_artifact_sha256 = require_sha256(
             self.source_artifact_sha256,
             name="metric gauge-anchor source_artifact_sha256",
         )
+        if not isinstance(self.global_from_local, Sim3):
+            raise TypeError("metric gauge-anchor global_from_local must be a Sim3")
+
         covariance = np.asarray(self.covariance, dtype=np.float64).copy()
         if covariance.shape != (7, 7) or not np.all(np.isfinite(covariance)):
             raise ValueError(
@@ -95,17 +132,26 @@ class MetricGaugeAnchor:
                 "metric gauge-anchor covariance must be positive semidefinite"
             )
         symmetric.setflags(write=False)
-        metadata = _finite_json_copy(
+
+        metadata = frozen_finite_json_mapping(
             self.metadata,
             name="metric gauge-anchor metadata",
         )
         calibration_digest = metadata.get(CALIBRATION_ARTIFACT_SHA256_KEY)
         if calibration_digest is not None:
-            _require_sha256(
-                str(calibration_digest),
+            require_sha256(
+                calibration_digest,
                 name="metric gauge-anchor calibration_artifact_sha256",
             )
-            metadata[CALIBRATION_ARTIFACT_SHA256_KEY] = str(calibration_digest)
+
+        object.__setattr__(self, "window_id", window_id)
+        object.__setattr__(self, "coordinate_frame", coordinate_frame)
+        object.__setattr__(self, "source_kind", source_kind)
+        object.__setattr__(
+            self,
+            "source_artifact_sha256",
+            source_artifact_sha256,
+        )
         object.__setattr__(self, "covariance", symmetric)
         object.__setattr__(self, "metadata", metadata)
 
@@ -135,7 +181,7 @@ class MetricGaugeAnchor:
             "metric_units": "m",
             "source_kind": self.source_kind,
             "source_artifact_sha256": self.source_artifact_sha256,
-            "metadata": self.metadata,
+            "metadata": plain_json(self.metadata),
         }
 
     def contract_metadata(self, *, case_id: str) -> dict[str, Any]:
@@ -147,13 +193,15 @@ class MetricGaugeAnchor:
                 "strict causal-stream export requires metric-anchor metadata "
                 "with calibration_artifact_sha256"
             )
-        if not case_id:
-            raise ValueError("metric gauge-anchor case_id must be nonempty")
+        validated_case_id = require_exact_string(
+            case_id,
+            name="metric gauge-anchor case_id",
+        )
         return {
             "schema_name": METRIC_GAUGE_ANCHOR_SCHEMA,
             "schema_version": METRIC_GAUGE_ANCHOR_VERSION,
             "artifact_id": self.artifact_id,
-            "case_id": case_id,
+            "case_id": validated_case_id,
             "window_id": self.window_id,
             "coordinate_frame": self.coordinate_frame,
             "world_frame_id": self.coordinate_frame,
@@ -162,7 +210,7 @@ class MetricGaugeAnchor:
             "source_artifact_sha256": self.source_artifact_sha256,
             "calibration_artifact_sha256": calibration_digest,
             "covariance_treatment": self.covariance_treatment,
-            "metadata": dict(self.metadata),
+            "metadata": plain_json(self.metadata),
         }
 
     @property
@@ -173,40 +221,96 @@ class MetricGaugeAnchor:
 def load_metric_gauge_anchor(path: str | Path) -> MetricGaugeAnchor:
     """Load and content-validate a metric first-window gauge prior."""
 
-    source = Path(path)
-    payload = json.loads(source.read_text(encoding="utf-8"))
-    if payload.get("schema_name") != METRIC_GAUGE_ANCHOR_SCHEMA:
+    payload = load_json_object(path, name="metric gauge anchor")
+    _require_anchor_fields(payload)
+
+    schema_name = require_exact_string(
+        payload["schema_name"],
+        name="metric gauge-anchor schema_name",
+    )
+    if schema_name != METRIC_GAUGE_ANCHOR_SCHEMA:
         raise ValueError("unsupported metric gauge-anchor schema")
-    if int(payload.get("schema_version", -1)) != METRIC_GAUGE_ANCHOR_VERSION:
+    schema_version = require_exact_integer(
+        payload["schema_version"],
+        name="metric gauge-anchor schema_version",
+        minimum=1,
+    )
+    if schema_version != METRIC_GAUGE_ANCHOR_VERSION:
         raise ValueError("unsupported metric gauge-anchor version")
-    if payload.get("metric_units") != "m":
+    metric_units = require_exact_string(
+        payload["metric_units"],
+        name="metric gauge-anchor metric_units",
+    )
+    if metric_units != "m":
         raise ValueError("metric gauge anchor must declare metric_units='m'")
-    expected_artifact_id = payload.pop("artifact_id", None)
+
+    expected_artifact_id = (
+        None
+        if "artifact_id" not in payload
+        else require_sha256(
+            payload["artifact_id"],
+            name="metric gauge-anchor artifact_id",
+        )
+    )
+    metadata = require_mapping(
+        payload["metadata"],
+        name="metric gauge-anchor metadata",
+    )
     anchor = MetricGaugeAnchor(
-        window_id=str(payload["window_id"]),
-        global_from_local=Sim3.from_vector(
-            np.asarray(payload["global_from_local"], dtype=np.float64)
+        window_id=require_exact_string(
+            payload["window_id"],
+            name="metric gauge-anchor window_id",
         ),
-        covariance=np.asarray(payload["covariance"], dtype=np.float64),
-        coordinate_frame=str(payload["coordinate_frame"]),
-        source_kind=str(payload["source_kind"]),
-        source_artifact_sha256=str(payload["source_artifact_sha256"]),
-        metadata=payload.get("metadata", {}),
+        global_from_local=Sim3.from_vector(
+            _require_numeric_array(
+                payload["global_from_local"],
+                shape=(7,),
+                name="metric gauge-anchor global_from_local",
+            )
+        ),
+        covariance=_require_numeric_array(
+            payload["covariance"],
+            shape=(7, 7),
+            name="metric gauge-anchor covariance",
+        ),
+        coordinate_frame=require_exact_string(
+            payload["coordinate_frame"],
+            name="metric gauge-anchor coordinate_frame",
+        ),
+        source_kind=require_exact_string(
+            payload["source_kind"],
+            name="metric gauge-anchor source_kind",
+        ),
+        source_artifact_sha256=require_sha256(
+            payload["source_artifact_sha256"],
+            name="metric gauge-anchor source_artifact_sha256",
+        ),
+        metadata=metadata,
     )
     if expected_artifact_id is not None and expected_artifact_id != anchor.artifact_id:
         raise ValueError("metric gauge-anchor artifact_id does not match its content")
     return anchor
 
 
-def save_metric_gauge_anchor(path: str | Path, anchor: MetricGaugeAnchor) -> None:
-    """Atomically write a canonical metric gauge-anchor JSON document."""
+def save_metric_gauge_anchor(
+    path: str | Path,
+    anchor: MetricGaugeAnchor,
+    *,
+    overwrite: bool = False,
+) -> None:
+    """Atomically publish and verify a canonical metric gauge-anchor artifact."""
 
+    destination = Path(path)
     payload = anchor.descriptor()
     payload["artifact_id"] = anchor.artifact_id
-    _atomic_write_text(
-        Path(path),
+    atomic_write_text(
+        destination,
         json.dumps(payload, indent=2, sort_keys=True, allow_nan=False) + "\n",
+        overwrite=overwrite,
     )
+    restored = load_metric_gauge_anchor(destination)
+    if restored.descriptor() != anchor.descriptor():
+        raise RuntimeError("published metric gauge-anchor differs from its source")
 
 
 __all__ = [

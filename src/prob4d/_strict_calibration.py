@@ -2,17 +2,17 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, cast
 
+from ._atomic_file import atomic_write_text
 from ._gauge_calibration import (
     GaugeCovarianceCalibrationV1 as _GaugeCovarianceCalibrationV1,
-    save_gauge_covariance_calibration,
 )
 from ._point_calibration import (
     PointUncertaintyCalibrationV1 as _PointUncertaintyCalibrationV1,
-    save_point_uncertainty_calibration,
 )
 from ._strict_calibration_artifact import (
     validate_gauge_calibration_payload,
@@ -61,6 +61,56 @@ def load_point_uncertainty_calibration(
 ) -> PointUncertaintyCalibrationV1:
     payload = load_json_object(path, name="point uncertainty calibration")
     return PointUncertaintyCalibrationV1.from_dict(payload)
+
+
+def save_gauge_covariance_calibration(
+    artifact: GaugeCovarianceCalibrationV1,
+    path: str | Path,
+    *,
+    overwrite: bool = False,
+) -> None:
+    """Atomically publish and verify a strict gauge calibration artifact."""
+
+    destination = Path(path)
+    atomic_write_text(
+        destination,
+        json.dumps(
+            artifact.to_dict(),
+            sort_keys=True,
+            indent=2,
+            allow_nan=False,
+        )
+        + "\n",
+        overwrite=overwrite,
+    )
+    restored = load_gauge_covariance_calibration(destination)
+    if restored.to_dict() != artifact.to_dict():
+        raise RuntimeError("published gauge covariance calibration differs from its source")
+
+
+def save_point_uncertainty_calibration(
+    artifact: PointUncertaintyCalibrationV1,
+    path: str | Path,
+    *,
+    overwrite: bool = False,
+) -> None:
+    """Atomically publish and verify a strict point calibration artifact."""
+
+    destination = Path(path)
+    atomic_write_text(
+        destination,
+        json.dumps(
+            artifact.to_dict(),
+            sort_keys=True,
+            indent=2,
+            allow_nan=False,
+        )
+        + "\n",
+        overwrite=overwrite,
+    )
+    restored = load_point_uncertainty_calibration(destination)
+    if restored.to_dict() != artifact.to_dict():
+        raise RuntimeError("published point uncertainty calibration differs from its source")
 
 
 __all__ = [
