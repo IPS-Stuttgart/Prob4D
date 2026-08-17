@@ -76,9 +76,7 @@ def _validated_grid_shape(
         raise ValueError("CUT3R depth and confidence must be real numeric arrays")
     height, width = cast(tuple[int, int], depth.shape)
     if height > limits.max_height:
-        raise ValueError(
-            f"CUT3R frame height {height} exceeds max_height={limits.max_height}"
-        )
+        raise ValueError(f"CUT3R frame height {height} exceeds max_height={limits.max_height}")
     if width > limits.max_width:
         raise ValueError(f"CUT3R frame width {width} exceeds max_width={limits.max_width}")
     shape = (height, width)
