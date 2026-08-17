@@ -128,8 +128,11 @@ def require_finite_json_mapping(value: Any, *, name: str) -> Mapping[str, Any]:
     return mapping
 
 
-def load_json_object(path: str | Path, *, name: str) -> dict[str, Any]:
-    """Load one finite JSON object while rejecting duplicate object keys."""
+def loads_json_object(content: str, *, name: str) -> dict[str, Any]:
+    """Parse one finite JSON object while rejecting duplicate object keys."""
+
+    if type(content) is not str:
+        raise ValueError(f"{name} must be UTF-8 text")
 
     def object_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
         result: dict[str, Any] = {}
@@ -144,7 +147,7 @@ def load_json_object(path: str | Path, *, name: str) -> dict[str, Any]:
 
     try:
         value = json.loads(
-            Path(path).read_text(encoding="utf-8"),
+            content,
             object_pairs_hook=object_pairs,
             parse_constant=reject_constant,
         )
@@ -157,8 +160,15 @@ def load_json_object(path: str | Path, *, name: str) -> dict[str, Any]:
     return value
 
 
+def load_json_object(path: str | Path, *, name: str) -> dict[str, Any]:
+    """Load one finite JSON object while rejecting duplicate object keys."""
+
+    return loads_json_object(Path(path).read_text(encoding="utf-8"), name=name)
+
+
 __all__ = [
     "load_json_object",
+    "loads_json_object",
     "require_exact_fields",
     "require_exact_integer",
     "require_exact_string",

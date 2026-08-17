@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import numpy as np
@@ -7,10 +8,8 @@ from prob4d.observation_contract import (
     ObservationBeliefExportV1,
     save_observation_belief_export,
 )
-from prob4d.observation_validation import (
-    load_observation_belief_export,
-    main as validate_main,
-)
+from prob4d.observation_validation import load_observation_belief_export
+from prob4d.observation_validation import main as validate_main
 
 GOLDEN_ARTIFACT_ID = (
     "9c02e638f60424cca7738d347d1258acd208eb562f422efacd077db4edb2fe80"
@@ -55,6 +54,39 @@ def _artifact() -> ObservationBeliefExportV1:
         group_prior_nominal_probability=np.asarray([0.85, 0.65]),
         group_composite_weight=np.asarray([0.5, 0.5]),
         metadata={"causal_source": "prefix only"},
+    )
+
+
+def _descriptor(artifact: ObservationBeliefExportV1) -> dict[str, object]:
+    return {"artifact_id": artifact.artifact_id, **artifact.descriptor()}
+
+
+def _write_raw_descriptor(
+    path: Path,
+    artifact: ObservationBeliefExportV1,
+    descriptor_text: str,
+) -> None:
+    np.savez_compressed(
+        path,
+        descriptor_json=np.asarray(descriptor_text),
+        **artifact.arrays(),
+    )
+
+
+def _write_descriptor(
+    path: Path,
+    artifact: ObservationBeliefExportV1,
+    descriptor: dict[str, object],
+) -> None:
+    _write_raw_descriptor(
+        path,
+        artifact,
+        json.dumps(
+            descriptor,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ),
     )
 
 
@@ -109,6 +141,75 @@ def test_contract_loader_rejects_extra_array(tmp_path: Path) -> None:
     np.savez_compressed(path, **payload, unexpected=np.asarray([1]))
 
     with pytest.raises(ValueError, match="arrays changed"):
+        load_observation_belief_export(path)
+
+
+def test_contract_loader_rejects_duplicate_descriptor_keys(
+    tmp_path: Path,
+) -> None:
+    artifact = _artifact()
+    descriptor_text = json.dumps(
+        _descriptor(artifact),
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    )
+    descriptor_text = descriptor_text.replace(
+        '"case_id":"case-1"',
+        '"case_id":"ignored","case_id":"case-1"',
+        1,
+    )
+    path = tmp_path / "duplicate-descriptor.npz"
+    _write_raw_descriptor(path, artifact, descriptor_text)
+
+    with pytest.raises(
+        ValueError,
+        match="duplicate JSON object key 'case_id'",
+    ):
+        load_observation_belief_export(path)
+
+
+def test_contract_loader_rejects_boolean_schema_version_alias(
+    tmp_path: Path,
+) -> None:
+    artifact = _artifact()
+    descriptor = _descriptor(artifact)
+    descriptor["schema_version"] = True
+    path = tmp_path / "boolean-version.npz"
+    _write_descriptor(path, artifact, descriptor)
+
+    with pytest.raises(ValueError, match="schema_version must be an integer"):
+        load_observation_belief_export(path)
+
+
+def test_contract_loader_rejects_numeric_case_id_alias(tmp_path: Path) -> None:
+    base = _artifact()
+    artifact = ObservationBeliefExportV1(
+        **{**base.__dict__, "case_id": "7"}
+    )
+    descriptor = _descriptor(artifact)
+    descriptor["case_id"] = 7
+    path = tmp_path / "numeric-case-id.npz"
+    _write_descriptor(path, artifact, descriptor)
+
+    with pytest.raises(ValueError, match="case_id must be a nonempty string"):
+        load_observation_belief_export(path)
+
+
+def test_contract_loader_rejects_numeric_name_alias(tmp_path: Path) -> None:
+    base = _artifact()
+    artifact = ObservationBeliefExportV1(
+        **{**base.__dict__, "view_names": ("7",)}
+    )
+    descriptor = _descriptor(artifact)
+    descriptor["view_names"] = [7]
+    path = tmp_path / "numeric-view-name.npz"
+    _write_descriptor(path, artifact, descriptor)
+
+    with pytest.raises(
+        ValueError,
+        match="view_names must contain nonempty strings",
+    ):
         load_observation_belief_export(path)
 
 
