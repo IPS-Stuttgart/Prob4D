@@ -9,6 +9,15 @@ from typing import Any
 
 import numpy as np
 
+from ._strict_json import (
+    loads_json_object,
+    require_exact_integer,
+    require_exact_string,
+    require_mapping,
+    require_nonempty_string,
+    require_sha256,
+    require_string_sequence,
+)
 from .observation_contract import (
     OBSERVATION_BELIEF_SCHEMA,
     OBSERVATION_BELIEF_VERSION,
@@ -25,11 +34,25 @@ _ARRAY_DTYPES = {
 }
 
 
-def _require_sha256(value: str, *, name: str) -> None:
-    if len(value) != 64 or any(
-        character not in "0123456789abcdef" for character in value
-    ):
-        raise ValueError(f"{name} must be a lowercase SHA-256 digest")
+def _descriptor_text(value: np.ndarray) -> str:
+    array = np.asarray(value)
+    if array.shape != () or array.dtype.kind not in {"U", "S"}:
+        raise ValueError(
+            "observation artifact descriptor_json must be one scalar UTF-8 string"
+        )
+    item = array.item()
+    if isinstance(item, bytes):
+        try:
+            return item.decode("utf-8")
+        except UnicodeDecodeError as error:
+            raise ValueError(
+                "observation artifact descriptor_json must contain UTF-8 text"
+            ) from error
+    if type(item) is not str:
+        raise ValueError(
+            "observation artifact descriptor_json must be one scalar UTF-8 string"
+        )
+    return item
 
 
 def load_observation_belief_export(
@@ -42,35 +65,46 @@ def load_observation_belief_export(
         with np.load(source, allow_pickle=False) as archive:
             if "descriptor_json" not in archive:
                 raise ValueError("observation artifact has no descriptor_json")
-            try:
-                descriptor = json.loads(str(archive["descriptor_json"]))
-            except (TypeError, ValueError) as error:
-                raise ValueError(
-                    "observation artifact descriptor is not valid JSON"
-                ) from error
+            descriptor = loads_json_object(
+                _descriptor_text(archive["descriptor_json"]),
+                name="observation artifact descriptor",
+            )
             arrays = {
                 name: np.asarray(archive[name])
                 for name in archive.files
                 if name != "descriptor_json"
             }
     except (OSError, ValueError) as error:
-        if isinstance(error, ValueError) and str(error).startswith("observation artifact"):
+        if isinstance(error, ValueError) and str(error).startswith(
+            "observation artifact"
+        ):
             raise
-        raise ValueError("observation artifact is not a valid non-pickled NPZ") from error
+        raise ValueError(
+            "observation artifact is not a valid non-pickled NPZ"
+        ) from error
 
-    if not isinstance(descriptor, dict):
-        raise ValueError("observation artifact descriptor must be a JSON object")
     descriptor_fields = set(descriptor)
     missing_descriptor = _REQUIRED_DESCRIPTOR_FIELDS - descriptor_fields
     extra_descriptor = descriptor_fields - _REQUIRED_DESCRIPTOR_FIELDS
     if missing_descriptor or extra_descriptor:
         raise ValueError(
             "observation artifact descriptor changed; "
-            f"missing={sorted(missing_descriptor)}, extra={sorted(extra_descriptor)}"
+            f"missing={sorted(missing_descriptor)}, "
+            f"extra={sorted(extra_descriptor)}"
         )
-    if descriptor["schema_name"] != OBSERVATION_BELIEF_SCHEMA:
+
+    schema_name = require_exact_string(
+        descriptor["schema_name"],
+        name="observation artifact schema_name",
+    )
+    if schema_name != OBSERVATION_BELIEF_SCHEMA:
         raise ValueError("unsupported observation-belief schema")
-    if int(descriptor["schema_version"]) != OBSERVATION_BELIEF_VERSION:
+    schema_version = require_exact_integer(
+        descriptor["schema_version"],
+        name="observation artifact schema_version",
+        minimum=1,
+    )
+    if schema_version != OBSERVATION_BELIEF_VERSION:
         raise ValueError("unsupported observation-belief version")
 
     missing_arrays = _REQUIRED_ARRAYS - arrays.keys()
@@ -87,19 +121,53 @@ def load_observation_belief_export(
                 f"{arrays[name].dtype}, expected {expected_dtype}"
             )
 
-    expected_artifact_id = str(descriptor["artifact_id"])
-    _require_sha256(expected_artifact_id, name="artifact_id")
+    expected_artifact_id = require_sha256(
+        descriptor["artifact_id"],
+        name="observation artifact artifact_id",
+    )
     artifact = ObservationBeliefExportV1(
-        case_id=str(descriptor["case_id"]),
-        stream_id=str(descriptor["stream_id"]),
-        causal_frame_stop=int(descriptor["causal_frame_stop"]),
-        view_names=tuple(map(str, descriptor["view_names"])),
-        window_names=tuple(map(str, descriptor["window_names"])),
-        factor_names=tuple(map(str, descriptor["factor_names"])),
-        source_repository=str(descriptor["source_repository"]),
-        source_revision=str(descriptor["source_revision"]),
-        source_artifact_sha256=str(descriptor["source_artifact_sha256"]),
-        metadata=descriptor["metadata"],
+        case_id=require_nonempty_string(
+            descriptor["case_id"],
+            name="observation artifact case_id",
+        ),
+        stream_id=require_nonempty_string(
+            descriptor["stream_id"],
+            name="observation artifact stream_id",
+        ),
+        causal_frame_stop=require_exact_integer(
+            descriptor["causal_frame_stop"],
+            name="observation artifact causal_frame_stop",
+            minimum=1,
+        ),
+        view_names=require_string_sequence(
+            descriptor["view_names"],
+            name="observation artifact view_names",
+        ),
+        window_names=require_string_sequence(
+            descriptor["window_names"],
+            name="observation artifact window_names",
+        ),
+        factor_names=require_string_sequence(
+            descriptor["factor_names"],
+            name="observation artifact factor_names",
+            allow_empty=True,
+        ),
+        source_repository=require_nonempty_string(
+            descriptor["source_repository"],
+            name="observation artifact source_repository",
+        ),
+        source_revision=require_nonempty_string(
+            descriptor["source_revision"],
+            name="observation artifact source_revision",
+        ),
+        source_artifact_sha256=require_sha256(
+            descriptor["source_artifact_sha256"],
+            name="observation artifact source_artifact_sha256",
+        ),
+        metadata=require_mapping(
+            descriptor["metadata"],
+            name="observation artifact metadata",
+        ),
         **arrays,
     )
     if artifact.artifact_id != expected_artifact_id:
