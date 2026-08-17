@@ -50,17 +50,66 @@ The `component` argument can select `"conditional"`, `"gauge"`, or
 certificate: downstream code can hold the observation mean and physical query
 fixed while changing only the admitted uncertainty representation.
 
-## Ownership and evidence boundary
+## Group-aware pathwise calibration
 
-Prob4D supplies generic observation-space moments and matrix-free projections.
-BayesianPhysTwin owns the physical residual or query Jacobian, update guard, and
-exact physical fallback. Causal4D consumes the accepted BayesianPhysTwin belief
-and owns intervention contrasts.
+Marginal 95% point coverage does not imply that every admitted trajectory from a
+physical object or acquisition session is covered jointly. The first array axis
+may still enumerate material-point trajectories, but trajectories are not
+independent calibration units. Every trajectory must therefore be assigned to a
+complete, frozen object or session group:
 
-These functions propagate an already admitted covariance representation. They
-do not calibrate uncertainty, define simultaneous trajectory coverage, select
-exchangeability units, promote a provider, or establish physical or causal
-benefit. Any future finite-sample calibration must preserve complete physical
-objects or acquisition sessions as the independent calibration and evaluation
-units; tracks, points, frames, views, and taxels must not be counted as
-independent replicates.
+```python
+from prob4d.api.v2 import (
+    fit_pathwise_maximum_calibration,
+    pathwise_uncertainty_diagnostics,
+)
+
+calibration = fit_pathwise_maximum_calibration(
+    calibration_residuals,       # (P_cal, T, 3)
+    calibration_covariances,     # (P_cal, T, 3, 3)
+    group_ids=calibration_group_ids,  # one object/session ID per trajectory
+    independent_unit="physical-object",
+    valid_mask=calibration_valid,
+    miscoverage=0.05,
+)
+
+diagnostics = pathwise_uncertainty_diagnostics(
+    target_residuals,
+    target_covariances,
+    group_ids=target_group_ids,
+    independent_unit="physical-object",
+    valid_mask=target_valid,
+    calibration=calibration,
+)
+```
+
+`independent_unit` must be either `"physical-object"` or
+`"acquisition-session"`. IDs must be stable, opaque identifiers from the frozen
+cohort lock, not track IDs and not labels derived after outcomes are opened. The
+calibration artifact stores the complete trajectory-to-group assignment and its
+SHA-256 digest. Target evaluation rejects any group ID that also appears in the
+calibration artifact.
+
+For each independent group, the calibration statistic is the maximum squared
+Mahalanobis error over every admitted trajectory and valid step in that group.
+The split-conformal rank is computed from the number of distinct groups. Adding
+more tracks from an existing object or session cannot increase the finite-sample
+sample size. At 5% miscoverage, at least 19 independent groups are required for a
+finite threshold.
+
+Target coverage, maximum-error quantiles, valid-support fractions, and Gaussian
+score use equal group weighting. Fields describing longest failure or unsupported
+runs remain explicitly per-trajectory diagnostics. `all_groups_inside_marginal_*`
+uses a pointwise chi-squared threshold throughout each group and remains a
+diagnostic rather than a simultaneous confidence statement. A calibrated
+simultaneous group-coverage result is emitted only when an independently fitted
+`PathwiseMaximumCalibrationV1` is supplied.
+
+## Ownership boundary
+
+Prob4D supplies generic observation-space moments, matrix-free projections, and
+group-aware source/calibration diagnostics. BayesianPhysTwin owns the physical
+residual or query Jacobian, update guard, and exact physical fallback. Causal4D
+consumes the accepted BayesianPhysTwin belief and owns intervention contrasts.
+These APIs do not by themselves establish provider competence, physical benefit,
+causal benefit, deployment safety, or scientific promotion.

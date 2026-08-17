@@ -41,6 +41,12 @@ from ..observation_covariance_queries import (
     observation_covariance_quadratic,
     project_observation_covariance,
 )
+from ..pathwise_uncertainty import (
+    PathwiseMaximumCalibrationV1,
+    PathwiseUncertaintyDiagnostics,
+    fit_pathwise_maximum_calibration,
+    pathwise_uncertainty_diagnostics,
+)
 from ..project_identity import (
     PROB4D_CANONICAL_REPOSITORY,
     PROB4D_FROZEN_ARTIFACT_REPOSITORY,
@@ -244,6 +250,8 @@ __all__ = [
     "ObservationFactorStack",
     "ObservationFactorStreamUpdateV1",
     "ObservationFactorStreamV1",
+    "PathwiseMaximumCalibrationV1",
+    "PathwiseUncertaintyDiagnostics",
     "PointUncertaintyCalibrationV1",
     "PredictionCalibrationTargetV1",
     "ProjectedObservationCovariance",
@@ -271,6 +279,7 @@ __all__ = [
     "compute_provider_manifest_id",
     "export_calibrated_observation_belief",
     "export_exploratory_observation_belief",
+    "fit_pathwise_maximum_calibration",
     "gauge_tree_prior_artifact_id",
     "inspect_runtime_revision",
     "is_prob4d_repository",
@@ -289,6 +298,7 @@ __all__ = [
     "motioncrafter_model_identifier",
     "observation_covariance_action",
     "observation_covariance_quadratic",
+    "pathwise_uncertainty_diagnostics",
     "prob4d_project_identity",
     "prob4d_provider_manifest",
     "prob4d_tree_sparse_provider_manifest",

@@ -34,6 +34,7 @@ exploratory provider-v2 work. It exposes:
 - sparse and tree-sparse execution contracts and strict loaders;
 - portable causal gauge-tree priors and artifacts;
 - matrix-free observation covariance actions and linear-query projections;
+- source-only group-aware pathwise calibration and equal-group diagnostics;
 - `Sim3`, project identity, and required serialization helpers; and
 - explicit provider-v2 export and validation contracts.
 
@@ -42,18 +43,22 @@ provider-evaluation studies, and paper-specific evidence code remain outside the
 façade. A breaking current ecosystem change requires a new façade such as
 `prob4d.api.v3`; it must not silently alter `prob4d.api.v2`.
 
-## Structured covariance queries
+## Structured covariance queries and pathwise diagnostics
 
 `project_observation_covariance` computes the exact requested
 `A @ Sigma @ A.T` from dense, sparse, or tree-sparse observation factors without
 materializing the full observation covariance. The result separates conditional
-point uncertainty from shared gauge uncertainty. The accompanying covariance
-action and quadratic-form functions support iterative algorithms and scalar
-diagnostics without constructing the joint matrix.
+point uncertainty from shared gauge uncertainty.
+
+`fit_pathwise_maximum_calibration` and `pathwise_uncertainty_diagnostics` require
+one frozen physical-object or acquisition-session ID per trajectory. The
+calibration maximum, conformal rank, target coverage, and Gaussian score are
+computed at that independent-group level. The immutable calibration record binds
+the complete trajectory-to-group assignment and rejects overlapping target group
+IDs; track count cannot inflate the finite-sample sample size.
 
 See [structured observation covariance queries](observation-covariance-queries.md)
-for semantics, examples, and the BayesianPhysTwin/Causal4D ownership and evidence
-boundary.
+for semantics, examples, and the BayesianPhysTwin/Causal4D ownership boundary.
 
 ## Historical provider-v1 artifacts
 
