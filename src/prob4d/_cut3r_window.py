@@ -163,9 +163,9 @@ def _canonical_window(
         assert point_writer is not None
         assert mask_writer is not None
         assert frame_writer is not None
-        for writer in (point_writer, mask_writer, frame_writer):
-            writer.flush()
-            _close_memmap(writer)
+        for active_writer in (point_writer, mask_writer, frame_writer):
+            active_writer.flush()
+            _close_memmap(active_writer)
         point_writer = None
         mask_writer = None
         frame_writer = None
@@ -190,9 +190,9 @@ def _canonical_window(
         )
         yield window, tuple(descriptors), described_source_bytes, dense_bytes
     finally:
-        for writer in (point_writer, mask_writer, frame_writer):
-            if writer is not None:
-                _close_memmap(writer)
+        for pending_writer in (point_writer, mask_writer, frame_writer):
+            if pending_writer is not None:
+                _close_memmap(pending_writer)
         for value in read_only_maps:
             _close_memmap(value)
         shutil.rmtree(workspace, ignore_errors=True)
