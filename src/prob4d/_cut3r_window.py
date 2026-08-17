@@ -65,12 +65,8 @@ def _canonical_window(
     depth_members, confidence_members, camera_members = _validated_source_members(root)
     frame_count = len(depth_members)
     if frame_count > limits.max_frames:
-        raise ValueError(
-            f"CUT3R frame count {frame_count} exceeds max_frames={limits.max_frames}"
-        )
-    source_bytes = _source_tree_byte_count(
-        (depth_members, confidence_members, camera_members)
-    )
+        raise ValueError(f"CUT3R frame count {frame_count} exceeds max_frames={limits.max_frames}")
+    source_bytes = _source_tree_byte_count((depth_members, confidence_members, camera_members))
     if source_bytes > limits.max_source_bytes:
         raise ValueError(
             "CUT3R source tree byte count "
@@ -156,9 +152,7 @@ def _canonical_window(
                 point_writer[index] = world
                 mask_writer[index] = valid
                 any_valid = any_valid or bool(np.any(valid))
-                descriptors.extend(
-                    (depth_descriptor, confidence_descriptor, camera_descriptor)
-                )
+                descriptors.extend((depth_descriptor, confidence_descriptor, camera_descriptor))
             finally:
                 _close_memmap(depth)
                 _close_memmap(confidence)
