@@ -66,20 +66,47 @@ prob4d prediction import-cut3r-online \
 The importer:
 
 1. rejects symlinks, missing or mismatched frames, malformed arrays, non-rigid
-   poses, invalid intrinsics, and empty selected support;
+   poses, singular or invalid intrinsics, and empty selected support;
 2. hashes every depth, confidence, and camera member while checking that it does
    not change during reading;
 3. rechecks the complete source tree after canonical loading;
 4. writes one immutable versioned `PredictionWindow` payload;
 5. records frame `i` as depending on the complete source prefix ending at
    `i + 1` exclusively;
-6. binds the CUT3R code revision, checkpoint, input video, source bundle, adapter,
-   threshold, and output payload into content identities; and
+6. binds the CUT3R code revision, checkpoint, input video, source bundle, the
+   complete adapter implementation-set digest, threshold, and output payload into
+   content identities; and
 7. immediately reopens and verifies the published provider manifest.
 
 The canonical coordinate declaration is `sequence-local-sim3`. Even when an
 upstream model describes its output as metric-scale, Prob4D does not promote that
 claim without an independently calibrated metric anchor.
+
+## Bounded-memory canonicalization
+
+The adapter reads depth and confidence members through read-only NumPy memory
+maps, reconstructs one frame at a time, and writes the canonical point map and
+support mask into temporary NPY memory maps. It no longer retains a Python list
+of every reconstructed frame, performs a sequence-wide dense `stack`, or asks the
+ordinary `PredictionWindow` constructor to copy the complete sequence before NPZ
+publication. The portable NPZ schema and provider-manifest semantics are
+unchanged.
+
+Imports fail closed before large allocations when any configured budget is
+exceeded. The defaults are:
+
+- `--max-frames 4096`;
+- `--max-height 4096`;
+- `--max-width 4096`;
+- `--max-source-bytes 137438953472` (128 GiB); and
+- `--max-dense-bytes 137438953472` (128 GiB of uncompressed frame indices,
+  point-map values, and support-mask values).
+
+Use smaller values in automated ingestion environments. Raising a limit only
+permits a larger import; it does not alter the reconstructed values, confidence
+threshold, causal lineage, statistical dependence declarations, or scientific
+readiness decision. The manifest records the actual source-member and dense-array
+byte counts together with `canonicalization_backend="frame-streamed-npy-memmap-v1"`.
 
 ## Scientific progression
 
