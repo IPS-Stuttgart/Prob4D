@@ -2,7 +2,8 @@
 
 - A runtime-neutral recurrent-online CUT3R importer that converts official
   depth, confidence, and camera outputs into a content-addressed provider-neutral
-  prediction manifest with prefix-growing causal lineage.
+  prediction manifest with exact source-member identity binding and prefix-growing
+  causal lineage.
 - Randomized `Sim(3)` group-action and covariance-preservation regression tests.
 - A repository documentation-surface check against the grouped command registry
   and public API manifest.
