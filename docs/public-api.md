@@ -33,6 +33,7 @@ exploratory provider-v2 work. It exposes:
 - schema-v4 explicit-gauge factor bundles and append-only factor streams;
 - sparse and tree-sparse execution contracts and strict loaders;
 - portable causal gauge-tree priors and artifacts;
+- matrix-free observation covariance actions and linear-query projections;
 - `Sim3`, project identity, and required serialization helpers; and
 - explicit provider-v2 export and validation contracts.
 
@@ -40,6 +41,19 @@ Experiment runners, command dispatch, MotionCrafter internals,
 provider-evaluation studies, and paper-specific evidence code remain outside the
 façade. A breaking current ecosystem change requires a new façade such as
 `prob4d.api.v3`; it must not silently alter `prob4d.api.v2`.
+
+## Structured covariance queries
+
+`project_observation_covariance` computes the exact requested
+`A @ Sigma @ A.T` from dense, sparse, or tree-sparse observation factors without
+materializing the full observation covariance. The result separates conditional
+point uncertainty from shared gauge uncertainty. The accompanying covariance
+action and quadratic-form functions support iterative algorithms and scalar
+diagnostics without constructing the joint matrix.
+
+See [structured observation covariance queries](observation-covariance-queries.md)
+for semantics, examples, and the BayesianPhysTwin/Causal4D ownership and evidence
+boundary.
 
 ## Historical provider-v1 artifacts
 
