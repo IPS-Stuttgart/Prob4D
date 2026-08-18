@@ -126,7 +126,7 @@ def _decision(value: object, *, name: str) -> GateDecision:
 def _evidence_digest(value: object, *, name: str) -> str | None:
     if value is None:
         return None
-    return require_sha256(value, name=name)
+    return cast(str, require_sha256(value, name=name))
 
 
 def _normalize_gate(
@@ -207,7 +207,7 @@ def _normalize_gates(
         frozenset(stages),
         name=f"entry {provider_id!r}.gates",
     )
-    normalized = {
+    normalized: dict[str, object] = {
         stage: _normalize_gate(gates[stage], provider_id=provider_id, stage=stage)
         for stage in stages
     }
