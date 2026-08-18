@@ -7,7 +7,9 @@ execution. The target-free rehearsal exercises the portable observation boundary
 before any source suffix or target payload is used.
 
 The hosted CI lane is read-only, receives no dataset secrets, and operates only
-on synthetic contract vectors generated inside the job.
+on synthetic contract vectors generated inside the job. Its focused Ruff, MyPy,
+and contract checks cover the rehearsal surface without changing the repository-wide
+quality policy.
 
 ## What the rehearsal proves
 
