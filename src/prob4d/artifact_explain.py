@@ -15,8 +15,10 @@ from ._strict_json import load_json_object, loads_json_object
 from .gauge_tree_prior_artifact import (
     GAUGE_TREE_PRIOR_ARTIFACT_SCHEMA,
     GAUGE_TREE_PRIOR_ARTIFACT_VERSION,
-    artifact_summary as gauge_tree_prior_summary,
     load_gauge_tree_prior_artifact,
+)
+from .gauge_tree_prior_artifact import (
+    artifact_summary as gauge_tree_prior_summary,
 )
 from .observation_contract import OBSERVATION_BELIEF_SCHEMA, OBSERVATION_BELIEF_VERSION
 from .observation_validation import load_observation_belief_export, validation_summary
