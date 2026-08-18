@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - agent/material-identity-weight-calibration
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: write
@@ -15,16 +17,22 @@ concurrency:
 env:
   BASE_SHA: 31fbb3e9a1f79b5092ac86bd6ef49602da8b7625
   PAYLOAD_SHA256: 71934596993d10aff0b1e4bdfeb358ac94082fe5292a4f09dc582702a6b66f73
+  HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+  HEAD_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
 
 jobs:
   validate-and-materialize:
-    if: github.repository == 'IPS-Stuttgart/Prob4D'
+    if: >-
+      github.repository == 'IPS-Stuttgart/Prob4D' &&
+      (github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - name: Check out exact branch head
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ env.HEAD_SHA }}
           fetch-depth: 0
           persist-credentials: true
 
@@ -39,7 +47,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          test "$(git rev-parse HEAD)" = "${HEAD_SHA}"
           git merge-base --is-ancestor "${BASE_SHA}" HEAD
 
           cat .github/bootstrap/material-identity-weight-calibration.part* \
@@ -158,7 +166,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          test "$(git rev-parse HEAD)" = "${HEAD_SHA}"
           rm -rf .github/bootstrap
           rm -f \
             .github/workflows/material-identity-weight-calibration-bootstrap.yml
@@ -174,4 +182,4 @@ jobs:
             "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m \
             "Add source calibration for material-identity weights"
-          git push origin "HEAD:${GITHUB_REF_NAME}"
+          git push origin "HEAD:${HEAD_BRANCH}"
