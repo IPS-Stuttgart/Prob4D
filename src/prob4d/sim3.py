@@ -8,6 +8,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 FloatArray = NDArray[np.floating]
+_SO3_PI_SIGN_TOLERANCE = 64.0 * np.finfo(np.float64).eps
 
 
 def _readonly_copy(value: FloatArray, *, shape: tuple[int, ...], name: str) -> FloatArray:
@@ -18,6 +19,24 @@ def _readonly_copy(value: FloatArray, *, shape: tuple[int, ...], name: str) -> F
         raise ValueError(f"{name} must be finite")
     array.setflags(write=False)
     return array
+
+
+def _canonical_axis_sign(axis: FloatArray) -> FloatArray:
+    """Resolve the sign ambiguity of a unit axis deterministically.
+
+    At an angle of exactly pi, ``axis`` and ``-axis`` encode the same rotation.
+    Eigenvector routines may return either sign, so the first numerically
+    nonzero component is made positive. This lexicographic rule is stable for
+    axes with equal-magnitude components.
+    """
+
+    result = _readonly_copy(axis, shape=(3,), name="rotation axis").copy()
+    nonzero = np.flatnonzero(np.abs(result) > 1e-12)
+    if nonzero.size == 0:
+        raise ValueError("rotation axis must be nonzero")
+    if result[int(nonzero[0])] < 0.0:
+        result = -result
+    return result
 
 
 def skew(vector: FloatArray) -> FloatArray:
@@ -41,7 +60,7 @@ def so3_exp(rotation_vector: FloatArray) -> FloatArray:
 
 
 def so3_log(rotation: FloatArray) -> FloatArray:
-    """Map a rotation matrix to its shortest axis-angle vector."""
+    """Map a rotation matrix to its shortest, branch-canonical axis-angle vector."""
 
     matrix = _readonly_copy(rotation, shape=(3, 3), name="rotation")
     cosine = float(np.clip((np.trace(matrix) - 1.0) * 0.5, -1.0, 1.0))
@@ -58,8 +77,12 @@ def so3_log(rotation: FloatArray) -> FloatArray:
     if np.pi - theta < 1e-5:
         eigenvalues, eigenvectors = np.linalg.eigh((matrix + np.eye(3)) * 0.5)
         axis = eigenvectors[:, int(np.argmax(eigenvalues))]
-        if np.dot(axis, antisymmetric) < 0:
-            axis = -axis
+        if float(np.linalg.norm(antisymmetric)) > _SO3_PI_SIGN_TOLERANCE:
+            if np.dot(axis, antisymmetric) < 0:
+                axis = -axis
+        else:
+            axis = _canonical_axis_sign(axis)
+            theta = float(np.pi)
         return theta * axis
     return theta / (2.0 * np.sin(theta)) * antisymmetric
 

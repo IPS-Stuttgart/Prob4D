@@ -95,7 +95,11 @@ warn_unused_ignores = true
 
 [[tool.mypy.overrides]]
 module = [
+    "prob4d._observation_gaussian_common",
+    "prob4d._observation_gaussian_tree",
+    "prob4d._observation_gaussian_woodbury",
     "prob4d.api.v2",
+    "prob4d.observation_gaussian_operator",
     "prob4d.public_api_manifest",
 ]
 disallow_untyped_defs = true

@@ -41,6 +41,14 @@ from ..observation_covariance_queries import (
     observation_covariance_quadratic,
     project_observation_covariance,
 )
+from ..observation_gaussian_operator import (
+    ObservationGaussianOperator,
+    build_observation_gaussian_operator,
+    observation_gaussian_nll,
+    observation_log_determinant,
+    observation_precision_quadratic,
+    solve_observation_covariance,
+)
 from ..pathwise_uncertainty import (
     PathwiseMaximumCalibrationV1,
     PathwiseUncertaintyDiagnostics,
@@ -250,6 +258,7 @@ __all__ = [
     "ObservationFactorStack",
     "ObservationFactorStreamUpdateV1",
     "ObservationFactorStreamV1",
+    "ObservationGaussianOperator",
     "PathwiseMaximumCalibrationV1",
     "PathwiseUncertaintyDiagnostics",
     "PointUncertaintyCalibrationV1",
@@ -273,6 +282,7 @@ __all__ = [
     "assert_runtime_revision",
     "bind_causal_stream_contract_v2",
     "bind_gauge_tree_prior",
+    "build_observation_gaussian_operator",
     "build_provider_attestation",
     "build_tree_sparse_observation_factors",
     "canonical_prob4d_repository",
@@ -298,6 +308,9 @@ __all__ = [
     "motioncrafter_model_identifier",
     "observation_covariance_action",
     "observation_covariance_quadratic",
+    "observation_gaussian_nll",
+    "observation_log_determinant",
+    "observation_precision_quadratic",
     "pathwise_uncertainty_diagnostics",
     "prob4d_project_identity",
     "prob4d_provider_manifest",
@@ -311,6 +324,7 @@ __all__ = [
     "seal_claim_bearing_tree_sparse_observation",
     "select_causal_source",
     "sim3_point_jacobian",
+    "solve_observation_covariance",
     "stack_observation_factors",
     "stack_sparse_observation_factors",
     "stack_tree_sparse_observation_factors",

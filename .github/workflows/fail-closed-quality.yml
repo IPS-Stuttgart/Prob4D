@@ -84,12 +84,16 @@ jobs:
             src/prob4d/_version.py \
             src/prob4d/_provider_export_core.py \
             src/prob4d/_provider_evaluation_provider_neutral.py \
+            src/prob4d/_observation_gaussian_common.py \
+            src/prob4d/_observation_gaussian_tree.py \
+            src/prob4d/_observation_gaussian_woodbury.py \
             src/prob4d/api/v2.py \
             src/prob4d/cli.py \
             src/prob4d/calibration_compatibility.py \
             src/prob4d/composition_jacobian.py \
             src/prob4d/covariance_root.py \
             src/prob4d/observation_factor_stream.py \
+            src/prob4d/observation_gaussian_operator.py \
             src/prob4d/prediction_store.py \
             src/prob4d/prediction_store_benchmark.py \
             src/prob4d/prediction_store_cli.py \

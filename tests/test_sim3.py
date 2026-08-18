@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from prob4d.sim3 import Sim3, so3_exp, so3_log, so3_right_jacobian
 
@@ -6,6 +7,55 @@ from prob4d.sim3 import Sim3, so3_exp, so3_log, so3_right_jacobian
 def test_so3_round_trip() -> None:
     rotation_vector = np.array([0.2, -0.1, 0.05])
     np.testing.assert_allclose(so3_log(so3_exp(rotation_vector)), rotation_vector, atol=1e-10)
+
+
+def test_exact_pi_log_is_canonical_and_round_trips() -> None:
+    axes = (
+        np.asarray([1.0, 0.0, 0.0]),
+        np.asarray([-1.0, 0.0, 0.0]),
+        np.asarray([0.0, -1.0, 0.0]),
+        np.asarray([-1.0, -2.0, 0.5]) / np.linalg.norm([-1.0, -2.0, 0.5]),
+    )
+    for axis in axes:
+        rotation = so3_exp(np.pi * axis)
+        value = so3_log(rotation)
+        significant = np.flatnonzero(np.abs(value) > 1e-12)
+        assert significant.size
+        assert value[int(significant[0])] > 0.0
+        assert np.linalg.norm(value) == pytest.approx(np.pi)
+        np.testing.assert_allclose(so3_exp(value), rotation, atol=2e-12, rtol=2e-12)
+
+
+def test_opposite_exact_pi_vectors_have_identical_log() -> None:
+    axis = np.asarray([1.0, -2.0, 0.5], dtype=np.float64)
+    axis /= np.linalg.norm(axis)
+
+    first = so3_log(so3_exp(np.pi * axis))
+    second = so3_log(so3_exp(-np.pi * axis))
+
+    np.testing.assert_allclose(first, second, atol=2e-12, rtol=2e-12)
+
+
+def test_sim3_vector_is_canonical_at_exact_pi() -> None:
+    axis = np.asarray([-1.0, 0.0, 0.0], dtype=np.float64)
+    transform = Sim3.from_vector(
+        np.concatenate(([0.2], np.pi * axis, [2.0, -1.0, 0.5]))
+    )
+
+    vector = transform.as_vector()
+
+    assert vector[1] == pytest.approx(np.pi)
+    np.testing.assert_allclose(vector[2:4], np.zeros(2), atol=1e-15)
+    np.testing.assert_allclose(vector[4:], np.asarray([2.0, -1.0, 0.5]))
+
+
+def test_near_pi_log_uses_antisymmetric_orientation() -> None:
+    axis = np.asarray([-0.3, 0.7, 0.2], dtype=np.float64)
+    axis /= np.linalg.norm(axis)
+    for offset in (1e-12, 1e-10, 1e-7, 1e-4):
+        vector = (np.pi - offset) * axis
+        recovered = so3_log(so3_exp(vector))
+        np.testing.assert_allclose(recovered, vector, atol=5e-8, rtol=5e-8)
 
 
 def test_so3_right_jacobian_matches_point_finite_difference() -> None:
