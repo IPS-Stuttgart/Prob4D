@@ -1,0 +1,177 @@
+name: Material identity calibration bootstrap
+
+on:
+  push:
+    branches:
+      - agent/material-identity-weight-calibration
+
+permissions:
+  contents: write
+
+concurrency:
+  group: material-identity-weight-calibration-bootstrap
+  cancel-in-progress: false
+
+env:
+  BASE_SHA: 31fbb3e9a1f79b5092ac86bd6ef49602da8b7625
+  PAYLOAD_SHA256: 71934596993d10aff0b1e4bdfeb358ac94082fe5292a4f09dc582702a6b66f73
+
+jobs:
+  validate-and-materialize:
+    if: github.repository == 'IPS-Stuttgart/Prob4D'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out exact branch head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Verify exact payload and allowlist
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          git merge-base --is-ancestor "${BASE_SHA}" HEAD
+
+          cat .github/bootstrap/material-identity-weight-calibration.part* \
+            | base64 --decode > "${RUNNER_TEMP}/payload.tar.gz"
+          echo "${PAYLOAD_SHA256}  ${RUNNER_TEMP}/payload.tar.gz" \
+            | sha256sum --check -
+
+          cat > "${RUNNER_TEMP}/allowed.txt" <<'PATHS'
+          .github/workflows/fail-closed-quality.yml
+          CHANGELOG.d/material-identity-weight-calibration.md
+          docs/command-line.md
+          docs/examples/README.md
+          docs/examples/material-identity-calibrated-mixture-config.json
+          docs/examples/material-identity-weight-calibration-input.json
+          docs/material-identity-cli.md
+          docs/material-identity-marginalization.md
+          docs/material-identity-weight-calibration.md
+          src/prob4d/command_registry.py
+          src/prob4d/material_identity_cli.py
+          src/prob4d/material_identity_weight_calibration.py
+          tests/test_fail_closed_quality_workflow.py
+          tests/test_material_identity_weight_calibration.py
+          tests/test_material_identity_weight_calibration_cli.py
+          PATHS
+          LC_ALL=C sort -u "${RUNNER_TEMP}/allowed.txt" \
+            -o "${RUNNER_TEMP}/allowed.txt"
+
+          python - "${RUNNER_TEMP}/payload.tar.gz" \
+            "${RUNNER_TEMP}/allowed.txt" <<'PY'
+          from pathlib import PurePosixPath
+          import sys
+          import tarfile
+
+          archive_path, allowed_path = sys.argv[1:]
+          allowed = sorted(
+              line.strip()
+              for line in open(allowed_path, encoding="utf-8")
+              if line.strip()
+          )
+          with tarfile.open(archive_path, "r:gz") as archive:
+              names: list[str] = []
+              for member in archive.getmembers():
+                  name = member.name.removeprefix("./")
+                  path = PurePosixPath(name)
+                  if (
+                      not member.isfile()
+                      or path.is_absolute()
+                      or ".." in path.parts
+                      or name in names
+                  ):
+                      raise SystemExit(f"unsafe or duplicate payload member: {name!r}")
+                  names.append(name)
+          if sorted(names) != allowed:
+              raise SystemExit(
+                  "payload allowlist mismatch:\n"
+                  f"expected={allowed!r}\nactual={sorted(names)!r}"
+              )
+          PY
+
+      - name: Materialize the exact implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir "${RUNNER_TEMP}/staging"
+          tar -xzf "${RUNNER_TEMP}/payload.tar.gz" \
+            -C "${RUNNER_TEMP}/staging"
+          while IFS= read -r path; do
+            test -f "${RUNNER_TEMP}/staging/${path}"
+            mkdir -p "$(dirname "${path}")"
+            cp "${RUNNER_TEMP}/staging/${path}" "${path}"
+          done < "${RUNNER_TEMP}/allowed.txt"
+
+      - name: Validate the exact implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -e ".[dev]"
+          python -m pytest -q \
+            tests/test_material_identity_weight_calibration.py \
+            tests/test_material_identity_weight_calibration_cli.py \
+            tests/test_material_identity_mixture.py \
+            tests/test_material_identity_cli.py \
+            tests/test_material_identity_stream.py \
+            tests/test_command_registry.py \
+            tests/test_cli.py \
+            tests/test_fail_closed_quality_workflow.py \
+            tests/test_documentation_surface.py
+          python -m ruff check \
+            src/prob4d/material_identity_weight_calibration.py \
+            src/prob4d/material_identity_cli.py \
+            src/prob4d/command_registry.py \
+            tests/test_material_identity_weight_calibration.py \
+            tests/test_material_identity_weight_calibration_cli.py \
+            tests/test_fail_closed_quality_workflow.py
+          python -m mypy \
+            src/prob4d/material_identity_weight_calibration.py \
+            src/prob4d/material_identity_cli.py
+          python scripts/ci/check_documentation_surface.py
+          python -m compileall -q src tests
+
+          rm -rf "${RUNNER_TEMP}/example"
+          mkdir -p "${RUNNER_TEMP}/example"
+          prob4d identity fit-calibration \
+            docs/examples/material-identity-weight-calibration-input.json \
+            --output "${RUNNER_TEMP}/example/calibration.json"
+          prob4d identity calibrate-mixture \
+            "${RUNNER_TEMP}/example/calibration.json" \
+            docs/examples/material-identity-calibrated-mixture-config.json \
+            --output "${RUNNER_TEMP}/example/mixture.json"
+          prob4d identity validate-calibration \
+            "${RUNNER_TEMP}/example/calibration.json"
+          prob4d identity validate-mixture \
+            "${RUNNER_TEMP}/example/mixture.json"
+
+      - name: Replace bootstrap with validated implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          rm -rf .github/bootstrap
+          rm -f \
+            .github/workflows/material-identity-weight-calibration-bootstrap.yml
+          git add -A
+          git diff --cached --check
+          git diff --cached --name-only "${BASE_SHA}" \
+            | LC_ALL=C sort -u > "${RUNNER_TEMP}/final-paths.txt"
+          diff -u \
+            "${RUNNER_TEMP}/allowed.txt" \
+            "${RUNNER_TEMP}/final-paths.txt"
+          git config user.name "github-actions[bot]"
+          git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m \
+            "Add source calibration for material-identity weights"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
