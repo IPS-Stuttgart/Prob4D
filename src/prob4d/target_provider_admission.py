@@ -40,7 +40,9 @@ from .prediction_provider_manifest import (
     load_prediction_provider_manifest,
 )
 
-TARGET_PROVIDER_ADMISSION_CONFIG_SCHEMA = "prob4d.heldout-target-provider-admission-config"
+TARGET_PROVIDER_ADMISSION_CONFIG_SCHEMA = (
+    "prob4d.heldout-target-provider-admission-config"
+)
 TARGET_PROVIDER_ADMISSION_CONFIG_VERSION = 1
 TARGET_PROVIDER_ADMISSION_SCHEMA = "prob4d.heldout-target-provider-admission"
 TARGET_PROVIDER_ADMISSION_VERSION = 1
@@ -203,7 +205,11 @@ class TargetProviderManifestRequestV1:
     causal_frame_stop: int
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "group_id", _strict_string(self.group_id, name="group_id"))
+        object.__setattr__(
+            self,
+            "group_id",
+            _strict_string(self.group_id, name="group_id"),
+        )
         object.__setattr__(
             self,
             "expected_sequence_id",
@@ -217,7 +223,11 @@ class TargetProviderManifestRequestV1:
         object.__setattr__(
             self,
             "causal_frame_stop",
-            _strict_integer(self.causal_frame_stop, name="causal_frame_stop", minimum=1),
+            _strict_integer(
+                self.causal_frame_stop,
+                name="causal_frame_stop",
+                minimum=1,
+            ),
         )
 
     @classmethod
@@ -266,7 +276,9 @@ class AdmittedTargetPayloadV1:
             minimum=1,
         )
         if stop <= start:
-            raise ValueError("source_frame_stop_exclusive must exceed source_frame_start")
+            raise ValueError(
+                "source_frame_stop_exclusive must exceed source_frame_start"
+            )
         groups = _canonical_strings(
             self.dependence_group_ids,
             name="dependence_group_ids",
@@ -277,7 +289,10 @@ class AdmittedTargetPayloadV1:
         object.__setattr__(self, "dependence_group_ids", groups)
 
     @classmethod
-    def from_descriptor(cls, value: PredictionPayloadDescriptorV1) -> AdmittedTargetPayloadV1:
+    def from_descriptor(
+        cls,
+        value: PredictionPayloadDescriptorV1,
+    ) -> AdmittedTargetPayloadV1:
         if value.payload_id is None:
             raise ValueError("provider payload ID is not materialized")
         return cls(
@@ -334,7 +349,11 @@ class TargetProviderManifestAdmissionV1:
     admitted_payloads: tuple[AdmittedTargetPayloadV1, ...]
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "group_id", _strict_string(self.group_id, name="group_id"))
+        object.__setattr__(
+            self,
+            "group_id",
+            _strict_string(self.group_id, name="group_id"),
+        )
         object.__setattr__(
             self,
             "episode_id",
@@ -346,7 +365,11 @@ class TargetProviderManifestAdmissionV1:
             "sequence_id",
             _strict_string(self.sequence_id, name="sequence_id"),
         )
-        for field_name in ("manifest_sha256", "manifest_artifact_id", "provider_run_id"):
+        for field_name in (
+            "manifest_sha256",
+            "manifest_artifact_id",
+            "provider_run_id",
+        ):
             object.__setattr__(
                 self,
                 field_name,
@@ -363,9 +386,13 @@ class TargetProviderManifestAdmissionV1:
         )
         if type(self.admitted_payloads) is not tuple or not self.admitted_payloads:
             raise ValueError("admitted_payloads must be a nonempty tuple")
-        payloads = tuple(sorted(self.admitted_payloads, key=lambda item: item.payload_id))
+        payloads = tuple(
+            sorted(self.admitted_payloads, key=lambda item: item.payload_id)
+        )
         if not all(isinstance(item, AdmittedTargetPayloadV1) for item in payloads):
-            raise ValueError("admitted_payloads must contain AdmittedTargetPayloadV1 values")
+            raise ValueError(
+                "admitted_payloads must contain AdmittedTargetPayloadV1 values"
+            )
         payload_ids = tuple(item.payload_id for item in payloads)
         if len(payload_ids) != len(set(payload_ids)):
             raise ValueError("admitted payload IDs must be unique")
@@ -391,7 +418,10 @@ class TargetProviderManifestAdmissionV1:
     def from_dict(cls, value: object) -> TargetProviderManifestAdmissionV1:
         mapping = _strict_mapping(value, name="target provider manifest admission")
         _exact_keys(mapping, _ENTRY_FIELDS, name="target provider manifest admission")
-        raw_payloads = _strict_list(mapping["admitted_payloads"], name="admitted_payloads")
+        raw_payloads = _strict_list(
+            mapping["admitted_payloads"],
+            name="admitted_payloads",
+        )
         return cls(
             group_id=mapping["group_id"],
             episode_id=mapping["episode_id"],
@@ -484,14 +514,21 @@ class HeldoutTargetProviderAdmissionV1:
                 field_name,
                 _strict_string(getattr(self, field_name), name=field_name),
             )
-        target_used = _strict_bool(self.target_outcomes_used, name="target_outcomes_used")
+        target_used = _strict_bool(
+            self.target_outcomes_used,
+            name="target_outcomes_used",
+        )
         if target_used:
             raise ValueError("target provider admission must not use target outcomes")
         if type(self.entries) is not tuple or not self.entries:
             raise ValueError("entries must be a nonempty tuple")
         entries = tuple(sorted(self.entries, key=lambda item: item.group_id))
-        if not all(isinstance(item, TargetProviderManifestAdmissionV1) for item in entries):
-            raise ValueError("entries must contain TargetProviderManifestAdmissionV1 values")
+        if not all(
+            isinstance(item, TargetProviderManifestAdmissionV1) for item in entries
+        ):
+            raise ValueError(
+                "entries must contain TargetProviderManifestAdmissionV1 values"
+            )
         group_ids = tuple(item.group_id for item in entries)
         if len(group_ids) != len(set(group_ids)):
             raise ValueError("target provider admission group IDs must be unique")
@@ -500,12 +537,30 @@ class HeldoutTargetProviderAdmissionV1:
         object.__setattr__(
             self,
             "metadata",
-            frozen_finite_json_mapping(self.metadata, name="target admission metadata"),
+            frozen_finite_json_mapping(
+                self.metadata,
+                name="target admission metadata",
+            ),
         )
 
     @property
     def target_group_ids(self) -> tuple[str, ...]:
         return tuple(item.group_id for item in self.entries)
+
+    @property
+    def provider_contract_signature(self) -> tuple[str, ...]:
+        return (
+            self.provider_family,
+            self.provider_repository,
+            self.provider_revision,
+            self.model_set_id,
+            self.loader_id,
+            self.coordinate_semantics,
+            self.point_semantics,
+            self.flow_semantics,
+            self.ray_semantics,
+            self.source_dependency_semantics,
+        )
 
     def descriptor(self) -> dict[str, object]:
         return {
@@ -550,7 +605,11 @@ def target_provider_admission_from_dict(
     _exact_keys(mapping, _ADMISSION_FIELDS, name="target provider admission")
     if mapping["schema_name"] != TARGET_PROVIDER_ADMISSION_SCHEMA:
         raise ValueError("unsupported target provider admission schema")
-    version = _strict_integer(mapping["schema_version"], name="schema_version", minimum=1)
+    version = _strict_integer(
+        mapping["schema_version"],
+        name="schema_version",
+        minimum=1,
+    )
     if version != TARGET_PROVIDER_ADMISSION_VERSION:
         raise ValueError("unsupported target provider admission version")
     if mapping["claim_boundary"] != TARGET_PROVIDER_ADMISSION_CLAIM_BOUNDARY:
@@ -573,8 +632,14 @@ def target_provider_admission_from_dict(
         ray_semantics=mapping["ray_semantics"],
         source_dependency_semantics=mapping["source_dependency_semantics"],
         target_outcomes_used=mapping["target_outcomes_used"],
-        entries=tuple(TargetProviderManifestAdmissionV1.from_dict(item) for item in raw_entries),
-        metadata=_strict_mapping(mapping["metadata"], name="target admission metadata"),
+        entries=tuple(
+            TargetProviderManifestAdmissionV1.from_dict(item)
+            for item in raw_entries
+        ),
+        metadata=_strict_mapping(
+            mapping["metadata"],
+            name="target admission metadata",
+        ),
     )
     supplied = _strict_digest(
         mapping["target_provider_admission_id"],
@@ -586,7 +651,9 @@ def target_provider_admission_from_dict(
     return result
 
 
-def load_target_provider_admission(path: str | Path) -> HeldoutTargetProviderAdmissionV1:
+def load_target_provider_admission(
+    path: str | Path,
+) -> HeldoutTargetProviderAdmissionV1:
     mapping, _ = _load_json(Path(path), name="target provider admission")
     return target_provider_admission_from_dict(mapping)
 
@@ -610,7 +677,9 @@ def _validate_lock_and_binding(
     binding: Deform360OfficialHubCohortBindingV1,
 ) -> None:
     if lock.calibration_group_ids != binding.calibration_group_ids:
-        raise ValueError("cohort binding calibration groups differ from promotion lock")
+        raise ValueError(
+            "cohort binding calibration groups differ from promotion lock"
+        )
     if lock.target_group_ids != binding.target_group_ids:
         raise ValueError("cohort binding target groups differ from promotion lock")
     if lock.bayesian_phystwin_repository != binding.source_repository:
@@ -636,6 +705,44 @@ def _provider_contract(manifest: PredictionProviderManifestV1) -> tuple[str, ...
     )
 
 
+def _require_lock_provider_contract(
+    lock: HeldoutProviderPromotionLockV1,
+    contract: tuple[str, ...],
+) -> None:
+    """Preserve V1 replay while enforcing the complete V2 provider contract."""
+
+    if lock.provider_identity is None:
+        if contract[2] != lock.provider_revision:
+            raise ValueError("target provider revision differs from promotion lock")
+        if contract[3] != lock.provider_model_set_id:
+            raise ValueError("target provider model set differs from promotion lock")
+        return
+    expected = lock.provider_contract_signature
+    assert expected is not None
+    if contract != expected:
+        fields = (
+            "provider_family",
+            "provider_repository",
+            "provider_revision",
+            "model_set_id",
+            "loader_id",
+            "coordinate_semantics",
+            "point_semantics",
+            "flow_semantics",
+            "ray_semantics",
+            "source_dependency_semantics",
+        )
+        changed = [
+            field_name
+            for field_name, observed, frozen in zip(fields, contract, expected, strict=True)
+            if observed != frozen
+        ]
+        raise ValueError(
+            "target provider contract differs from provider-neutral promotion lock: "
+            + ", ".join(changed)
+        )
+
+
 def _entry_from_manifest(
     request: TargetProviderManifestRequestV1,
     *,
@@ -645,11 +752,14 @@ def _entry_from_manifest(
     manifest: PredictionProviderManifestV1,
 ) -> TargetProviderManifestAdmissionV1:
     if manifest.sequence_id != request.expected_sequence_id:
-        raise ValueError(f"provider sequence changed for target group {request.group_id!r}")
+        raise ValueError(
+            f"provider sequence changed for target group {request.group_id!r}"
+        )
     admitted = manifest.admitted_payloads(request.causal_frame_stop)
     if not admitted:
         raise ValueError(
-            f"no provider payload is causally admitted for target group {request.group_id!r}"
+            "no provider payload is causally admitted for target group "
+            f"{request.group_id!r}"
         )
     if manifest.artifact_id is None:
         raise ValueError("provider manifest artifact ID is not materialized")
@@ -662,7 +772,9 @@ def _entry_from_manifest(
         manifest_artifact_id=manifest.artifact_id,
         provider_run_id=manifest.provider_run_id,
         causal_frame_stop=request.causal_frame_stop,
-        admitted_payloads=tuple(AdmittedTargetPayloadV1.from_descriptor(item) for item in admitted),
+        admitted_payloads=tuple(
+            AdmittedTargetPayloadV1.from_descriptor(item) for item in admitted
+        ),
     )
 
 
@@ -676,11 +788,22 @@ def build_target_provider_admission(
     """Build an outcome-blind admission from exact target manifest metadata."""
 
     _validate_lock_and_binding(lock, binding)
-    mapping = _strict_mapping(config, name="target provider admission configuration")
-    _exact_keys(mapping, _CONFIG_FIELDS, name="target provider admission configuration")
+    mapping = _strict_mapping(
+        config,
+        name="target provider admission configuration",
+    )
+    _exact_keys(
+        mapping,
+        _CONFIG_FIELDS,
+        name="target provider admission configuration",
+    )
     if mapping["schema_name"] != TARGET_PROVIDER_ADMISSION_CONFIG_SCHEMA:
         raise ValueError("unsupported target provider admission configuration schema")
-    version = _strict_integer(mapping["schema_version"], name="schema_version", minimum=1)
+    version = _strict_integer(
+        mapping["schema_version"],
+        name="schema_version",
+        minimum=1,
+    )
     if version != TARGET_PROVIDER_ADMISSION_CONFIG_VERSION:
         raise ValueError("unsupported target provider admission configuration version")
     run_spec_id = _strict_digest(
@@ -689,20 +812,30 @@ def build_target_provider_admission(
         pattern=_SHA256,
     )
     if run_spec_id != lock.prediction_run_spec_id:
-        raise ValueError("target request prediction run-spec differs from promotion lock")
-    target_used = _strict_bool(mapping["target_outcomes_used"], name="target_outcomes_used")
+        raise ValueError(
+            "target request prediction run-spec differs from promotion lock"
+        )
+    target_used = _strict_bool(
+        mapping["target_outcomes_used"],
+        name="target_outcomes_used",
+    )
     if target_used:
         raise ValueError("target provider admission cannot use target outcomes")
     raw_requests = _strict_list(mapping["entries"], name="entries")
     requests = tuple(
         sorted(
-            (TargetProviderManifestRequestV1.from_dict(item) for item in raw_requests),
+            (
+                TargetProviderManifestRequestV1.from_dict(item)
+                for item in raw_requests
+            ),
             key=lambda item: item.group_id,
         )
     )
     request_group_ids = tuple(item.group_id for item in requests)
     if request_group_ids != lock.target_group_ids:
-        raise ValueError("target provider requests must cover the exact frozen target groups")
+        raise ValueError(
+            "target provider requests must cover the exact frozen target groups"
+        )
     if len(request_group_ids) != len(set(request_group_ids)):
         raise ValueError("target provider request group IDs must be unique")
 
@@ -713,18 +846,21 @@ def build_target_provider_admission(
     first_manifest: PredictionProviderManifestV1 | None = None
     for request in requests:
         unit = units[request.group_id]
-        path = _resolve_member(root, request.manifest_path, name="provider manifest path")
+        path = _resolve_member(
+            root,
+            request.manifest_path,
+            name="provider manifest path",
+        )
         manifest, manifest_sha256 = _snapshot_manifest(path)
-        if manifest.provider_revision != lock.motioncrafter_revision:
-            raise ValueError("target provider revision differs from promotion lock")
-        if manifest.model_set_id != lock.model_set_id:
-            raise ValueError("target provider model set differs from promotion lock")
         contract = _provider_contract(manifest)
+        _require_lock_provider_contract(lock, contract)
         if expected_contract is None:
             expected_contract = contract
             first_manifest = manifest
         elif contract != expected_contract:
-            raise ValueError("target provider contract drifts across frozen target groups")
+            raise ValueError(
+                "target provider contract drifts across frozen target groups"
+            )
         entries.append(
             _entry_from_manifest(
                 request,
@@ -736,7 +872,10 @@ def build_target_provider_admission(
         )
     if first_manifest is None:
         raise ValueError("target provider admission requires at least one manifest")
-    metadata = _strict_mapping(mapping["metadata"], name="target admission metadata")
+    metadata = _strict_mapping(
+        mapping["metadata"],
+        name="target admission metadata",
+    )
     return HeldoutTargetProviderAdmissionV1(
         promotion_lock_id=lock.promotion_lock_id,
         cohort_binding_id=binding.cohort_binding_id,
@@ -763,7 +902,7 @@ def validate_target_provider_admission_against_lock(
     admission: HeldoutTargetProviderAdmissionV1,
     lock: HeldoutProviderPromotionLockV1,
 ) -> None:
-    """Require exact promotion-lock and target-group agreement."""
+    """Require exact promotion-lock, provider-contract, and target-group agreement."""
 
     if admission.promotion_lock_id != lock.promotion_lock_id:
         raise ValueError("target provider admission uses another promotion lock")
@@ -773,10 +912,16 @@ def validate_target_provider_admission_against_lock(
         raise ValueError("target provider admission source revision changed")
     if admission.prediction_run_spec_id != lock.prediction_run_spec_id:
         raise ValueError("target provider admission prediction run-spec changed")
-    if admission.provider_revision != lock.motioncrafter_revision:
-        raise ValueError("target provider admission provider revision changed")
-    if admission.model_set_id != lock.model_set_id:
-        raise ValueError("target provider admission model set changed")
+    if lock.provider_identity is None:
+        if admission.provider_revision != lock.provider_revision:
+            raise ValueError("target provider admission provider revision changed")
+        if admission.model_set_id != lock.provider_model_set_id:
+            raise ValueError("target provider admission model set changed")
+    else:
+        _require_lock_provider_contract(
+            lock,
+            admission.provider_contract_signature,
+        )
     if admission.target_group_ids != lock.target_group_ids:
         raise ValueError("target provider admission target groups changed")
     if lock.frozen_artifact_ids.get("cohort_binding") != admission.cohort_binding_id:
@@ -800,7 +945,9 @@ def verify_target_provider_admission(
         request_root=request_root,
     )
     if observed.to_dict() != replayed.to_dict():
-        raise ValueError("target provider admission does not match deterministic replay")
+        raise ValueError(
+            "target provider admission does not match deterministic replay"
+        )
     return replayed
 
 
@@ -816,7 +963,10 @@ def admit_cli(arguments: Sequence[str]) -> int:
     parsed = parser.parse_args(arguments)
     lock = load_promotion_lock(parsed.lock)
     binding = load_deform360_cohort_binding(parsed.cohort_binding)
-    config, _ = _load_json(parsed.config, name="target provider admission configuration")
+    config, _ = _load_json(
+        parsed.config,
+        name="target provider admission configuration",
+    )
     admission = build_target_provider_admission(
         lock,
         binding,
@@ -841,7 +991,10 @@ def verify_cli(arguments: Sequence[str]) -> int:
     observed = load_target_provider_admission(parsed.admission)
     lock = load_promotion_lock(parsed.lock)
     binding = load_deform360_cohort_binding(parsed.cohort_binding)
-    config, _ = _load_json(parsed.config, name="target provider admission configuration")
+    config, _ = _load_json(
+        parsed.config,
+        name="target provider admission configuration",
+    )
     replayed = verify_target_provider_admission(
         observed,
         lock,
@@ -852,7 +1005,9 @@ def verify_cli(arguments: Sequence[str]) -> int:
     print(
         json.dumps(
             {
-                "target_provider_admission_id": replayed.target_provider_admission_id,
+                "target_provider_admission_id": (
+                    replayed.target_provider_admission_id
+                ),
                 "promotion_lock_id": replayed.promotion_lock_id,
                 "cohort_binding_id": replayed.cohort_binding_id,
                 "target_group_count": len(replayed.entries),

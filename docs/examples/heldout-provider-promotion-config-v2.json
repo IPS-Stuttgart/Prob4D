@@ -1,0 +1,120 @@
+{
+  "arms": [
+    {
+      "arm_id": "fallback",
+      "metadata": {},
+      "provider_method_id": null,
+      "query_method_id": "bpt-physical-fallback",
+      "role": "physical_fallback",
+      "sensor_assisted": false
+    },
+    {
+      "arm_id": "framewise",
+      "metadata": {},
+      "provider_method_id": "prob4d-framewise-explicit-joint-gauge",
+      "query_method_id": "bpt-framewise-explicit-joint-gauge",
+      "role": "framewise_explicit_joint_gauge",
+      "sensor_assisted": false
+    },
+    {
+      "arm_id": "identity",
+      "metadata": {},
+      "provider_method_id": "prob4d-cross-window-identity-mixture",
+      "query_method_id": "bpt-cross-window-identity-mixture",
+      "role": "cross_window_identity_marginalized",
+      "sensor_assisted": false
+    },
+    {
+      "arm_id": "persistent",
+      "metadata": {},
+      "provider_method_id": "prob4d-persistent-explicit-joint-gauge",
+      "query_method_id": "bpt-persistent-explicit-joint-gauge",
+      "role": "persistent_explicit_joint_gauge",
+      "sensor_assisted": false
+    },
+    {
+      "arm_id": "rowwise",
+      "metadata": {},
+      "provider_method_id": "prob4d-persistent-rowwise-gauge",
+      "query_method_id": "bpt-persistent-rowwise-gauge",
+      "role": "rowwise_gauge_marginalized",
+      "sensor_assisted": false
+    },
+    {
+      "arm_id": "sensor-anchor",
+      "metadata": {
+        "claim_label": "sensor-assisted"
+      },
+      "provider_method_id": "prob4d-independent-metric-anchor",
+      "query_method_id": "bpt-independent-metric-anchor",
+      "role": "sensor_assisted",
+      "sensor_assisted": true
+    },
+    {
+      "arm_id": "visual",
+      "metadata": {},
+      "provider_method_id": "last-frame-visual-baseline",
+      "query_method_id": "bpt-last-frame-visual-baseline",
+      "role": "visual_baseline",
+      "sensor_assisted": false
+    }
+  ],
+  "bayesian_phystwin_repository": "IPS-Stuttgart/BayesianPhysTwin",
+  "bayesian_phystwin_revision": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "bootstrap_resamples": 10000,
+  "bootstrap_seed": 1729,
+  "calibration_group_ids": [
+    "calibration-object-01",
+    "calibration-object-02"
+  ],
+  "development_group_ids": [
+    "development-object-01",
+    "development-object-02"
+  ],
+  "experiment_id": "heldout-real-provider-v2",
+  "frozen_artifact_ids": {
+    "bayesian_guard_configuration": "6666666666666666666666666666666666666666666666666666666666666666",
+    "gauge_calibration": "1111111111111111111111111111111111111111111111111111111111111111",
+    "material_identity_calibration": "4444444444444444444444444444444444444444444444444444444444444444",
+    "point_calibration": "2222222222222222222222222222222222222222222222222222222222222222",
+    "provider_configuration": "0000000000000000000000000000000000000000000000000000000000000000",
+    "selection_lock": "5555555555555555555555555555555555555555555555555555555555555555",
+    "source_reliability_calibration": "3333333333333333333333333333333333333333333333333333333333333333"
+  },
+  "harmful_update_margin_mm": 0.0,
+  "maximum_harmful_accepted_updates": 0,
+  "maximum_technical_failures": 0,
+  "maximum_worst_group_regression_mm": 0.0,
+  "metadata": {
+    "split_semantics": "complete-object-or-session-v1",
+    "target_access": "sealed-before-outcomes"
+  },
+  "minimum_mean_accepted_coverage": 0.9,
+  "minimum_target_group_count": 3,
+  "prediction_run_spec_id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "primary_query_arm_id": "identity",
+  "provider_evaluation_manifest_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  "provider_identity": {
+    "coordinate_semantics": "sequence-local-sim3",
+    "flow_semantics": "absent",
+    "loader_id": "8888888888888888888888888888888888888888888888888888888888888888",
+    "model_set_id": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "point_semantics": "dense-point-map",
+    "provider_family": "cut3r",
+    "provider_repository": "naver/CUT3R",
+    "provider_revision": "cccccccccccccccccccccccccccccccccccccccc",
+    "ray_semantics": "absent",
+    "schema_name": "prob4d.provider-promotion-identity",
+    "schema_version": 1,
+    "source_dependency_semantics": "per-output-exclusive-source-frame-interval-v1"
+  },
+  "provider_reference_arm_id": "visual",
+  "query_superiority_margin_mm": 0.25,
+  "source_repository": "IPS-Stuttgart/Prob4D",
+  "source_revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "target_group_ids": [
+    "target-object-01",
+    "target-object-02",
+    "target-object-03"
+  ]
+}

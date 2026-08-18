@@ -32,19 +32,199 @@ from ._heldout_promotion_common import (
 )
 from ._immutable_json import frozen_finite_json_mapping, plain_json
 from ._selection_evidence_common import _sha256_json, _strict_integer
+from .prediction_provider_manifest import (
+    COORDINATE_SEMANTICS,
+    FLOW_SEMANTICS,
+    POINT_SEMANTICS,
+    RAY_SEMANTICS,
+    SOURCE_DEPENDENCY_SEMANTICS,
+)
+
+HELDOUT_PROMOTION_LOCK_PROVIDER_NEUTRAL_VERSION = 2
+PROVIDER_PROMOTION_IDENTITY_SCHEMA = "prob4d.provider-promotion-identity"
+PROVIDER_PROMOTION_IDENTITY_VERSION = 1
+
+_PROVIDER_IDENTITY_FIELDS = {
+    "schema_name",
+    "schema_version",
+    "provider_family",
+    "provider_repository",
+    "provider_revision",
+    "model_set_id",
+    "loader_id",
+    "coordinate_semantics",
+    "point_semantics",
+    "flow_semantics",
+    "ray_semantics",
+    "source_dependency_semantics",
+}
+
+
+def _semantic_choice(value: object, choices: tuple[str, ...], *, name: str) -> str:
+    result = _strict_string(value, name=name)
+    if result not in choices:
+        raise ValueError(f"{name} must be one of {list(choices)}")
+    return result
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderPromotionIdentityV1:
+    """Invariant provider contract frozen before held-out target access."""
+
+    provider_family: str
+    provider_repository: str
+    provider_revision: str
+    model_set_id: str
+    loader_id: str
+    coordinate_semantics: str
+    point_semantics: str
+    flow_semantics: str
+    ray_semantics: str
+    source_dependency_semantics: str
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "provider_family",
+            _strict_string(self.provider_family, name="provider_family"),
+        )
+        object.__setattr__(
+            self,
+            "provider_repository",
+            _repository(self.provider_repository, name="provider_repository"),
+        )
+        object.__setattr__(
+            self,
+            "provider_revision",
+            _revision(self.provider_revision, name="provider_revision"),
+        )
+        for field_name in ("model_set_id", "loader_id"):
+            object.__setattr__(
+                self,
+                field_name,
+                _strict_digest(
+                    getattr(self, field_name),
+                    name=field_name,
+                    pattern=_SHA256,
+                ),
+            )
+        object.__setattr__(
+            self,
+            "coordinate_semantics",
+            _semantic_choice(
+                self.coordinate_semantics,
+                COORDINATE_SEMANTICS,
+                name="coordinate_semantics",
+            ),
+        )
+        object.__setattr__(
+            self,
+            "point_semantics",
+            _semantic_choice(
+                self.point_semantics,
+                POINT_SEMANTICS,
+                name="point_semantics",
+            ),
+        )
+        object.__setattr__(
+            self,
+            "flow_semantics",
+            _semantic_choice(
+                self.flow_semantics,
+                FLOW_SEMANTICS,
+                name="flow_semantics",
+            ),
+        )
+        object.__setattr__(
+            self,
+            "ray_semantics",
+            _semantic_choice(
+                self.ray_semantics,
+                RAY_SEMANTICS,
+                name="ray_semantics",
+            ),
+        )
+        source_semantics = _strict_string(
+            self.source_dependency_semantics,
+            name="source_dependency_semantics",
+        )
+        if source_semantics != SOURCE_DEPENDENCY_SEMANTICS:
+            raise ValueError("source_dependency_semantics changed")
+        object.__setattr__(self, "source_dependency_semantics", source_semantics)
+
+    @property
+    def contract_signature(self) -> tuple[str, ...]:
+        return (
+            self.provider_family,
+            self.provider_repository,
+            self.provider_revision,
+            self.model_set_id,
+            self.loader_id,
+            self.coordinate_semantics,
+            self.point_semantics,
+            self.flow_semantics,
+            self.ray_semantics,
+            self.source_dependency_semantics,
+        )
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "schema_name": PROVIDER_PROMOTION_IDENTITY_SCHEMA,
+            "schema_version": PROVIDER_PROMOTION_IDENTITY_VERSION,
+            "provider_family": self.provider_family,
+            "provider_repository": self.provider_repository,
+            "provider_revision": self.provider_revision,
+            "model_set_id": self.model_set_id,
+            "loader_id": self.loader_id,
+            "coordinate_semantics": self.coordinate_semantics,
+            "point_semantics": self.point_semantics,
+            "flow_semantics": self.flow_semantics,
+            "ray_semantics": self.ray_semantics,
+            "source_dependency_semantics": self.source_dependency_semantics,
+        }
+
+    @classmethod
+    def from_dict(cls, value: object) -> ProviderPromotionIdentityV1:
+        mapping = _strict_mapping(value, name="provider promotion identity")
+        _exact_keys(
+            mapping,
+            _PROVIDER_IDENTITY_FIELDS,
+            name="provider promotion identity",
+        )
+        if mapping["schema_name"] != PROVIDER_PROMOTION_IDENTITY_SCHEMA:
+            raise ValueError("unsupported provider promotion identity schema")
+        version = _strict_integer(
+            mapping["schema_version"],
+            name="provider promotion identity schema_version",
+            minimum=1,
+        )
+        if version != PROVIDER_PROMOTION_IDENTITY_VERSION:
+            raise ValueError("unsupported provider promotion identity version")
+        return cls(
+            provider_family=mapping["provider_family"],
+            provider_repository=mapping["provider_repository"],
+            provider_revision=mapping["provider_revision"],
+            model_set_id=mapping["model_set_id"],
+            loader_id=mapping["loader_id"],
+            coordinate_semantics=mapping["coordinate_semantics"],
+            point_semantics=mapping["point_semantics"],
+            flow_semantics=mapping["flow_semantics"],
+            ray_semantics=mapping["ray_semantics"],
+            source_dependency_semantics=mapping["source_dependency_semantics"],
+        )
 
 
 @dataclass(frozen=True, slots=True)
 class HeldoutProviderPromotionLockV1:
-    """Target-free lock for the decisive real provider and guarded-query gate."""
+    """Runtime representation of historical V1 and provider-neutral V2 locks."""
 
     experiment_id: str
     source_repository: str
     source_revision: str
     bayesian_phystwin_repository: str
     bayesian_phystwin_revision: str
-    motioncrafter_revision: str
-    model_set_id: str
+    motioncrafter_revision: str | None
+    model_set_id: str | None
     prediction_run_spec_id: str
     provider_evaluation_manifest_sha256: str
     frozen_artifact_ids: Mapping[str, Any]
@@ -64,6 +244,7 @@ class HeldoutProviderPromotionLockV1:
     maximum_technical_failures: int
     minimum_mean_accepted_coverage: float | None = None
     metadata: Mapping[str, Any] = field(default_factory=dict)
+    provider_identity: ProviderPromotionIdentityV1 | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -97,13 +278,52 @@ class HeldoutProviderPromotionLockV1:
                 name="bayesian_phystwin_revision",
             ),
         )
-        object.__setattr__(
-            self,
-            "motioncrafter_revision",
-            _revision(self.motioncrafter_revision, name="motioncrafter_revision"),
-        )
+
+        identity = self.provider_identity
+        if identity is None:
+            if self.motioncrafter_revision is None or self.model_set_id is None:
+                raise ValueError(
+                    "historical V1 locks require motioncrafter_revision and model_set_id"
+                )
+            provider_revision = _revision(
+                self.motioncrafter_revision,
+                name="motioncrafter_revision",
+            )
+            provider_model_set = _strict_digest(
+                self.model_set_id,
+                name="model_set_id",
+                pattern=_SHA256,
+            )
+        else:
+            if not isinstance(identity, ProviderPromotionIdentityV1):
+                raise ValueError(
+                    "provider_identity must be ProviderPromotionIdentityV1 or None"
+                )
+            provider_revision = identity.provider_revision
+            provider_model_set = identity.model_set_id
+            if self.motioncrafter_revision is not None:
+                legacy_revision = _revision(
+                    self.motioncrafter_revision,
+                    name="motioncrafter_revision",
+                )
+                if legacy_revision != provider_revision:
+                    raise ValueError(
+                        "legacy provider revision disagrees with provider_identity"
+                    )
+            if self.model_set_id is not None:
+                legacy_model_set = _strict_digest(
+                    self.model_set_id,
+                    name="model_set_id",
+                    pattern=_SHA256,
+                )
+                if legacy_model_set != provider_model_set:
+                    raise ValueError(
+                        "legacy model set disagrees with provider_identity"
+                    )
+        object.__setattr__(self, "motioncrafter_revision", provider_revision)
+        object.__setattr__(self, "model_set_id", provider_model_set)
+
         for field_name in (
-            "model_set_id",
             "prediction_run_spec_id",
             "provider_evaluation_manifest_sha256",
         ):
@@ -270,6 +490,32 @@ class HeldoutProviderPromotionLockV1:
         )
 
     @property
+    def schema_version(self) -> int:
+        return (
+            HELDOUT_PROMOTION_LOCK_VERSION
+            if self.provider_identity is None
+            else HELDOUT_PROMOTION_LOCK_PROVIDER_NEUTRAL_VERSION
+        )
+
+    @property
+    def provider_revision(self) -> str:
+        assert self.motioncrafter_revision is not None
+        return self.motioncrafter_revision
+
+    @property
+    def provider_model_set_id(self) -> str:
+        assert self.model_set_id is not None
+        return self.model_set_id
+
+    @property
+    def provider_contract_signature(self) -> tuple[str, ...] | None:
+        return (
+            None
+            if self.provider_identity is None
+            else self.provider_identity.contract_signature
+        )
+
+    @property
     def arms_by_id(self) -> Mapping[str, PromotionArmV1]:
         return {arm.arm_id: arm for arm in self.arms}
 
@@ -294,16 +540,23 @@ class HeldoutProviderPromotionLockV1:
         return method
 
     def descriptor(self) -> dict[str, object]:
+        provider_fields: dict[str, object]
+        if self.provider_identity is None:
+            provider_fields = {
+                "motioncrafter_revision": self.provider_revision,
+                "model_set_id": self.provider_model_set_id,
+            }
+        else:
+            provider_fields = {"provider_identity": self.provider_identity.to_dict()}
         return {
             "schema_name": HELDOUT_PROMOTION_LOCK_SCHEMA,
-            "schema_version": HELDOUT_PROMOTION_LOCK_VERSION,
+            "schema_version": self.schema_version,
             "experiment_id": self.experiment_id,
             "source_repository": self.source_repository,
             "source_revision": self.source_revision,
             "bayesian_phystwin_repository": self.bayesian_phystwin_repository,
             "bayesian_phystwin_revision": self.bayesian_phystwin_revision,
-            "motioncrafter_revision": self.motioncrafter_revision,
-            "model_set_id": self.model_set_id,
+            **provider_fields,
             "prediction_run_spec_id": self.prediction_run_spec_id,
             "provider_evaluation_manifest_sha256": (self.provider_evaluation_manifest_sha256),
             "frozen_artifact_ids": plain_json(self.frozen_artifact_ids),
@@ -334,7 +587,9 @@ class HeldoutProviderPromotionLockV1:
         return {**self.descriptor(), "promotion_lock_id": self.promotion_lock_id}
 
 
-_LOCK_FIELDS = {
+HeldoutProviderPromotionLockV2 = HeldoutProviderPromotionLockV1
+
+_COMMON_LOCK_FIELDS = {
     "schema_name",
     "schema_version",
     "experiment_id",
@@ -342,8 +597,6 @@ _LOCK_FIELDS = {
     "source_revision",
     "bayesian_phystwin_repository",
     "bayesian_phystwin_revision",
-    "motioncrafter_revision",
-    "model_set_id",
     "prediction_run_spec_id",
     "provider_evaluation_manifest_sha256",
     "frozen_artifact_ids",
@@ -366,15 +619,26 @@ _LOCK_FIELDS = {
     "claim_boundary",
     "promotion_lock_id",
 }
-_LOCK_CONFIG_FIELDS = _LOCK_FIELDS - {
+_LOCK_V1_FIELDS = _COMMON_LOCK_FIELDS | {"motioncrafter_revision", "model_set_id"}
+_LOCK_V2_FIELDS = _COMMON_LOCK_FIELDS | {"provider_identity"}
+_COMMON_CONFIG_FIELDS = _COMMON_LOCK_FIELDS - {
     "schema_name",
     "schema_version",
     "claim_boundary",
     "promotion_lock_id",
 }
+_LOCK_V1_CONFIG_FIELDS = _COMMON_CONFIG_FIELDS | {
+    "motioncrafter_revision",
+    "model_set_id",
+}
+_LOCK_V2_CONFIG_FIELDS = _COMMON_CONFIG_FIELDS | {"provider_identity"}
 
 
-def _lock_from_mapping(mapping: Mapping[str, Any]) -> HeldoutProviderPromotionLockV1:
+def _lock_from_mapping(
+    mapping: Mapping[str, Any],
+    *,
+    schema_version: int,
+) -> HeldoutProviderPromotionLockV1:
     raw_arms = _strict_list(mapping["arms"], name="arms")
     arms = tuple(
         sorted(
@@ -382,14 +646,27 @@ def _lock_from_mapping(mapping: Mapping[str, Any]) -> HeldoutProviderPromotionLo
             key=lambda arm: arm.arm_id,
         )
     )
+    provider_identity = (
+        None
+        if schema_version == HELDOUT_PROMOTION_LOCK_VERSION
+        else ProviderPromotionIdentityV1.from_dict(mapping["provider_identity"])
+    )
     return HeldoutProviderPromotionLockV1(
         experiment_id=mapping["experiment_id"],
         source_repository=mapping["source_repository"],
         source_revision=mapping["source_revision"],
         bayesian_phystwin_repository=mapping["bayesian_phystwin_repository"],
         bayesian_phystwin_revision=mapping["bayesian_phystwin_revision"],
-        motioncrafter_revision=mapping["motioncrafter_revision"],
-        model_set_id=mapping["model_set_id"],
+        motioncrafter_revision=(
+            mapping["motioncrafter_revision"]
+            if schema_version == HELDOUT_PROMOTION_LOCK_VERSION
+            else None
+        ),
+        model_set_id=(
+            mapping["model_set_id"]
+            if schema_version == HELDOUT_PROMOTION_LOCK_VERSION
+            else None
+        ),
         prediction_run_spec_id=mapping["prediction_run_spec_id"],
         provider_evaluation_manifest_sha256=mapping["provider_evaluation_manifest_sha256"],
         frozen_artifact_ids=mapping["frozen_artifact_ids"],
@@ -418,29 +695,52 @@ def _lock_from_mapping(mapping: Mapping[str, Any]) -> HeldoutProviderPromotionLo
         maximum_technical_failures=mapping["maximum_technical_failures"],
         minimum_mean_accepted_coverage=mapping["minimum_mean_accepted_coverage"],
         metadata=_strict_mapping(mapping["metadata"], name="promotion lock metadata"),
+        provider_identity=provider_identity,
     )
 
 
 def promotion_lock_from_config(value: Any) -> HeldoutProviderPromotionLockV1:
-    """Build a canonical lock from target-free configuration fields."""
+    """Build a canonical V1 or provider-neutral V2 target-free lock."""
 
     mapping = _strict_mapping(value, name="promotion lock configuration")
-    _exact_keys(mapping, _LOCK_CONFIG_FIELDS, name="promotion lock configuration")
-    return _lock_from_mapping(mapping)
+    if "provider_identity" in mapping:
+        _exact_keys(
+            mapping,
+            _LOCK_V2_CONFIG_FIELDS,
+            name="promotion lock configuration",
+        )
+        schema_version = HELDOUT_PROMOTION_LOCK_PROVIDER_NEUTRAL_VERSION
+    else:
+        _exact_keys(
+            mapping,
+            _LOCK_V1_CONFIG_FIELDS,
+            name="promotion lock configuration",
+        )
+        schema_version = HELDOUT_PROMOTION_LOCK_VERSION
+    return _lock_from_mapping(mapping, schema_version=schema_version)
 
 
 def promotion_lock_from_dict(value: Any) -> HeldoutProviderPromotionLockV1:
-    """Load and independently validate one canonical promotion lock."""
+    """Load and independently validate one canonical V1 or V2 promotion lock."""
 
     mapping = _strict_mapping(value, name="promotion lock")
-    _exact_keys(mapping, _LOCK_FIELDS, name="promotion lock")
-    if mapping["schema_name"] != HELDOUT_PROMOTION_LOCK_SCHEMA:
+    if mapping.get("schema_name") != HELDOUT_PROMOTION_LOCK_SCHEMA:
         raise ValueError("unsupported held-out promotion lock schema")
-    if mapping["schema_version"] != HELDOUT_PROMOTION_LOCK_VERSION:
+    schema_version = _strict_integer(
+        mapping.get("schema_version"),
+        name="schema_version",
+        minimum=1,
+    )
+    if schema_version == HELDOUT_PROMOTION_LOCK_VERSION:
+        fields = _LOCK_V1_FIELDS
+    elif schema_version == HELDOUT_PROMOTION_LOCK_PROVIDER_NEUTRAL_VERSION:
+        fields = _LOCK_V2_FIELDS
+    else:
         raise ValueError("unsupported held-out promotion lock version")
+    _exact_keys(mapping, fields, name="promotion lock")
     if mapping["claim_boundary"] != LOCK_CLAIM_BOUNDARY:
         raise ValueError("promotion lock claim boundary changed")
-    lock = _lock_from_mapping(mapping)
+    lock = _lock_from_mapping(mapping, schema_version=schema_version)
     supplied = _strict_digest(
         mapping["promotion_lock_id"],
         name="promotion_lock_id",
@@ -467,3 +767,17 @@ def load_promotion_lock(
 ) -> HeldoutProviderPromotionLockV1:
     mapping, _ = _load_json(Path(path), name="promotion lock")
     return promotion_lock_from_dict(mapping)
+
+
+__all__ = [
+    "HELDOUT_PROMOTION_LOCK_PROVIDER_NEUTRAL_VERSION",
+    "PROVIDER_PROMOTION_IDENTITY_SCHEMA",
+    "PROVIDER_PROMOTION_IDENTITY_VERSION",
+    "HeldoutProviderPromotionLockV1",
+    "HeldoutProviderPromotionLockV2",
+    "ProviderPromotionIdentityV1",
+    "load_promotion_lock",
+    "promotion_lock_from_config",
+    "promotion_lock_from_dict",
+    "write_promotion_lock",
+]
