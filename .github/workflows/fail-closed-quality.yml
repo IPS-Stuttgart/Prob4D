@@ -96,6 +96,7 @@ jobs:
             src/prob4d/project_identity.py \
             src/prob4d/provider_attestation.py \
             src/prob4d/provider_evaluation_identity.py \
+            src/prob4d/provider_execution_attestation.py \
             src/prob4d/provider_manifest.py \
             src/prob4d/provider_manifest_cli.py \
             src/prob4d/provider_v1.py \

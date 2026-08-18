@@ -1,0 +1,68 @@
+{
+  "causal_declarations": {
+    "future_frame_postprocessing": false,
+    "global_alignment": false,
+    "online_prefix_only": true,
+    "revisit_count": 1,
+    "source_order_preserved": true
+  },
+  "command_argv": [
+    "python",
+    "demo.py",
+    "--input",
+    "sequence-a.mp4",
+    "--revisit",
+    "1"
+  ],
+  "completed_at_utc": "2026-08-18T01:04:05Z",
+  "environment_variables": [
+    {
+      "name": "CUDA_VISIBLE_DEVICES",
+      "value_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    {
+      "name": "PYTHONHASHSEED",
+      "value_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  ],
+  "execution_evidence_mode": "wrapper-observed-v1",
+  "execution_evidence_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "execution_mode": "recurrent-online",
+  "input_artifacts": [
+    {
+      "byte_count": 456,
+      "name": "checkpoint",
+      "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    {
+      "byte_count": 123,
+      "name": "input-video",
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    }
+  ],
+  "loader_id": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "metadata": {
+    "runner_class": "reviewed-external-wrapper"
+  },
+  "model_set_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "output_artifacts": [
+    {
+      "byte_count": 789,
+      "name": "provider-manifest",
+      "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    }
+  ],
+  "prediction_provider_manifest_id": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "provider_repository": "example/provider",
+  "provider_revision": "1111111111111111111111111111111111111111",
+  "provider_run_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "runtime": {
+    "container_image_digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "environment_lock_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "implementation": "CPython",
+    "platform": "Linux-x86_64",
+    "python_version": "3.12.11"
+  },
+  "started_at_utc": "2026-08-18T01:02:03Z",
+  "terminal_status": "succeeded"
+}
