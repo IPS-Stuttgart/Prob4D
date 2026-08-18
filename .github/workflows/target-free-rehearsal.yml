@@ -75,7 +75,7 @@ jobs:
             tests/test_independent_observation_verifier.py \
             tests/test_target_free_rehearsal.py \
             tests/test_target_free_rehearsal_workflow.py
-          python -m mypy \
+          python -m mypy --python-version 3.12 \
             src/prob4d/target_free_rehearsal.py \
             src/prob4d_independent_verifier
           python -m pytest -q \
