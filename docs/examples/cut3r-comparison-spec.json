@@ -1,0 +1,72 @@
+{
+  "checkpoint_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "confidence_threshold": 1.5,
+  "group_roles": {
+    "calibration": [
+      "object-calibration"
+    ],
+    "development": [
+      "object-development"
+    ],
+    "source_evaluation": [
+      "object-source-evaluation"
+    ]
+  },
+  "groups": [
+    {
+      "cases": [
+        {
+          "case_id": "development-sequence",
+          "evaluation_frame_start": 20,
+          "evaluation_frame_stop_exclusive": 180,
+          "frame_start": 0,
+          "frame_stop_exclusive": 200,
+          "input_video_byte_count": 1000000,
+          "input_video_sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+        }
+      ],
+      "group_id": "object-development"
+    },
+    {
+      "cases": [
+        {
+          "case_id": "calibration-sequence",
+          "evaluation_frame_start": 20,
+          "evaluation_frame_stop_exclusive": 180,
+          "frame_start": 0,
+          "frame_stop_exclusive": 200,
+          "input_video_byte_count": 1000000,
+          "input_video_sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+        }
+      ],
+      "group_id": "object-calibration"
+    },
+    {
+      "cases": [
+        {
+          "case_id": "source-evaluation-sequence",
+          "evaluation_frame_start": 20,
+          "evaluation_frame_stop_exclusive": 180,
+          "frame_start": 0,
+          "frame_stop_exclusive": 200,
+          "input_video_byte_count": 1000000,
+          "input_video_sha256": "3333333333333333333333333333333333333333333333333333333333333333"
+        }
+      ],
+      "group_id": "object-source-evaluation"
+    }
+  ],
+  "include_revisit_diagnostic": false,
+  "overlap": 8,
+  "prob4d_distribution_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "prob4d_revision": "cccccccccccccccccccccccccccccccccccccccc",
+  "protocol_name": "cut3r-source-comparison-v1",
+  "provider_revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "random_seeds": [
+    7,
+    11,
+    19
+  ],
+  "storage_dtype": "float32",
+  "window_size": 25
+}
