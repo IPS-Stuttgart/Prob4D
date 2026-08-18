@@ -66,7 +66,9 @@ reference rather than dropping the case.
 ## Information and claim boundary
 
 The log weights must be calibrated only on declared source/calibration objects or
-sessions. The artifact does not decide whether BayesianPhysTwin accepts an
+sessions. Prob4D provides a group-balanced, cross-fitted implementation in
+[source calibration of material-identity weights](material-identity-weight-calibration.md).
+The mixture artifact does not decide whether BayesianPhysTwin accepts an
 update, does not establish provider competence, and does not establish a
 Causal4D intervention benefit. Promotion requires a separately frozen
 object/session-held-out comparison of newest-window, hard-link,
@@ -74,7 +76,8 @@ identity-marginalized, oracle, and exact-fallback arms.
 
 ## Grouped command line
 
-The portable build, validation, likelihood-marginalization, and Gaussian
-moment-matching operations are available through `prob4d identity`. See
-[the material-identity command line](material-identity-cli.md) and its validated
-[configuration example](examples/material-identity-mixture-config.json).
+The source fitting, portable build, validation, likelihood-marginalization, and
+Gaussian moment-matching operations are available through `prob4d identity`. See
+[the material-identity command line](material-identity-cli.md), the validated
+[source-calibration example](examples/material-identity-weight-calibration-input.json),
+and the lower-level [mixture example](examples/material-identity-mixture-config.json).

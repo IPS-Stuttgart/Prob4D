@@ -92,6 +92,8 @@ jobs:
             src/prob4d/calibration_compatibility.py \
             src/prob4d/composition_jacobian.py \
             src/prob4d/covariance_root.py \
+            src/prob4d/material_identity_cli.py \
+            src/prob4d/material_identity_weight_calibration.py \
             src/prob4d/observation_factor_stream.py \
             src/prob4d/observation_gaussian_operator.py \
             src/prob4d/prediction_store.py \

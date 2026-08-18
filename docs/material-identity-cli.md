@@ -1,28 +1,65 @@
 # Material-identity command line
 
-`prob4d identity` exposes the existing append-only hypothesis stream and
-source-calibrated identity-mixture contracts without promoting global material
-IDs or changing provider-v2 observation identities.
+`prob4d identity` exposes append-only identity hypotheses, source fitting of
+identity weights, portable identity mixtures, and exact downstream
+marginalization without promoting global material IDs or changing provider-v2
+observation identities.
 
-The commands do not fit weights and do not accept BayesianPhysTwin updates.
-Calibration must be completed on declared source/calibration objects or sessions
-before target access.
+The commands never accept a BayesianPhysTwin update. Calibration must use
+complete declared source/calibration objects or sessions and must remain separate
+from target outcomes.
 
-## Build and validate a mixture
+## Fit source-side weights
+
+Fit and strictly validate a group-balanced conditional-logit calibration:
 
 ```bash
-cp docs/examples/material-identity-mixture-config.json mixture-config.json
-prob4d identity build-mixture mixture-config.json \
+prob4d identity fit-calibration \
+  docs/examples/material-identity-weight-calibration-input.json \
+  --output material-identity-weight-calibration.json
+
+prob4d identity validate-calibration \
+  material-identity-weight-calibration.json
+```
+
+The input contains labelled candidate sets, one physical object or acquisition
+session ID per example, the exact feature schema and association identities, and
+an explicit `uses_target_outcomes=false` declaration. The artifact reports
+cross-fitted proper scores and calibration diagnostics while retaining the
+complete canonical calibration-data digest. See
+[source calibration of material-identity weights](material-identity-weight-calibration.md).
+
+## Build and validate a calibrated mixture
+
+Apply a retained source model to one prefix-only candidate set:
+
+```bash
+prob4d identity calibrate-mixture \
+  material-identity-weight-calibration.json \
+  docs/examples/material-identity-calibrated-mixture-config.json \
   --output material-identity-mixture.json
+
 prob4d identity validate-mixture material-identity-mixture.json
 ```
 
-`build-mixture` requires exactly one null hypothesis. Every linked endpoint keeps
-its original `(window_id, track_id)` identity, belongs to a window before the
-target, and binds its association result, source score, externally calibrated log
-weight, producer revision, association revision, rule ID, and calibration ID.
-The output is written atomically and is rejected rather than overwritten unless
-`--overwrite` is supplied.
+`calibrate-mixture` requires exact feature-schema, feature-order, association-rule,
+tracklet-producer, and association-implementation compatibility. It computes all
+candidate log weights from the retained model and binds the model artifact ID as
+the mixture calibration identity.
+
+For a frozen externally calibrated model, the lower-level configuration remains
+available:
+
+```bash
+prob4d identity build-mixture \
+  docs/examples/material-identity-mixture-config.json \
+  --output material-identity-mixture.json
+```
+
+Every mixture requires exactly one null hypothesis. Linked endpoints retain their
+original `(window_id, track_id)` identities, must precede the target window, and
+bind their source association evidence. Publication is atomic and no-clobber by
+default.
 
 Validate an append-only multi-window stream independently with:
 
