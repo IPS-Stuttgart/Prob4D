@@ -2,9 +2,9 @@
 
 Prob4D can bind how an external 4-D provider was executed without importing the
 provider, its model weights, or its runtime dependencies. The content-addressed
-`ProviderExecutionAttestationV1` sidecar records exact code and model identities,
-command arguments, causal declarations, runtime fingerprints, and input/output
-bytes.
+version-1 `prob4d.provider-execution-attestation` sidecar records exact code and
+model identities, command arguments, causal declarations, runtime fingerprints,
+and input/output bytes.
 
 This contract complements `PredictionProviderManifestV1`:
 
