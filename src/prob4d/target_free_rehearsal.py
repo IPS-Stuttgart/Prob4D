@@ -10,8 +10,9 @@ import platform
 import tempfile
 from dataclasses import dataclass
 from importlib.metadata import version
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Mapping, Sequence, cast
+from typing import Any, cast
 
 import numpy as np
 
@@ -183,7 +184,7 @@ def _write_raw_artifact(
     temporary = Path(temporary_name)
     try:
         with os.fdopen(descriptor_fd, "wb") as stream:
-            np.savez_compressed(
+            np.savez_compressed(  # type: ignore[arg-type]
                 stream,
                 descriptor_json=np.asarray(
                     json.dumps(

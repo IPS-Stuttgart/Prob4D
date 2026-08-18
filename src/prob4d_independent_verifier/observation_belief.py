@@ -13,9 +13,10 @@ import math
 import os
 import tempfile
 import zipfile
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping, cast
+from typing import Any, cast
 
 import numpy as np
 
@@ -49,7 +50,7 @@ _DESCRIPTOR_FIELDS = frozenset(
         "window_names",
     }
 )
-_ARRAY_DTYPES = {
+_ARRAY_DTYPES: dict[str, np.dtype[Any]] = {
     "association_probability": np.dtype("float64"),
     "correlation_group_ids": np.dtype("int64"),
     "declared_frame_ids": np.dtype("int64"),

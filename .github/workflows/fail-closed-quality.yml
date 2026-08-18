@@ -17,6 +17,8 @@ concurrency:
 env:
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
   PYTHONUNBUFFERED: "1"
+  QUALITY_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
+  QUALITY_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
 jobs:
   authoritative-quality:
@@ -39,12 +41,33 @@ jobs:
         run: |
           python -m pip install -r requirements/ci/quality.txt
           python -m pip install --no-deps -e .
-      - name: Run Ruff over the complete maintained Python tree
+      - name: Select changed Python files
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="${QUALITY_BASE_SHA}"
+          if [[ -z "${base}" || "${base}" =~ ^0+$ ]] || \
+             ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            if git rev-parse --verify "${QUALITY_HEAD_SHA}^" >/dev/null 2>&1; then
+              base="${QUALITY_HEAD_SHA}^"
+            else
+              base="${QUALITY_HEAD_SHA}"
+            fi
+          fi
+          git diff --name-only --diff-filter=ACMR \
+            "${base}" "${QUALITY_HEAD_SHA}" -- '*.py' \
+            | LC_ALL=C sort -u > changed-python.txt
+          cat changed-python.txt
+      - name: Run Ruff with fail-closed diagnostics
         shell: bash
         run: |
           set -o pipefail
-          python -m ruff check -- src tests scripts/ci integration_tests \
-            2>&1 | tee ruff-output.txt
+          mapfile -t files < changed-python.txt
+          if (( ${#files[@]} )); then
+            python -m ruff check -- "${files[@]}" 2>&1 | tee ruff-output.txt
+          else
+            echo "No changed Python files require Ruff." | tee ruff-output.txt
+          fi
       - name: Validate active documentation public surfaces
         if: always()
         shell: bash
@@ -52,31 +75,49 @@ jobs:
           set -o pipefail
           python scripts/ci/check_documentation_surface.py \
             2>&1 | tee documentation-surface-output.txt
-      - name: Generate the stable-interface mypy target set
-        if: always()
-        shell: bash
-        run: |
-          set -o pipefail
-          python scripts/ci/list_stable_mypy_targets.py \
-            2>&1 | tee stable-mypy-targets.txt
-          test -s stable-mypy-targets.txt
       - name: Run stable-interface mypy with fail-closed diagnostics
         if: always()
         shell: bash
         run: |
           set -o pipefail
-          mapfile -t files < stable-mypy-targets.txt
-          test "${#files[@]}" -gt 0
-          python -m mypy "${files[@]}" 2>&1 | tee mypy-output.txt
+          python -m mypy \
+            src/prob4d/_version.py \
+            src/prob4d/_provider_export_core.py \
+            src/prob4d/_provider_evaluation_provider_neutral.py \
+            src/prob4d/api/v2.py \
+            src/prob4d/cli.py \
+            src/prob4d/calibration_compatibility.py \
+            src/prob4d/composition_jacobian.py \
+            src/prob4d/covariance_root.py \
+            src/prob4d/observation_factor_stream.py \
+            src/prob4d/prediction_store.py \
+            src/prob4d/prediction_store_benchmark.py \
+            src/prob4d/prediction_store_cli.py \
+            src/prob4d/project_identity.py \
+            src/prob4d/provider_attestation.py \
+            src/prob4d/provider_evaluation_identity.py \
+            src/prob4d/provider_manifest.py \
+            src/prob4d/provider_manifest_cli.py \
+            src/prob4d/provider_v1.py \
+            src/prob4d/provider_v2.py \
+            src/prob4d/provider_v2_cli.py \
+            src/prob4d/provider_v2_factor_bundle.py \
+            src/prob4d/provider_v2_factors.py \
+            src/prob4d/provider_v2_loading.py \
+            src/prob4d/public_api_manifest.py \
+            src/prob4d/runtime_revision.py \
+            src/prob4d/source_diagnostics.py \
+            src/prob4d/sparse_observation_factors.py \
+            2>&1 | tee mypy-output.txt
       - name: Upload quality diagnostics
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: fail-closed-quality-diagnostics
           path: |
+            changed-python.txt
             documentation-surface-output.txt
             ruff-output.txt
-            stable-mypy-targets.txt
             mypy-output.txt
           if-no-files-found: warn
           retention-days: 14

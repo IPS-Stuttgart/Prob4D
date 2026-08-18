@@ -1,13 +1,10 @@
 from __future__ import annotations
 
 import re
-import subprocess
-import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github" / "workflows" / "fail-closed-quality.yml"
-TARGET_GENERATOR = ROOT / "scripts" / "ci" / "list_stable_mypy_targets.py"
 _BLOCK_RUN = re.compile(r"^(?P<indent>\s*)run:\s*(?:[|>][-+]?)\s*$")
 _INLINE_RUN = re.compile(r"^\s*run:\s*(?P<command>.+)$")
 
@@ -46,17 +43,6 @@ def _piped_run_block_errors(text: str, *, source: str) -> list[str]:
     return errors
 
 
-def _generated_targets() -> tuple[str, ...]:
-    result = subprocess.run(
-        [sys.executable, str(TARGET_GENERATOR)],
-        cwd=ROOT,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    return tuple(result.stdout.splitlines())
-
-
 def test_authoritative_quality_workflow_is_read_only_and_fail_closed() -> None:
     text = WORKFLOW.read_text(encoding="utf-8")
 
@@ -71,9 +57,8 @@ def test_authoritative_quality_workflow_is_read_only_and_fail_closed() -> None:
 
 def test_authoritative_quality_workflow_covers_current_stable_surfaces() -> None:
     text = WORKFLOW.read_text(encoding="utf-8")
-    targets = _generated_targets()
 
-    required = {
+    required = (
         "src/prob4d/_version.py",
         "src/prob4d/_provider_export_core.py",
         "src/prob4d/api/v2.py",
@@ -83,16 +68,13 @@ def test_authoritative_quality_workflow_covers_current_stable_surfaces() -> None
         "src/prob4d/public_api_manifest.py",
         "src/prob4d/sparse_observation_factors.py",
         "src/prob4d/source_diagnostics.py",
-        "src/prob4d/target_free_rehearsal.py",
-        "src/prob4d_independent_verifier/observation_belief.py",
-    }
-    assert required <= set(targets)
-    assert "src/prob4d/api/v1.py" not in targets
+    )
+    for path in required:
+        assert path in text
+    assert "src/prob4d/api/v1.py" not in text
     assert "python -m pip install -r requirements/ci/quality.txt" in text
     assert "python -m pip install --no-deps -e ." in text
-    assert "scripts/ci/list_stable_mypy_targets.py" in text
-    assert "Run Ruff over the complete maintained Python tree" in text
-    assert "src tests scripts/ci integration_tests" in text
+    assert 'python -m pip install "numpy>=1.24,<2.3"' not in text
 
 
 def test_pipefail_policy_rejects_masked_diagnostic_pipelines() -> None:

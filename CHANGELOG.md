@@ -18,8 +18,6 @@ release notes and scientific boundaries live under `docs/releases/`.
 - A separately packaged `prob4d_independent_verifier` implementation that imports
   no Prob4D modules, preflights NPZ resource bounds, independently recomputes the
   observation content address, and emits a content-addressed verification report.
-- A generated stable-interface MyPy target inventory and full-tree Ruff enforcement
-  in the authoritative quality workflow.
 
 ### Fixed
 
