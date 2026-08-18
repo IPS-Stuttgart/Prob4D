@@ -8,6 +8,24 @@ calibrates conditional and shared covariance, preserves causal source lineage,
 and exports portable observations for BayesianPhysTwin. Causal4D consumes the
 resulting BayesianPhysTwin belief rather than raw Prob4D artifacts.
 
+## Provider evidence status
+
+Snapshot: **2026-08-18**. Adapter maturity and scientific evidence are separate.
+The authoritative claim and data-access status remains in
+[`FlorianPfaff/BayesianPhysTwin-Paper`](https://github.com/FlorianPfaff/BayesianPhysTwin-Paper).
+
+| Provider route | Implementation state | Current evidence boundary |
+| --- | --- | --- |
+| Controlled synthetic provider | Stable mechanism study | Positive controlled evidence only; not real-provider competence |
+| MotionCrafter | Mature producer and causal-window path | Frozen retrospective real transfer negative; not a promotion candidate on the opened cohort |
+| Deform360 official-Hub route | Executed under a sealed support protocol | Terminal source-support negative; confirmation remains closed |
+| CUT3R recurrent-online | Causal adapter ready | Source mean, identity, and uncertainty competence not yet evaluated |
+| VGGT | Baseline/export adapter ready | Diagnostic baseline only |
+
+A production-quality artifact path is not evidence of production-quality
+perception. Every real provider must still pass support, mean, identity,
+gauge/dependence, covariance, query-relevance, and exact-fallback gates.
+
 ## Install and test
 
 ```bash
@@ -46,6 +64,22 @@ print(prob4d.__version__)
 Use `prob4d commands list` and `prob4d commands describe ...` to inspect the
 canonical grouped command registry.
 
+## Artifact inspection
+
+Explain an observation, sparse gauge prior, tree-sparse factor artifact,
+prediction store, or strict JSON record without guessing that an unknown schema
+is valid:
+
+```bash
+prob4d artifact explain outputs/sequence_name/observation_belief.npz
+prob4d artifact explain outputs/sequence_name/observation_belief.npz --json
+prob4d artifact explain artifact.json --require-strict
+```
+
+Known schemas use their existing strict content-addressed loader. Unknown JSON
+and NPZ containers are labelled `structural-only`; `--require-strict` rejects
+them. See [artifact explanation](docs/artifact-explain.md).
+
 ## Quick benchmark
 
 ```bash
@@ -58,7 +92,7 @@ The ablation runner evaluates disjoint windows, latent-space overlap blending,
 decoded `Sim(3)` alignment, precision fusion, covariance intersection,
 fixed-lag gauge smoothing, and sparse metric anchors.
 
-## MotionCrafter production
+## MotionCrafter producer and historical evaluation path
 
 Create the optional GPU environment:
 
@@ -185,6 +219,7 @@ Passing infrastructure checks is not scientific promotion.
 ## Additional grouped routes
 
 ```bash
+prob4d artifact explain --help
 prob4d diagnostic provider-support-envelope --help
 prob4d diagnostic source-covariance-localization --help
 prob4d evaluate provider --help
