@@ -1,9 +1,10 @@
 """Grouped CLI for portable material-identity streams and mixtures.
 
-The commands in this module do not fit calibration parameters or decide whether a
-BayesianPhysTwin update is accepted. They seal externally source-calibrated
-mixtures, validate stream/mixture artifacts, and exercise exact downstream
-likelihood marginalization or Gaussian moment matching with candidate-ID checks.
+The commands in this module fit source-only material-identity weights, seal
+calibrated mixtures, validate stream/mixture artifacts, and exercise exact
+downstream likelihood marginalization or Gaussian moment matching with
+candidate-ID checks. They never decide whether a BayesianPhysTwin update is
+accepted.
 """
 
 from __future__ import annotations
@@ -27,6 +28,13 @@ from .material_identity_mixture import (
     write_material_identity_mixture,
 )
 from .material_identity_stream import load_material_identity_stream
+from .material_identity_weight_calibration import (
+    calibrated_mixture_from_config,
+    calibration_from_config,
+    calibration_summary,
+    load_material_identity_weight_calibration,
+    write_material_identity_weight_calibration,
+)
 
 
 def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -196,6 +204,69 @@ def _build(arguments: Sequence[str]) -> int:
     return 0
 
 
+def _fit_calibration(arguments: Sequence[str]) -> int:
+    parser = argparse.ArgumentParser(
+        prog="prob4d identity fit-calibration",
+        description=(
+            "fit group-balanced source material-identity weights with "
+            "deterministic group cross-fitting"
+        ),
+    )
+    parser.add_argument("config", type=Path)
+    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--overwrite", action="store_true")
+    parsed = parser.parse_args(arguments)
+    model = calibration_from_config(
+        _load_json(parsed.config, name="material-identity calibration configuration")
+    )
+    write_material_identity_weight_calibration(
+        parsed.output,
+        model,
+        overwrite=parsed.overwrite,
+    )
+    _print_json(calibration_summary(model))
+    return 0
+
+
+def _validate_calibration(arguments: Sequence[str]) -> int:
+    parser = argparse.ArgumentParser(
+        prog="prob4d identity validate-calibration",
+        description="strictly validate one source material-identity calibration",
+    )
+    parser.add_argument("calibration", type=Path)
+    parsed = parser.parse_args(arguments)
+    model = load_material_identity_weight_calibration(parsed.calibration)
+    _print_json(calibration_summary(model))
+    return 0
+
+
+def _calibrate_mixture(arguments: Sequence[str]) -> int:
+    parser = argparse.ArgumentParser(
+        prog="prob4d identity calibrate-mixture",
+        description=(
+            "build one portable identity mixture using only a retained "
+            "source-fitted calibration"
+        ),
+    )
+    parser.add_argument("calibration", type=Path)
+    parser.add_argument("config", type=Path)
+    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--overwrite", action="store_true")
+    parsed = parser.parse_args(arguments)
+    model = load_material_identity_weight_calibration(parsed.calibration)
+    mixture = calibrated_mixture_from_config(
+        model,
+        _load_json(parsed.config, name="calibrated material-identity mixture config"),
+    )
+    write_material_identity_mixture(
+        parsed.output,
+        mixture,
+        overwrite=parsed.overwrite,
+    )
+    _print_json(_mixture_summary(mixture))
+    return 0
+
+
 def _validate_mixture(arguments: Sequence[str]) -> int:
     parser = argparse.ArgumentParser(
         prog="prob4d identity validate-mixture",
@@ -314,6 +385,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "command",
         choices=(
+            "fit-calibration",
+            "validate-calibration",
+            "calibrate-mixture",
             "build-mixture",
             "validate-mixture",
             "validate-stream",
@@ -329,6 +403,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.print_help()
         return 0
     parsed, remaining = parser.parse_known_args(arguments)
+    if parsed.command == "fit-calibration":
+        return _fit_calibration(remaining)
+    if parsed.command == "validate-calibration":
+        return _validate_calibration(remaining)
+    if parsed.command == "calibrate-mixture":
+        return _calibrate_mixture(remaining)
     if parsed.command == "build-mixture":
         return _build(remaining)
     if parsed.command == "validate-mixture":

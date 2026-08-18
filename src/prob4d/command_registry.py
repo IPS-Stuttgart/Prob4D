@@ -330,7 +330,7 @@ _COMMAND_ROWS: Final[tuple[CommandRow, ...]] = (
         "material-identity",
         "identity",
         "prob4d.material_identity_cli:main",
-        "build, validate, and marginalize material-identity artifacts",
+        "fit, build, validate, and marginalize material-identity artifacts",
         S,
         "material-identity",
         (),

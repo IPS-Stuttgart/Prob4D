@@ -26,6 +26,7 @@ prob4d observation export-exploratory
 prob4d observation validate
 prob4d evaluate provider
 prob4d experiment heldout-provider
+prob4d identity
 prob4d provider manifest
 prob4d provider target-admit
 prob4d provider target-verify

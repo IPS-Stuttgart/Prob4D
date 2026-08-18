@@ -1,0 +1,72 @@
+{
+  "association_revision": "dddddddddddddddddddddddddddddddddddddddd",
+  "association_rule_id": "4e1b77a5276d057abb0b9e7915b3f29024f0f3878f2e54f740c03a01eca4f0fb",
+  "candidates": [
+    {
+      "association_result_id": null,
+      "features": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "metadata": {
+        "fallback": true
+      },
+      "source_endpoint": null,
+      "source_score": null
+    },
+    {
+      "association_result_id": "007aa4f9e4e002946ad9037177697e5366d67804efe31ba15c843d9e2711304c",
+      "features": [
+        0.61,
+        0.55,
+        0.2
+      ],
+      "metadata": {
+        "source_only": true
+      },
+      "source_endpoint": {
+        "track_id": 11,
+        "window_id": "window-000"
+      },
+      "source_score": 0.61
+    },
+    {
+      "association_result_id": "5fc4abb8e124843bd2748c21bdb1b51f6d6e30e1b9c89f938e6607c7f164f89e",
+      "features": [
+        0.88,
+        0.8,
+        0.62
+      ],
+      "metadata": {
+        "source_only": true
+      },
+      "source_endpoint": {
+        "track_id": 7,
+        "window_id": "window-001"
+      },
+      "source_score": 0.88
+    }
+  ],
+  "causal_frame_stop": 75,
+  "feature_names": [
+    "source_score",
+    "shared_frame_fraction",
+    "ambiguity_margin"
+  ],
+  "feature_schema_id": "a8ae2a8896944262959ad76c4675afc4abe9ef41296e7387e5699881307a209c",
+  "metadata": {
+    "claim_bearing": false,
+    "feature_values_use_prefix_only": true
+  },
+  "target_endpoint": {
+    "track_id": 3,
+    "window_id": "window-002"
+  },
+  "tracklet_producer_revision": "cccccccccccccccccccccccccccccccccccccccc",
+  "window_order": [
+    "window-000",
+    "window-001",
+    "window-002"
+  ]
+}
