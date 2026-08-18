@@ -45,6 +45,13 @@ def _repair_numpy_metric_types() -> None:
         )
     text = _replace_once(
         text,
+        "        true_probability = max(float(probability[true_index]), np.finfo(np.float64).tiny)",
+        "        true_probability = max("
+        "float(probability[true_index]), float(np.finfo(np.float64).tiny)"
+        ")",
+    )
+    text = _replace_once(
+        text,
         "        target = np.zeros(len(probability), dtype=np.float64)",
         "        target: FloatArray = np.zeros(len(probability), dtype=np.float64)",
     )
