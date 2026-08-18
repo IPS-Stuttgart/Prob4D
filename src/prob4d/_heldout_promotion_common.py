@@ -19,9 +19,11 @@ from ._selection_evidence_common import (
     _strict_digest,
     _strict_integer,
     _strict_list,
-    _strict_mapping as _base_strict_mapping,
     _strict_real,
     _strict_string,
+)
+from ._selection_evidence_common import (
+    _strict_mapping as _base_strict_mapping,
 )
 
 HELDOUT_PROMOTION_LOCK_SCHEMA = "prob4d.heldout-provider-promotion-lock"
