@@ -1,0 +1,191 @@
+name: Target-free observation rehearsal
+
+# This lane receives no dataset secrets and opens no source suffix or target payload.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/target-free-rehearsal.yml"
+      - "docs/target-free-rehearsal.md"
+      - "pyproject.toml"
+      - "src/prob4d/command_registry.py"
+      - "src/prob4d/target_free_rehearsal.py"
+      - "src/prob4d_independent_verifier/**"
+      - "tests/test_independent_observation_verifier.py"
+      - "tests/test_target_free_rehearsal.py"
+      - "tests/test_target_free_rehearsal_workflow.py"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/target-free-rehearsal.yml"
+      - "docs/target-free-rehearsal.md"
+      - "pyproject.toml"
+      - "src/prob4d/command_registry.py"
+      - "src/prob4d/target_free_rehearsal.py"
+      - "src/prob4d_independent_verifier/**"
+      - "tests/test_independent_observation_verifier.py"
+      - "tests/test_target_free_rehearsal.py"
+      - "tests/test_target_free_rehearsal_workflow.py"
+  workflow_dispatch:
+  schedule:
+    - cron: "17 4 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: target-free-rehearsal-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUNBUFFERED: "1"
+  REHEARSAL_SOURCE_REVISION: >-
+    ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  rehearsal:
+    name: Build, install, rehearse, and replay adversarial controls
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out exact source revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.REHEARSAL_SOURCE_REVISION }}
+          persist-credentials: false
+          clean: true
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install development environment
+        run: |
+          set -euo pipefail
+          python -m pip install -e ".[dev]"
+          python -m pip check
+      - name: Run focused quality and contract regressions
+        run: |
+          set -euo pipefail
+          python -m ruff check -- \
+            src/prob4d/target_free_rehearsal.py \
+            src/prob4d_independent_verifier \
+            tests/test_independent_observation_verifier.py \
+            tests/test_target_free_rehearsal.py \
+            tests/test_target_free_rehearsal_workflow.py
+          python -m mypy \
+            src/prob4d/target_free_rehearsal.py \
+            src/prob4d_independent_verifier
+          python -m pytest -q \
+            tests/test_independent_observation_verifier.py \
+            tests/test_target_free_rehearsal.py \
+            tests/test_target_free_rehearsal_workflow.py
+      - name: Build wheel and source distribution
+        run: |
+          set -euo pipefail
+          python -m build
+          python -m twine check dist/*
+      - name: Install the wheel in an isolated environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m venv "$RUNNER_TEMP/prob4d-target-free-rehearsal"
+          python_bin="$RUNNER_TEMP/prob4d-target-free-rehearsal/bin/python"
+          wheel="$(find dist -maxdepth 1 -name '*.whl' -print -quit)"
+          test -n "$wheel"
+          "$python_bin" -m pip install --upgrade pip
+          "$python_bin" -m pip install "$wheel"
+          "$python_bin" -m pip check
+      - name: Run and verify the installed-wheel rehearsal
+        shell: bash
+        run: |
+          set -euo pipefail
+          bin="$RUNNER_TEMP/prob4d-target-free-rehearsal/bin"
+          mkdir -p outputs
+          "$bin/prob4d" diagnostic target-free-rehearsal run \
+            outputs/target-free-rehearsal \
+            --source-revision "$REHEARSAL_SOURCE_REVISION" \
+            > outputs/target-free-rehearsal-stdout.json
+          "$bin/prob4d" diagnostic target-free-rehearsal verify \
+            outputs/target-free-rehearsal/target_free_rehearsal_receipt.json \
+            > outputs/target-free-rehearsal-verify.json
+          "$bin/python" -m prob4d_independent_verifier \
+            outputs/target-free-rehearsal/valid_observation_belief.npz \
+            --compact \
+            > outputs/independent-installed-wheel-verification.json
+      - name: Cross-check installed verifier and sealed receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/prob4d-target-free-rehearsal/bin/python" - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path("outputs/target-free-rehearsal")
+          receipt = json.loads(
+              (root / "target_free_rehearsal_receipt.json").read_text()
+          )
+          report = json.loads(
+              Path("outputs/independent-installed-wheel-verification.json").read_text()
+          )
+          assert report["report_id"] == receipt["positive_control"][
+              "independent_report_id"
+          ]
+          assert report["artifact_id"] == receipt["positive_control"]["artifact_id"]
+          assert receipt["target_access"] == {
+              "source_suffix_payloads_opened": 0,
+              "target_payloads_opened": 0,
+              "target_outcomes_opened": 0,
+              "scientific_evidence": False,
+          }
+          assert all(
+              control["official_rejected"]
+              and control["independent_rejected"]
+              for control in receipt["negative_controls"]
+          )
+          PY
+          sha256sum outputs/target-free-rehearsal/* \
+            outputs/target-free-rehearsal/negative_controls/* \
+            > outputs/SHA256SUMS
+      - name: Publish result summary
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f outputs/target-free-rehearsal/target_free_rehearsal_receipt.json ]]; then
+            python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          from pathlib import Path
+
+          receipt = json.loads(
+              Path(
+                  "outputs/target-free-rehearsal/target_free_rehearsal_receipt.json"
+              ).read_text()
+          )
+          print("## Target-free observation rehearsal")
+          print()
+          print(f"- Receipt ID: `{receipt['receipt_id']}`")
+          print(
+              "- Observation artifact: "
+              f"`{receipt['positive_control']['artifact_id']}`"
+          )
+          print(
+              "- Independent report: "
+              f"`{receipt['positive_control']['independent_report_id']}`"
+          )
+          print(f"- Adversarial controls: {len(receipt['negative_controls'])}/5 rejected")
+          print("- Source suffixes opened: 0")
+          print("- Target payloads/outcomes opened: 0/0")
+          print()
+          print(receipt["claim_boundary"])
+          PY
+          fi
+      - name: Upload the sealed receipt and controls
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: target-free-observation-rehearsal
+          path: outputs/
+          if-no-files-found: error
+          retention-days: 30

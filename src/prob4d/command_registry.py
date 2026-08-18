@@ -272,6 +272,17 @@ _COMMAND_ROWS: Final[tuple[CommandRow, ...]] = (
         False,
     ),
     (
+        "target-free-rehearsal",
+        "diagnostic target-free-rehearsal",
+        "prob4d.target_free_rehearsal:main",
+        "rehearse observation admission and adversarial controls without target access",
+        D,
+        "observation-contract",
+        (),
+        False,
+        False,
+    ),
+    (
         "visual-bias-calibration",
         "diagnostic visual-bias-calibration",
         "prob4d.visual_bias_calibration:main",

@@ -136,6 +136,7 @@ exact fallback as ordered gates:
 ```bash
 prob4d diagnostic provider-support-envelope --help
 prob4d diagnostic source-covariance-localization --help
+prob4d diagnostic target-free-rehearsal --help
 prob4d provider prefix-admission --help
 prob4d experiment fresh-provider-readiness --help
 ```
@@ -143,7 +144,11 @@ prob4d experiment fresh-provider-readiness --help
 Only an explicit `point-covariance-localized` result authorizes source-only
 point-uncertainty development. Only a complete
 `ready-for-one-target-evaluation` decision authorizes one evaluation of the exact
-bound unopened target roster. See
+bound unopened target roster. Before a one-shot source or target execution, run
+the [target-free observation rehearsal](docs/target-free-rehearsal.md). It seals a
+normative positive control, verifies it through the official loader and a separate
+implementation that imports no Prob4D code, and proves that registered adversarial
+controls fail closed without opening outcomes. See
 [provider readiness localization](docs/provider-readiness-localization.md) and
 [fresh-provider readiness](docs/fresh-provider-readiness.md).
 
