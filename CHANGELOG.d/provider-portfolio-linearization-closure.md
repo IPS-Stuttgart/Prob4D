@@ -1,0 +1,1 @@
+Provider portfolios now use schema v2 with an explicit `linearization-closure` gate between gauge/dependence and conditional covariance. Point-covariance development cannot be authorized until closure passes. Existing schema-v1 artifacts remain strictly validatable without inventing closure evidence.
