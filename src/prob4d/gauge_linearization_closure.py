@@ -32,7 +32,11 @@ from ._gauge_linearization_numerics import (
     _case_reports,
     _group_reports,
     _reports_as_plain,
+)
+from ._gauge_linearization_numerics import (
     evaluate_gauge_linearization_case as evaluate_gauge_linearization_case,
+)
+from ._gauge_linearization_numerics import (
     linearize_sim3_chain as linearize_sim3_chain,
 )
 from ._immutable_json import frozen_finite_json_mapping, plain_json
