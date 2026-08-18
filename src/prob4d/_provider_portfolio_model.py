@@ -15,7 +15,8 @@ from ._strict_json import (
 )
 
 PROVIDER_PORTFOLIO_SCHEMA: Final = "prob4d.provider-portfolio"
-PROVIDER_PORTFOLIO_VERSION: Final = 1
+PROVIDER_PORTFOLIO_VERSION: Final = 2
+SUPPORTED_PROVIDER_PORTFOLIO_VERSIONS: Final[tuple[int, ...]] = (1, 2)
 PROVIDER_PORTFOLIO_CLAIM_BOUNDARY: Final = (
     "This artifact constrains provider-development concurrency and records ordered "
     "gate evidence. It does not establish provider accuracy, uncertainty calibration, "
@@ -27,11 +28,20 @@ ProviderRole = Literal["primary", "alternative", "parked"]
 ProviderStatus = Literal["active", "parked", "promoted", "rejected", "archived"]
 GateDecision = Literal["not-started", "in-progress", "passed", "failed"]
 
+PROVIDER_STAGES_V1: Final[tuple[str, ...]] = (
+    "support",
+    "means",
+    "identity",
+    "gauge-dependence",
+    "conditional-covariance",
+    "query-value",
+)
 PROVIDER_STAGES: Final[tuple[str, ...]] = (
     "support",
     "means",
     "identity",
     "gauge-dependence",
+    "linearization-closure",
     "conditional-covariance",
     "query-value",
 )
@@ -61,9 +71,19 @@ POLICY_FIELDS: Final = frozenset(
 )
 
 
-def canonical_policy() -> dict[str, object]:
+def provider_stages_for_version(version: int) -> tuple[str, ...]:
+    """Return the exact ordered stages owned by one persisted schema version."""
+
+    if type(version) is not int or version not in SUPPORTED_PROVIDER_PORTFOLIO_VERSIONS:
+        raise ValueError("unsupported provider portfolio schema version")
+    return PROVIDER_STAGES_V1 if version == 1 else PROVIDER_STAGES
+
+
+def canonical_policy(
+    *, version: int = PROVIDER_PORTFOLIO_VERSION
+) -> dict[str, object]:
     return {
-        "ordered_stages": list(PROVIDER_STAGES),
+        "ordered_stages": list(provider_stages_for_version(version)),
         "max_active_primary": MAX_ACTIVE_PRIMARY,
         "max_active_alternative": MAX_ACTIVE_ALTERNATIVE,
         "active_roles": list(ACTIVE_PROVIDER_ROLES),
@@ -106,7 +126,7 @@ def _decision(value: object, *, name: str) -> GateDecision:
 def _evidence_digest(value: object, *, name: str) -> str | None:
     if value is None:
         return None
-    return require_sha256(value, name=name)
+    return cast(str, require_sha256(value, name=name))
 
 
 def _normalize_gate(
@@ -127,15 +147,23 @@ def _normalize_gate(
     return {"decision": decision, "evidence_id": evidence_id}
 
 
-def _decisions(gates: Mapping[str, object]) -> tuple[object, ...]:
+def _decisions(
+    gates: Mapping[str, object],
+    *,
+    stages: tuple[str, ...],
+) -> tuple[object, ...]:
     return tuple(
-        cast(Mapping[str, object], gates[stage])["decision"]
-        for stage in PROVIDER_STAGES
+        cast(Mapping[str, object], gates[stage])["decision"] for stage in stages
     )
 
 
-def _validate_gate_order(gates: Mapping[str, object], *, provider_id: str) -> None:
-    decisions = _decisions(gates)
+def _validate_gate_order(
+    gates: Mapping[str, object],
+    *,
+    provider_id: str,
+    stages: tuple[str, ...],
+) -> None:
+    decisions = _decisions(gates, stages=stages)
     active = tuple(index for index, value in enumerate(decisions) if value == "in-progress")
     failed = tuple(index for index, value in enumerate(decisions) if value == "failed")
     if len(active) > 1:
@@ -167,19 +195,36 @@ def _validate_gate_order(gates: Mapping[str, object], *, provider_id: str) -> No
         )
 
 
-def _normalize_gates(value: object, *, provider_id: str) -> dict[str, object]:
+def _normalize_gates(
+    value: object,
+    *,
+    provider_id: str,
+    stages: tuple[str, ...],
+) -> dict[str, object]:
     gates = require_mapping(value, name=f"entry {provider_id!r}.gates")
     require_exact_fields(
         gates,
-        frozenset(PROVIDER_STAGES),
+        frozenset(stages),
         name=f"entry {provider_id!r}.gates",
     )
-    normalized = {
+    normalized: dict[str, object] = {
         stage: _normalize_gate(gates[stage], provider_id=provider_id, stage=stage)
-        for stage in PROVIDER_STAGES
+        for stage in stages
     }
-    _validate_gate_order(normalized, provider_id=provider_id)
+    _validate_gate_order(normalized, provider_id=provider_id, stages=stages)
     return normalized
+
+
+def _point_covariance_prerequisites(stages: tuple[str, ...]) -> tuple[str, ...]:
+    prerequisites = (
+        "support",
+        "means",
+        "identity",
+        "gauge-dependence",
+    )
+    if "linearization-closure" in stages:
+        return prerequisites + ("linearization-closure",)
+    return prerequisites
 
 
 def _validate_status(
@@ -189,8 +234,9 @@ def _validate_status(
     status: ProviderStatus,
     gates: Mapping[str, object],
     point_authorized: bool,
+    stages: tuple[str, ...],
 ) -> None:
-    decisions = _decisions(gates)
+    decisions = _decisions(gates, stages=stages)
     in_progress = tuple(value for value in decisions if value == "in-progress")
     failed = tuple(value for value in decisions if value == "failed")
     all_passed = all(value == "passed" for value in decisions)
@@ -224,12 +270,22 @@ def _validate_status(
         if status == "parked" and role != "parked":
             raise ValueError(f"parked entry {provider_id!r} must use the parked role")
 
-    if point_authorized and decisions[:4] != ("passed",) * 4:
+    prerequisites = _point_covariance_prerequisites(stages)
+    missing_prerequisites = tuple(
+        stage
+        for stage in prerequisites
+        if cast(Mapping[str, object], gates[stage])["decision"] != "passed"
+    )
+    if point_authorized and missing_prerequisites:
+        required = ", ".join(prerequisites[:-1]) + f", and {prerequisites[-1]}"
         raise ValueError(
             f"entry {provider_id!r} cannot authorize conditional covariance before "
-            "support, means, identity, and gauge-dependence pass"
+            f"{required} pass"
         )
-    conditional = decisions[4]
+
+    conditional = cast(Mapping[str, object], gates["conditional-covariance"])[
+        "decision"
+    ]
     if conditional == "in-progress" and not point_authorized:
         raise ValueError(
             f"entry {provider_id!r} cannot develop conditional covariance without "
@@ -237,7 +293,12 @@ def _validate_status(
         )
 
 
-def _normalize_entry(value: object, *, index: int) -> dict[str, object]:
+def _normalize_entry(
+    value: object,
+    *,
+    index: int,
+    stages: tuple[str, ...],
+) -> dict[str, object]:
     entry = require_mapping(value, name=f"entries[{index}]")
     require_exact_fields(entry, ENTRY_FIELDS, name=f"entries[{index}]")
     provider_id = require_exact_string(
@@ -250,7 +311,11 @@ def _normalize_entry(value: object, *, index: int) -> dict[str, object]:
     )
     role = _role(entry["role"], name=f"entry {provider_id!r}.role")
     status = _status(entry["status"], name=f"entry {provider_id!r}.status")
-    gates = _normalize_gates(entry["gates"], provider_id=provider_id)
+    gates = _normalize_gates(
+        entry["gates"],
+        provider_id=provider_id,
+        stages=stages,
+    )
     point_authorized = _exact_bool(
         entry["point_covariance_development_authorized"],
         name=f"entry {provider_id!r}.point_covariance_development_authorized",
@@ -265,6 +330,7 @@ def _normalize_entry(value: object, *, index: int) -> dict[str, object]:
         status=status,
         gates=gates,
         point_authorized=point_authorized,
+        stages=stages,
     )
     return {
         "provider_id": provider_id,
@@ -277,9 +343,13 @@ def _normalize_entry(value: object, *, index: int) -> dict[str, object]:
     }
 
 
-def normalize_entries(value: object) -> list[dict[str, object]]:
+def normalize_entries(
+    value: object,
+    *,
+    stages: tuple[str, ...] = PROVIDER_STAGES,
+) -> list[dict[str, object]]:
     entries = [
-        _normalize_entry(item, index=index)
+        _normalize_entry(item, index=index, stages=stages)
         for index, item in enumerate(_exact_list(value, name="entries"))
     ]
     if not entries:

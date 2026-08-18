@@ -99,8 +99,10 @@ module = [
     "prob4d._observation_gaussian_common",
     "prob4d._observation_gaussian_tree",
     "prob4d._observation_gaussian_woodbury",
+    "prob4d._provider_portfolio_model",
     "prob4d.api.v2",
     "prob4d.observation_gaussian_operator",
+    "prob4d.provider_portfolio",
     "prob4d.public_api_manifest",
 ]
 disallow_untyped_defs = true

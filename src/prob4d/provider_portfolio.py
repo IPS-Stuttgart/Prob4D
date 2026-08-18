@@ -20,8 +20,11 @@ from ._provider_portfolio_model import (
     PROVIDER_PORTFOLIO_SCHEMA,
     PROVIDER_PORTFOLIO_VERSION,
     PROVIDER_STAGES,
+    PROVIDER_STAGES_V1,
+    SUPPORTED_PROVIDER_PORTFOLIO_VERSIONS,
     canonical_policy,
     normalize_entries,
+    provider_stages_for_version,
 )
 from ._strict_json import (
     load_json_object,
@@ -66,7 +69,7 @@ def _portfolio_id(value: Mapping[str, Any]) -> str:
 
 
 def build_provider_portfolio(specification: Mapping[str, Any]) -> dict[str, Any]:
-    """Build one canonical content-addressed portfolio from a strict specification."""
+    """Build one canonical content-addressed v2 portfolio from a strict specification."""
 
     spec = require_mapping(specification, name="provider portfolio specification")
     require_exact_fields(spec, _SPEC_FIELDS, name="provider portfolio specification")
@@ -74,7 +77,7 @@ def build_provider_portfolio(specification: Mapping[str, Any]) -> dict[str, Any]
         "schema": PROVIDER_PORTFOLIO_SCHEMA,
         "schema_version": PROVIDER_PORTFOLIO_VERSION,
         "policy": canonical_policy(),
-        "entries": normalize_entries(spec["entries"]),
+        "entries": normalize_entries(spec["entries"], stages=PROVIDER_STAGES),
         "metadata": plain_json(
             require_finite_json_mapping(spec["metadata"], name="metadata")
         ),
@@ -84,24 +87,26 @@ def build_provider_portfolio(specification: Mapping[str, Any]) -> dict[str, Any]
     return validate_provider_portfolio(payload)
 
 
-def _validated_policy(value: object) -> dict[str, object]:
+def _validated_policy(value: object, *, version: int) -> dict[str, object]:
     policy = require_mapping(value, name="policy")
     require_exact_fields(policy, POLICY_FIELDS, name="policy")
-    if plain_json(policy) != canonical_policy():
+    expected = canonical_policy(version=version)
+    if plain_json(policy) != expected:
         raise ValueError("provider portfolio policy is not canonical")
-    return canonical_policy()
+    return expected
 
 
 def validate_provider_portfolio(value: object) -> dict[str, Any]:
-    """Validate a persisted provider portfolio and return canonical plain data."""
+    """Validate a persisted v1 or v2 portfolio and return canonical plain data."""
 
     portfolio = require_mapping(value, name="provider portfolio")
     require_exact_fields(portfolio, _PORTFOLIO_FIELDS, name="provider portfolio")
     if require_exact_string(portfolio["schema"], name="schema") != PROVIDER_PORTFOLIO_SCHEMA:
         raise ValueError("unsupported provider portfolio schema")
     version = portfolio["schema_version"]
-    if type(version) is not int or version != PROVIDER_PORTFOLIO_VERSION:
+    if type(version) is not int or version not in SUPPORTED_PROVIDER_PORTFOLIO_VERSIONS:
         raise ValueError("unsupported provider portfolio schema version")
+    stages = provider_stages_for_version(version)
     if (
         require_exact_string(portfolio["claim_boundary"], name="claim_boundary")
         != PROVIDER_PORTFOLIO_CLAIM_BOUNDARY
@@ -110,9 +115,9 @@ def validate_provider_portfolio(value: object) -> dict[str, Any]:
 
     normalized: dict[str, Any] = {
         "schema": PROVIDER_PORTFOLIO_SCHEMA,
-        "schema_version": PROVIDER_PORTFOLIO_VERSION,
-        "policy": _validated_policy(portfolio["policy"]),
-        "entries": normalize_entries(portfolio["entries"]),
+        "schema_version": version,
+        "policy": _validated_policy(portfolio["policy"], version=version),
+        "entries": normalize_entries(portfolio["entries"], stages=stages),
         "metadata": plain_json(
             require_finite_json_mapping(portfolio["metadata"], name="metadata")
         ),
@@ -159,6 +164,7 @@ def provider_portfolio_summary(portfolio: Mapping[str, Any]) -> dict[str, object
     """Return an operational summary without changing the validated artifact."""
 
     validated = validate_provider_portfolio(portfolio)
+    stages = provider_stages_for_version(cast(int, validated["schema_version"]))
     entries = cast(list[dict[str, object]], validated["entries"])
     counts = {
         status: sum(entry["status"] == status for entry in entries)
@@ -171,7 +177,7 @@ def provider_portfolio_summary(portfolio: Mapping[str, Any]) -> dict[str, object
         gates = cast(Mapping[str, object], entry["gates"])
         stage = next(
             candidate
-            for candidate in PROVIDER_STAGES
+            for candidate in stages
             if cast(Mapping[str, object], gates[candidate])["decision"]
             == "in-progress"
         )
@@ -184,6 +190,7 @@ def provider_portfolio_summary(portfolio: Mapping[str, Any]) -> dict[str, object
         )
     return {
         "portfolio_id": validated["portfolio_id"],
+        "schema_version": validated["schema_version"],
         "entry_count": len(entries),
         "status_counts": counts,
         "active": active,
@@ -195,12 +202,12 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    build = subparsers.add_parser("build", help="build a portfolio from a JSON spec")
+    build = subparsers.add_parser("build", help="build a v2 portfolio from a JSON spec")
     build.add_argument("specification")
     build.add_argument("--output", required=True)
     build.set_defaults(handler=_build_command)
 
-    verify = subparsers.add_parser("verify", help="verify a persisted portfolio")
+    verify = subparsers.add_parser("verify", help="verify a persisted v1 or v2 portfolio")
     verify.add_argument("portfolio")
     verify.set_defaults(handler=_verify_command)
 
@@ -245,6 +252,8 @@ __all__ = [
     "PROVIDER_PORTFOLIO_SCHEMA",
     "PROVIDER_PORTFOLIO_VERSION",
     "PROVIDER_STAGES",
+    "PROVIDER_STAGES_V1",
+    "SUPPORTED_PROVIDER_PORTFOLIO_VERSIONS",
     "build_provider_portfolio",
     "load_provider_portfolio",
     "main",

@@ -61,9 +61,11 @@ def test_authoritative_quality_workflow_covers_current_stable_surfaces() -> None
     required = (
         "src/prob4d/_version.py",
         "src/prob4d/_provider_export_core.py",
+        "src/prob4d/_provider_portfolio_model.py",
         "src/prob4d/api/v2.py",
         "src/prob4d/material_identity_cli.py",
         "src/prob4d/material_identity_weight_calibration.py",
+        "src/prob4d/provider_portfolio.py",
         "src/prob4d/provider_v1.py",
         "src/prob4d/provider_v2_factor_bundle.py",
         "src/prob4d/provider_v2_factors.py",
