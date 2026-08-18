@@ -1,0 +1,29 @@
+name: Assemble fused-artifact hardening patch
+
+on:
+  push:
+    branches:
+      - agent/harden-fused-prediction-artifacts
+    paths:
+      - .agent-patch/READY
+
+permissions:
+  contents: write
+
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/harden-fused-prediction-artifacts
+          fetch-depth: 0
+      - name: Assemble verified patch payload
+        run: python .agent-patch/assemble.py
+      - name: Commit assembled patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Harden fused prediction artifacts"
+          git push origin HEAD:agent/harden-fused-prediction-artifacts
