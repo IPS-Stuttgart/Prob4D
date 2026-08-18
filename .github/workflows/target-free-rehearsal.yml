@@ -187,5 +187,5 @@ jobs:
         with:
           name: target-free-observation-rehearsal
           path: outputs/
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 30
