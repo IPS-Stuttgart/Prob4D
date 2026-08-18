@@ -26,7 +26,12 @@ translation_inverse = -(1 / scale) * rotation.T @ translation.
 
 The principal `SO(3)` logarithm is not differentiable at angle pi. Analytic
 composition or inversion therefore fails closed within the declared branch-cut
-tolerance rather than emitting platform-dependent covariance.
+tolerance rather than emitting platform-dependent covariance. For ordinary
+serialization exactly at the branch, where `axis` and `-axis` represent the same
+rotation, `so3_log` now applies a deterministic lexicographic axis-sign rule. The
+first numerically nonzero axis component is positive. This stabilizes
+cross-platform transform vectors and content identities without claiming a
+unique differentiable coordinate at the branch cut.
 
 ## Public experimental surface
 
@@ -53,7 +58,8 @@ The focused validation covers:
 - analytic composition and inversion covariance against a numerical oracle;
 - exact transform parity with the historical sequential estimator;
 - close covariance parity away from branch cuts;
-- positive-semidefinite output validation; and
+- positive-semidefinite output validation;
+- deterministic exact-pi axis-angle serialization; and
 - branch-cut, invalid-covariance, and coercive-parameter rejection.
 
 Dense alignment covariance now obtains IID inverses and cluster-robust sandwich
@@ -65,8 +71,8 @@ estimator formula.
 
 ## Claim boundary
 
-Analytic first-order derivatives and factorized solves reduce numerical
-approximation and make failure modes explicit. They do not establish target-data
-calibration, provider competence, physical-query benefit, or Causal4D benefit.
-Any promotion requires the same source/calibration separation and held-out
-physical gate as other Prob4D covariance treatments.
+Analytic first-order derivatives, canonical branch serialization, and factorized
+solves reduce numerical approximation and make failure modes explicit. They do
+not establish target-data calibration, provider competence, physical-query
+benefit, or Causal4D benefit. Any promotion requires the same source/calibration
+separation and held-out physical gate as other Prob4D covariance treatments.

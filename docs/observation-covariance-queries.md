@@ -33,7 +33,7 @@ is materialized; the tree-sparse route keeps the gauge prior matrix-free. A
 single query may be passed with shape `(M, 3)`, and a conventional flattened
 Jacobian with shape `(Q, 3M)` is accepted as well.
 
-For iterative algorithms and scalar diagnostics:
+For covariance actions and scalar covariance diagnostics:
 
 ```python
 from prob4d.api.v2 import (
@@ -49,6 +49,64 @@ The `component` argument can select `"conditional"`, `"gauge"`, or
 `"marginal"`. This decomposition is suitable for a same-mean covariance-value
 certificate: downstream code can hold the observation mean and physical query
 fixed while changing only the admitted uncertainty representation.
+
+## Structured Gaussian solves and proper scores
+
+Likelihood evaluation needs the inverse action and log determinant of the same
+joint covariance, not a sum of independent rowwise marginal scores. Build one
+cached operator when several residuals or right-hand sides share the same factor
+stack:
+
+```python
+from prob4d.api.v2 import build_observation_gaussian_operator
+
+operator = build_observation_gaussian_operator(stacked)
+
+precision_residual = operator.solve(residual_xyz_m)
+mahalanobis_squared = operator.precision_quadratic(residual_xyz_m)
+log_determinant = operator.log_determinant
+gaussian_nll = operator.gaussian_nll(residual_xyz_m)
+
+factor_bytes = operator.factor_storage_nbytes
+dense_bytes = operator.dense_covariance_nbytes
+storage_ratio = operator.factor_storage_ratio_to_dense
+```
+
+`solve` accepts shape `(M, 3)` or batched shape `(M, 3, R)`. Convenience
+functions are also available for one-off calls:
+
+```python
+from prob4d.api.v2 import (
+    observation_gaussian_nll,
+    observation_log_determinant,
+    observation_precision_quadratic,
+    solve_observation_covariance,
+)
+```
+
+Dense and sparse stacks use a covariance-root Woodbury factorization. The gauge
+prior may be positive semidefinite; zero-variance gauge directions are retained
+as a rank-deficient covariance rather than regularized silently. Tree-sparse
+stacks combine the row information with the causal gauge-tree precision and
+eliminate seven-dimensional blocks from leaves to the root. This computes the
+exact inverse action and determinant without materializing either the full
+`3M x 3M` observation covariance or a dense tree-gauge covariance.
+
+The conditional row covariances `R_i` must be strictly positive definite for a
+proper nonsingular Gaussian likelihood. A singular conditional block fails
+closed instead of receiving an implicit jitter. The inverse covariance does not
+admit an additive `conditional`/`gauge` component interpretation, so these
+functions always operate on the complete marginal covariance.
+
+The storage properties report the cached numerical factors only and exclude the
+already-owned immutable input stack. For the tree-sparse backend this storage is
+linear in observation and gauge count: one conditional `3 x 3` factor per row
+and two `7 x 7` blocks per gauge. `factorization_backend` records which exact
+implementation was selected:
+
+- `dense-gauge-root-woodbury-v1`;
+- `sparse-gauge-root-woodbury-v1`; or
+- `tree-block-information-v1`.
 
 ## Group-aware pathwise calibration
 
@@ -107,9 +165,10 @@ simultaneous group-coverage result is emitted only when an independently fitted
 
 ## Ownership boundary
 
-Prob4D supplies generic observation-space moments, matrix-free projections, and
-group-aware source/calibration diagnostics. BayesianPhysTwin owns the physical
-residual or query Jacobian, update guard, and exact physical fallback. Causal4D
-consumes the accepted BayesianPhysTwin belief and owns intervention contrasts.
-These APIs do not by themselves establish provider competence, physical benefit,
-causal benefit, deployment safety, or scientific promotion.
+Prob4D supplies generic observation-space moments, structured inverse actions,
+proper Gaussian scores, matrix-free projections, and group-aware
+source/calibration diagnostics. BayesianPhysTwin owns the physical residual or
+query Jacobian, update guard, and exact physical fallback. Causal4D consumes the
+accepted BayesianPhysTwin belief and owns intervention contrasts. These APIs do
+not by themselves establish provider competence, physical benefit, causal
+benefit, deployment safety, or scientific promotion.

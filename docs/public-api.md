@@ -34,6 +34,7 @@ exploratory provider-v2 work. It exposes:
 - sparse and tree-sparse execution contracts and strict loaders;
 - portable causal gauge-tree priors and artifacts;
 - matrix-free observation covariance actions and linear-query projections;
+- structured Gaussian inverse actions, log determinants, and proper scores;
 - source-only group-aware pathwise calibration and equal-group diagnostics;
 - `Sim3`, project identity, and required serialization helpers; and
 - explicit provider-v2 export and validation contracts.
@@ -43,12 +44,21 @@ provider-evaluation studies, and paper-specific evidence code remain outside the
 façade. A breaking current ecosystem change requires a new façade such as
 `prob4d.api.v3`; it must not silently alter `prob4d.api.v2`.
 
-## Structured covariance queries and pathwise diagnostics
+## Structured covariance queries and Gaussian operators
 
 `project_observation_covariance` computes the exact requested
 `A @ Sigma @ A.T` from dense, sparse, or tree-sparse observation factors without
 materializing the full observation covariance. The result separates conditional
 point uncertainty from shared gauge uncertainty.
+
+`build_observation_gaussian_operator` factorizes the same joint covariance for
+repeated inverse actions, precision quadratics, log determinants, and Gaussian
+negative log likelihoods. It also reports cached-factor versus dense-covariance
+storage. Dense and sparse stacks use a covariance-root Woodbury factorization
+that permits positive-semidefinite gauge priors. The tree-sparse path performs
+exact seven-dimensional block elimination in the causal gauge-tree information
+form. All paths require strictly positive-definite conditional row covariances
+and fail closed rather than adding implicit jitter.
 
 `fit_pathwise_maximum_calibration` and `pathwise_uncertainty_diagnostics` require
 one frozen physical-object or acquisition-session ID per trajectory. The

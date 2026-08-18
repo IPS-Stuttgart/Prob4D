@@ -8,14 +8,17 @@ for consumers that need only one capability:
 | --- | --- |
 | Similarity-transform geometry | `prob4d.api.geometry_v1` |
 | Portable artifacts and streams | `prob4d.api.artifacts_v1` |
-| Structured covariance queries | `prob4d.api.covariance_v1` |
+| Structured covariance and Gaussian operators | `prob4d.api.covariance_v1` |
 | Calibration contracts | `prob4d.api.calibration_v1` |
 | Provider admission and attestation | `prob4d.api.provider_v1` |
 
 For example:
 
 ```python
-from prob4d.api.covariance_v1 import project_observation_covariance
+from prob4d.api.covariance_v1 import (
+    build_observation_gaussian_operator,
+    project_observation_covariance,
+)
 from prob4d.api.geometry_v1 import Sim3
 ```
 
@@ -47,9 +50,10 @@ promoted façade.
 
 The split is organizational rather than scientific:
 
-- geometry owns `Sim(3)` representation and point Jacobians;
+- geometry owns `Sim3` representation and point Jacobians;
 - artifacts owns portable records and persistence operations;
-- covariance owns exact structured covariance actions and projections;
+- covariance owns exact structured covariance actions, projections, inverse
+  actions, determinants, and proper Gaussian scores;
 - calibration owns source-fitted calibration contracts; and
 - provider owns strict admission, provider identity, and runtime attestation.
 
