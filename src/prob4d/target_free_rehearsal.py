@@ -8,9 +8,9 @@ import json
 import os
 import platform
 import tempfile
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from importlib.metadata import version
-from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, cast
 
