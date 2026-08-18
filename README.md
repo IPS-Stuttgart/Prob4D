@@ -137,9 +137,17 @@ exact fallback as ordered gates:
 prob4d diagnostic provider-support-envelope --help
 prob4d diagnostic source-covariance-localization --help
 prob4d diagnostic target-free-rehearsal --help
+python -m prob4d.gauge_linearization_closure --help
 prob4d provider prefix-admission --help
 prob4d experiment fresh-provider-readiness --help
 ```
+
+The [provider evidence status](docs/provider-evidence-status.md) separates
+implemented capability, controlled mechanism evidence, real-provider boundaries,
+and the next authorized experiment. Before assigning a remaining failure to
+conditional point covariance, use the
+[joint `Sim(3)` linearization-closure diagnostic](docs/gauge-linearization-closure.md)
+to compare analytic propagation with a deterministic nonlinear reference.
 
 Only an explicit `point-covariance-localized` result authorizes source-only
 point-uncertainty development. Only a complete
