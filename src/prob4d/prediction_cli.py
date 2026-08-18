@@ -28,6 +28,14 @@ def _help_parser() -> argparse.ArgumentParser:
         help="convert official recurrent-online CUT3R outputs",
     )
     subparsers.add_parser(
+        "cut3r-comparison",
+        help="freeze or inspect a group-aware native-versus-fused CUT3R comparison",
+    )
+    subparsers.add_parser(
+        "compatibility",
+        help="build or compare additive semantic-compatibility manifests",
+    )
+    subparsers.add_parser(
         "import-generic",
         help="import external canonical PredictionWindow payloads",
     )
@@ -62,6 +70,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         from .cut3r_provider_adapter import main as cut3r_main
 
         return int(cut3r_main(arguments[1:]))
+    if arguments[0] == "cut3r-comparison":
+        from .cut3r_comparison import main as cut3r_comparison_main
+
+        return int(cut3r_comparison_main(arguments[1:]))
+    if arguments[0] == "compatibility":
+        from .semantic_compatibility import main as compatibility_main
+
+        return int(compatibility_main(arguments[1:]))
     if arguments[0] == "import-generic":
         from .prediction_provider_import import main as generic_main
 
