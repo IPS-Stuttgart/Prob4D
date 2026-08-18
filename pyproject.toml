@@ -70,6 +70,7 @@ prob4d = [
     "contract_data/provider_v2_factors_v1/*.json",
     "contract_data/provider_v2_factors_v1/vectors/*.json",
 ]
+prob4d_independent_verifier = ["py.typed"]
 
 [tool.pytest.ini_options]
 addopts = "-ra"
