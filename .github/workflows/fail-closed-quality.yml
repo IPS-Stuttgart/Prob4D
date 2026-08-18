@@ -84,6 +84,7 @@ jobs:
             src/prob4d/_version.py \
             src/prob4d/_provider_export_core.py \
             src/prob4d/_provider_evaluation_provider_neutral.py \
+            src/prob4d/_provider_portfolio_model.py \
             src/prob4d/_observation_gaussian_common.py \
             src/prob4d/_observation_gaussian_tree.py \
             src/prob4d/_observation_gaussian_woodbury.py \
@@ -105,6 +106,7 @@ jobs:
             src/prob4d/provider_execution_attestation.py \
             src/prob4d/provider_manifest.py \
             src/prob4d/provider_manifest_cli.py \
+            src/prob4d/provider_portfolio.py \
             src/prob4d/provider_v1.py \
             src/prob4d/provider_v2.py \
             src/prob4d/provider_v2_cli.py \
