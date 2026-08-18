@@ -16,6 +16,9 @@ from prob4d._deform360_cohort_schema import (
 from prob4d._heldout_promotion_common import PromotionArmV1
 from prob4d._heldout_promotion_lock import (
     HeldoutProviderPromotionLockV1,
+    HeldoutProviderPromotionLockV2,
+    ProviderPromotionIdentityV1,
+    promotion_lock_from_config,
     write_promotion_lock,
 )
 from prob4d.deform360_cohort_binding import (
@@ -171,6 +174,31 @@ def _lock(binding: Deform360OfficialHubCohortBindingV1) -> HeldoutProviderPromot
         minimum_mean_accepted_coverage=0.9,
         metadata={},
     )
+
+
+def _lock_v2(
+    binding: Deform360OfficialHubCohortBindingV1,
+) -> HeldoutProviderPromotionLockV2:
+    legacy = _lock(binding)
+    config = legacy.descriptor()
+    for field_name in ("schema_name", "schema_version", "claim_boundary"):
+        config.pop(field_name)
+    config.pop("motioncrafter_revision")
+    config.pop("model_set_id")
+    config["provider_identity"] = ProviderPromotionIdentityV1(
+        provider_family="external-4d-provider",
+        provider_repository="example/provider",
+        provider_revision=PROVIDER_REVISION,
+        model_set_id=MODEL_SET_ID,
+        loader_id=LOADER_ID,
+        coordinate_semantics="sequence-local-sim3",
+        point_semantics="dense-point-map",
+        flow_semantics="absent",
+        ray_semantics="absent",
+    ).to_dict()
+    result = promotion_lock_from_config(config)
+    assert isinstance(result, HeldoutProviderPromotionLockV2)
+    return result
 
 
 def _payload(group_id: str, *, future: bool) -> PredictionPayloadDescriptorV1:
@@ -482,3 +510,32 @@ def test_installed_admit_and_verify_commands(tmp_path: Path) -> None:
         )
         == 0
     )
+
+
+def test_v2_admission_binds_every_provider_contract_field(tmp_path: Path) -> None:
+    binding = _binding()
+    lock = _lock_v2(binding)
+    config = _config(tmp_path, binding)
+
+    admission = build_target_provider_admission(
+        lock,
+        binding,
+        config,
+        request_root=tmp_path,
+    )
+    assert admission.provider_family == lock.provider_contract.provider_family
+    assert admission.provider_repository == lock.provider_contract.provider_repository
+    assert admission.loader_id == lock.provider_contract.loader_id
+    validate_target_provider_admission_against_lock(admission, lock)
+
+    first_group = binding.target_group_ids[0]
+    path = tmp_path / "manifests" / f"{first_group}.json"
+    path.unlink()
+    _write_manifest(tmp_path, first_group, loader_id="0" * 64)
+    with pytest.raises(ValueError, match="loader_id differs from promotion lock"):
+        build_target_provider_admission(
+            lock,
+            binding,
+            config,
+            request_root=tmp_path,
+        )

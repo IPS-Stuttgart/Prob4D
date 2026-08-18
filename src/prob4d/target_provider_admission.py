@@ -27,6 +27,8 @@ from ._heldout_promotion_common import (
 from ._heldout_promotion_lock import (
     HeldoutProviderPromotionLockV1,
     load_promotion_lock,
+    validate_provider_contract_against_lock,
+    validate_provider_manifest_against_lock,
 )
 from ._immutable_json import frozen_finite_json_mapping, plain_json
 from ._selection_evidence_common import _sha256_json, _strict_integer
@@ -715,10 +717,7 @@ def build_target_provider_admission(
         unit = units[request.group_id]
         path = _resolve_member(root, request.manifest_path, name="provider manifest path")
         manifest, manifest_sha256 = _snapshot_manifest(path)
-        if manifest.provider_revision != lock.motioncrafter_revision:
-            raise ValueError("target provider revision differs from promotion lock")
-        if manifest.model_set_id != lock.model_set_id:
-            raise ValueError("target provider model set differs from promotion lock")
+        validate_provider_manifest_against_lock(lock, manifest)
         contract = _provider_contract(manifest)
         if expected_contract is None:
             expected_contract = contract
@@ -773,10 +772,19 @@ def validate_target_provider_admission_against_lock(
         raise ValueError("target provider admission source revision changed")
     if admission.prediction_run_spec_id != lock.prediction_run_spec_id:
         raise ValueError("target provider admission prediction run-spec changed")
-    if admission.provider_revision != lock.motioncrafter_revision:
-        raise ValueError("target provider admission provider revision changed")
-    if admission.model_set_id != lock.model_set_id:
-        raise ValueError("target provider admission model set changed")
+    validate_provider_contract_against_lock(
+        lock,
+        provider_family=admission.provider_family,
+        provider_repository=admission.provider_repository,
+        provider_revision=admission.provider_revision,
+        model_set_id=admission.model_set_id,
+        loader_id=admission.loader_id,
+        coordinate_semantics=admission.coordinate_semantics,
+        point_semantics=admission.point_semantics,
+        flow_semantics=admission.flow_semantics,
+        ray_semantics=admission.ray_semantics,
+        source_dependency_semantics=admission.source_dependency_semantics,
+    )
     if admission.target_group_ids != lock.target_group_ids:
         raise ValueError("target provider admission target groups changed")
     if lock.frozen_artifact_ids.get("cohort_binding") != admission.cohort_binding_id:

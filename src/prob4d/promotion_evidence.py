@@ -16,7 +16,11 @@ from ._heldout_promotion_common import (
     _repository,
     _revision,
 )
-from ._heldout_promotion_lock import promotion_lock_from_dict
+from ._heldout_promotion_lock import (
+    HeldoutProviderPromotionLockV2,
+    ProviderPromotionIdentityV1,
+    promotion_lock_from_dict,
+)
 from ._heldout_promotion_report import promotion_report_from_dict
 from ._immutable_json import plain_json
 from ._selection_evidence_common import (
@@ -33,6 +37,7 @@ from ._selection_evidence_common import (
 
 PROMOTION_EVIDENCE_CARD_SCHEMA = "prob4d.heldout-provider-evidence-card"
 PROMOTION_EVIDENCE_CARD_VERSION = 1
+PROMOTION_EVIDENCE_CARD_V2_VERSION = 2
 
 _NON_CLAIMS = (
     "No Causal4D intervention-benefit claim.",
@@ -82,7 +87,8 @@ _FIELDS = {
     "claim_boundary",
     "explicit_non_claims",
 }
-_REPOSITORY_GROUP_FIELDS = {"prob4d", "bayesian_phystwin", "motioncrafter"}
+_REPOSITORY_GROUP_FIELDS_V1 = {"prob4d", "bayesian_phystwin", "motioncrafter"}
+_REPOSITORY_GROUP_FIELDS_V2 = {"prob4d", "bayesian_phystwin", "provider"}
 _CODE_REPOSITORY_FIELDS = {"repository", "revision"}
 _MOTIONCRAFTER_FIELDS = {"revision", "model_set_id"}
 _COHORT_FIELDS = {
@@ -214,13 +220,14 @@ def _validate_artifact_ids(value: Any) -> dict[str, str]:
     return result
 
 
-def _validate_repositories(value: Any) -> None:
+def _validate_repositories(value: Any, *, schema_version: int) -> None:
     repositories = _strict_mapping(value, name="repositories")
-    _exact_keys(
-        repositories,
-        _REPOSITORY_GROUP_FIELDS,
-        name="repositories",
+    expected_fields = (
+        _REPOSITORY_GROUP_FIELDS_V1
+        if schema_version == PROMOTION_EVIDENCE_CARD_VERSION
+        else _REPOSITORY_GROUP_FIELDS_V2
     )
+    _exact_keys(repositories, expected_fields, name="repositories")
     for key in ("prob4d", "bayesian_phystwin"):
         repository = _strict_mapping(
             repositories[key],
@@ -239,23 +246,26 @@ def _validate_repositories(value: Any) -> None:
             repository["revision"],
             name=f"repositories.{key}.revision",
         )
-    motioncrafter = _strict_mapping(
-        repositories["motioncrafter"],
-        name="repositories.motioncrafter",
-    )
-    _exact_keys(
-        motioncrafter,
-        _MOTIONCRAFTER_FIELDS,
-        name="repositories.motioncrafter",
-    )
-    _revision(
-        motioncrafter["revision"],
-        name="repositories.motioncrafter.revision",
-    )
-    _digest(
-        motioncrafter["model_set_id"],
-        name="repositories.motioncrafter.model_set_id",
-    )
+    if schema_version == PROMOTION_EVIDENCE_CARD_VERSION:
+        motioncrafter = _strict_mapping(
+            repositories["motioncrafter"],
+            name="repositories.motioncrafter",
+        )
+        _exact_keys(
+            motioncrafter,
+            _MOTIONCRAFTER_FIELDS,
+            name="repositories.motioncrafter",
+        )
+        _revision(
+            motioncrafter["revision"],
+            name="repositories.motioncrafter.revision",
+        )
+        _digest(
+            motioncrafter["model_set_id"],
+            name="repositories.motioncrafter.model_set_id",
+        )
+        return
+    ProviderPromotionIdentityV1.from_dict(repositories["provider"])
 
 
 def _validate_cohort(value: Any) -> tuple[int, list[str]]:
@@ -525,14 +535,18 @@ def _validate_guarded_query(
 
 
 def _validate_descriptor(card: Mapping[str, Any]) -> None:
-    if (
-        card["schema_name"],
-        card["schema_version"],
-    ) != (
-        PROMOTION_EVIDENCE_CARD_SCHEMA,
-        PROMOTION_EVIDENCE_CARD_VERSION,
-    ):
+    if card["schema_name"] != PROMOTION_EVIDENCE_CARD_SCHEMA:
         raise ValueError("unsupported promotion evidence card schema")
+    schema_version = _strict_integer(
+        card["schema_version"],
+        name="schema_version",
+        minimum=1,
+    )
+    if schema_version not in {
+        PROMOTION_EVIDENCE_CARD_VERSION,
+        PROMOTION_EVIDENCE_CARD_V2_VERSION,
+    }:
+        raise ValueError("unsupported promotion evidence card version")
     _strict_string(card["experiment_id"], name="experiment_id")
     _digest(card["promotion_lock_id"], name="promotion_lock_id")
     _digest(card["promotion_report_id"], name="promotion_report_id")
@@ -545,7 +559,7 @@ def _validate_descriptor(card: Mapping[str, Any]) -> None:
     if status != expected_status:
         raise ValueError("promotion evidence status disagrees with overall_passed")
     _strict_string(card["statistical_unit"], name="statistical_unit")
-    _validate_repositories(card["repositories"])
+    _validate_repositories(card["repositories"], schema_version=schema_version)
     target_count, _ = _validate_cohort(card["cohort"])
     arms_by_id = _validate_arms(card["comparison_arms"])
     _validate_frozen_inputs(card["frozen_inputs"])
@@ -607,29 +621,36 @@ def build_promotion_evidence_card(
     if type(statistical_unit) is not str or not statistical_unit:
         statistical_unit = "complete physical object or acquisition session"
 
+    repositories: dict[str, object] = {
+        "prob4d": {
+            "repository": lock.source_repository,
+            "revision": lock.source_revision,
+        },
+        "bayesian_phystwin": {
+            "repository": lock.bayesian_phystwin_repository,
+            "revision": lock.bayesian_phystwin_revision,
+        },
+    }
+    if isinstance(lock, HeldoutProviderPromotionLockV2):
+        evidence_version = PROMOTION_EVIDENCE_CARD_V2_VERSION
+        repositories["provider"] = lock.provider_contract.to_dict()
+    else:
+        evidence_version = PROMOTION_EVIDENCE_CARD_VERSION
+        repositories["motioncrafter"] = {
+            "revision": lock.motioncrafter_revision,
+            "model_set_id": lock.model_set_id,
+        }
+
     descriptor: dict[str, Any] = {
         "schema_name": PROMOTION_EVIDENCE_CARD_SCHEMA,
-        "schema_version": PROMOTION_EVIDENCE_CARD_VERSION,
+        "schema_version": evidence_version,
         "experiment_id": lock.experiment_id,
         "promotion_lock_id": lock.promotion_lock_id,
         "promotion_report_id": report.report_id,
         "overall_passed": report.overall_passed,
         "status": "PASS" if report.overall_passed else "FAIL",
         "statistical_unit": statistical_unit,
-        "repositories": {
-            "prob4d": {
-                "repository": lock.source_repository,
-                "revision": lock.source_revision,
-            },
-            "bayesian_phystwin": {
-                "repository": lock.bayesian_phystwin_repository,
-                "revision": lock.bayesian_phystwin_revision,
-            },
-            "motioncrafter": {
-                "revision": lock.motioncrafter_revision,
-                "model_set_id": lock.model_set_id,
-            },
-        },
+        "repositories": repositories,
         "cohort": {
             "development_group_count": len(lock.development_group_ids),
             "calibration_group_count": len(lock.calibration_group_ids),
@@ -718,6 +739,18 @@ def render_promotion_evidence_markdown(card: Mapping[str, Any]) -> str:
         repositories["bayesian_phystwin"],
         name="bayesian_phystwin",
     )
+    if "provider" in repositories:
+        provider = ProviderPromotionIdentityV1.from_dict(repositories["provider"])
+        provider_line = (
+            f"- Provider: `{provider.provider_family}` "
+            f"(`{provider.provider_repository}@{provider.provider_revision}`)"
+        )
+    else:
+        motioncrafter = _strict_mapping(
+            repositories["motioncrafter"],
+            name="motioncrafter",
+        )
+        provider_line = f"- Provider: `MotionCrafter@{motioncrafter['revision']}`"
     query = _strict_mapping(value["guarded_query"], name="guarded_query")
     paired = _strict_mapping(
         query["paired_candidate_minus_fallback_mm"],
@@ -733,6 +766,7 @@ def render_promotion_evidence_markdown(card: Mapping[str, Any]) -> str:
             "",
             f"- Prob4D: `{prob4d['repository']}@{prob4d['revision']}`",
             f"- BayesianPhysTwin: `{bpt['repository']}@{bpt['revision']}`",
+            provider_line,
             "",
             "| Guarded-query result | Value |",
             "| --- | ---: |",
@@ -810,6 +844,7 @@ def write_promotion_evidence_card(
 __all__ = [
     "PROMOTION_EVIDENCE_CARD_SCHEMA",
     "PROMOTION_EVIDENCE_CARD_VERSION",
+    "PROMOTION_EVIDENCE_CARD_V2_VERSION",
     "build_promotion_evidence_card",
     "load_promotion_evidence_card",
     "promotion_evidence_card_from_dict",
