@@ -1,0 +1,80 @@
+{
+  "entries": [
+    {
+      "gates": {
+        "conditional-covariance": {
+          "decision": "not-started",
+          "evidence_id": null
+        },
+        "gauge-dependence": {
+          "decision": "in-progress",
+          "evidence_id": null
+        },
+        "identity": {
+          "decision": "passed",
+          "evidence_id": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        },
+        "means": {
+          "decision": "passed",
+          "evidence_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "query-value": {
+          "decision": "not-started",
+          "evidence_id": null
+        },
+        "support": {
+          "decision": "passed",
+          "evidence_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      },
+      "metadata": {
+        "representation": "recurrent-online"
+      },
+      "point_covariance_development_authorized": false,
+      "provider_family": "cut3r",
+      "provider_id": "cut3r-recurrent-v1",
+      "role": "primary",
+      "status": "active"
+    },
+    {
+      "gates": {
+        "conditional-covariance": {
+          "decision": "not-started",
+          "evidence_id": null
+        },
+        "gauge-dependence": {
+          "decision": "not-started",
+          "evidence_id": null
+        },
+        "identity": {
+          "decision": "not-started",
+          "evidence_id": null
+        },
+        "means": {
+          "decision": "not-started",
+          "evidence_id": null
+        },
+        "query-value": {
+          "decision": "not-started",
+          "evidence_id": null
+        },
+        "support": {
+          "decision": "in-progress",
+          "evidence_id": null
+        }
+      },
+      "metadata": {
+        "representation": "overlapping-window"
+      },
+      "point_covariance_development_authorized": false,
+      "provider_family": "motioncrafter",
+      "provider_id": "motioncrafter-provider-v2",
+      "role": "alternative",
+      "status": "active"
+    }
+  ],
+  "metadata": {
+    "information_boundary": "source-only",
+    "target_outcomes_opened": false
+  }
+}
