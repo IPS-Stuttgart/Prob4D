@@ -107,10 +107,13 @@ differs. Omitting `--cohort-binding` preserves the historical interface for
 existing controlled and synthetic studies; new Deform360 claim-bearing runs
 should use the bound route.
 
-The promotion lock binds the exact Prob4D, BayesianPhysTwin, and MotionCrafter
-revisions; immutable model and run-spec identities; the provider-evaluation
-manifest; all calibration, cohort, selection, and guard artifacts; the bootstrap
-unit and seed; and every decision margin.
+A schema-v2 promotion lock binds the exact Prob4D and BayesianPhysTwin
+revisions plus a provider-neutral contract: provider family, repository and exact
+revision, model set, loader, coordinate/payload semantics, and source-dependency
+semantics. It also freezes the run specification, provider-evaluation manifest,
+all calibration, cohort, selection, and guard artifacts, bootstrap unit and seed,
+and every decision margin. Historical schema-v1 MotionCrafter locks remain
+readable for deterministic replay but are not emitted by the documented examples.
 
 The provider-evaluation manifest SHA is upstream of the lock and must not include
 the later target-admission ID. The identity order is:
@@ -122,6 +125,35 @@ provider-evaluation manifest -> promotion lock -> target-provider admission
 Inserting the admission ID into the frozen manifest would create a circular
 content identity. The provider evaluator instead creates a separate authorization
 receipt after the lock and admission are available.
+
+The v2 provider identity is the same contract used by
+`PredictionProviderManifestV1`, excluding case-local manifest and run IDs:
+
+```json
+{
+  "provider_identity": {
+    "schema_name": "prob4d.heldout-provider-promotion-identity",
+    "schema_version": 1,
+    "provider_family": "external-4d-provider",
+    "provider_repository": "example/provider",
+    "provider_revision": "<40- or 64-character revision>",
+    "model_set_id": "<sha256>",
+    "loader_id": "<sha256>",
+    "coordinate_semantics": "sequence-local-sim3",
+    "point_semantics": "dense-point-map",
+    "flow_semantics": "absent",
+    "ray_semantics": "absent",
+    "source_dependency_semantics": "per-output-exclusive-source-frame-interval-v1"
+  }
+}
+```
+
+Target admission compares every one of these values with each target manifest.
+A consistent but different loader, coordinate convention, payload contract, or
+source-dependency convention therefore fails before target outcomes are opened.
+The legacy `motioncrafter_revision` and `model_set_id` pair is accepted only when
+loading a schema-v1 configuration or artifact; mixing it with `provider_identity`
+fails closed.
 
 Exactly one arm is required for each registered role:
 
@@ -315,7 +347,7 @@ a failed provider report.
 
 A passing report supports only the exact frozen provider and guarded
 BayesianPhysTwin query on the declared independent objects or sessions. It does
-not establish general MotionCrafter competence, calibrated uncertainty outside
+not establish general provider competence, calibrated uncertainty outside
 that cohort, Causal4D intervention benefit, or overall state of the art. A failed
 well-powered gate is complete evidence and must not be retuned on the same opened
 target cohort.

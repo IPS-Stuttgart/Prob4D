@@ -15,6 +15,7 @@ from prob4d.heldout_promotion import (
 )
 from prob4d.promotion_evidence import (
     PROMOTION_EVIDENCE_CARD_SCHEMA,
+    PROMOTION_EVIDENCE_CARD_V2_VERSION,
     build_promotion_evidence_card,
     load_promotion_evidence_card,
     promotion_evidence_card_from_dict,
@@ -124,6 +125,28 @@ def _config() -> dict[str, Any]:
     }
 
 
+def _config_v2() -> dict[str, Any]:
+    config = _config()
+    revision = config.pop("motioncrafter_revision")
+    model_set_id = config.pop("model_set_id")
+    config["experiment_id"] = "heldout-v2"
+    config["provider_identity"] = {
+        "schema_name": "prob4d.heldout-provider-promotion-identity",
+        "schema_version": 1,
+        "provider_family": "cut3r",
+        "provider_repository": "naver/CUT3R",
+        "provider_revision": revision,
+        "model_set_id": model_set_id,
+        "loader_id": "7" * 64,
+        "coordinate_semantics": "sequence-local-sim3",
+        "point_semantics": "dense-point-map",
+        "flow_semantics": "absent",
+        "ray_semantics": "absent",
+        "source_dependency_semantics": "per-output-exclusive-source-frame-interval-v1",
+    }
+    return config
+
+
 def _provider_report(lock: Any) -> dict[str, Any]:
     cases = [
         {
@@ -153,8 +176,10 @@ def _provider_report(lock: Any) -> dict[str, Any]:
     }
 
 
-def _report_pair() -> tuple[dict[str, Any], dict[str, Any]]:
-    lock = promotion_lock_from_config(_config())
+def _report_pair(
+    config: dict[str, Any] | None = None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    lock = promotion_lock_from_config(_config() if config is None else config)
     rows = []
     for group_id in lock.target_group_ids:
         fallback_id = hashlib.sha256(f"fallback-{group_id}".encode()).hexdigest()
@@ -270,3 +295,19 @@ def test_loader_rejects_duplicate_keys(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="duplicate JSON key"):
         load_promotion_evidence_card(path)
+
+
+def test_v2_evidence_card_records_the_complete_generic_provider_contract() -> None:
+    lock, report = _report_pair(_config_v2())
+    card = build_promotion_evidence_card(lock, report)
+
+    assert card["schema_version"] == PROMOTION_EVIDENCE_CARD_V2_VERSION
+    assert "motioncrafter" not in card["repositories"]
+    provider = card["repositories"]["provider"]
+    assert provider["provider_family"] == "cut3r"
+    assert provider["provider_repository"] == "naver/CUT3R"
+    assert provider["loader_id"] == "7" * 64
+    assert promotion_evidence_card_from_dict(card) == card
+    rendered = render_promotion_evidence_markdown(card)
+    assert "Provider: `cut3r`" in rendered
+    assert "naver/CUT3R" in rendered
