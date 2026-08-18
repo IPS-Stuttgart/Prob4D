@@ -2,7 +2,7 @@ name: Materialize PR 251 scope and quality cleanup
 
 on:
   push:
-    branches: [feat/provider-neutral-observation-rehearsal]
+    branches: [feat/target-free-observation-rehearsal]
     paths:
       - ".github/workflows/fix-pr251-scope-and-quality.yml"
 
