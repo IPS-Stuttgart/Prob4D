@@ -12,7 +12,7 @@ permissions:
 
 concurrency:
   group: material-identity-weight-calibration-bootstrap
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 env:
   BASE_SHA: 31fbb3e9a1f79b5092ac86bd6ef49602da8b7625
@@ -50,7 +50,13 @@ jobs:
           test "$(git rev-parse HEAD)" = "${HEAD_SHA}"
           git merge-base --is-ancestor "${BASE_SHA}" HEAD
 
-          cat .github/bootstrap/material-identity-weight-calibration.part* \
+          cat \
+            .github/bootstrap/material-identity-weight-calibration.part00 \
+            .github/bootstrap/material-identity-weight-calibration.part01 \
+            .github/bootstrap/material-identity-weight-calibration.part02 \
+            .github/bootstrap/material-identity-weight-calibration.part03a \
+            .github/bootstrap/material-identity-weight-calibration.part03b \
+            .github/bootstrap/material-identity-weight-calibration.part04 \
             | base64 --decode > "${RUNNER_TEMP}/payload.tar.gz"
           echo "${PAYLOAD_SHA256}  ${RUNNER_TEMP}/payload.tar.gz" \
             | sha256sum --check -
