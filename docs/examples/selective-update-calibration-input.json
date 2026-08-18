@@ -1,0 +1,92 @@
+{
+  "protocol_id": "selective-source-validation-v1",
+  "query_definition": "equal-object guarded physical query",
+  "score_definition": "group-mean Gaussian negative log likelihood",
+  "width_unit": "mm",
+  "group_definition": "complete physical object or acquisition session",
+  "selection_lock_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "guard_artifact_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "candidate_artifact_id": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "fallback_artifact_id": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "guard_fit_group_ids": [
+    "source-fit-a",
+    "source-fit-b"
+  ],
+  "guard_calibration_group_ids": [
+    "source-calibration-a",
+    "source-calibration-b"
+  ],
+  "rows": [
+    {
+      "group_id": "source-validation-a",
+      "accepted": true,
+      "candidate_coverage": 0.92,
+      "candidate_width": 9.0,
+      "candidate_score": 0.70,
+      "fallback_coverage": 0.90,
+      "fallback_width": 10.0,
+      "fallback_score": 1.00,
+      "deployed_coverage": 0.92,
+      "deployed_width": 9.0,
+      "deployed_score": 0.70,
+      "metadata": {}
+    },
+    {
+      "group_id": "source-validation-b",
+      "accepted": true,
+      "candidate_coverage": 0.90,
+      "candidate_width": 9.5,
+      "candidate_score": 0.75,
+      "fallback_coverage": 0.90,
+      "fallback_width": 10.0,
+      "fallback_score": 1.00,
+      "deployed_coverage": 0.90,
+      "deployed_width": 9.5,
+      "deployed_score": 0.75,
+      "metadata": {}
+    },
+    {
+      "group_id": "source-validation-c",
+      "accepted": false,
+      "candidate_coverage": 0.80,
+      "candidate_width": 8.0,
+      "candidate_score": 1.30,
+      "fallback_coverage": 0.90,
+      "fallback_width": 10.0,
+      "fallback_score": 1.00,
+      "deployed_coverage": 0.90,
+      "deployed_width": 10.0,
+      "deployed_score": 1.00,
+      "metadata": {}
+    },
+    {
+      "group_id": "source-validation-d",
+      "accepted": false,
+      "candidate_coverage": 0.82,
+      "candidate_width": 8.5,
+      "candidate_score": 1.20,
+      "fallback_coverage": 0.90,
+      "fallback_width": 10.0,
+      "fallback_score": 1.00,
+      "deployed_coverage": 0.90,
+      "deployed_width": 10.0,
+      "deployed_score": 1.00,
+      "metadata": {}
+    }
+  ],
+  "thresholds": {
+    "nominal_coverage": 0.90,
+    "maximum_accepted_coverage_shortfall": 0.05,
+    "maximum_complete_policy_coverage_shortfall": 0.02,
+    "maximum_selection_coverage_drop": 0.05,
+    "maximum_mean_width_ratio_vs_fallback": 1.10,
+    "minimum_mean_score_advantage_vs_fallback": 0.05,
+    "harmful_score_margin": 0.0,
+    "maximum_harmful_accepted_fraction": 0.0,
+    "minimum_accepted_group_count": 2,
+    "maximum_worst_group_coverage_shortfall": 0.05
+  },
+  "metadata": {
+    "split_id": "source-validation-example-v1"
+  }
+}

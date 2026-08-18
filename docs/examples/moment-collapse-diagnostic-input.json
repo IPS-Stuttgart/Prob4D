@@ -1,0 +1,38 @@
+{
+  "representation_name": "mean-and-covariance-only",
+  "thresholds": {
+    "midpoint_half_width_component_sigma": 1.0,
+    "minimum_component_mean_separation_sigma": 4.0,
+    "maximum_mixture_midpoint_to_component_mean_density_ratio": 0.1,
+    "minimum_moment_gaussian_central_mass_inflation": 0.1
+  },
+  "cases": [
+    {
+      "case_id": "separated-two-mode",
+      "offset_xyz": [3.0, 0.0, 0.0],
+      "component_covariance": [
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        [0.0, 0.0, 1.0]
+      ],
+      "metadata": {
+        "mechanism": "symmetric-two-mode"
+      }
+    },
+    {
+      "case_id": "weak-two-mode",
+      "offset_xyz": [0.2, 0.0, 0.0],
+      "component_covariance": [
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        [0.0, 0.0, 1.0]
+      ],
+      "metadata": {
+        "mechanism": "near-unimodal-control"
+      }
+    }
+  ],
+  "metadata": {
+    "uses_real_provider_outcomes": false
+  }
+}
