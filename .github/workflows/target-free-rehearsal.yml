@@ -60,11 +60,15 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: pyproject.toml
-      - name: Install development environment
+          cache-dependency-path: |
+            requirements/ci/quality.txt
+            pyproject.toml
+      - name: Install pinned quality and build environment
         run: |
           set -euo pipefail
-          python -m pip install -e ".[dev]"
+          python -m pip install -r requirements/ci/quality.txt
+          python -m pip install "build>=1.2" "twine>=5.0"
+          python -m pip install --no-deps -e .
           python -m pip check
       - name: Run focused quality and contract regressions
         run: |
@@ -75,7 +79,7 @@ jobs:
             tests/test_independent_observation_verifier.py \
             tests/test_target_free_rehearsal.py \
             tests/test_target_free_rehearsal_workflow.py
-          python -m mypy --python-version 3.12 \
+          python -m mypy \
             src/prob4d/target_free_rehearsal.py \
             src/prob4d_independent_verifier
           python -m pytest -q \
