@@ -181,12 +181,21 @@ from ..provider_v2_factors import (
     write_observation_factor_bundle,
     write_tree_sparse_observation_artifact,
 )
+from ..query_projection_binding import (
+    BoundQueryCovarianceProjectionV1,
+    ValidatedQueryJacobianBindingV1,
+    project_bound_joint_covariance_to_query,
+    validate_query_jacobian_binding,
+    write_bound_query_covariance_projection,
+)
 from ..sim3 import Sim3
 
 API_VERSION = 2
 
 __all__ = [
     "API_VERSION",
+    "BOUND_QUERY_COVARIANCE_PROJECTION_SCHEMA",
+    "BoundQueryCovarianceProjectionV1",
     "CLAIM_BEARING_FACTOR_BUNDLE_SCHEMA",
     "CLAIM_BEARING_FACTOR_BUNDLE_VERSION",
     "CLAIM_BEARING_TREE_SPARSE_OBSERVATION_ENVELOPE_VERSION",
@@ -276,6 +285,7 @@ __all__ = [
     "ValidatedClaimBearingObservation",
     "ValidatedClaimBearingObservationFactorBundle",
     "ValidatedClaimBearingTreeSparseObservation",
+    "ValidatedQueryJacobianBindingV1",
     "__version__",
     "append_observation_factor_bundle",
     "assert_calibration_pair_compatible",
@@ -315,6 +325,7 @@ __all__ = [
     "prob4d_project_identity",
     "prob4d_provider_manifest",
     "prob4d_tree_sparse_provider_manifest",
+    "project_bound_joint_covariance_to_query",
     "project_observation_covariance",
     "save_gauge_covariance_calibration",
     "save_metric_gauge_anchor",
@@ -334,6 +345,8 @@ __all__ = [
     "validate_prob4d_project_identity",
     "validate_provider_attestation",
     "validate_provider_manifest",
+    "validate_query_jacobian_binding",
+    "write_bound_query_covariance_projection",
     "write_claim_bearing_observation_factor_bundle",
     "write_claim_bearing_tree_sparse_observation",
     "write_gauge_tree_prior_artifact",
