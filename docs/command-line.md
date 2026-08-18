@@ -37,8 +37,13 @@ prob4d sintel uncertainty
 prob4d storage benchmark
 prob4d storage materialize
 prob4d storage validate
+prob4d study preflight
 prob4d vggt baseline
 ```
+
+The target-free `prob4d study preflight` route composes the finite-sample
+capability check with a source-bound paired-effect and harmful-update sensitivity
+report. See [held-out study preflight](study-preflight.md).
 
 The bare `prob4d observation export` route prints guidance and deliberately runs
 no exporter. Claim-bearing work must select `export-calibrated`; uncalibrated or

@@ -261,6 +261,17 @@ _COMMAND_ROWS: Final[tuple[CommandRow, ...]] = (
         False,
     ),
     (
+        "study-preflight",
+        "study preflight",
+        "prob4d.study:main",
+        "compose target-free finite-sample and sensitivity reports",
+        D,
+        "heldout-study-design",
+        (),
+        False,
+        False,
+    ),
+    (
         "provider-support-envelope",
         "diagnostic provider-support-envelope",
         "prob4d.provider_support_envelope:main",
