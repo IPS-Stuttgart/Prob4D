@@ -217,6 +217,6 @@ def test_generated_binomial_upper_bounds_are_monotone() -> None:
         for earlier, later in zip(
             zero_event_bounds,
             zero_event_bounds[1:],
-            strict=True,
+            strict=False,
         )
     )
