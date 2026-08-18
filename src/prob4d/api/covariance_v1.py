@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Final
 
 from .v2 import (
+    BoundQueryCovarianceProjectionV1,
     CovarianceComponent,
     ObservationFactorStack,
     ObservationGaussianOperator,
@@ -12,23 +13,28 @@ from .v2 import (
     SparseStackedObservationFactors,
     StackedObservationFactors,
     TreeSparseStackedObservationFactors,
+    ValidatedQueryJacobianBindingV1,
     build_observation_gaussian_operator,
     observation_covariance_action,
     observation_covariance_quadratic,
     observation_gaussian_nll,
     observation_log_determinant,
     observation_precision_quadratic,
+    project_bound_joint_covariance_to_query,
     project_observation_covariance,
     solve_observation_covariance,
     stack_observation_factors,
     stack_sparse_observation_factors,
     stack_tree_sparse_observation_factors,
+    validate_query_jacobian_binding,
+    write_bound_query_covariance_projection,
 )
 
 FACADE_VERSION: Final = 1
 LIFECYCLE: Final = "preview"
 
 __all__ = [
+    "BoundQueryCovarianceProjectionV1",
     "CovarianceComponent",
     "FACADE_VERSION",
     "LIFECYCLE",
@@ -38,15 +44,19 @@ __all__ = [
     "SparseStackedObservationFactors",
     "StackedObservationFactors",
     "TreeSparseStackedObservationFactors",
+    "ValidatedQueryJacobianBindingV1",
     "build_observation_gaussian_operator",
     "observation_covariance_action",
     "observation_covariance_quadratic",
     "observation_gaussian_nll",
     "observation_log_determinant",
     "observation_precision_quadratic",
+    "project_bound_joint_covariance_to_query",
     "project_observation_covariance",
     "solve_observation_covariance",
     "stack_observation_factors",
     "stack_sparse_observation_factors",
     "stack_tree_sparse_observation_factors",
+    "validate_query_jacobian_binding",
+    "write_bound_query_covariance_projection",
 ]
