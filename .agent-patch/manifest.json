@@ -1,0 +1,76 @@
+{
+  "files": [
+    {
+      "bytes": 35382,
+      "chunks": [
+        "01-01.b64",
+        "01-02.b64",
+        "01-03.b64",
+        "01-04.b64"
+      ],
+      "path": "src/prob4d/fused_prediction_v2.py",
+      "sha256": "17983656d8b55a08323276acf5b3b5562aa91fca0ab072bbaaefba4fe1d190a5"
+    },
+    {
+      "bytes": 19432,
+      "chunks": [
+        "02-01.b64",
+        "02-02.b64",
+        "02-03.b64"
+      ],
+      "path": "src/prob4d/io.py",
+      "sha256": "9f16389948f49e0f51ccbb4babbf76aa5d8d3a64a9519e928b1de95d8dcad165"
+    },
+    {
+      "bytes": 15251,
+      "chunks": [
+        "03-01.b64",
+        "03-02.b64"
+      ],
+      "path": "src/prob4d/provider_evaluation_identity.py",
+      "sha256": "74a4d4694f7058250cf0c07c71a752fbe82098bcd882ed6b14847de3c8c83cca"
+    },
+    {
+      "bytes": 7424,
+      "chunks": [
+        "04-01.b64"
+      ],
+      "path": "src/prob4d/_provider_evaluation_provider_neutral.py",
+      "sha256": "0c29cbaf1823595681ffada48504b4063499c4d4f552612a8ed6be7fbbd8ef36"
+    },
+    {
+      "bytes": 12595,
+      "chunks": [
+        "05-01.b64",
+        "05-02.b64"
+      ],
+      "path": "tests/test_fused_prediction_v2.py",
+      "sha256": "d981a9f730aa33987812b14ae18489b61df7a27ffe91ad3fb8b1b34cec1a2528"
+    },
+    {
+      "bytes": 2114,
+      "chunks": [
+        "06-01.b64"
+      ],
+      "path": "tests/test_provider_evaluation_motioncrafter_mirror.py",
+      "sha256": "f5c17b891c377e9a332b7762f919f825dd01ce7152c13512aeb03c6ea16b0505"
+    },
+    {
+      "bytes": 3613,
+      "chunks": [
+        "07-01.b64"
+      ],
+      "path": "docs/fused-prediction-v2.md",
+      "sha256": "581a5cf6d26c125de4ad72a5787f4ab69b7a7b7f1709fb828f0e336ec3e21f14"
+    },
+    {
+      "bytes": 633,
+      "chunks": [
+        "08-01.b64"
+      ],
+      "path": "CHANGELOG.d/fused-prediction-v2.md",
+      "sha256": "f50e579b0adcfce4a5575c6e6f440172ada2f954ce225abccfea6f3f4e6be6c8"
+    }
+  ],
+  "version": 1
+}
