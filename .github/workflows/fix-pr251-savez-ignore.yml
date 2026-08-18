@@ -1,0 +1,49 @@
+name: Materialize PR 251 NumPy typing cleanup
+
+on:
+  push:
+    branches: [feat/target-free-observation-rehearsal]
+    paths:
+      - ".github/workflows/fix-pr251-savez-ignore.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out PR branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: feat/target-free-observation-rehearsal
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Place targeted MyPy suppression and self-remove
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/prob4d/target_free_rehearsal.py")
+          text = path.read_text(encoding="utf-8")
+          old_call = "        np.savez_compressed(  # type: ignore[arg-type]\n"
+          old_unpack = "                **arrays,\n"
+          if old_call not in text or old_unpack not in text:
+              raise SystemExit("savez_compressed block changed")
+          text = text.replace(old_call, "        np.savez_compressed(\n", 1)
+          text = text.replace(
+              old_unpack,
+              "                **arrays,  # type: ignore[arg-type]\n",
+              1,
+          )
+          path.write_text(text, encoding="utf-8")
+          PY
+          git rm .github/workflows/fix-pr251-savez-ignore.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "Place NumPy typing suppression on dynamic array expansion"
+          git push origin HEAD:feat/target-free-observation-rehearsal
