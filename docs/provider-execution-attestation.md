@@ -16,10 +16,12 @@ external provider execution
     -> Prob4D readiness gates
 ```
 
-A valid attestation establishes strict artifact integrity and declared execution
-lineage. It does not establish provider accuracy, calibrated uncertainty,
-BayesianPhysTwin benefit, Causal4D intervention benefit, target authorization, or
-deployment safety.
+A valid attestation establishes the integrity of the attestation itself and binds
+the declared identities of referenced artifacts and execution lineage. Prob4D
+does not reopen those external bytes through this contract. The attestation does
+not establish provider accuracy, calibrated uncertainty, BayesianPhysTwin
+benefit, Causal4D intervention benefit, target authorization, or deployment
+safety.
 
 ## Evidence modes
 
@@ -42,6 +44,10 @@ Raw environment-variable values are not stored. Each allow-listed variable is
 recorded as a name and SHA-256 digest of its exact value. Do not include secret
 names or publish digests where the value has a small guessable domain unless that
 risk is acceptable for the execution environment.
+
+Command arguments, artifact names, timestamps, and metadata are retained
+verbatim. They must not contain credentials, access tokens, private paths, or
+other protected values.
 
 The runtime record binds:
 
