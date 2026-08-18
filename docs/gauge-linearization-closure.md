@@ -46,7 +46,7 @@ Each case reports, separately for transformed points and the optional query:
 - maximum directional variance-ratio deviation on the analytic supported
   subspace;
 - nonlinear variance outside the analytic supported subspace;
-- analytic and nonlinear effective covariance ranks; and
+- retained rank of the complete joint gauge covariance; and
 - minimum clearance of the mean and every sigma-point transform chain from the
   `SO(3)` logarithm branch cut.
 
