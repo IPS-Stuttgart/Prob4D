@@ -1,30 +1,15 @@
-"""Temporary bootstrap shim used only to materialize PR #259 for typed repair.
-
-The bootstrap payload passes tests and Ruff but its strict mypy pass blocks the
-workflow before the source files are committed. This one-shot module removes
-itself from the checkout, delegates to the pinned mypy package while suppressing
-only the two already-observed error classes, and is therefore absent from the
-materialized commit. The resulting source is repaired under the repository's
-normal strict CI immediately afterwards.
-"""
+"""One-shot diagnostic for the PR #259 materialization bootstrap."""
 
 from __future__ import annotations
 
-import subprocess
 import sys
 from pathlib import Path
 
 
 if __name__ == "__main__":
-    Path(__file__).unlink()
-    command = [
-        sys.executable,
-        "-m",
-        "mypy",
-        "--disable-error-code",
-        "var-annotated",
-        "--disable-error-code",
-        "arg-type",
-        *sys.argv[1:],
-    ]
-    raise SystemExit(subprocess.call(command))
+    source = Path("src/prob4d/material_identity_weight_calibration.py")
+    lines = source.read_text(encoding="utf-8").splitlines()
+    for line_number in range(1075, min(1125, len(lines)) + 1):
+        print(f"SOURCE {line_number}: {lines[line_number - 1]}")
+    print("Stopping after the focused diagnostic; no branch materialization attempted.")
+    raise SystemExit(1)
