@@ -182,6 +182,7 @@ from ..provider_v2_factors import (
     write_tree_sparse_observation_artifact,
 )
 from ..query_projection_binding import (
+    BOUND_QUERY_COVARIANCE_PROJECTION_SCHEMA,
     BoundQueryCovarianceProjectionV1,
     ValidatedQueryJacobianBindingV1,
     project_bound_joint_covariance_to_query,
