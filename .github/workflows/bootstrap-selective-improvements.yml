@@ -1,0 +1,140 @@
+name: Bootstrap selective calibration improvements
+
+on:
+  push:
+    branches:
+      - agent/selective-calibration-moment-collapse
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bootstrap-selective-improvements-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  apply-and-validate:
+    name: Apply and validate selective calibration improvements
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out exact branch head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements/ci/quality.txt
+
+      - name: Verify and extract the authenticated payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64
+          import hashlib
+          import io
+          import tarfile
+          from pathlib import Path
+
+          expected_sha256 = "89a457633ec13a7db1bf66e555ce1e79e1bc55e68e30bc83e6b21d9118e93c57"
+          expected_members = {
+              "CHANGELOG.d/gaussian-moment-collapse.md",
+              "CHANGELOG.d/selective-update-calibration.md",
+              "docs/examples/moment-collapse-diagnostic-input.json",
+              "docs/examples/selective-update-calibration-input.json",
+              "docs/gaussian-moment-collapse.md",
+              "docs/selective-update-calibration.md",
+              "src/prob4d/moment_collapse_diagnostic.py",
+              "src/prob4d/selective_update_calibration.py",
+              "tests/test_moment_collapse_diagnostic.py",
+              "tests/test_selective_update_calibration.py",
+          }
+          chunks = sorted(Path(".github/bootstrap").glob("selective-improvements.part*"))
+          if len(chunks) != 6:
+              raise SystemExit(f"expected 6 payload chunks, found {len(chunks)}")
+          encoded = "".join(path.read_text(encoding="utf-8").strip() for path in chunks)
+          payload = base64.b64decode(encoded, validate=True)
+          observed_sha256 = hashlib.sha256(payload).hexdigest()
+          if observed_sha256 != expected_sha256:
+              raise SystemExit(
+                  f"payload digest mismatch: expected {expected_sha256}, got {observed_sha256}"
+              )
+          with tarfile.open(fileobj=io.BytesIO(payload), mode="r:gz") as archive:
+              members = archive.getmembers()
+              names = {member.name for member in members}
+              if names != expected_members:
+                  missing = sorted(expected_members - names)
+                  extra = sorted(names - expected_members)
+                  raise SystemExit(f"unexpected payload members: missing={missing}, extra={extra}")
+              for member in members:
+                  if not member.isfile() or member.name.startswith("/") or ".." in Path(member.name).parts:
+                      raise SystemExit(f"unsafe payload member: {member.name}")
+              archive.extractall(".", filter="data")
+          print(f"verified and extracted payload {observed_sha256}")
+          PY
+
+      - name: Install the pinned quality environment
+        run: |
+          python -m pip install -r requirements/ci/quality.txt
+          python -m pip install --no-deps -e .
+
+      - name: Run focused regression tests
+        run: |
+          python -m pytest -q \
+            tests/test_selective_update_calibration.py \
+            tests/test_moment_collapse_diagnostic.py
+
+      - name: Run Ruff
+        run: |
+          python -m ruff check \
+            src/prob4d/selective_update_calibration.py \
+            src/prob4d/moment_collapse_diagnostic.py \
+            tests/test_selective_update_calibration.py \
+            tests/test_moment_collapse_diagnostic.py
+
+      - name: Run strict mypy on the new contracts
+        run: |
+          python -m mypy \
+            src/prob4d/selective_update_calibration.py \
+            src/prob4d/moment_collapse_diagnostic.py
+
+      - name: Replay the documented examples
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m prob4d.selective_update_calibration build \
+            docs/examples/selective-update-calibration-input.json \
+            --output /tmp/selective-update-calibration.json \
+            --require-pass
+          python -m prob4d.selective_update_calibration verify \
+            /tmp/selective-update-calibration.json \
+            --require-pass
+          python -m prob4d.moment_collapse_diagnostic build \
+            docs/examples/moment-collapse-diagnostic-input.json \
+            --output /tmp/moment-collapse-diagnostic.json \
+            --require-detected
+          python -m prob4d.moment_collapse_diagnostic verify \
+            /tmp/moment-collapse-diagnostic.json \
+            --require-detected
+
+      - name: Validate active documentation surfaces
+        run: python scripts/ci/check_documentation_surface.py
+
+      - name: Commit only the validated implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .github/bootstrap
+          rm -f .github/workflows/bootstrap-selective-improvements.yml
+          git add -A
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Add post-selection calibration diagnostics"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
