@@ -6,6 +6,9 @@ outcome boundary opens cannot safely be repaired by retrying the same registered
 execution. The target-free rehearsal exercises the portable observation boundary
 before any source suffix or target payload is used.
 
+The hosted CI lane is read-only, receives no dataset secrets, and operates only
+on synthetic contract vectors generated inside the job.
+
 ## What the rehearsal proves
 
 The command publishes a content-addressed `TargetFreeRehearsalReceiptV1` after
