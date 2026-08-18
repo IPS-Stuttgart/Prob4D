@@ -64,6 +64,7 @@ where = ["src"]
 [tool.setuptools.package-data]
 prob4d = [
     "__init__.pyi",
+    "_build_identity.json",
     "py.typed",
     "contract_data/observation_belief_v1/*.json",
     "contract_data/observation_belief_v1/vectors/*.json",
