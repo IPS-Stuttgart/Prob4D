@@ -146,8 +146,9 @@ jobs:
               for control in receipt["negative_controls"]
           )
           PY
-          sha256sum outputs/target-free-rehearsal/* \
-            outputs/target-free-rehearsal/negative_controls/* \
+          find outputs/target-free-rehearsal -type f -print0 \
+            | sort -z \
+            | xargs -0 sha256sum \
             > outputs/SHA256SUMS
       - name: Publish result summary
         if: always()
