@@ -244,8 +244,7 @@ def _calibrate_mixture(arguments: Sequence[str]) -> int:
     parser = argparse.ArgumentParser(
         prog="prob4d identity calibrate-mixture",
         description=(
-            "build one portable identity mixture using only a retained "
-            "source-fitted calibration"
+            "build one portable identity mixture using only a retained source-fitted calibration"
         ),
     )
     parser.add_argument("calibration", type=Path)
