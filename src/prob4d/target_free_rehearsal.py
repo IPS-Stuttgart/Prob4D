@@ -184,7 +184,7 @@ def _write_raw_artifact(
     temporary = Path(temporary_name)
     try:
         with os.fdopen(descriptor_fd, "wb") as stream:
-            np.savez_compressed(  # type: ignore[arg-type]
+            np.savez_compressed(
                 stream,
                 descriptor_json=np.asarray(
                     json.dumps(
@@ -194,7 +194,7 @@ def _write_raw_artifact(
                         allow_nan=False,
                     )
                 ),
-                **arrays,
+                **arrays,  # type: ignore[arg-type]
             )
             stream.flush()
             os.fsync(stream.fileno())
