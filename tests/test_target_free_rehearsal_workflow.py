@@ -22,6 +22,9 @@ def test_target_free_rehearsal_workflow_is_exact_head_and_read_only() -> None:
 def test_target_free_rehearsal_workflow_uses_installed_artifacts() -> None:
     text = WORKFLOW.read_text(encoding="utf-8")
 
+    assert "requirements/ci/quality.txt" in text
+    assert "python -m pip install --no-deps -e ." in text
+    assert "python -m mypy --python-version 3.12" not in text
     assert "python -m build" in text
     assert "find dist -maxdepth 1 -name '*.whl'" in text
     assert '"$bin/prob4d" diagnostic target-free-rehearsal run' in text
