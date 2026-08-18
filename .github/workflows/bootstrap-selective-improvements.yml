@@ -4,23 +4,29 @@ on:
   push:
     branches:
       - agent/selective-calibration-moment-collapse
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: write
 
 concurrency:
-  group: bootstrap-selective-improvements-${{ github.ref }}
+  group: bootstrap-selective-improvements-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: false
 
 jobs:
   apply-and-validate:
     name: Apply and validate selective calibration improvements
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      TARGET_BRANCH: ${{ github.head_ref || github.ref_name }}
     steps:
       - name: Check out exact branch head
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: true
 
@@ -137,4 +143,4 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "Add post-selection calibration diagnostics"
-          git push origin "HEAD:${GITHUB_REF_NAME}"
+          git push origin "HEAD:${TARGET_BRANCH}"
