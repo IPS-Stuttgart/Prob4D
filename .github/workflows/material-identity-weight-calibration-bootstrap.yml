@@ -41,7 +41,7 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: pyproject.toml
+          cache-dependency-path: requirements/ci/quality.txt
 
       - name: Verify exact payload and allowlist
         shell: bash
@@ -130,7 +130,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python -m pip install -e ".[dev]"
+          python -m pip install -r requirements/ci/quality.txt
+          python -m pip install --no-deps -e .
           python -m pytest -q \
             tests/test_material_identity_weight_calibration.py \
             tests/test_material_identity_weight_calibration_cli.py \
