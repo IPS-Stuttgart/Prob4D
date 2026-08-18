@@ -107,6 +107,17 @@ _COMMAND_ROWS: Final[tuple[CommandRow, ...]] = (
         False,
     ),
     (
+        "artifact-explain",
+        "artifact explain",
+        "prob4d.artifact_explain:main",
+        "explain validated or structural Prob4D artifacts",
+        S,
+        "artifact-inspection",
+        (),
+        False,
+        False,
+    ),
+    (
         "ablation",
         "ablate",
         "prob4d.experiments:main",
