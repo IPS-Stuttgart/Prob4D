@@ -85,15 +85,15 @@ jobs:
           print(f"verified and extracted payload {observed_sha256}")
           PY
 
-      - name: Apply the deterministic test-helper correction
+      - name: Apply deterministic lint and typing corrections
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
           from pathlib import Path
 
-          path = Path("tests/test_selective_update_calibration.py")
-          text = path.read_text(encoding="utf-8")
+          test_path = Path("tests/test_selective_update_calibration.py")
+          test_text = test_path.read_text(encoding="utf-8")
           old_signature = "def build(rows=passing_rows()) -> SelectiveUpdateCalibrationV1:\n"
           new_signature = (
               "def build(\n"
@@ -101,14 +101,43 @@ jobs:
               ") -> SelectiveUpdateCalibrationV1:\n"
               "    selected_rows = passing_rows() if rows is None else rows\n"
           )
-          if text.count(old_signature) != 1:
+          if test_text.count(old_signature) != 1:
               raise SystemExit("selective-update test helper signature changed")
-          text = text.replace(old_signature, new_signature, 1)
+          test_text = test_text.replace(old_signature, new_signature, 1)
           old_argument = "        rows=rows,\n        thresholds=thresholds(),\n"
           new_argument = "        rows=selected_rows,\n        thresholds=thresholds(),\n"
-          if text.count(old_argument) != 1:
+          if test_text.count(old_argument) != 1:
               raise SystemExit("selective-update test helper row argument changed")
-          path.write_text(text.replace(old_argument, new_argument, 1), encoding="utf-8")
+          test_path.write_text(
+              test_text.replace(old_argument, new_argument, 1),
+              encoding="utf-8",
+          )
+
+          selective_path = Path("src/prob4d/selective_update_calibration.py")
+          selective_text = selective_path.read_text(encoding="utf-8")
+          ignore = "  # type: ignore[arg-type]"
+          if selective_text.count(ignore) != 2:
+              raise SystemExit("selective-update ignore inventory changed")
+          selective_path.write_text(selective_text.replace(ignore, ""), encoding="utf-8")
+
+          moment_path = Path("src/prob4d/moment_collapse_diagnostic.py")
+          moment_text = moment_path.read_text(encoding="utf-8")
+          if moment_text.count(ignore) != 2:
+              raise SystemExit("moment-collapse ignore inventory changed")
+          moment_text = moment_text.replace(ignore, "")
+          old_import = "from typing import Any\n"
+          new_import = "from typing import Any, TypeAlias\n"
+          if moment_text.count(old_import) != 1:
+              raise SystemExit("moment-collapse typing import changed")
+          moment_text = moment_text.replace(old_import, new_import, 1)
+          old_alias = "FloatArray = NDArray[np.float64]\n"
+          new_alias = "FloatArray: TypeAlias = NDArray[np.float64]\n"
+          if moment_text.count(old_alias) != 1:
+              raise SystemExit("moment-collapse array alias changed")
+          moment_path.write_text(
+              moment_text.replace(old_alias, new_alias, 1),
+              encoding="utf-8",
+          )
           PY
 
       - name: Install the pinned quality environment
