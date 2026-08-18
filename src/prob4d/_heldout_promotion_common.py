@@ -17,10 +17,13 @@ from ._selection_evidence_common import (
     _exact_keys,
     _strict_bool,
     _strict_digest,
+    _strict_integer,
     _strict_list,
-    _strict_mapping,
     _strict_real,
     _strict_string,
+)
+from ._selection_evidence_common import (
+    _strict_mapping as _base_strict_mapping,
 )
 
 HELDOUT_PROMOTION_LOCK_SCHEMA = "prob4d.heldout-provider-promotion-lock"
@@ -83,6 +86,20 @@ REPORT_CLAIM_BOUNDARY = (
     "identities. It does not establish Causal4D intervention benefit or general "
     "state of the art."
 )
+
+
+def _strict_mapping(value: Any, *, name: str) -> Mapping[str, Any]:
+    """Validate mappings and fail closed on coercive schema header aliases."""
+
+    mapping = _base_strict_mapping(value, name=name)
+    if "schema_name" in mapping and "schema_version" in mapping:
+        _strict_string(mapping["schema_name"], name=f"{name}.schema_name")
+        _strict_integer(
+            mapping["schema_version"],
+            name=f"{name}.schema_version",
+            minimum=1,
+        )
+    return mapping
 
 
 def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
