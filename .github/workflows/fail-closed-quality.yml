@@ -75,6 +75,25 @@ jobs:
           set -o pipefail
           python scripts/ci/check_documentation_surface.py \
             2>&1 | tee documentation-surface-output.txt
+      - name: Verify additive compatibility and CUT3R protocol examples
+        if: always()
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m prob4d.semantic_compatibility build \
+            --output semantic-compatibility.json \
+            2>&1 | tee semantic-compatibility-output.txt
+          python -m prob4d.semantic_compatibility verify \
+            semantic-compatibility.json \
+            --require-current \
+            2>&1 | tee -a semantic-compatibility-output.txt
+          python -m prob4d.cut3r_comparison build \
+            docs/examples/cut3r-comparison-spec.json \
+            --output cut3r-comparison-lock.json \
+            2>&1 | tee cut3r-comparison-output.txt
+          python -m prob4d.cut3r_comparison verify \
+            cut3r-comparison-lock.json \
+            2>&1 | tee -a cut3r-comparison-output.txt
       - name: Run stable-interface mypy with fail-closed diagnostics
         if: always()
         shell: bash
@@ -93,6 +112,7 @@ jobs:
             src/prob4d/calibration_compatibility.py \
             src/prob4d/composition_jacobian.py \
             src/prob4d/covariance_root.py \
+            src/prob4d/cut3r_comparison.py \
             src/prob4d/material_identity_cli.py \
             src/prob4d/material_identity_weight_calibration.py \
             src/prob4d/observation_factor_stream.py \
@@ -115,6 +135,7 @@ jobs:
             src/prob4d/provider_v2_loading.py \
             src/prob4d/public_api_manifest.py \
             src/prob4d/runtime_revision.py \
+            src/prob4d/semantic_compatibility.py \
             src/prob4d/source_diagnostics.py \
             src/prob4d/sparse_observation_factors.py \
             2>&1 | tee mypy-output.txt
@@ -128,5 +149,9 @@ jobs:
             documentation-surface-output.txt
             ruff-output.txt
             mypy-output.txt
+            semantic-compatibility.json
+            semantic-compatibility-output.txt
+            cut3r-comparison-lock.json
+            cut3r-comparison-output.txt
           if-no-files-found: warn
           retention-days: 14
