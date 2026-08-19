@@ -139,7 +139,12 @@ def _strict_mapping(value: Any, *, name: str) -> Mapping[str, Any]:
     return cast(Mapping[str, Any], value)
 
 
-def _exact_keys(value: Mapping[str, Any], expected: set[str] | frozenset[str], *, name: str) -> None:
+def _exact_keys(
+    value: Mapping[str, Any],
+    expected: set[str] | frozenset[str],
+    *,
+    name: str,
+) -> None:
     keys = set(value)
     if keys != set(expected):
         missing = sorted(set(expected) - keys)
@@ -351,7 +356,8 @@ def _normalize_group_roles(value: Any, *, group_ids: set[str]) -> dict[str, list
         missing = sorted(group_ids - set(assigned))
         unknown = sorted(set(assigned) - group_ids)
         raise ValueError(
-            f"group_roles must partition every group exactly once; missing={missing}, unknown={unknown}"
+            "group_roles must partition every group exactly once; "
+            f"missing={missing}, unknown={unknown}"
         )
     return normalized
 
