@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import numpy as np
@@ -359,6 +360,85 @@ def _whitener(covariance: FloatArray, floor: float = 1e-10) -> FloatArray:
     return (eigenvectors * (1.0 / np.sqrt(eigenvalues))) @ eigenvectors.T
 
 
+_ComposeWithCovariance = Callable[
+    [Sim3, FloatArray, Sim3, FloatArray],
+    tuple[Sim3, FloatArray],
+]
+_InvertWithCovariance = Callable[[Sim3, FloatArray], tuple[Sim3, FloatArray]]
+_InitialCovariancePreparer = Callable[[FloatArray], FloatArray]
+
+
+def _estimate_sequential_gauges(
+    ordered_window_ids: list[str],
+    constraints: list[RelativeGaugeConstraint],
+    *,
+    covariance_intersection_grid_size: int,
+    compose_with_covariance: _ComposeWithCovariance,
+    invert_with_covariance: _InvertWithCovariance,
+    initial_transform: Sim3 | None = None,
+    initial_covariance: FloatArray | None = None,
+    prepare_initial_covariance: _InitialCovariancePreparer | None = None,
+) -> dict[str, GaugeEstimate]:
+    """Estimate a gauge tree with an injected covariance-propagation policy."""
+
+    if not ordered_window_ids:
+        raise ValueError("ordered_window_ids must not be empty")
+    if len(set(ordered_window_ids)) != len(ordered_window_ids):
+        raise ValueError("window IDs must be unique")
+    first_id = ordered_window_ids[0]
+    first_transform = initial_transform or Sim3.identity()
+    if initial_covariance is None:
+        first_covariance = np.diag([1e-10] * 7)
+    elif prepare_initial_covariance is None:
+        first_covariance = np.asarray(initial_covariance, dtype=np.float64)
+    else:
+        first_covariance = prepare_initial_covariance(initial_covariance)
+    estimates = {first_id: GaugeEstimate(first_id, first_transform, first_covariance)}
+
+    for window_id in ordered_window_ids[1:]:
+        candidates: list[tuple[Sim3, FloatArray]] = []
+        for constraint in constraints:
+            if constraint.moving_id == window_id and constraint.reference_id in estimates:
+                reference = estimates[constraint.reference_id]
+                candidates.append(
+                    compose_with_covariance(
+                        reference.global_from_local,
+                        reference.covariance,
+                        constraint.reference_from_moving,
+                        constraint.covariance,
+                    )
+                )
+            elif constraint.reference_id == window_id and constraint.moving_id in estimates:
+                moving = estimates[constraint.moving_id]
+                inverse, inverse_covariance = invert_with_covariance(
+                    constraint.reference_from_moving,
+                    constraint.covariance,
+                )
+                candidates.append(
+                    compose_with_covariance(
+                        moving.global_from_local,
+                        moving.covariance,
+                        inverse,
+                        inverse_covariance,
+                    )
+                )
+        if not candidates:
+            raise ValueError(f"window {window_id!r} has no constraint to an initialized gauge")
+
+        minimum_weight = min(0.05, 0.5 / len(candidates))
+        transform, covariance, _ = fuse_sim3_covariance_intersection(
+            candidates,
+            minimum_weight=minimum_weight,
+            max_sweeps=max(16, covariance_intersection_grid_size),
+            line_search_iterations=max(
+                32,
+                2 * covariance_intersection_grid_size,
+            ),
+        )
+        estimates[window_id] = GaugeEstimate(window_id, transform, covariance)
+    return estimates
+
+
 class SequentialGaugeEstimator:
     """Initialize gauges with deterministic multi-estimate covariance intersection."""
 
@@ -375,60 +455,15 @@ class SequentialGaugeEstimator:
         initial_transform: Sim3 | None = None,
         initial_covariance: FloatArray | None = None,
     ) -> dict[str, GaugeEstimate]:
-        if not ordered_window_ids:
-            raise ValueError("ordered_window_ids must not be empty")
-        if len(set(ordered_window_ids)) != len(ordered_window_ids):
-            raise ValueError("window IDs must be unique")
-        first_id = ordered_window_ids[0]
-        first_transform = initial_transform or Sim3.identity()
-        first_covariance = (
-            np.diag([1e-10] * 7)
-            if initial_covariance is None
-            else np.asarray(initial_covariance, dtype=np.float64)
+        return _estimate_sequential_gauges(
+            ordered_window_ids,
+            constraints,
+            covariance_intersection_grid_size=self.covariance_intersection_grid_size,
+            compose_with_covariance=_compose_with_covariance,
+            invert_with_covariance=_inverse_with_covariance,
+            initial_transform=initial_transform,
+            initial_covariance=initial_covariance,
         )
-        estimates = {first_id: GaugeEstimate(first_id, first_transform, first_covariance)}
-
-        for window_id in ordered_window_ids[1:]:
-            candidates: list[tuple[Sim3, FloatArray]] = []
-            for constraint in constraints:
-                if constraint.moving_id == window_id and constraint.reference_id in estimates:
-                    reference = estimates[constraint.reference_id]
-                    candidates.append(
-                        _compose_with_covariance(
-                            reference.global_from_local,
-                            reference.covariance,
-                            constraint.reference_from_moving,
-                            constraint.covariance,
-                        )
-                    )
-                elif constraint.reference_id == window_id and constraint.moving_id in estimates:
-                    moving = estimates[constraint.moving_id]
-                    inverse, inverse_covariance = _inverse_with_covariance(
-                        constraint.reference_from_moving, constraint.covariance
-                    )
-                    candidates.append(
-                        _compose_with_covariance(
-                            moving.global_from_local,
-                            moving.covariance,
-                            inverse,
-                            inverse_covariance,
-                        )
-                    )
-            if not candidates:
-                raise ValueError(f"window {window_id!r} has no constraint to an initialized gauge")
-
-            minimum_weight = min(0.05, 0.5 / len(candidates))
-            transform, covariance, _ = fuse_sim3_covariance_intersection(
-                candidates,
-                minimum_weight=minimum_weight,
-                max_sweeps=max(16, self.covariance_intersection_grid_size),
-                line_search_iterations=max(
-                    32,
-                    2 * self.covariance_intersection_grid_size,
-                ),
-            )
-            estimates[window_id] = GaugeEstimate(window_id, transform, covariance)
-        return estimates
 
 
 def relative_constraint_residual(

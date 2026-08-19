@@ -44,8 +44,11 @@ from prob4d.gauge_analytic import (
 ```
 
 `AnalyticSequentialGaugeEstimatorV2` preserves the historical transform
-initialization and covariance-intersection policy. Only covariance derivatives
-for composition and inversion change. The class records
+initialization and covariance-intersection policy. Both sequential estimators
+use one internal graph-traversal and covariance-intersection core; only initial
+covariance preparation plus composition and inversion propagation are injected
+as policies. This removes duplicated control flow without changing class names,
+defaults, or frozen estimator semantics. The class records
 `jacobian_method = "analytic_sim3_compose_inverse_v1"` for experiment manifests.
 It is deliberately not exported from the stable `prob4d.api.v2` facade.
 
