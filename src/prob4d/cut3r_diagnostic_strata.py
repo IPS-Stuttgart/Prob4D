@@ -706,20 +706,20 @@ def _normalize_records(
     expected_arm_set = set(enabled_arms)
     for observation_key, arms in observation_arms.items():
         if arms != expected_arm_set:
-            missing = sorted(expected_arm_set - arms)
-            extra = sorted(arms - expected_arm_set)
+            missing_arms = sorted(expected_arm_set - arms)
+            extra_arms = sorted(arms - expected_arm_set)
             raise ValueError(
                 "every nested observation must retain paired common support across arms; "
-                f"observation={observation_key!r}, missing={missing}, extra={extra}"
+                f"observation={observation_key!r}, missing={missing_arms}, extra={extra_arms}"
             )
     expected_seed_set = set(random_seeds)
     for frame_key, seeds in frame_seeds.items():
         if seeds != expected_seed_set:
-            missing = sorted(expected_seed_set - seeds)
-            extra = sorted(seeds - expected_seed_set)
+            missing_seeds = sorted(expected_seed_set - seeds)
+            extra_seeds = sorted(seeds - expected_seed_set)
             raise ValueError(
                 "every frame must retain the complete frozen random-seed roster; "
-                f"frame={frame_key!r}, missing={missing}, extra={extra}"
+                f"frame={frame_key!r}, missing={missing_seeds}, extra={extra_seeds}"
             )
     expected_frame_keys = {
         (group_id, case_id, frame_index)
