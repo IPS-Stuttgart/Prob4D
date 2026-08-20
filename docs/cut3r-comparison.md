@@ -8,6 +8,20 @@ open a target cohort.
 The complete execution order, stop rules, and final reporting requirements are
 in the [CUT3R source qualification runbook](cut3r-qualification-runbook.md).
 
+## Required representation preflight
+
+Before building the comparison lock or reading source residuals, preserve
+CUT3R's original `pts3d_in_self_view` output and complete the target-free
+[direct-point-map fidelity and causal-prefix audit](cut3r-direct-pointmap.md).
+The historical `depth/conf/camera` importer remains a compatibility route. It may
+enter a new claim-bearing comparison only when the frozen audit classifies depth
+reprojection as equivalent and the causal-prefix closure passes.
+
+A `direct-pointmap-required` classification is not a provider failure. It means
+all causal comparison arms must use the direct point-map representation. A failed
+causal-prefix closure stops that execution mode before provider support, residual,
+or target evaluation.
+
 ## Frozen arms
 
 The lock always declares four arms:
