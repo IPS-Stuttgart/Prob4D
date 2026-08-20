@@ -24,8 +24,16 @@ def _help_parser() -> argparse.ArgumentParser:
         help="convert an integrity-bound official VGGT sample",
     )
     subparsers.add_parser(
+        "import-cut3r-direct",
+        help="preserve recurrent-online CUT3R direct XYZ point maps",
+    )
+    subparsers.add_parser(
         "import-cut3r-online",
-        help="convert official recurrent-online CUT3R outputs",
+        help="compatibility import of CUT3R depth-reprojected outputs",
+    )
+    subparsers.add_parser(
+        "cut3r-fidelity",
+        help="audit direct-point-map fidelity and causal-prefix closure",
     )
     subparsers.add_parser(
         "cut3r-comparison",
@@ -66,10 +74,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         from .vggt_provider_adapter import main as vggt_main
 
         return int(vggt_main(arguments[1:]))
+    if arguments[0] == "import-cut3r-direct":
+        from .cut3r_direct_provider_adapter import main as cut3r_direct_main
+
+        return int(cut3r_direct_main(arguments[1:]))
     if arguments[0] == "import-cut3r-online":
         from .cut3r_provider_adapter import main as cut3r_main
 
         return int(cut3r_main(arguments[1:]))
+    if arguments[0] == "cut3r-fidelity":
+        from .cut3r_pointmap_fidelity import main as cut3r_fidelity_main
+
+        return int(cut3r_fidelity_main(arguments[1:]))
     if arguments[0] == "cut3r-comparison":
         from .cut3r_comparison import main as cut3r_comparison_main
 
