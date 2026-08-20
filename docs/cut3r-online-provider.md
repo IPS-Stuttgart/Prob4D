@@ -1,4 +1,13 @@
-# CUT3R recurrent-online provider adapter
+# CUT3R depth-reprojected recurrent-online compatibility adapter
+
+> **Representation boundary.** This route imports CUT3R's historical
+> `depth/conf/camera` demo output and reconstructs XYZ from depth and fitted
+> intrinsics. It remains supported for frozen evidence and compatibility. New
+> source qualification should preserve CUT3R's original direct
+> `pts3d_in_self_view` output through the
+> [direct point-map route](cut3r-direct-pointmap.md) and complete its target-free
+> geometry-fidelity and causal-prefix-closure audit before source residuals are
+> opened.
 
 Prob4D can convert the file layout written by CUT3R's official recurrent
 `demo.py` path into one provider-neutral `PredictionProviderManifestV1`. The
@@ -113,13 +122,14 @@ byte counts together with `canonicalization_backend="frame-streamed-npy-memmap-v
 A valid import proves byte-level interoperability and declared causal lineage
 only. The next order is:
 
-1. freeze and run provider support feasibility before opening source residuals;
-2. evaluate source mean quality and identity competence by complete physical
+1. complete the direct-point-map representation and causal-prefix preflight;
+2. freeze and run provider support feasibility before opening source residuals;
+3. evaluate source mean quality and identity competence by complete physical
    object or acquisition session;
-3. localize gauge/dependence and conditional point-covariance failures;
-4. fit reliability or uncertainty only when the corresponding source gate
+4. localize gauge/dependence and conditional point-covariance failures;
+5. fit reliability or uncertainty only when the corresponding source gate
    authorizes it; and
-5. permit one held-out target evaluation only after the complete fresh-provider
+6. permit one held-out target evaluation only after the complete fresh-provider
    readiness decision passes.
 
 BayesianPhysTwin still owns the baseline-relative physical update guard and exact
