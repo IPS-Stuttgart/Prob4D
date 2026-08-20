@@ -13,10 +13,13 @@ from numbers import Real
 import numpy as np
 from numpy.typing import NDArray
 
-from ._gauge_ci import fuse_sim3_covariance_intersection
 from .composition_jacobian import analytic_sim3_compose_jacobians
 from .covariance import validated_covariance_psd
-from .gauge import GaugeEstimate, RelativeGaugeConstraint
+from .gauge import (
+    GaugeEstimate,
+    RelativeGaugeConstraint,
+    _estimate_sequential_gauges,
+)
 from .sim3 import Sim3, skew, so3_log, so3_right_jacobian
 
 FloatArray = NDArray[np.floating]
@@ -173,69 +176,48 @@ class AnalyticSequentialGaugeEstimatorV2:
         initial_transform: Sim3 | None = None,
         initial_covariance: FloatArray | None = None,
     ) -> dict[str, GaugeEstimate]:
-        if not ordered_window_ids:
-            raise ValueError("ordered_window_ids must not be empty")
-        if len(set(ordered_window_ids)) != len(ordered_window_ids):
-            raise ValueError("window IDs must be unique")
-        first_id = ordered_window_ids[0]
-        first_transform = initial_transform or Sim3.identity()
-        first_covariance = (
-            np.diag([1e-10] * 7)
-            if initial_covariance is None
-            else validated_covariance_psd(
-                initial_covariance,
+        def prepare_initial_covariance(covariance: FloatArray) -> FloatArray:
+            return validated_covariance_psd(
+                covariance,
                 name="initial gauge covariance",
                 shape=(7, 7),
                 readonly=False,
             )
-        )
-        estimates = {first_id: GaugeEstimate(first_id, first_transform, first_covariance)}
 
-        for window_id in ordered_window_ids[1:]:
-            candidates: list[tuple[Sim3, FloatArray]] = []
-            for constraint in constraints:
-                if constraint.moving_id == window_id and constraint.reference_id in estimates:
-                    reference = estimates[constraint.reference_id]
-                    candidates.append(
-                        compose_sim3_with_covariance_analytic(
-                            reference.global_from_local,
-                            reference.covariance,
-                            constraint.reference_from_moving,
-                            constraint.covariance,
-                            branch_cut_tolerance=self.branch_cut_tolerance,
-                        )
-                    )
-                elif constraint.reference_id == window_id and constraint.moving_id in estimates:
-                    moving = estimates[constraint.moving_id]
-                    inverse, inverse_covariance = invert_sim3_with_covariance_analytic(
-                        constraint.reference_from_moving,
-                        constraint.covariance,
-                        branch_cut_tolerance=self.branch_cut_tolerance,
-                    )
-                    candidates.append(
-                        compose_sim3_with_covariance_analytic(
-                            moving.global_from_local,
-                            moving.covariance,
-                            inverse,
-                            inverse_covariance,
-                            branch_cut_tolerance=self.branch_cut_tolerance,
-                        )
-                    )
-            if not candidates:
-                raise ValueError(f"window {window_id!r} has no constraint to an initialized gauge")
-
-            minimum_weight = min(0.05, 0.5 / len(candidates))
-            transform, covariance, _ = fuse_sim3_covariance_intersection(
-                candidates,
-                minimum_weight=minimum_weight,
-                max_sweeps=max(16, self.covariance_intersection_grid_size),
-                line_search_iterations=max(
-                    32,
-                    2 * self.covariance_intersection_grid_size,
-                ),
+        def compose_with_covariance(
+            first: Sim3,
+            first_covariance: FloatArray,
+            second: Sim3,
+            second_covariance: FloatArray,
+        ) -> tuple[Sim3, FloatArray]:
+            return compose_sim3_with_covariance_analytic(
+                first,
+                first_covariance,
+                second,
+                second_covariance,
+                branch_cut_tolerance=self.branch_cut_tolerance,
             )
-            estimates[window_id] = GaugeEstimate(window_id, transform, covariance)
-        return estimates
+
+        def invert_with_covariance(
+            transform: Sim3,
+            covariance: FloatArray,
+        ) -> tuple[Sim3, FloatArray]:
+            return invert_sim3_with_covariance_analytic(
+                transform,
+                covariance,
+                branch_cut_tolerance=self.branch_cut_tolerance,
+            )
+
+        return _estimate_sequential_gauges(
+            ordered_window_ids,
+            constraints,
+            covariance_intersection_grid_size=self.covariance_intersection_grid_size,
+            compose_with_covariance=compose_with_covariance,
+            invert_with_covariance=invert_with_covariance,
+            initial_transform=initial_transform,
+            initial_covariance=initial_covariance,
+            prepare_initial_covariance=prepare_initial_covariance,
+        )
 
 
 __all__ = [
