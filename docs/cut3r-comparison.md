@@ -5,6 +5,9 @@ separates CUT3R's own recurrent-state value from the value of Prob4D fusion.
 The lock is outcome-blind and content-addressed. It does not execute CUT3R or
 open a target cohort.
 
+The complete execution order, stop rules, and final reporting requirements are
+in the [CUT3R source qualification runbook](cut3r-qualification-runbook.md).
+
 ## Frozen arms
 
 The lock always declares four arms:

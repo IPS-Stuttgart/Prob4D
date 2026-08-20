@@ -15,6 +15,30 @@ python -m ruff check src tests
 The lightweight package must remain importable without Torch, Diffusers, Decord, or a
 MotionCrafter checkout. GPU and model-loading dependencies belong behind lazy imports.
 
+## Evidence-first development
+
+The current scientific priority is the
+[CUT3R source qualification](docs/cut3r-qualification-runbook.md) under issue #49.
+The compact method and ownership boundary are in
+[the scientific kernel](docs/scientific-kernel.md).
+
+Do not add another provider adapter, point-covariance family, calibration score, fusion
+heuristic, or target-side guard merely because it is technically plausible. A new
+method should answer a retained failure that the ordered source gates have localized
+to that capability. In particular:
+
+- support, mean, or identity failures do not authorize covariance development;
+- gauge/dependence or linearization failures do not authorize richer conditional point
+  covariance;
+- only `point-covariance-localized` authorizes source-only point-uncertainty
+  development;
+- only `ready-for-one-target-evaluation` authorizes one evaluation of the exact bound
+  unopened target roster; and
+- a downstream BayesianPhysTwin or Causal4D result cannot rescue an upstream negative.
+
+Complete physical objects or acquisition sessions are the statistical units. Frames,
+points, tracks, views, cameras, and pixels remain nested observations.
+
 ## Contract changes
 
 `prob4d.provider_v1` is frozen for existing experiments. New claim-bearing development
@@ -46,7 +70,8 @@ does not authorize target access or promote a scientific claim.
 A pull request should describe:
 
 - the implementation or contract change;
-- the failure mode or research question it addresses;
+- the retained failure mode or research question it addresses;
+- the first readiness boundary affected;
 - compatibility and claim boundaries;
 - validation performed; and
 - any calibration artifacts or frozen experiments that must be regenerated.
