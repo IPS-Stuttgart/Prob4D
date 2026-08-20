@@ -32,6 +32,10 @@ def _help_parser() -> argparse.ArgumentParser:
         help="freeze or inspect a group-aware native-versus-fused CUT3R comparison",
     )
     subparsers.add_parser(
+        "cut3r-strata",
+        help="freeze and report source-only CUT3R diagnostic strata",
+    )
+    subparsers.add_parser(
         "compatibility",
         help="build or compare additive semantic-compatibility manifests",
     )
@@ -74,6 +78,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         from .cut3r_comparison import main as cut3r_comparison_main
 
         return int(cut3r_comparison_main(arguments[1:]))
+    if arguments[0] == "cut3r-strata":
+        from .cut3r_diagnostic_strata import main as cut3r_strata_main
+
+        return int(cut3r_strata_main(arguments[1:]))
     if arguments[0] == "compatibility":
         from .semantic_compatibility import main as compatibility_main
 
