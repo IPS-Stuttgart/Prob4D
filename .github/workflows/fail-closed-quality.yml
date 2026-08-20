@@ -79,7 +79,7 @@ jobs:
         if: always()
         shell: bash
         run: |
-          set -o pipefail
+          set -euo pipefail
           python -m prob4d.semantic_compatibility build \
             --output semantic-compatibility.json \
             2>&1 | tee semantic-compatibility-output.txt
@@ -94,6 +94,19 @@ jobs:
           python -m prob4d.cut3r_comparison verify \
             cut3r-comparison-lock.json \
             2>&1 | tee -a cut3r-comparison-output.txt
+          python -m prob4d.cut3r_comparison build \
+            tests/fixtures/cut3r-strata-comparison-spec.json \
+            --output cut3r-strata-comparison-lock.json \
+            2>&1 | tee cut3r-strata-output.txt
+          python -m prob4d.cut3r_diagnostic_strata freeze \
+            cut3r-strata-comparison-lock.json \
+            docs/examples/cut3r-diagnostic-strata-spec.json \
+            --output cut3r-diagnostic-strata-lock.json \
+            2>&1 | tee -a cut3r-strata-output.txt
+          python -m prob4d.cut3r_diagnostic_strata verify-lock \
+            cut3r-strata-comparison-lock.json \
+            cut3r-diagnostic-strata-lock.json \
+            2>&1 | tee -a cut3r-strata-output.txt
       - name: Run stable-interface mypy with fail-closed diagnostics
         if: always()
         shell: bash
@@ -113,6 +126,7 @@ jobs:
             src/prob4d/composition_jacobian.py \
             src/prob4d/covariance_root.py \
             src/prob4d/cut3r_comparison.py \
+            src/prob4d/cut3r_diagnostic_strata.py \
             src/prob4d/material_identity_cli.py \
             src/prob4d/material_identity_weight_calibration.py \
             src/prob4d/observation_factor_stream.py \
@@ -153,5 +167,8 @@ jobs:
             semantic-compatibility-output.txt
             cut3r-comparison-lock.json
             cut3r-comparison-output.txt
+            cut3r-strata-comparison-lock.json
+            cut3r-diagnostic-strata-lock.json
+            cut3r-strata-output.txt
           if-no-files-found: warn
           retention-days: 14

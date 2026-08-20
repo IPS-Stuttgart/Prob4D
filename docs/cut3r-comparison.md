@@ -76,3 +76,18 @@ A passing source comparison is not a held-out promotion result. A later target
 experiment must use the independently frozen held-out provider and
 BayesianPhysTwin gate, with provider competence and downstream physical-query
 benefit reported separately.
+
+## Frozen diagnostic strata
+
+The aggregate source endpoints remain primary. Before source scores are opened,
+freeze the optional [CUT3R diagnostic strata](cut3r-stratified-reporting.md) to
+localize long-horizon, restart-boundary, occlusion, deformation, viewpoint, and
+metric-anchor failures without creating additional method-selection endpoints.
+
+The strata use one arm-neutral feature value for every paired observation. They
+therefore cannot be derived separately from the native, restarted-newest, and
+Prob4D-fused predictions. Reports first average nested records inside each frozen seed, then give seeds
+equal mass inside each case, cases equal mass inside each complete
+object/session, and finally complete groups equal mass. A sparsely populated bin
+remains descriptive and cannot rescue or reverse the registered aggregate source
+decision.

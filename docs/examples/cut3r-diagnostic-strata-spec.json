@@ -1,0 +1,116 @@
+{
+  "metric_names": [
+    "full-covariance-width-m",
+    "identity-retention",
+    "normalized-nees",
+    "point-error-m",
+    "proper-score",
+    "support-retention"
+  ],
+  "minimum_evaluable_groups_per_bin": 4,
+  "record_definition_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "strata": [
+    {
+      "bin_edges": [
+        0,
+        25,
+        50,
+        100,
+        200
+      ],
+      "feature_name": "frames_since_sequence_start",
+      "selection_role": "reporting-only",
+      "stratum_id": "absolute-prefix-age",
+      "unit": "frames",
+      "uses_downstream_physical_innovation": false,
+      "uses_target_outcomes": false,
+      "uses_truth": false,
+      "value_source": "frozen-source-frame-index"
+    },
+    {
+      "bin_edges": [
+        0,
+        4,
+        8,
+        16,
+        24
+      ],
+      "feature_name": "frames_since_restart_boundary",
+      "selection_role": "reporting-only",
+      "stratum_id": "frames-since-restart-boundary",
+      "unit": "frames",
+      "uses_downstream_physical_innovation": false,
+      "uses_target_outcomes": false,
+      "uses_truth": false,
+      "value_source": "frozen-window-schedule"
+    },
+    {
+      "bin_edges": [
+        0,
+        1,
+        4,
+        8,
+        16
+      ],
+      "feature_name": "occlusion_reappearance_gap_frames",
+      "selection_role": "reporting-only",
+      "stratum_id": "occlusion-reappearance-gap",
+      "unit": "frames",
+      "uses_downstream_physical_innovation": false,
+      "uses_target_outcomes": false,
+      "uses_truth": false,
+      "value_source": "frozen-input-visibility"
+    },
+    {
+      "bin_edges": [
+        0,
+        0.005,
+        0.02,
+        0.05,
+        0.1
+      ],
+      "feature_name": "normalized_image_motion",
+      "selection_role": "reporting-only",
+      "stratum_id": "normalized-image-motion",
+      "unit": "image-diagonal-fraction-per-frame",
+      "uses_downstream_physical_innovation": false,
+      "uses_target_outcomes": false,
+      "uses_truth": false,
+      "value_source": "frozen-input-image-motion"
+    },
+    {
+      "bin_edges": [
+        0,
+        5,
+        15,
+        30,
+        60
+      ],
+      "feature_name": "viewpoint_rotation_novelty_deg",
+      "selection_role": "reporting-only",
+      "stratum_id": "viewpoint-rotation-novelty",
+      "unit": "degrees",
+      "uses_downstream_physical_innovation": false,
+      "uses_target_outcomes": false,
+      "uses_truth": false,
+      "value_source": "frozen-prefix-camera-geometry"
+    },
+    {
+      "bin_edges": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "feature_name": "metric_anchor_log10_condition_number",
+      "selection_role": "reporting-only",
+      "stratum_id": "metric-anchor-conditioning",
+      "unit": "log10-condition-number",
+      "uses_downstream_physical_innovation": false,
+      "uses_target_outcomes": false,
+      "uses_truth": false,
+      "value_source": "frozen-prefix-metric-anchor-geometry"
+    }
+  ]
+}
