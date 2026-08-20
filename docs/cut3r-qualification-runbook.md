@@ -41,7 +41,8 @@ Before residuals or outcomes are opened, bind:
 - disjoint development, calibration, source-evaluation, and target groups;
 - complete required camera, robot, timestamp, mask, and identity streams;
 - exact CUT3R revision, checkpoint, loader, argument vector, and runtime;
-- exact Prob4D, BayesianPhysTwin, and Causal4D distribution identities;
+- exact Prob4D and BayesianPhysTwin distribution identities;
+- a Causal4D identity only for a separately registered downstream query;
 - causal frame stops, window size, overlap, resolution, and confidence rule;
 - provider and BayesianPhysTwin baselines;
 - source calibration policies and group-level decision margins;
@@ -192,23 +193,11 @@ Interpret terminal results as follows:
   point model; or
 - covariance adequate -> proceed to query relevance.
 
-## Phase 5: physical-query relevance and readiness
+## Phase 5: freeze query, target protocol, and readiness
 
 Bind the source-only BayesianPhysTwin query projection, its exact Jacobian
-lineage, and the exact physical fallback. Build the complete target-free
-readiness decision:
-
-```bash
-prob4d experiment fresh-provider-readiness evaluate \
-  --request outputs/cut3r/readiness-request.json \
-  --output outputs/cut3r/readiness-decision.json
-```
-
-Only `ready-for-one-target-evaluation` authorizes a target run. Every other
-classification is a complete negative or bounded source result for this provider
-version.
-
-After a positive readiness decision, freeze the held-out protocol before target
+lineage, the target roster, and the exact physical fallback. After the single
+source-selected candidate is fixed, freeze the held-out protocol before target
 provider manifests or outcomes are opened:
 
 ```bash
@@ -219,6 +208,33 @@ prob4d experiment heldout-provider freeze \
 
 When the study uses a separately owned cohort binding, supply the exact
 `--cohort-binding` required by the frozen protocol.
+
+The fresh-provider cohort lock must reference this exact promotion-lock identity.
+Build the complete target-free readiness decision only after that identity is
+available:
+
+```bash
+prob4d experiment fresh-provider-readiness evaluate \
+  --request outputs/cut3r/readiness-request.json \
+  --output outputs/cut3r/readiness-decision.json
+
+prob4d experiment fresh-provider-readiness verify-decision \
+  --artifact outputs/cut3r/readiness-decision.json
+```
+
+Only `ready-for-one-target-evaluation` authorizes a target run. Every other
+classification is a complete negative or bounded source result for this provider
+version. For a positive decision, seal and replay the one-shot target
+authorization:
+
+```bash
+prob4d experiment fresh-provider-readiness authorize-target \
+  --decision outputs/cut3r/readiness-decision.json \
+  --output outputs/cut3r/target-authorization.json
+
+prob4d experiment fresh-provider-readiness verify-authorization \
+  --artifact outputs/cut3r/target-authorization.json
+```
 
 Run the target-free observation rehearsal from the exact reviewed Prob4D
 revision:
@@ -243,14 +259,14 @@ prob4d study preflight \
   --output-dir outputs/cut3r/study-preflight
 ```
 
-The rehearsal and preflight do not alter the target roster, decision margin,
-fallback, provider, or analysis.
+The readiness decision, authorization, rehearsal, and preflight do not alter the
+target roster, decision margin, fallback, provider, or analysis.
 
 ## Phase 6: metadata-only target admission
 
-Generate one provider-neutral target manifest for every frozen target group
-without opening target outcomes. Bind those manifests to the promotion lock and
-cohort:
+If and only if the target authorization passes, generate one provider-neutral
+target manifest for every frozen target group without opening target outcomes.
+Bind those manifests to the promotion lock and cohort:
 
 ```bash
 prob4d provider target-admit \
@@ -272,8 +288,8 @@ opened.
 
 ## Phase 7: one frozen target evaluation
 
-If and only if the readiness decision and metadata admission pass, execute the
-provider evaluator once:
+If and only if the one-shot target authorization and metadata admission pass,
+execute the provider evaluator once:
 
 ```bash
 prob4d evaluate provider \
