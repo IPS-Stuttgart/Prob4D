@@ -27,6 +27,32 @@ identity, or evidence admission require focused adversarial tests and correspond
 changelog documentation. Exact fallback and causal-prefix invariants must remain
 fail-closed.
 
+## Evidence-first scientific changes
+
+Before adding another provider, association mechanism, gauge estimator, covariance
+model, or calibration layer, identify the exact upstream gate that failed and link the
+immutable source or calibration evidence. The accepted progression is summarized in
+[`docs/scientific-kernel.md`](docs/scientific-kernel.md).
+
+The following are implementation or mechanism evidence, not authorization for another
+claim-bearing method:
+
+- green CI or installed-wheel compatibility;
+- a mature adapter or complete artifact schema;
+- controlled synthetic success;
+- an already-open target-side outcome; and
+- a downstream result that would rescue a failed upstream gate.
+
+A provider version that is negative at support, source means, identity/reliability,
+gauge/dependence, linearization closure, calibration, or query relevance must stop or be
+replaced by a separately frozen source protocol. Only a
+`point-covariance-localized` source decision authorizes richer point uncertainty.
+
+The current real-provider execution is the frozen CUT3R source qualification in
+[`docs/cut3r-source-qualification.md`](docs/cut3r-source-qualification.md), tied to
+issue #49. Claim-bearing method PRs in that path should either execute the frozen
+protocol or cite the retained failure that specifically authorizes their change.
+
 ## Privileged validation
 
 Ordinary pull-request workflows must remain on ephemeral GitHub-hosted runners. Do not
