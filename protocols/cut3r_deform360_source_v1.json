@@ -1,0 +1,230 @@
+{
+  "camera_panel": {
+    "candidate_rule": "intersection of camera streams that have official aligned video, timestamps, alignment and provenance sidecars, calibrated intrinsics/extrinsics, and at least 58 aligned source-prefix frames in every frozen source object-session",
+    "first_camera_rule": "maximum dot product with the positive world x-axis, then lexicographic camera name",
+    "future_frames_decoded_during_freeze": false,
+    "maximum_cross_episode_camera_center_deviation_m": 0.02,
+    "minimum_common_supported_cameras": 4,
+    "panel_size": 4,
+    "selection_role": "source-support-design-only",
+    "selection_rule": "deterministic geometry-balanced farthest-point selection on calibrated camera-center directions after centering the common source-only camera constellation",
+    "target_camera_payloads_opened": false,
+    "tie_tolerance": 1e-12
+  },
+  "claim_boundary": "This protocol freezes a source-only CUT3R-versus-Prob4D comparison on ten already opened Deform360 object sessions. It does not establish held-out provider competence, uncertainty calibration, BayesianPhysTwin benefit, Causal4D benefit, deployment safety, benchmark parity, or state of the art. The twelve confirmation object sessions remain unopened and forbidden.",
+  "forbidden_target_groups": [
+    {
+      "episode_id": 1,
+      "object_id": "030-bandage-cloth",
+      "stratum": "sheet"
+    },
+    {
+      "episode_id": 4,
+      "object_id": "057-kitchen-sponge",
+      "stratum": "volumetric"
+    },
+    {
+      "episode_id": 3,
+      "object_id": "095-watermelon",
+      "stratum": "volumetric"
+    },
+    {
+      "episode_id": 1,
+      "object_id": "102-stress-ball",
+      "stratum": "volumetric"
+    },
+    {
+      "episode_id": 6,
+      "object_id": "105-clay-cloth",
+      "stratum": "sheet"
+    },
+    {
+      "episode_id": 3,
+      "object_id": "107-mitt-cloth",
+      "stratum": "sheet"
+    },
+    {
+      "episode_id": 9,
+      "object_id": "115-cotton-gauze-cloth",
+      "stratum": "sheet"
+    },
+    {
+      "episode_id": 4,
+      "object_id": "155-crystal-slime",
+      "stratum": "volumetric"
+    },
+    {
+      "episode_id": 4,
+      "object_id": "156-mesh-produce-bag-cloth",
+      "stratum": "sheet"
+    },
+    {
+      "episode_id": 1,
+      "object_id": "166-glove-green-cloth",
+      "stratum": "sheet"
+    },
+    {
+      "episode_id": 2,
+      "object_id": "187-white-bear",
+      "stratum": "volumetric"
+    },
+    {
+      "episode_id": 1,
+      "object_id": "190-monkey",
+      "stratum": "volumetric"
+    }
+  ],
+  "freeze_outputs": {
+    "comparison_lock": "cut3r-comparison-lock.json",
+    "comparison_spec": "cut3r-comparison-spec.json",
+    "source_freeze": "cut3r-deform360-source-freeze.json"
+  },
+  "group_unit": "complete-physical-object-session",
+  "information_boundary": {
+    "camera_panel_change_after_freeze_allowed": false,
+    "downstream_physical_innovations_opened": false,
+    "replacement_after_freeze_allowed": false,
+    "source_future_geometry_opened": false,
+    "source_prediction_payloads_opened": false,
+    "source_residuals_or_truth_opened": false,
+    "source_rgb_frames_decoded": false,
+    "source_rgb_video_bytes_hashed": true,
+    "target_outcomes_opened": false,
+    "target_payloads_opened": false
+  },
+  "protocol_name": "cut3r-deform360-source-v1",
+  "provider": {
+    "checkpoint_filename": "cut3r_512_dpt_4_64.pth",
+    "confidence_threshold": 1.5,
+    "execution_mode": "recurrent-online",
+    "global_alignment": false,
+    "image_size": 512,
+    "repository": "CUT3R/CUT3R",
+    "revision": "8bc15dc92a6d7fd92920b4ec81540d3dec7d3ecf",
+    "revisit_count": 1,
+    "second_pass_allowed": false
+  },
+  "schema": "prob4d.cut3r-deform360-source-freeze-protocol",
+  "schema_version": 1,
+  "scientific_question": "On complete source-only Deform360 object sessions, how much do CUT3R persistent state and Prob4D fusion each contribute under one frozen prefix, camera panel, checkpoint, and group-balanced comparison?",
+  "source_dataset": {
+    "processed_layout": "processed/<object_id>/episode_<episode_id:04d>",
+    "repository": "brownu/deform360",
+    "revision": "f804696d7a133908c7497ffdab43819d879b5cbc",
+    "selection_artifact_sha256": "dc1c2d192fbb841d2f0e290d77f21d697983b3f8bfbcae476e71fe902309cd82",
+    "selection_file_sha256": "4dd12af9889d64976095eb9e237eeb655f9675ff7d5940aa5dfc1d4ee11f295c",
+    "selection_path": "protocols/locks/deform360_official_hub_visuotactile_v1_selection.json",
+    "selection_repository": "IPS-Stuttgart/BayesianPhysTwin",
+    "selection_sha256": "b28daf8477e214cb74a4d250ef5eea8f9f1a014aec10487699ac0ce063961222"
+  },
+  "source_groups": [
+    {
+      "episode_id": 7,
+      "group_id": "026-sock-cloth-episode-0007",
+      "object_id": "026-sock-cloth",
+      "role": "calibration",
+      "stratum": "sheet"
+    },
+    {
+      "episode_id": 0,
+      "group_id": "031-cotton-cloth-episode-0000",
+      "object_id": "031-cotton-cloth",
+      "role": "development",
+      "stratum": "sheet"
+    },
+    {
+      "episode_id": 9,
+      "group_id": "036-napkin-cloth-episode-0009",
+      "object_id": "036-napkin-cloth",
+      "role": "source_evaluation",
+      "stratum": "sheet"
+    },
+    {
+      "episode_id": 1,
+      "group_id": "058-roll-napkin-episode-0001",
+      "object_id": "058-roll-napkin",
+      "role": "source_evaluation",
+      "stratum": "volumetric"
+    },
+    {
+      "episode_id": 8,
+      "group_id": "152-slime-episode-0008",
+      "object_id": "152-slime",
+      "role": "source_evaluation",
+      "stratum": "volumetric"
+    },
+    {
+      "episode_id": 5,
+      "group_id": "153-cake-episode-0005",
+      "object_id": "153-cake",
+      "role": "calibration",
+      "stratum": "volumetric"
+    },
+    {
+      "episode_id": 0,
+      "group_id": "167-glove-gray-cloth-episode-0000",
+      "object_id": "167-glove-gray-cloth",
+      "role": "calibration",
+      "stratum": "sheet"
+    },
+    {
+      "episode_id": 6,
+      "group_id": "186-monster-episode-0006",
+      "object_id": "186-monster",
+      "role": "calibration",
+      "stratum": "volumetric"
+    },
+    {
+      "episode_id": 7,
+      "group_id": "193-frog-episode-0007",
+      "object_id": "193-frog",
+      "role": "development",
+      "stratum": "volumetric"
+    },
+    {
+      "episode_id": 2,
+      "group_id": "198-kneepad-cloth-episode-0002",
+      "object_id": "198-kneepad-cloth",
+      "role": "source_evaluation",
+      "stratum": "sheet"
+    }
+  ],
+  "source_role_assignment": {
+    "allocation_by_rank": [
+      "development",
+      "calibration",
+      "calibration",
+      "source_evaluation",
+      "source_evaluation"
+    ],
+    "assignment_frozen_before_provider_outputs": true,
+    "calibration_count": 4,
+    "development_count": 2,
+    "hash_seed": "prob4d-cut3r-deform360-source-v1",
+    "rule": "Within each stratum, rank SHA256('prob4d-cut3r-deform360-source-v1\\0' + object_id + '\\0' + episode_id); assign rank 1 to development, ranks 2-3 to calibration, and ranks 4-5 to source evaluation.",
+    "source_evaluation_count": 4
+  },
+  "stop_rules": {
+    "different_existing_output": "no-clobber-failure",
+    "insufficient_common_camera_support": "retain-valid-support-negative-and-stop-provider-version",
+    "source_file_mutation_during_hashing": "fail-closed-before-publication",
+    "source_identity_or_revision_mismatch": "fail-closed-before-publication",
+    "target_object_or_path_reference": "fail-closed-before-target-io"
+  },
+  "windowing": {
+    "evaluation_frame_start": 24,
+    "evaluation_frame_stop_exclusive": 58,
+    "final_window_end_anchored": true,
+    "frame_start": 0,
+    "frame_stop_exclusive": 58,
+    "include_revisit_diagnostic": false,
+    "overlap": 8,
+    "random_seeds": [
+      7,
+      11,
+      19
+    ],
+    "storage_dtype": "float32",
+    "window_size": 25
+  }
+}
