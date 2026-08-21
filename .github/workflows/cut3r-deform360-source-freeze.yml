@@ -1,56 +1,61 @@
-name: Repair CUT3R Deform360 source-freeze PR
+name: Validate CUT3R Deform360 source freeze
 
 on:
   pull_request:
     branches: [main]
     paths:
       - ".github/workflows/cut3r-deform360-source-freeze.yml"
+      - ".github/workflows/trusted-self-hosted-validation.yml"
+      - "protocols/cut3r_deform360_source_v1.json"
+      - "scripts/science/build_cut3r_deform360_source_freeze.py"
+      - "tests/test_cut3r_deform360_source_freeze.py"
+      - "tests/test_trusted_self_hosted_validation_policy.py"
+      - "docs/cut3r-deform360-source-freeze.md"
+  workflow_dispatch:
 
 permissions:
-  actions: write
-  contents: write
+  contents: read
 
 concurrency:
-  group: pr-274-repair-${{ github.event.pull_request.number }}
-  cancel-in-progress: false
+  group: cut3r-deform360-source-freeze-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PROB4D_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
 
 jobs:
-  repair:
-    if: >-
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      github.event.pull_request.head.ref == 'agent/cut3r-deform360-source-freeze'
+  contracts:
+    name: Source-freeze contracts
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 20
     steps:
-      - name: Check out the same-repository PR branch
+      - name: Check out exact reviewed head
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
-          fetch-depth: 0
-          persist-credentials: true
+          ref: ${{ env.PROB4D_HEAD_SHA }}
+          persist-credentials: false
 
-      - name: Merge current main and apply reviewed repairs
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch --no-tags origin main
-          git merge --no-edit origin/main
-          python .github/scripts/pr_274_repair.py
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
 
-      - name: Validate the repaired branch
+      - name: Validate source-only freeze implementation
         shell: bash
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev]"
           python -m pip check
-          python -m ruff check --fix \
+          python -m ruff check \
             scripts/science/build_cut3r_deform360_source_freeze.py \
             tests/test_cut3r_deform360_source_freeze.py \
             tests/test_trusted_self_hosted_validation_policy.py
-          python -m ruff format \
+          python -m ruff format --check \
             scripts/science/build_cut3r_deform360_source_freeze.py \
             tests/test_cut3r_deform360_source_freeze.py \
             tests/test_trusted_self_hosted_validation_policy.py
@@ -59,28 +64,3 @@ jobs:
             tests/test_trusted_self_hosted_validation_policy.py
           python -m compileall -q \
             scripts/science/build_cut3r_deform360_source_freeze.py
-          git diff --check
-
-      - name: Upload connector-published workflow files
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: pr-274-repaired-workflows-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            .github/workflows/cut3r-deform360-source-freeze.yml
-            .github/workflows/trusted-self-hosted-validation.yml
-          if-no-files-found: error
-          retention-days: 7
-
-      - name: Commit and push non-workflow repairs
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -- \
-            docs/cut3r-deform360-source-freeze.md \
-            scripts/science/build_cut3r_deform360_source_freeze.py \
-            tests/test_cut3r_deform360_source_freeze.py \
-            tests/test_trusted_self_hosted_validation_policy.py
-          git commit -m "Repair CUT3R source-freeze validation architecture"
-          git push origin HEAD:agent/cut3r-deform360-source-freeze
