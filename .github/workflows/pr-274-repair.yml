@@ -1,4 +1,5 @@
 name: One-shot PR 274 repair
+# Trigger the already-reviewed one-shot workflow after its bootstrap commit.
 
 on:
   push:
