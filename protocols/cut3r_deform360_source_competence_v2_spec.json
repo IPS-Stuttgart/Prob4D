@@ -1,0 +1,35 @@
+{
+  "common_support_definition_sha256": "c7873ffe65fd6ac97721d2ab17328710a5879f9947c6c6ad55a491f1bd867ae3",
+  "paired_policy": {
+    "maximum_mean_absolute_drift_slope_ratio": 1.0,
+    "maximum_mean_seam_rmse_ratio": 1.0,
+    "maximum_worst_group_absolute_drift_slope_ratio": 1.2,
+    "maximum_worst_group_seam_rmse_ratio": 1.2,
+    "minimum_mean_association_precision_delta": -0.02,
+    "minimum_mean_identity_retention_delta": -0.02,
+    "minimum_mean_support_retention_delta": -0.02,
+    "minimum_paired_identity_group_pass_fraction": 0.75,
+    "minimum_paired_quality_group_pass_fraction": 0.75,
+    "minimum_worst_group_association_precision_delta": -0.05,
+    "minimum_worst_group_identity_retention_delta": -0.05,
+    "minimum_worst_group_support_retention_delta": -0.05
+  },
+  "proper_score_semantics": "arm-neutral-fixed-scale-gaussian-score-v1",
+  "require_complete_source_roster": true,
+  "source_competence_policy": {
+    "maximum_mean_absolute_drift_slope_m_per_frame": 0.001,
+    "maximum_mean_endpoint_rmse_ratio": 1.0,
+    "maximum_mean_point_rmse_ratio": 1.0,
+    "maximum_mean_proper_score_delta": 0.0,
+    "maximum_mean_seam_rmse_m": 0.01,
+    "maximum_technical_failures": 0,
+    "maximum_worst_group_point_rmse_ratio": 1.2,
+    "minimum_evaluable_groups": 4,
+    "minimum_identity_group_pass_fraction": 0.75,
+    "minimum_mean_association_precision": 0.9,
+    "minimum_mean_identity_retention": 0.8,
+    "minimum_mean_quality_group_pass_fraction": 0.75,
+    "minimum_mean_support_retention": 0.8,
+    "permitted_technical_failure_codes": []
+  }
+}

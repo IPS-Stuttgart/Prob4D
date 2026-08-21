@@ -14,3 +14,6 @@ with the exact content identity from the frozen provider protocol.
   through `prob4d identity calibrate-mixture`.
 - `material-identity-mixture-config.json` remains the lower-level example for
   externally supplied calibrated log weights.
+- `cut3r-source-competence-v2-spec.json` freezes exact common metric support,
+  arm-neutral source-mean proper-score semantics, and paired source endpoints on
+  top of an existing CUT3R source-competence v1 lock.

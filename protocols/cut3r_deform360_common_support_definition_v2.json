@@ -1,0 +1,30 @@
+{
+  "canonical_hash_encoding": "UTF-8 JSON with sorted keys, compact separators, finite numbers only, and an ordered array of canonical support-row identifiers",
+  "claim_boundary": "This source-only definition binds common metric support for the frozen CUT3R Deform360 source comparison. It does not open source scores or target data, establish provider competence, authorize BayesianPhysTwin or Causal4D use, or establish state of the art.",
+  "group_unit": "complete-physical-object-session",
+  "metric_support": {
+    "endpoint_support_count": "number of ordered 3-D endpoint residual vectors entering endpoint_error_m",
+    "endpoint_support_sha256": "SHA-256 of the canonical ordered endpoint-row identifier array",
+    "point_support_count": "number of ordered 3-D material-point residual vectors entering point_error_m",
+    "point_support_sha256": "SHA-256 of the canonical ordered point-row identifier array",
+    "proper_score_dimension": "scalar residual dimension entering the arm-neutral fixed-scale Gaussian score",
+    "proper_score_semantics": "arm-neutral-fixed-scale-gaussian-score-v1",
+    "proper_score_support_sha256": "SHA-256 of the canonical ordered residual-row identifier array entering proper_score",
+    "seam_support_count": "number of ordered 3-D overlap-seam residual vectors entering seam_error_m; zero when seam_error_m is absent",
+    "seam_support_sha256": "SHA-256 of the canonical ordered seam-row identifier array; null when seam_support_count is zero"
+  },
+  "paired_rule": "For every frozen (group, case, frame, seed) record, candidate and baseline metric_support objects must be byte-identical after canonicalization.",
+  "primary_score_rule": "The primary paired score uses only the exact common support. Full-reference deployment error and selective risk-coverage are separate diagnostics and cannot replace or rescue the primary result.",
+  "proper_score_rule": "The source-mean proper score uses one scale or covariance fitted from development/calibration information and byte-identical across arms. Arm-specific predicted covariance is evaluated only in the later covariance gate.",
+  "record_unit": "one frozen (group_id, case_id, frame_index, random_seed, arm_id) row",
+  "schema": "prob4d.cut3r-deform360-common-support-definition",
+  "schema_version": 2,
+  "support_row_identifier": {
+    "endpoint": "[group_id, case_id, frame_index, endpoint_role, material_identity_id, coordinate_frame_id]",
+    "point": "[group_id, case_id, frame_index, material_identity_id, coordinate_frame_id]",
+    "proper_score": "[group_id, case_id, frame_index, material_identity_id, coordinate_axis, coordinate_frame_id]",
+    "seam": "[group_id, case_id, frame_index, window_left_id, window_right_id, material_identity_id, coordinate_frame_id]"
+  },
+  "target_outcomes_opened": false,
+  "target_payloads_opened": false
+}
