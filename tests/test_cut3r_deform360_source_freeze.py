@@ -182,6 +182,13 @@ def test_builds_group_aware_source_freeze_without_target_access(
     assert result["forbidden_target_group_count"] == 12
     assert len(result["camera_panel"]["selected_cameras"]) == 4
     assert len(result["source_cases"]) == 40
+    assert len(result["camera_calibration_inputs"]) == 10
+    for calibration in result["camera_calibration_inputs"]:
+        for name in ("intrinsics", "extrinsics"):
+            identity = calibration[name]
+            path = fixture["processed_root"] / identity["relative_path"]
+            assert identity["sha256"] == hashlib.sha256(path.read_bytes()).hexdigest()
+            assert identity["byte_count"] == path.stat().st_size
     forbidden = {item["object_id"] for item in result["forbidden_target_groups"]}
     assert not any(any(object_id in path.parts for object_id in forbidden) for path in opened)
 
@@ -295,3 +302,56 @@ def test_rejects_source_role_drift_from_frozen_hash_rule(tmp_path: Path) -> None
             prob4d_wheel=fixture["wheel"],
             output_directory=fixture["output"],
         )
+
+
+def test_rejects_duplicate_source_group_ids(tmp_path: Path) -> None:
+    module = _module()
+    fixture = _fixture(tmp_path)
+    protocol = json.loads(fixture["protocol"].read_text(encoding="utf-8"))
+    protocol["source_groups"][1]["group_id"] = protocol["source_groups"][0]["group_id"]
+    _write_json(fixture["protocol"], protocol)
+
+    with pytest.raises(ValueError, match="repeats group_id"):
+        module.build_source_freeze(
+            repository=fixture["repository"],
+            protocol_path=fixture["protocol"],
+            selection_path=fixture["selection"],
+            processed_root=fixture["processed_root"],
+            cut3r_checkout=fixture["cut3r"],
+            checkpoint_path=fixture["checkpoint"],
+            prob4d_wheel=fixture["wheel"],
+            output_directory=fixture["output"],
+        )
+
+
+def test_source_freeze_id_binds_exact_calibration_bytes(tmp_path: Path) -> None:
+    module = _module()
+    fixture = _fixture(tmp_path)
+    arguments = {
+        "repository": fixture["repository"],
+        "protocol_path": fixture["protocol"],
+        "selection_path": fixture["selection"],
+        "processed_root": fixture["processed_root"],
+        "cut3r_checkout": fixture["cut3r"],
+        "checkpoint_path": fixture["checkpoint"],
+        "prob4d_wheel": fixture["wheel"],
+        "output_directory": fixture["output"],
+    }
+    first = module.build_source_freeze(**arguments)
+
+    protocol = json.loads(fixture["protocol"].read_text(encoding="utf-8"))
+    group = protocol["source_groups"][0]
+    intrinsics_path = (
+        fixture["processed_root"]
+        / group["object_id"]
+        / f"episode_{group['episode_id']:04d}"
+        / "undistorted_intrinsics.npy"
+    )
+    intrinsics = np.load(intrinsics_path, allow_pickle=True).item()
+    intrinsics["cam-a"] = intrinsics["cam-a"].copy()
+    intrinsics["cam-a"][0, 0] += 1.0
+    np.save(intrinsics_path, intrinsics, allow_pickle=True)
+
+    arguments["output_directory"] = tmp_path / "output-after-calibration-change"
+    second = module.build_source_freeze(**arguments)
+    assert first["source_freeze_id"] != second["source_freeze_id"]

@@ -203,6 +203,7 @@ def _protocol_roster(
         raise ValueError(f"protocol.{field} must be a nonempty JSON array")
     result: list[dict[str, Any]] = []
     seen: set[tuple[str, int]] = set()
+    seen_group_ids: set[str] = set()
     for index, raw_record in enumerate(records):
         if type(raw_record) is not dict:
             raise ValueError(f"protocol.{field}[{index}] must be a JSON object")
@@ -221,10 +222,14 @@ def _protocol_roster(
             "stratum": stratum,
         }
         if include_role:
-            normalized["group_id"] = _strict_string(
+            group_id = _strict_string(
                 record.get("group_id"),
                 name=f"protocol.{field}[{index}].group_id",
             )
+            if group_id in seen_group_ids:
+                raise ValueError(f"protocol.{field} repeats group_id {group_id!r}")
+            seen_group_ids.add(group_id)
+            normalized["group_id"] = group_id
             role = _strict_string(
                 record.get("role"),
                 name=f"protocol.{field}[{index}].role",
@@ -678,6 +683,7 @@ def build_source_freeze(
     episode_by_group: dict[str, Path] = {}
     supported_by_group: dict[str, set[str]] = {}
     support_rows: list[dict[str, Any]] = []
+    calibration_inputs: list[dict[str, Any]] = []
     centers_by_camera: dict[str, list[FloatArray]] = {}
     for record in source_groups:
         object_id = cast(str, record["object_id"])
@@ -687,14 +693,44 @@ def build_source_freeze(
         if any(target_id in episode.parts for target_id in target_ids):
             raise ValueError(f"source episode resolves through a forbidden target path: {episode}")
         group_id = cast(str, record["group_id"])
+        episode_id = cast(int, record["episode_id"])
         episode_by_group[group_id] = episode
+        intrinsics_path = episode / "undistorted_intrinsics.npy"
+        extrinsics_path = episode / "extrinsics.npy"
+        intrinsics_sha, intrinsics_size = _sha256_file(
+            intrinsics_path,
+            name=f"{group_id} intrinsics",
+        )
+        extrinsics_sha, extrinsics_size = _sha256_file(
+            extrinsics_path,
+            name=f"{group_id} extrinsics",
+        )
         intrinsics = _load_numpy_mapping(
-            episode / "undistorted_intrinsics.npy",
+            intrinsics_path,
             name=f"{group_id} intrinsics",
         )
         extrinsics = _load_numpy_mapping(
-            episode / "extrinsics.npy",
+            extrinsics_path,
             name=f"{group_id} extrinsics",
+        )
+        calibration_inputs.append(
+            {
+                "group_id": group_id,
+                "object_id": object_id,
+                "episode_id": episode_id,
+                "intrinsics": {
+                    "relative_path": (
+                        f"{object_id}/episode_{episode_id:04d}/undistorted_intrinsics.npy"
+                    ),
+                    "sha256": intrinsics_sha,
+                    "byte_count": intrinsics_size,
+                },
+                "extrinsics": {
+                    "relative_path": f"{object_id}/episode_{episode_id:04d}/extrinsics.npy",
+                    "sha256": extrinsics_sha,
+                    "byte_count": extrinsics_size,
+                },
+            }
         )
         cameras = sorted(set(intrinsics).intersection(extrinsics))
         if not cameras:
@@ -726,6 +762,7 @@ def build_source_freeze(
 
     common_supported = set.intersection(*supported_by_group.values())
     support_rows.sort(key=lambda item: (item["group_id"], item["camera"]))
+    calibration_inputs.sort(key=lambda item: item["group_id"])
     decision = SUPPORT_PASS if len(common_supported) >= minimum_common else SUPPORT_NEGATIVE
     freeze_base: dict[str, Any] = {
         "schema": SOURCE_FREEZE_SCHEMA,
@@ -770,6 +807,7 @@ def build_source_freeze(
             "minimum_common_supported_cameras": minimum_common,
             "stream_rows": support_rows,
         },
+        "camera_calibration_inputs": calibration_inputs,
         "camera_panel": None,
         "source_cases": [],
         "information_boundary": protocol["information_boundary"],
