@@ -1,66 +1,69 @@
-name: Validate CUT3R Deform360 source freeze
+name: Harden CUT3R Deform360 source-freeze PR
 
 on:
   pull_request:
     branches: [main]
     paths:
       - ".github/workflows/cut3r-deform360-source-freeze.yml"
-      - ".github/workflows/trusted-self-hosted-validation.yml"
-      - "protocols/cut3r_deform360_source_v1.json"
-      - "scripts/science/build_cut3r_deform360_source_freeze.py"
-      - "tests/test_cut3r_deform360_source_freeze.py"
-      - "tests/test_trusted_self_hosted_validation_policy.py"
-      - "docs/cut3r-deform360-source-freeze.md"
-  workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
-  group: cut3r-deform360-source-freeze-${{ github.ref }}
-  cancel-in-progress: true
-
-env:
-  PROB4D_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-  PYTHONHASHSEED: "0"
-  PYTHONUNBUFFERED: "1"
+  group: pr-274-hardening-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
 
 jobs:
-  contracts:
-    name: Source-freeze contracts
+  harden:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'agent/cut3r-deform360-source-freeze'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
-      - name: Check out exact reviewed head
+      - name: Check out the same-repository PR branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ env.PROB4D_HEAD_SHA }}
-          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+          persist-credentials: true
 
-      - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: pyproject.toml
+      - name: Apply the reviewed reproducibility hardening
+        shell: bash
+        run: |
+          set -euo pipefail
+          python .github/scripts/pr_274_hardening.py
 
-      - name: Validate source-only freeze implementation
+      - name: Validate the hardened implementation
         shell: bash
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev]"
           python -m pip check
-          python -m ruff check \
+          python -m ruff check --fix \
             scripts/science/build_cut3r_deform360_source_freeze.py \
             tests/test_cut3r_deform360_source_freeze.py \
             tests/test_trusted_self_hosted_validation_policy.py
-          python -m ruff format --check \
+          python -m ruff format \
             scripts/science/build_cut3r_deform360_source_freeze.py \
             tests/test_cut3r_deform360_source_freeze.py \
             tests/test_trusted_self_hosted_validation_policy.py
           python -m pytest -q \
             tests/test_cut3r_deform360_source_freeze.py \
             tests/test_trusted_self_hosted_validation_policy.py
-          python -m compileall -q \
-            scripts/science/build_cut3r_deform360_source_freeze.py
+          python -m compileall -q scripts/science/build_cut3r_deform360_source_freeze.py
+          git diff --check
+
+      - name: Commit and push non-workflow hardening
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A -- \
+            .github/scripts/pr_274_hardening.py \
+            scripts/science/build_cut3r_deform360_source_freeze.py \
+            tests/test_cut3r_deform360_source_freeze.py
+          git commit -m "Bind CUT3R camera calibration inputs"
+          git push origin HEAD:agent/cut3r-deform360-source-freeze
