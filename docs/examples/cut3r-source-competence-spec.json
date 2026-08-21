@@ -1,0 +1,24 @@
+{
+  "baseline_provider_manifest_id": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  "candidate_provider_manifest_id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "cohort_binding_id": "1111111111111111111111111111111111111111111111111111111111111111",
+  "contrast_id": "prob4d-fusion-value",
+  "group_definition": "complete-physical-object-or-acquisition-session-v1",
+  "policy": {
+    "maximum_mean_absolute_drift_slope_m_per_frame": 0.001,
+    "maximum_mean_endpoint_rmse_ratio": 1.0,
+    "maximum_mean_point_rmse_ratio": 1.0,
+    "maximum_mean_proper_score_delta": 0.0,
+    "maximum_mean_seam_rmse_m": 0.01,
+    "maximum_technical_failures": 0,
+    "maximum_worst_group_point_rmse_ratio": 1.2,
+    "minimum_evaluable_groups": 1,
+    "minimum_identity_group_pass_fraction": 0.75,
+    "minimum_mean_association_precision": 0.9,
+    "minimum_mean_identity_retention": 0.8,
+    "minimum_mean_quality_group_pass_fraction": 0.75,
+    "minimum_mean_support_retention": 0.8,
+    "permitted_technical_failure_codes": []
+  },
+  "record_definition_sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+}

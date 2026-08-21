@@ -72,6 +72,14 @@ covariance width, identity retention, selective risk, and worst-group coverage
 shortfall. It intentionally contains no observed outcome values and authorizes
 no target access.
 
+After execution, use the
+[CUT3R source competence evaluator](cut3r-source-competence-evaluation.md) to
+turn the complete paired source records into the authoritative source-mean and
+identity/reliability decision. That evaluator binds one registered causal
+contrast, rejects incomplete frame/seed/arm support, retains predeclared
+complete-group technical failures, and emits the existing
+`SourceProviderCompetenceReportV1` artifact consumed by readiness logic.
+
 A passing source comparison is not a held-out promotion result. A later target
 experiment must use the independently frozen held-out provider and
 BayesianPhysTwin gate, with provider competence and downstream physical-query
@@ -86,8 +94,8 @@ metric-anchor failures without creating additional method-selection endpoints.
 
 The strata use one arm-neutral feature value for every paired observation. They
 therefore cannot be derived separately from the native, restarted-newest, and
-Prob4D-fused predictions. Reports first average nested records inside each frozen seed, then give seeds
-equal mass inside each case, cases equal mass inside each complete
-object/session, and finally complete groups equal mass. A sparsely populated bin
-remains descriptive and cannot rescue or reverse the registered aggregate source
-decision.
+Prob4D-fused predictions. Reports first average nested records inside each frozen
+seed, then give seeds equal mass inside each case, cases equal mass inside each
+complete object/session, and finally complete groups equal mass. A sparsely
+populated bin remains descriptive and cannot rescue or reverse the registered
+aggregate source decision.
