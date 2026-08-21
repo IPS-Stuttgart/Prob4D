@@ -647,7 +647,7 @@ def _normalize_failure(value: Any, *, index: int) -> dict[str, Any]:
 def _normalize_record(value: Any, *, index: int) -> dict[str, Any]:
     record = _strict_mapping(value, name=f"records[{index}]")
     _exact_keys(record, _RECORD_FIELDS, name=f"records[{index}]")
-    normalized = {
+    normalized: dict[str, Any] = {
         "group_id": _strict_string(record["group_id"], name="group_id"),
         "case_id": _strict_string(record["case_id"], name="case_id"),
         "frame_index": _strict_integer(record["frame_index"], name="frame_index"),
