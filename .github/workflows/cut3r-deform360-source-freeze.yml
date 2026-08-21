@@ -1,0 +1,259 @@
+name: Freeze CUT3R Deform360 source comparison
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/cut3r-deform360-source-freeze.yml"
+      - "protocols/cut3r_deform360_source_v1.json"
+      - "scripts/science/build_cut3r_deform360_source_freeze.py"
+      - "tests/test_cut3r_deform360_source_freeze.py"
+      - "docs/cut3r-deform360-source-freeze.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cut3r-deform360-source-freeze-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PROB4D_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  contracts:
+    name: Source-freeze contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact reviewed head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.PROB4D_HEAD_SHA }}
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Validate source-only freeze implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+          python -m pip check
+          python -m ruff check \
+            scripts/science/build_cut3r_deform360_source_freeze.py \
+            tests/test_cut3r_deform360_source_freeze.py
+          python -m ruff format --check \
+            scripts/science/build_cut3r_deform360_source_freeze.py \
+            tests/test_cut3r_deform360_source_freeze.py
+          python -m pytest -q tests/test_cut3r_deform360_source_freeze.py
+          python -m compileall -q \
+            scripts/science/build_cut3r_deform360_source_freeze.py
+
+  freeze:
+    name: Target-closed source freeze / workstation2
+    if: github.event_name == 'workflow_dispatch'
+    needs: contracts
+    runs-on: [self-hosted, Linux, X64, nvidia-smi]
+    environment: trusted-self-hosted-validation
+    timeout-minutes: 120
+    env:
+      BPT_CHECKOUT: ${{ vars.BPT_CHECKOUT }}
+      CUT3R_CHECKOUT: ${{ vars.CUT3R_CHECKOUT }}
+      CUT3R_CHECKPOINT: ${{ vars.CUT3R_CHECKPOINT }}
+      DEFORM360_PROCESSED_ROOT: ${{ vars.DEFORM360_PROCESSED_ROOT }}
+    steps:
+      - name: Check out exact trusted Prob4D head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.PROB4D_HEAD_SHA }}
+          persist-credentials: false
+          fetch-depth: 0
+          clean: true
+
+      - name: Verify protected runner configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in \
+            BPT_CHECKOUT \
+            CUT3R_CHECKOUT \
+            CUT3R_CHECKPOINT \
+            DEFORM360_PROCESSED_ROOT
+          do
+            value=${!name:-}
+            if [[ -z "$value" ]]; then
+              echo "Required protected repository variable $name is unset" >&2
+              exit 2
+            fi
+          done
+          test -d "$BPT_CHECKOUT/.git"
+          test -d "$CUT3R_CHECKOUT/.git"
+          test -f "$CUT3R_CHECKPOINT"
+          test -d "$DEFORM360_PROCESSED_ROOT"
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Build and install the exact Prob4D wheel
+        id: distribution
+        shell: bash
+        run: |
+          set -euo pipefail
+          build_venv="$RUNNER_TEMP/prob4d-cut3r-freeze-build-venv"
+          run_venv="$RUNNER_TEMP/prob4d-cut3r-freeze-run-venv"
+          dist="$RUNNER_TEMP/prob4d-cut3r-freeze-dist"
+          rm -rf "$build_venv" "$run_venv" "$dist"
+          python -m venv "$build_venv"
+          "$build_venv/bin/python" -m pip install --upgrade pip
+          "$build_venv/bin/python" -m pip install -e ".[dev]"
+          "$build_venv/bin/python" -m build --wheel --outdir "$dist"
+          mapfile -t wheels < <(find "$dist" -maxdepth 1 -type f -name '*.whl' | sort)
+          if [[ ${#wheels[@]} -ne 1 ]]; then
+            echo "Expected exactly one built Prob4D wheel" >&2
+            exit 2
+          fi
+          python -m venv "$run_venv"
+          "$run_venv/bin/python" -m pip install --upgrade pip
+          "$run_venv/bin/python" -m pip install "${wheels[0]}"
+          "$run_venv/bin/python" -m pip check
+          echo "wheel=${wheels[0]}" >> "$GITHUB_OUTPUT"
+          echo "python=$run_venv/bin/python" >> "$GITHUB_OUTPUT"
+          echo "prob4d=$run_venv/bin/prob4d" >> "$GITHUB_OUTPUT"
+
+      - name: Freeze source support, provider identity, and camera panel
+        id: freeze
+        shell: bash
+        env:
+          OUTPUT_DIR: ${{ runner.temp }}/cut3r-deform360-source-freeze
+          PROB4D_WHEEL: ${{ steps.distribution.outputs.wheel }}
+          RUN_PYTHON: ${{ steps.distribution.outputs.python }}
+        run: |
+          set -euo pipefail
+          rm -rf "$OUTPUT_DIR"
+          mkdir -p "$OUTPUT_DIR"
+          selection="$BPT_CHECKOUT/protocols/locks/deform360_official_hub_visuotactile_v1_selection.json"
+          set +e
+          "$RUN_PYTHON" scripts/science/build_cut3r_deform360_source_freeze.py \
+            --repository . \
+            --protocol protocols/cut3r_deform360_source_v1.json \
+            --selection "$selection" \
+            --processed-root "$DEFORM360_PROCESSED_ROOT" \
+            --cut3r-checkout "$CUT3R_CHECKOUT" \
+            --checkpoint "$CUT3R_CHECKPOINT" \
+            --prob4d-wheel "$PROB4D_WHEEL" \
+            --output-dir "$OUTPUT_DIR" \
+            > "$OUTPUT_DIR/freeze.log" 2>&1
+          status=$?
+          set -e
+          cat "$OUTPUT_DIR/freeze.log"
+          if [[ $status -ne 0 && $status -ne 3 ]]; then
+            exit "$status"
+          fi
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+
+      - name: Build the canonical Prob4D comparison lock
+        if: steps.freeze.outputs.status == '0'
+        shell: bash
+        env:
+          OUTPUT_DIR: ${{ runner.temp }}/cut3r-deform360-source-freeze
+          PROB4D: ${{ steps.distribution.outputs.prob4d }}
+        run: |
+          set -euo pipefail
+          "$PROB4D" prediction cut3r-comparison build \
+            "$OUTPUT_DIR/cut3r-comparison-spec.json" \
+            --output "$OUTPUT_DIR/cut3r-comparison-lock.json"
+          "$PROB4D" prediction cut3r-comparison verify \
+            "$OUTPUT_DIR/cut3r-comparison-lock.json"
+          "$PROB4D" prediction cut3r-comparison summarize \
+            "$OUTPUT_DIR/cut3r-comparison-lock.json" \
+            --json \
+            > "$OUTPUT_DIR/cut3r-comparison-summary.json"
+
+      - name: Validate information boundary and clean checkout
+        if: always()
+        shell: bash
+        env:
+          OUTPUT_DIR: ${{ runner.temp }}/cut3r-deform360-source-freeze
+        run: |
+          set -euo pipefail
+          python - "$OUTPUT_DIR/cut3r-deform360-source-freeze.json" <<'PY'
+          import json
+          from pathlib import Path
+          import sys
+
+          freeze = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          boundary = freeze["information_boundary"]
+          forbidden_true = (
+              "source_rgb_frames_decoded",
+              "source_prediction_payloads_opened",
+              "source_residuals_or_truth_opened",
+              "source_future_geometry_opened",
+              "target_payloads_opened",
+              "target_outcomes_opened",
+              "downstream_physical_innovations_opened",
+          )
+          if any(boundary[name] is not False for name in forbidden_true):
+              raise SystemExit("source-freeze information boundary was exceeded")
+          if freeze["source_group_count"] != 10:
+              raise SystemExit("source freeze does not contain exactly ten groups")
+          if freeze["forbidden_target_group_count"] != 12:
+              raise SystemExit("source freeze does not retain all twelve forbidden targets")
+          PY
+          git diff --exit-code
+          git status --porcelain=v1 --untracked-files=no \
+            | tee "$OUTPUT_DIR/git-status.txt"
+          test ! -s "$OUTPUT_DIR/git-status.txt"
+
+      - name: Publish compact non-sensitive summary
+        if: always()
+        shell: bash
+        env:
+          OUTPUT_DIR: ${{ runner.temp }}/cut3r-deform360-source-freeze
+        run: |
+          set -euo pipefail
+          if [[ -f "$OUTPUT_DIR/cut3r-deform360-source-freeze.json" ]]; then
+            python - "$OUTPUT_DIR/cut3r-deform360-source-freeze.json" <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          from pathlib import Path
+          import sys
+
+          freeze = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          print("## CUT3R Deform360 source freeze")
+          print()
+          print(f"- Decision: **{freeze['decision']}**")
+          print(f"- Complete source groups: **{freeze['source_group_count']}**")
+          print(
+              "- Common supported source cameras: "
+              f"**{freeze['support']['common_supported_camera_count']}**"
+          )
+          if freeze["camera_panel"] is not None:
+              print(
+                  "- Frozen camera-panel size: "
+                  f"**{freeze['camera_panel']['panel_size']}**"
+              )
+          print(f"- Source-freeze ID: `{freeze['source_freeze_id']}`")
+          print()
+          print(freeze["claim_boundary"])
+          PY
+          fi
+
+      - name: Upload target-closed source-freeze evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        with:
+          name: cut3r-deform360-source-freeze-${{ github.run_id }}
+          path: ${{ runner.temp }}/cut3r-deform360-source-freeze
+          if-no-files-found: error
+          retention-days: 14
