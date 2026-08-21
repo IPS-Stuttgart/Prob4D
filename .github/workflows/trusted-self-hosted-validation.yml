@@ -19,6 +19,7 @@ on:
         options:
           - full-validation
           - production-memory
+          - cut3r-deform360-source-freeze
 
 permissions:
   contents: read
@@ -285,6 +286,165 @@ jobs:
           PY
           /usr/bin/git diff --exit-code
           test -z "$(/usr/bin/git status --porcelain=v1)"
+
+      - name: Run target-closed CUT3R Deform360 source freeze
+        if: inputs.profile == 'cut3r-deform360-source-freeze'
+        shell: bash
+        env:
+          BPT_CHECKOUT: ${{ vars.BPT_CHECKOUT }}
+          CUT3R_CHECKOUT: ${{ vars.CUT3R_CHECKOUT }}
+          CUT3R_CHECKPOINT: ${{ vars.CUT3R_CHECKPOINT }}
+          DEFORM360_PROCESSED_ROOT: ${{ vars.DEFORM360_PROCESSED_ROOT }}
+        run: |
+          set -euo pipefail
+          for name in \
+            BPT_CHECKOUT \
+            CUT3R_CHECKOUT \
+            CUT3R_CHECKPOINT \
+            DEFORM360_PROCESSED_ROOT
+          do
+            value=${!name:-}
+            if [[ -z "$value" ]]; then
+              echo "Required protected repository variable $name is unset" >&2
+              exit 2
+            fi
+          done
+          test -d "$BPT_CHECKOUT/.git"
+          test -d "$CUT3R_CHECKOUT/.git"
+          test -f "$CUT3R_CHECKPOINT"
+          test -d "$DEFORM360_PROCESSED_ROOT"
+
+          root="${{ steps.workspace.outputs.root }}"
+          build_python="$root/venv/bin/python"
+          wheel_dir="$root/cut3r-freeze-dist"
+          run_venv="$root/cut3r-freeze-run-venv"
+          output="$root/evidence/cut3r-deform360-source-freeze"
+          raw_log="$root/tmp/cut3r-deform360-source-freeze.log"
+          sanitized_log="$output/freeze.log"
+          /usr/bin/rm -rf -- "$wheel_dir" "$run_venv" "$output" "$raw_log"
+          /usr/bin/mkdir -p "$wheel_dir" "$output"
+
+          "$build_python" -m build --wheel --outdir "$wheel_dir"
+          mapfile -t wheels < <(find "$wheel_dir" -maxdepth 1 -type f -name '*.whl' | sort)
+          if [[ ${#wheels[@]} -ne 1 ]]; then
+            echo "Expected exactly one built Prob4D wheel" >&2
+            exit 2
+          fi
+          python -m venv "$run_venv"
+          "$run_venv/bin/python" -m pip install "pip==25.2"
+          "$run_venv/bin/python" -m pip install "${wheels[0]}"
+          "$run_venv/bin/python" -m pip check
+
+          selection="$BPT_CHECKOUT/protocols/locks/deform360_official_hub_visuotactile_v1_selection.json"
+          test -f "$selection"
+          set +e
+          "$run_venv/bin/python" scripts/science/build_cut3r_deform360_source_freeze.py \
+            --repository . \
+            --protocol protocols/cut3r_deform360_source_v1.json \
+            --selection "$selection" \
+            --processed-root "$DEFORM360_PROCESSED_ROOT" \
+            --cut3r-checkout "$CUT3R_CHECKOUT" \
+            --checkpoint "$CUT3R_CHECKPOINT" \
+            --prob4d-wheel "${wheels[0]}" \
+            --output-dir "$output" \
+            > "$raw_log" 2>&1
+          status=$?
+          set -e
+
+          RAW_LOG="$raw_log" SANITIZED_LOG="$sanitized_log" \
+            "$build_python" - <<'PY'
+          from __future__ import annotations
+
+          import os
+          from pathlib import Path
+
+          text = Path(os.environ["RAW_LOG"]).read_text(encoding="utf-8", errors="replace")
+          replacements: dict[str, str] = {}
+          for name in (
+              "BPT_CHECKOUT",
+              "CUT3R_CHECKOUT",
+              "CUT3R_CHECKPOINT",
+              "DEFORM360_PROCESSED_ROOT",
+          ):
+              value = os.environ.get(name, "")
+              if not value:
+                  continue
+              replacements[value] = f"<{name}>"
+              try:
+                  replacements[str(Path(value).resolve())] = f"<{name}>"
+              except OSError:
+                  pass
+          for value in sorted(replacements, key=len, reverse=True):
+              text = text.replace(value, replacements[value])
+          Path(os.environ["SANITIZED_LOG"]).write_text(text, encoding="utf-8")
+          PY
+          cat "$sanitized_log"
+          printf '%s\n' "$status" > "$output/exit-status.txt"
+          /usr/bin/rm -f -- "$raw_log"
+          if [[ $status -ne 0 && $status -ne 3 ]]; then
+            exit "$status"
+          fi
+
+          if [[ $status -eq 0 ]]; then
+            "$run_venv/bin/prob4d" prediction cut3r-comparison build \
+              "$output/cut3r-comparison-spec.json" \
+              --output "$output/cut3r-comparison-lock.json"
+            "$run_venv/bin/prob4d" prediction cut3r-comparison verify \
+              "$output/cut3r-comparison-lock.json"
+            "$run_venv/bin/prob4d" prediction cut3r-comparison summarize \
+              "$output/cut3r-comparison-lock.json" \
+              --json \
+              > "$output/cut3r-comparison-summary.json"
+          fi
+
+          STATUS="$status" OUTPUT_DIR="$output" \
+            "$run_venv/bin/python" - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          from pathlib import Path
+
+          output = Path(os.environ["OUTPUT_DIR"])
+          status = int(os.environ["STATUS"])
+          freeze_path = output / "cut3r-deform360-source-freeze.json"
+          freeze = json.loads(freeze_path.read_text(encoding="utf-8"))
+          boundary = freeze["information_boundary"]
+          forbidden_true = (
+              "source_rgb_frames_decoded",
+              "source_prediction_payloads_opened",
+              "source_residuals_or_truth_opened",
+              "source_future_geometry_opened",
+              "target_payloads_opened",
+              "target_outcomes_opened",
+              "downstream_physical_innovations_opened",
+          )
+          if any(boundary[name] is not False for name in forbidden_true):
+              raise SystemExit("source-freeze information boundary was exceeded")
+          if freeze["source_group_count"] != 10:
+              raise SystemExit("source freeze does not contain exactly ten groups")
+          if freeze["forbidden_target_group_count"] != 12:
+              raise SystemExit("source freeze does not retain all twelve forbidden targets")
+
+          specification = output / "cut3r-comparison-spec.json"
+          lock = output / "cut3r-comparison-lock.json"
+          if status == 0:
+              if freeze["decision"] != "source-support-freeze-ready":
+                  raise SystemExit("successful source freeze has the wrong decision")
+              if not specification.is_file() or not lock.is_file():
+                  raise SystemExit("successful source freeze lacks canonical comparison outputs")
+          elif status == 3:
+              if freeze["decision"] != "insufficient-common-camera-support":
+                  raise SystemExit("support-negative source freeze has the wrong decision")
+              if specification.exists() or lock.exists():
+                  raise SystemExit("support-negative source freeze published comparison outputs")
+          else:
+              raise SystemExit("unexpected source-freeze exit status")
+          PY
+
+          /usr/bin/git restore --worktree -- src/prob4d.egg-info
+          /usr/bin/git diff --exit-code
+          test -z "$(/usr/bin/git status --porcelain=v1 --untracked-files=no)"
 
       - name: Record exact validation evidence
         if: ${{ always() && steps.workspace.outcome == 'success' }}
