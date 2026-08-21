@@ -61,17 +61,23 @@ jobs:
             scripts/science/build_cut3r_deform360_source_freeze.py
           git diff --check
 
-      - name: Commit and push the repaired branch
+      - name: Upload connector-published workflow files
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: pr-274-repaired-workflows-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            .github/workflows/cut3r-deform360-source-freeze.yml
+            .github/workflows/trusted-self-hosted-validation.yml
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Commit and push non-workflow repairs
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -- \
-            .github/scripts/pr_274_repair.py \
-            .github/workflows/cut3r-deform360-source-freeze.yml \
-            .github/workflows/pr-274-repair.yml \
-            .github/workflows/trusted-self-hosted-validation.yml \
             docs/cut3r-deform360-source-freeze.md \
             scripts/science/build_cut3r_deform360_source_freeze.py \
             tests/test_cut3r_deform360_source_freeze.py \
