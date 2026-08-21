@@ -839,6 +839,13 @@ def _normalize_records(
                 raise ValueError(
                     f"paired arms use different arm-neutral {field} at {pair_key!r}"
                 )
+        if (candidate["seam_error_m"] is None) != (
+            baseline["seam_error_m"] is None
+        ):
+            raise ValueError(
+                "paired arms use different arm-neutral seam observation support "
+                f"at {pair_key!r}"
+            )
 
     by_case_seed_arm: dict[tuple[str, str, int, str], list[dict[str, Any]]] = defaultdict(list)
     for record in records:
