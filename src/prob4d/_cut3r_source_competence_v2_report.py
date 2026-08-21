@@ -8,12 +8,12 @@ from collections.abc import Mapping, Sequence
 from typing import Any, cast
 
 from ._cut3r_source_competence_v2_common import (
+    _REPORT_FIELDS,
     CLAIM_BOUNDARY,
     REPORT_SCHEMA,
     VERSION,
     WEIGHTING,
     Status,
-    _REPORT_FIELDS,
 )
 from ._cut3r_source_competence_v2_lock import (
     validate_cut3r_source_competence_v2_lock,

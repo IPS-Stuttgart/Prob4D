@@ -23,12 +23,12 @@ from ._cut3r_source_competence_v2_lock import (
     build_cut3r_source_competence_v2_lock,
     validate_cut3r_source_competence_v2_lock,
 )
+from ._cut3r_source_competence_v2_records import _normalize_v2_records
 from ._cut3r_source_competence_v2_report import (
     build_cut3r_source_competence_v2_report,
     source_competence_gates_v2,
     validate_cut3r_source_competence_v2_report,
 )
-from ._cut3r_source_competence_v2_records import _normalize_v2_records
 from .cut3r_comparison import load_cut3r_comparison_lock
 from .cut3r_source_competence import (
     _publish_json,

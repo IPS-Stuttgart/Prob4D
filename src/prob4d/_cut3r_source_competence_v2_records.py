@@ -7,10 +7,10 @@ from collections.abc import Mapping
 from typing import Any, cast
 
 from ._cut3r_source_competence_v2_common import (
-    RECORDS_SCHEMA,
-    VERSION,
     _RECORD_FIELDS,
     _RECORDS_FIELDS,
+    RECORDS_SCHEMA,
+    VERSION,
     _support,
 )
 from ._cut3r_source_competence_v2_lock import (

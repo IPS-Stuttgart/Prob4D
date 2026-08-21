@@ -7,13 +7,13 @@ from collections.abc import Mapping
 from typing import Any, cast
 
 from ._cut3r_source_competence_v2_common import (
+    _LOCK_FIELDS,
+    _LOCK_SPEC_FIELDS,
     CLAIM_BOUNDARY,
     LOCK_SCHEMA,
     PROPER_SCORE_SEMANTICS,
     VERSION,
     WEIGHTING,
-    _LOCK_FIELDS,
-    _LOCK_SPEC_FIELDS,
     _paired_policy,
     _source_group_ids,
 )
