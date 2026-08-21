@@ -36,6 +36,10 @@ def _help_parser() -> argparse.ArgumentParser:
         help="freeze and report source-only CUT3R diagnostic strata",
     )
     subparsers.add_parser(
+        "cut3r-source-competence",
+        help="aggregate complete paired CUT3R source records into competence evidence",
+    )
+    subparsers.add_parser(
         "compatibility",
         help="build or compare additive semantic-compatibility manifests",
     )
@@ -82,6 +86,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         from .cut3r_diagnostic_strata import main as cut3r_strata_main
 
         return int(cut3r_strata_main(arguments[1:]))
+    if arguments[0] == "cut3r-source-competence":
+        from .cut3r_source_competence import main as cut3r_source_competence_main
+
+        return int(cut3r_source_competence_main(arguments[1:]))
     if arguments[0] == "compatibility":
         from .semantic_compatibility import main as compatibility_main
 

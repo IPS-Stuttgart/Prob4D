@@ -107,6 +107,15 @@ jobs:
             cut3r-strata-comparison-lock.json \
             cut3r-diagnostic-strata-lock.json \
             2>&1 | tee -a cut3r-strata-output.txt
+          python -m prob4d.cut3r_source_competence freeze \
+            cut3r-strata-comparison-lock.json \
+            docs/examples/cut3r-source-competence-spec.json \
+            --output cut3r-source-competence-lock.json \
+            2>&1 | tee cut3r-source-competence-output.txt
+          python -m prob4d.cut3r_source_competence verify-lock \
+            cut3r-strata-comparison-lock.json \
+            cut3r-source-competence-lock.json \
+            2>&1 | tee -a cut3r-source-competence-output.txt
       - name: Run stable-interface mypy with fail-closed diagnostics
         if: always()
         shell: bash
@@ -127,6 +136,7 @@ jobs:
             src/prob4d/covariance_root.py \
             src/prob4d/cut3r_comparison.py \
             src/prob4d/cut3r_diagnostic_strata.py \
+            src/prob4d/cut3r_source_competence.py \
             src/prob4d/material_identity_cli.py \
             src/prob4d/material_identity_weight_calibration.py \
             src/prob4d/observation_factor_stream.py \
@@ -170,5 +180,7 @@ jobs:
             cut3r-strata-comparison-lock.json
             cut3r-diagnostic-strata-lock.json
             cut3r-strata-output.txt
+            cut3r-source-competence-lock.json
+            cut3r-source-competence-output.txt
           if-no-files-found: warn
           retention-days: 14
