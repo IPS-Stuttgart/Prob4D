@@ -139,13 +139,16 @@ def _git_revision(repository: Path, *, name: str) -> str:
 
 
 def _publish_json(path: Path, payload: object) -> None:
-    encoded = json.dumps(
-        payload,
-        indent=2,
-        sort_keys=True,
-        ensure_ascii=False,
-        allow_nan=False,
-    ).encode("utf-8") + b"\n"
+    encoded = (
+        json.dumps(
+            payload,
+            indent=2,
+            sort_keys=True,
+            ensure_ascii=False,
+            allow_nan=False,
+        ).encode("utf-8")
+        + b"\n"
+    )
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists():
         if path.read_bytes() == encoded:
@@ -268,12 +271,10 @@ def _validate_protocol_and_selection(
     source_selection = _selection_roster(selection, "calibration")
     target_selection = _selection_roster(selection, "confirmation")
     source_triplets = {
-        (record["object_id"], record["episode_id"], record["stratum"])
-        for record in source_groups
+        (record["object_id"], record["episode_id"], record["stratum"]) for record in source_groups
     }
     target_triplets = {
-        (record["object_id"], record["episode_id"], record["stratum"])
-        for record in target_groups
+        (record["object_id"], record["episode_id"], record["stratum"]) for record in target_groups
     }
     if source_triplets != source_selection:
         raise ValueError("protocol source roster differs from selection.calibration")
@@ -308,18 +309,14 @@ def _validate_protocol_and_selection(
     }
     measured_counts = {role: roles.count(role) for role in expected_counts}
     if measured_counts != expected_counts:
-        raise ValueError(
-            f"source role counts differ from the protocol: {measured_counts!r}"
-        )
+        raise ValueError(f"source role counts differ from the protocol: {measured_counts!r}")
     hash_seed = _strict_string(
         role_mapping.get("hash_seed"),
         name="source_role_assignment.hash_seed",
     )
     allocation = role_mapping.get("allocation_by_rank")
     if type(allocation) is not list or not allocation:
-        raise ValueError(
-            "source_role_assignment.allocation_by_rank must be a nonempty JSON array"
-        )
+        raise ValueError("source_role_assignment.allocation_by_rank must be a nonempty JSON array")
     normalized_allocation = [
         _strict_string(role, name=f"source_role_assignment.allocation_by_rank[{index}]")
         for index, role in enumerate(allocation)
@@ -338,9 +335,7 @@ def _validate_protocol_and_selection(
         ranked = sorted(
             records,
             key=lambda record: hashlib.sha256(
-                (
-                    f"{hash_seed}\0{record['object_id']}\0{record['episode_id']}"
-                ).encode("utf-8")
+                (f"{hash_seed}\0{record['object_id']}\0{record['episode_id']}").encode()
             ).hexdigest(),
         )
         for rank, (record, expected_role) in enumerate(
@@ -443,9 +438,7 @@ def _stream_support(
         "metadata": camera_dir / "metadata.json",
     }
     missing = sorted(
-        name
-        for name, path in required.items()
-        if not path.is_file() or path.is_symlink()
+        name for name, path in required.items() if not path.is_file() or path.is_symlink()
     )
     timestamp_count = 0
     if not missing:
@@ -499,14 +492,11 @@ def _select_camera_panel(
         raise ValueError("not enough camera directions for the requested panel")
     positive_x = np.array([1.0, 0.0, 0.0], dtype=np.float64)
     first_scores = {
-        camera: float(direction @ positive_x)
-        for camera, direction in directions.items()
+        camera: float(direction @ positive_x) for camera, direction in directions.items()
     }
     maximum_first = max(first_scores.values())
     first = min(
-        camera
-        for camera, score in first_scores.items()
-        if maximum_first - score <= tie_tolerance
+        camera for camera, score in first_scores.items() if maximum_first - score <= tie_tolerance
     )
     selected = [first]
     while len(selected) < panel_size:
@@ -528,9 +518,7 @@ def _select_camera_panel(
             )
             scores[camera] = minimum_angle
         maximum = max(scores.values())
-        chosen = min(
-            camera for camera, score in scores.items() if maximum - score <= tie_tolerance
-        )
+        chosen = min(camera for camera, score in scores.items() if maximum - score <= tie_tolerance)
         selected.append(chosen)
     return tuple(selected)
 

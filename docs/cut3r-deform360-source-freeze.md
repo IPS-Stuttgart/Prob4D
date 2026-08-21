@@ -78,7 +78,8 @@ prob4d prediction cut3r-comparison verify \
 
 ## Protected runner configuration
 
-The manual workflow uses the protected
+The `cut3r-deform360-source-freeze` profile of the repository's single
+`Trusted exact-head validation` workflow uses the protected
 `trusted-self-hosted-validation` environment and requires these repository
 variables on the self-hosted runner:
 
@@ -94,16 +95,21 @@ content-addressed artifacts.
 
 ## Publication order
 
-1. Merge the protocol, builder, tests, documentation, and manual workflow.
-2. Dispatch `Freeze CUT3R Deform360 source comparison` from the reviewed `main`
-   revision and approve the protected environment independently.
-3. Retain the uploaded artifact. For a support-positive result, commit the exact
-   generated source-freeze and comparison-lock JSON under `protocols/locks/` in
-   a separate review.
-4. Only after those exact locks are merged, execute the three causal arms:
+1. Merge the protocol, builder, tests, documentation, hosted contract workflow,
+   and the fixed protected-runner profile.
+2. Create a dedicated same-repository execution/lock pull request from that
+   merged `main` revision. Keep the scientific inputs unchanged.
+3. From `main`, dispatch `Trusted exact-head validation` with that open pull
+   request number, its exact reviewed head SHA, and profile
+   `cut3r-deform360-source-freeze`; approve the protected environment
+   independently.
+4. Retain the uploaded artifact. For a support-positive result, commit the exact
+   generated source-freeze and comparison-lock JSON under `protocols/locks/` to
+   the execution/lock pull request.
+5. Only after those exact locks are merged, execute the three causal arms:
    `native-continuous`, `restarted-newest`, and
    `restarted-prob4d-fused` on the frozen source inputs.
-5. Stop at the first negative ordered gate. Do not open a confirmation object or
+6. Stop at the first negative ordered gate. Do not open a confirmation object or
    add a new covariance/provider method unless the source result explicitly
    localizes that missing capability.
 

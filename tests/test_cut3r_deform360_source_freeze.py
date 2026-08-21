@@ -12,10 +12,7 @@ import numpy as np
 import pytest
 
 SCRIPT = (
-    Path(__file__).parents[1]
-    / "scripts"
-    / "science"
-    / "build_cut3r_deform360_source_freeze.py"
+    Path(__file__).parents[1] / "scripts" / "science" / "build_cut3r_deform360_source_freeze.py"
 )
 
 
@@ -57,9 +54,7 @@ def _selection(protocol: dict[str, Any]) -> dict[str, Any]:
     ]
     target = [dict(item) for item in protocol["forbidden_target_groups"]]
     return {
-        "selection_artifact_sha256": protocol["source_dataset"][
-            "selection_artifact_sha256"
-        ],
+        "selection_artifact_sha256": protocol["source_dataset"]["selection_artifact_sha256"],
         "selection_sha256": protocol["source_dataset"]["selection_sha256"],
         "selection": {"calibration": source, "confirmation": target},
     }
@@ -82,11 +77,7 @@ def _episode(
     *,
     missing_camera: str | None = None,
 ) -> None:
-    episode = (
-        processed_root
-        / group["object_id"]
-        / f"episode_{group['episode_id']:04d}"
-    )
+    episode = processed_root / group["object_id"] / f"episode_{group['episode_id']:04d}"
     episode.mkdir(parents=True)
     camera_centers = {
         "cam-a": (2.0, 0.0, 0.2),
@@ -99,9 +90,7 @@ def _episode(
         camera: np.array([[500.0, 0.0, 320.0], [0.0, 500.0, 240.0], [0.0, 0.0, 1.0]])
         for camera in camera_centers
     }
-    extrinsics = {
-        camera: _camera_transform(center) for camera, center in camera_centers.items()
-    }
+    extrinsics = {camera: _camera_transform(center) for camera, center in camera_centers.items()}
     np.save(episode / "undistorted_intrinsics.npy", intrinsics, allow_pickle=True)
     np.save(episode / "extrinsics.npy", extrinsics, allow_pickle=True)
     for camera in camera_centers:
@@ -123,9 +112,7 @@ def _episode(
 def _fixture(tmp_path: Path, *, common_camera_count: int = 5) -> dict[str, Path]:
     package_root = Path(__file__).parents[1]
     protocol = json.loads(
-        (package_root / "protocols" / "cut3r_deform360_source_v1.json").read_text(
-            encoding="utf-8"
-        )
+        (package_root / "protocols" / "cut3r_deform360_source_v1.json").read_text(encoding="utf-8")
     )
     repository = tmp_path / "prob4d"
     cut3r = tmp_path / "cut3r"
@@ -195,9 +182,7 @@ def test_builds_group_aware_source_freeze_without_target_access(
     assert result["forbidden_target_group_count"] == 12
     assert len(result["camera_panel"]["selected_cameras"]) == 4
     assert len(result["source_cases"]) == 40
-    forbidden = {
-        item["object_id"] for item in result["forbidden_target_groups"]
-    }
+    forbidden = {item["object_id"] for item in result["forbidden_target_groups"]}
     assert not any(any(object_id in path.parts for object_id in forbidden) for path in opened)
 
     spec = json.loads(
@@ -211,8 +196,7 @@ def test_builds_group_aware_source_freeze_without_target_access(
     }
     assert all(len(group["cases"]) == 4 for group in spec["groups"])
     assert all(
-        case["frame_stop_exclusive"] == 58
-        and case["evaluation_frame_start"] == 24
+        case["frame_stop_exclusive"] == 58 and case["evaluation_frame_start"] == 24
         for group in spec["groups"]
         for case in group["cases"]
     )

@@ -13,10 +13,7 @@ REMOVED_TEMPORARY_WORKFLOWS = (
 
 
 def _workflow_files() -> tuple[Path, ...]:
-    return tuple(
-        sorted(WORKFLOW_ROOT.glob("*.yml"))
-        + sorted(WORKFLOW_ROOT.glob("*.yaml"))
-    )
+    return tuple(sorted(WORKFLOW_ROOT.glob("*.yml")) + sorted(WORKFLOW_ROOT.glob("*.yaml")))
 
 
 def _uses_self_hosted_runner(text: str) -> bool:
@@ -60,7 +57,7 @@ def test_trusted_workflow_is_manual_main_bound_and_exact_sha_authorized() -> Non
     assert "workflow_dispatch:" in text
     assert "\n  pull_request:" not in text
     assert "pull_request_target:" not in text
-    assert 'DISPATCH_REF: ${{ github.ref }}' in text
+    assert "DISPATCH_REF: ${{ github.ref }}" in text
     assert "refs/heads/main" in text
     assert "environment: trusted-self-hosted-validation" in text
     assert "runs-on: [self-hosted, Linux, X64, nvidia-smi]" in text
@@ -68,7 +65,7 @@ def test_trusted_workflow_is_manual_main_bound_and_exact_sha_authorized() -> Non
     assert "only same-repository pull requests are admitted" in text
     assert "pull request base must be main" in text
     assert "actual_head_sha != expected_head_sha" in text
-    assert 'ref: ${{ needs.authorize.outputs.head_sha }}' in text
+    assert "ref: ${{ needs.authorize.outputs.head_sha }}" in text
     assert "persist-credentials: false" in text
 
 
@@ -84,7 +81,7 @@ def test_trusted_workflow_uses_immutable_workspace_output_and_absolute_tools() -
     assert "TRUSTED_ROOT" not in text
     assert "GITHUB_PATH" not in text
     assert '"$root/venv/bin/python"' in text
-    assert '$(/usr/bin/git rev-parse HEAD)' in text
+    assert "$(/usr/bin/git rev-parse HEAD)" in text
     assert '/usr/bin/rm -rf -- "$root"' in text
     assert "/usr/bin/git reset --hard HEAD" in text
     assert "/usr/bin/git clean -ffdx" in text
@@ -97,6 +94,10 @@ def test_privileged_profiles_are_fixed_and_reports_bind_exact_source() -> None:
 
     assert "full-validation" in text
     assert "production-memory" in text
+    assert "cut3r-deform360-source-freeze" in text
+    assert "build_cut3r_deform360_source_freeze.py" in text
+    assert "DEFORM360_PROCESSED_ROOT" in text
+    assert "status -ne 0 && $status -ne 3" in text
     assert "--frames 25 --height 320 --width 640 --contributors 3" in text
     assert "--include-flow" in text
     assert 'report["repository_revision"] != os.environ["EXPECTED_HEAD_SHA"]' in text
