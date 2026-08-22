@@ -1,0 +1,283 @@
+name: Publish retained CUT3R source-freeze locks
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/cut3r-source-freeze-lock-publication.yml"
+      - "CHANGELOG.d/cut3r-source-freeze-lock-publication.md"
+      - "docs/cut3r-source-freeze-lock-publication.md"
+      - "protocols/publication_requests/cut3r_deform360_source_freeze_v2.json"
+      - "scripts/science/publish_cut3r_source_freeze_lock.py"
+      - "tests/test_cut3r_source_freeze_lock_publication.py"
+  push:
+    branches: [main]
+    paths:
+      - "protocols/publication_requests/cut3r_deform360_source_freeze_v2.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cut3r-source-freeze-lock-publication-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  REQUEST_PATH: protocols/publication_requests/cut3r_deform360_source_freeze_v2.json
+
+jobs:
+  contract:
+    name: Publication contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out exact reviewed revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: >-
+            ${{ github.event_name == 'pull_request' &&
+                github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Validate publication implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -e ".[dev]"
+          python -m pip check
+          python -m ruff check \
+            scripts/science/publish_cut3r_source_freeze_lock.py \
+            tests/test_cut3r_source_freeze_lock_publication.py
+          python -m ruff format --check \
+            scripts/science/publish_cut3r_source_freeze_lock.py \
+            tests/test_cut3r_source_freeze_lock_publication.py
+          python -m pytest -q \
+            tests/test_cut3r_source_freeze_lock_publication.py \
+            tests/test_github_action_pins.py
+          python -m compileall -q \
+            scripts/science/publish_cut3r_source_freeze_lock.py
+          python scripts/science/publish_cut3r_source_freeze_lock.py \
+            verify-request \
+            --request "$REQUEST_PATH"
+
+  publish:
+    name: Publish exact source-freeze bytes to a lock PR
+    if: github.event_name == 'push'
+    needs: contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      actions: read
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Require an ordinary push to main
+        shell: bash
+        env:
+          EVENT_REF: ${{ github.ref }}
+          EVENT_FORCED: ${{ github.event.forced }}
+          EVENT_DELETED: ${{ github.event.deleted }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_REF" = "refs/heads/main"
+          test "$EVENT_FORCED" = "false"
+          test "$EVENT_DELETED" = "false"
+
+      - name: Check out exact merged revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Install the exact merged package
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -e .
+          python -m pip check
+
+      - name: Discover, verify, and stage exact retained lock bytes
+        id: publish
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          workspace="${RUNNER_TEMP}/cut3r-source-freeze-publication-${GITHUB_RUN_ID}"
+          rm -rf -- "$workspace"
+          mkdir -p "$workspace"
+          python scripts/science/publish_cut3r_source_freeze_lock.py \
+            discover-and-publish \
+            --request "$REQUEST_PATH" \
+            --repository-root . \
+            --repository-name "$GITHUB_REPOSITORY" \
+            --api-url "$GITHUB_API_URL" \
+            --token "$GITHUB_TOKEN" \
+            --workspace "$workspace" \
+            --github-output "$GITHUB_OUTPUT" \
+            > publication-receipt.json
+          prob4d prediction cut3r-comparison verify \
+            protocols/locks/cut3r_deform360_comparison_lock_v2.json
+          prob4d prediction cut3r-comparison summarize \
+            protocols/locks/cut3r_deform360_comparison_lock_v2.json \
+            --json \
+            > /tmp/replayed-comparison-summary.json
+          cmp \
+            /tmp/replayed-comparison-summary.json \
+            protocols/locks/cut3r_deform360_comparison_summary_v2.json
+
+      - name: Create exact-byte publication branch
+        id: branch
+        shell: bash
+        env:
+          REQUEST_ID: 34eb4065a5be84ab6939595b38e53721d4555793a3d75eeb4cfc38170847b166
+          FREEZE_ARTIFACT_ID: ${{ steps.publish.outputs.freeze_artifact_id }}
+        run: |
+          set -euo pipefail
+          branch="evidence/cut3r-source-freeze-${FREEZE_ARTIFACT_ID:0:12}-${GITHUB_RUN_ID}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git add \
+            protocols/locks/cut3r_deform360_source_freeze_v2.json \
+            protocols/locks/cut3r_deform360_comparison_spec_v2.json \
+            protocols/locks/cut3r_deform360_comparison_lock_v2.json \
+            protocols/locks/cut3r_deform360_comparison_summary_v2.json \
+            protocols/locks/cut3r_deform360_source_freeze_execution_v2.json \
+            protocols/locks/cut3r_deform360_source_freeze_publication_v2.json
+          git diff --cached --check
+          git commit -m "Publish retained CUT3R source-freeze locks"
+          git push --set-upstream origin "$branch"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+
+      - name: Open lock publication pull request
+        id: pr
+        shell: bash
+        env:
+          API_URL: ${{ github.api_url }}
+          REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+          HEAD_BRANCH: ${{ steps.branch.outputs.branch }}
+          ARTIFACT_ID: ${{ steps.publish.outputs.artifact_id }}
+          SOURCE_RUN_ID: ${{ steps.publish.outputs.run_id }}
+          FREEZE_ARTIFACT_ID: ${{ steps.publish.outputs.freeze_artifact_id }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          import urllib.request
+
+          body = "\n".join(
+              (
+                  "## Retained evidence publication",
+                  "",
+                  "This PR publishes exact JSON bytes from the validated, target-closed "
+                  "CUT3R Deform360 source-freeze workflow artifact.",
+                  "",
+                  f"- source workflow run: `{os.environ['SOURCE_RUN_ID']}`",
+                  f"- Actions artifact ID: `{os.environ['ARTIFACT_ID']}`",
+                  f"- source-freeze artifact ID: `{os.environ['FREEZE_ARTIFACT_ID']}`",
+                  "- decision: `source-support-freeze-ready`",
+                  "- source groups: `10`",
+                  "- forbidden confirmation groups: `12`",
+                  "",
+                  "No CUT3R inference, source residual/truth, confirmation payload, "
+                  "target outcome, BayesianPhysTwin update, or Causal4D result is "
+                  "opened by this publication.",
+                  "",
+                  "Refs #49",
+              )
+          )
+          payload = json.dumps(
+              {
+                  "title": "Publish retained CUT3R source-freeze locks",
+                  "head": os.environ["HEAD_BRANCH"],
+                  "base": "main",
+                  "body": body,
+              }
+          ).encode("utf-8")
+          request = urllib.request.Request(
+              f"{os.environ['API_URL']}/repos/{os.environ['REPOSITORY']}/pulls",
+              data=payload,
+              method="POST",
+              headers={
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
+                  "Content-Type": "application/json",
+                  "X-GitHub-Api-Version": "2022-11-28",
+              },
+          )
+          with urllib.request.urlopen(request, timeout=30) as response:
+              pull = json.load(response)
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"number={pull['number']}\n")
+              output.write(f"url={pull['html_url']}\n")
+          PY
+
+      - name: Record publication pointer on issue 49
+        shell: bash
+        env:
+          API_URL: ${{ github.api_url }}
+          REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+          PR_URL: ${{ steps.pr.outputs.url }}
+          FREEZE_ARTIFACT_ID: ${{ steps.publish.outputs.freeze_artifact_id }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          import urllib.request
+
+          body = "\n".join(
+              (
+                  "## Retained CUT3R source-freeze lock publication opened",
+                  "",
+                  f"- publication PR: {os.environ['PR_URL']}",
+                  f"- PR number: `#{os.environ['PR_NUMBER']}`",
+                  f"- source-freeze artifact ID: `{os.environ['FREEZE_ARTIFACT_ID']}`",
+                  "",
+                  "The PR contains exact retained lock bytes. The three-arm source "
+                  "comparison remains target-closed and starts only after those bytes "
+                  "are reviewed and merged.",
+              )
+          )
+          request = urllib.request.Request(
+              f"{os.environ['API_URL']}/repos/{os.environ['REPOSITORY']}/issues/49/comments",
+              data=json.dumps({"body": body}).encode("utf-8"),
+              method="POST",
+              headers={
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
+                  "Content-Type": "application/json",
+                  "X-GitHub-Api-Version": "2022-11-28",
+              },
+          )
+          with urllib.request.urlopen(request, timeout=30):
+              pass
+          PY
