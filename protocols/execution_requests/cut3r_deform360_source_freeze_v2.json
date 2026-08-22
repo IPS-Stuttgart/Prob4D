@@ -1,0 +1,22 @@
+{
+  "authorization_mode": "merged-main-read-only-self-hosted-v1",
+  "claim_boundary": "This request supersedes the unreceipted protected-environment source-freeze request without changing any scientific input. It authorizes one target-closed, read-only self-hosted source-input freeze from merged main. It does not authorize CUT3R inference, source scoring, confirmation or target access, BayesianPhysTwin use, Causal4D use, deployment, or a scientific benefit claim.",
+  "comparison_execution_authorized": false,
+  "environment_approval_required": false,
+  "forbidden_target_group_count": 12,
+  "issue_number": 49,
+  "profile": "cut3r-deform360-source-freeze",
+  "repository_write_token_on_self_hosted": false,
+  "request_id": "34eb4065a5be84ab6939595b38e53721d4555793a3d75eeb4cfc38170847b166",
+  "schema": "prob4d.cut3r-deform360-source-freeze-execution-request",
+  "schema_version": 2,
+  "source_group_count": 10,
+  "source_prediction_payloads_opened": false,
+  "source_protocol_git_blob_sha": "4103f3216edcbf4c31c30b38e86777a219d21077",
+  "source_protocol_path": "protocols/cut3r_deform360_source_v1.json",
+  "source_residuals_or_truth_opened": false,
+  "source_rgb_frames_decoded": false,
+  "supersedes_request_id": "c5036516bdf226f6975caabac88cbf4d1b55e359989b658c1c36f82ea78eea95",
+  "target_outcomes_opened": false,
+  "target_payloads_opened": false
+}
