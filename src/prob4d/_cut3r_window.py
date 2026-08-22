@@ -164,6 +164,7 @@ def _canonical_window(
                     pose,
                     intrinsics,
                     confidence_threshold=confidence_threshold,
+                    return_ray_directions=True,
                 )
                 assert point_writer is not None
                 assert ray_writer is not None
