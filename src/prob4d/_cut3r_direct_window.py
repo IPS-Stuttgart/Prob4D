@@ -118,9 +118,7 @@ def _canonical_direct_window(
         int,
     ]
 ]:
-    point_members, confidence_members, camera_members = _validated_direct_source_members(
-        root
-    )
+    point_members, confidence_members, camera_members = _validated_direct_source_members(root)
     frame_count = len(point_members)
     if frame_count > limits.max_frames:
         raise ValueError(f"CUT3R frame count {frame_count} exceeds max_frames={limits.max_frames}")
@@ -235,9 +233,7 @@ def _canonical_direct_window(
                 ray_writer[index] = world_rays
                 mask_writer[index] = valid
                 any_valid = any_valid or bool(np.any(valid))
-                descriptors.extend(
-                    (point_descriptor, confidence_descriptor, camera_descriptor)
-                )
+                descriptors.extend((point_descriptor, confidence_descriptor, camera_descriptor))
             finally:
                 _close_memmap(points)
                 _close_memmap(confidence)

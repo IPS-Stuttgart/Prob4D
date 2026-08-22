@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Final, Literal, overload, cast
+from typing import Final, Literal, cast, overload
 
 import numpy as np
 
@@ -187,9 +187,7 @@ def _dense_vector_byte_count(
     width: int,
     storage_dtype: DenseStorageDType,
 ) -> int:
-    dense_itemsize = np.dtype(
-        np.float32 if storage_dtype == "float32" else np.float64
-    ).itemsize
+    dense_itemsize = np.dtype(np.float32 if storage_dtype == "float32" else np.float64).itemsize
     return frame_count * height * width * 3 * dense_itemsize
 
 

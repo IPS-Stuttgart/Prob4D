@@ -8,8 +8,8 @@ from typing import Final
 
 from ._cut3r_source import (
     _MIB,
-    _SourceMemberDescriptor,
     _source_tree_byte_count,
+    _SourceMemberDescriptor,
     _validated_source_directory,
     _verify_source_descriptors,
 )

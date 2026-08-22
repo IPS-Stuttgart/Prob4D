@@ -31,9 +31,7 @@ CUT3R_OFFICIAL_REPOSITORY: Final = "CUT3R/CUT3R"
 CUT3R_DIRECT_SOURCE_LAYOUT: Final = "cut3r-recurrent-direct-pointmap-conf-camera-v1"
 CUT3R_DIRECT_GEOMETRY_SOURCE: Final = "pts3d-in-self-view-direct-v1"
 CUT3R_DIRECT_RAY_SEMANTICS: Final = "camera-ray-unit-vector"
-CUT3R_DIRECT_RAY_FRAME_SEMANTICS: Final = (
-    "camera-origin-unit-rays-in-sequence-local-frame-v1"
-)
+CUT3R_DIRECT_RAY_FRAME_SEMANTICS: Final = "camera-origin-unit-rays-in-sequence-local-frame-v1"
 _ADAPTER_DOMAIN: Final = "prob4d.cut3r-direct-pointmap-provider-adapter.v2"
 _MODEL_SET_DOMAIN: Final = "prob4d.cut3r-direct-pointmap-model-set.v1"
 _SOURCE_BUNDLE_DOMAIN: Final = "prob4d.cut3r-direct-pointmap-source-bundle.v1"
@@ -69,9 +67,7 @@ def import_cut3r_direct_prediction_manifest(
     )
     start = require_exact_integer(frame_start, name="frame_start", minimum=0)
     if storage_dtype not in DENSE_STORAGE_DTYPES:
-        raise ValueError(
-            "storage_dtype must be one of " + ", ".join(DENSE_STORAGE_DTYPES)
-        )
+        raise ValueError("storage_dtype must be one of " + ", ".join(DENSE_STORAGE_DTYPES))
     if type(sequence_id) is not str or not sequence_id:
         raise ValueError("sequence_id must be a nonempty string")
     if type(view_id) is not str or not view_id:
@@ -201,21 +197,15 @@ def import_cut3r_direct_prediction_manifest(
                 "source_member_total_bytes": source_member_bytes,
                 "dense_array_byte_count": dense_array_bytes,
                 "ray_direction_array_byte_count": ray_direction_array_bytes,
-                "total_dense_array_byte_count": (
-                    dense_array_bytes + ray_direction_array_bytes
-                ),
-                "canonicalization_backend": (
-                    "frame-streamed-direct-pointmap-and-ray-memmap-v2"
-                ),
+                "total_dense_array_byte_count": (dense_array_bytes + ray_direction_array_bytes),
+                "canonicalization_backend": ("frame-streamed-direct-pointmap-and-ray-memmap-v2"),
                 "sequence_wide_dense_stack_avoided": True,
                 "geometry_source": CUT3R_DIRECT_GEOMETRY_SOURCE,
                 "direct_pointmap_preserved": True,
                 "depth_reprojection_used": False,
                 "raw_confidence_source_bound": True,
                 "camera_ray_frame_semantics": CUT3R_DIRECT_RAY_FRAME_SEMANTICS,
-                "camera_ray_derivation": (
-                    "normalize(R_camera_to_common pts3d_in_self_view)"
-                ),
+                "camera_ray_derivation": ("normalize(R_camera_to_common pts3d_in_self_view)"),
                 "camera_ray_translation_invariant": True,
                 "world_origin_ray_fallback_allowed": False,
                 "input_video_sha256": video_sha256,

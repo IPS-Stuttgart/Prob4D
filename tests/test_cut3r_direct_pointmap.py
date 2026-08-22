@@ -86,10 +86,7 @@ def test_direct_import_preserves_original_xyz_and_camera_rays(tmp_path: Path) ->
     assert manifest.metadata["depth_reprojection_used"] is False
     assert manifest.metadata["geometry_source"] == "pts3d-in-self-view-direct-v1"
     assert manifest.metadata["raw_confidence_source_bound"] is True
-    assert (
-        manifest.metadata["camera_ray_frame_semantics"]
-        == CUT3R_DIRECT_RAY_FRAME_SEMANTICS
-    )
+    assert manifest.metadata["camera_ray_frame_semantics"] == CUT3R_DIRECT_RAY_FRAME_SEMANTICS
     assert manifest.metadata["world_origin_ray_fallback_allowed"] is False
     assert manifest.metadata["dense_array_byte_count"] == 120
     assert manifest.metadata["ray_direction_array_byte_count"] == 96

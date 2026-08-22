@@ -14,11 +14,11 @@ import numpy as np
 from ._atomic_file import atomic_write_text
 from ._cut3r_limits import _unproject_world_points, _validate_camera
 from ._cut3r_source import (
-    _SourceMemberDescriptor,
     _file_descriptor,
     _load_camera,
     _load_npy,
     _record_id,
+    _SourceMemberDescriptor,
     _validated_source_directory,
     _verify_source_descriptors,
 )
@@ -29,9 +29,7 @@ CUT3R_POINTMAP_FIDELITY_SCHEMA: Final = "prob4d.cut3r-pointmap-fidelity"
 CUT3R_POINTMAP_FIDELITY_VERSION: Final = 1
 CUT3R_POINTMAP_FIDELITY_DOMAIN: Final = "prob4d.cut3r-pointmap-fidelity.v1"
 CUT3R_FIDELITY_SOURCE_DOMAIN: Final = "prob4d.cut3r-fidelity-source-bundle.v1"
-CUT3R_FIDELITY_SOURCE_LAYOUT: Final = (
-    "cut3r-direct-pointmap-depth-conf-camera-fidelity-v1"
-)
+CUT3R_FIDELITY_SOURCE_LAYOUT: Final = "cut3r-direct-pointmap-depth-conf-camera-fidelity-v1"
 CUT3R_POINTMAP_FIDELITY_CLAIM_BOUNDARY: Final = (
     "This target-free audit compares CUT3R direct XYZ output with the historical "
     "depth-plus-intrinsics reprojection and tests whether a longer recurrent run "
@@ -92,9 +90,7 @@ def _validated_members(root: Path) -> dict[str, dict[int, Path]]:
     }
     frame_sets = {tuple(group) for group in members.values()}
     if len(frame_sets) != 1:
-        raise ValueError(
-            "CUT3R fidelity points, depth, confidence, and camera frame sets disagree"
-        )
+        raise ValueError("CUT3R fidelity points, depth, confidence, and camera frame sets disagree")
     return members
 
 
@@ -173,9 +169,7 @@ def _geometry_fidelity(
                 & (points64[..., 2] > 0.0)
                 & (confidence64 >= confidence_threshold)
             )
-            direct_world = (
-                np.einsum("ij,hwj->hwi", pose[:3, :3], points64) + pose[:3, 3]
-            )
+            direct_world = np.einsum("ij,hwj->hwi", pose[:3, :3], points64) + pose[:3, 3]
             direct_valid &= np.all(np.isfinite(direct_world), axis=-1)
             reprojected_world, reprojected_valid = _unproject_world_points(
                 depth,
@@ -363,9 +357,7 @@ def _causal_prefix_closure(
                 extended_confidence,
                 name="confidence",
             )
-            prefix_pose, prefix_intrinsics, _ = _load_camera(
-                prefix_members["camera"][frame_index]
-            )
+            prefix_pose, prefix_intrinsics, _ = _load_camera(prefix_members["camera"][frame_index])
             extended_pose, extended_intrinsics, _ = _load_camera(
                 extended_members["camera"][frame_index]
             )
@@ -392,9 +384,7 @@ def _causal_prefix_closure(
                 & (extended_points64[..., 2] > 0.0)
                 & (extended_confidence64 >= confidence_threshold)
             )
-            frame_support_mismatch = int(
-                np.count_nonzero(prefix_support ^ extended_support)
-            )
+            frame_support_mismatch = int(np.count_nonzero(prefix_support ^ extended_support))
 
             point_count += p_count
             point_finite_mismatch += p_mismatch
@@ -434,9 +424,7 @@ def _causal_prefix_closure(
     point_rms = math.sqrt(point_squared_sum / point_count) if point_count else None
     depth_rms = math.sqrt(depth_squared_sum / depth_count) if depth_count else None
     confidence_rms = (
-        math.sqrt(confidence_squared_sum / confidence_count)
-        if confidence_count
-        else None
+        math.sqrt(confidence_squared_sum / confidence_count) if confidence_count else None
     )
     passed = (
         point_count > 0
@@ -576,14 +564,10 @@ def build_cut3r_pointmap_fidelity_report(
         "geometry_fidelity": fidelity,
         "causal_prefix_closure": closure,
         "geometry_classification": (
-            "depth-reprojection-equivalent"
-            if equivalent
-            else "direct-pointmap-required"
+            "depth-reprojection-equivalent" if equivalent else "direct-pointmap-required"
         ),
         "direct_route_ready": direct_ready,
-        "depth_reprojection_compatibility_admissible": bool(
-            direct_ready and equivalent
-        ),
+        "depth_reprojection_compatibility_admissible": bool(direct_ready and equivalent),
         "claim_boundary": CUT3R_POINTMAP_FIDELITY_CLAIM_BOUNDARY,
     }
     return {
