@@ -167,7 +167,7 @@ def _validate_row_relations(entry: Mapping[str, Any]) -> None:
         raise ValueError("every point support row must contribute to the proper score")
     axis_signature: tuple[str, ...] | None = None
     for point, axes in axes_by_point.items():
-        canonical_axes = tuple(sorted((_canonical_json(axis).decode("utf-8") for axis in axes)))
+        canonical_axes = tuple(sorted(_canonical_json(axis).decode("utf-8") for axis in axes))
         if len(canonical_axes) != 3 or len(set(canonical_axes)) != 3:
             raise ValueError(f"proper-score point {point!r} must have three distinct axes")
         if axis_signature is None:
@@ -237,9 +237,7 @@ def _expected_entry_keys(source_lock: Mapping[str, Any]) -> set[EntryKey]:
             start = cast(int, case["evaluation_frame_start"])
             stop = cast(int, case["evaluation_frame_stop_exclusive"])
             result.update(
-                (group_id, case_id, frame, seed)
-                for frame in range(start, stop)
-                for seed in seeds
+                (group_id, case_id, frame, seed) for frame in range(start, stop) for seed in seeds
             )
     return result
 
@@ -334,12 +332,8 @@ def build_cut3r_metric_support_manifest(
         "source_competence_lock_id": source_lock["source_competence_lock_id"],
         "common_support_lock_id": v2_lock["common_support_lock_id"],
         "support_audit_lock_id": audit["support_audit_lock_id"],
-        "common_support_definition_sha256": v2_lock[
-            "common_support_definition_sha256"
-        ],
-        "proper_score_reference_artifact_id": audit[
-            "proper_score_reference_artifact_id"
-        ],
+        "common_support_definition_sha256": v2_lock["common_support_definition_sha256"],
+        "proper_score_reference_artifact_id": audit["proper_score_reference_artifact_id"],
         "proper_score_reference_sha256": audit["proper_score_reference_sha256"],
         "source_truth_used": True,
         "target_payloads_opened": False,
@@ -388,12 +382,8 @@ def validate_cut3r_metric_support_manifest(
         "source_competence_lock_id": source_lock["source_competence_lock_id"],
         "common_support_lock_id": v2_lock["common_support_lock_id"],
         "support_audit_lock_id": audit["support_audit_lock_id"],
-        "common_support_definition_sha256": v2_lock[
-            "common_support_definition_sha256"
-        ],
-        "proper_score_reference_artifact_id": audit[
-            "proper_score_reference_artifact_id"
-        ],
+        "common_support_definition_sha256": v2_lock["common_support_definition_sha256"],
+        "proper_score_reference_artifact_id": audit["proper_score_reference_artifact_id"],
         "proper_score_reference_sha256": audit["proper_score_reference_sha256"],
     }
     for name, expected in expected_ids.items():
@@ -461,15 +451,9 @@ def build_cut3r_metric_support_manifest_unchecked(
         "source_competence_lock_id": audit_lock["source_competence_lock_id"],
         "common_support_lock_id": audit_lock["common_support_lock_id"],
         "support_audit_lock_id": audit_lock["support_audit_lock_id"],
-        "common_support_definition_sha256": audit_lock[
-            "common_support_definition_sha256"
-        ],
-        "proper_score_reference_artifact_id": audit_lock[
-            "proper_score_reference_artifact_id"
-        ],
-        "proper_score_reference_sha256": audit_lock[
-            "proper_score_reference_sha256"
-        ],
+        "common_support_definition_sha256": audit_lock["common_support_definition_sha256"],
+        "proper_score_reference_artifact_id": audit_lock["proper_score_reference_artifact_id"],
+        "proper_score_reference_sha256": audit_lock["proper_score_reference_sha256"],
         "source_truth_used": True,
         "target_payloads_opened": False,
         "target_outcomes_opened": False,

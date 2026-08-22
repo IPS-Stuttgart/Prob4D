@@ -12,7 +12,6 @@ from prob4d.cut3r_source_competence_audit import (
     build_cut3r_metric_support_manifest,
     build_cut3r_source_competence_audit_lock,
     build_cut3r_source_competence_support_audit_report,
-    main as audit_main,
     metric_support_from_manifest_entry,
     source_competence_gates_audited,
     validate_cut3r_source_competence_support_audit_report,
@@ -20,6 +19,9 @@ from prob4d.cut3r_source_competence_audit import (
     write_cut3r_metric_support_manifest,
     write_cut3r_source_competence_audit_lock,
     write_cut3r_source_competence_support_audit_report,
+)
+from prob4d.cut3r_source_competence_audit import (
+    main as audit_main,
 )
 from prob4d.cut3r_source_competence_v2 import (
     CUT3R_SOURCE_COMPETENCE_V2_PROPER_SCORE_SEMANTICS,
@@ -139,9 +141,7 @@ def _v2_lock(
         {
             "source_competence_policy": source_lock["policy"],
             "common_support_definition_sha256": "3" * 64,
-            "proper_score_semantics": (
-                CUT3R_SOURCE_COMPETENCE_V2_PROPER_SCORE_SEMANTICS
-            ),
+            "proper_score_semantics": (CUT3R_SOURCE_COMPETENCE_V2_PROPER_SCORE_SEMANTICS),
             "paired_policy": _paired_policy(),
             "require_complete_source_roster": True,
         },
@@ -160,12 +160,8 @@ def _audit_lock(
         {
             "common_support_definition_sha256": "3" * 64,
             "proper_score_reference_artifact_id": "a" * 64,
-            "proper_score_reference_fit_scope": (
-                CUT3R_PROPER_SCORE_REFERENCE_FIT_SCOPE
-            ),
-            "proper_score_semantics": (
-                CUT3R_SOURCE_COMPETENCE_V2_PROPER_SCORE_SEMANTICS
-            ),
+            "proper_score_reference_fit_scope": (CUT3R_PROPER_SCORE_REFERENCE_FIT_SCOPE),
+            "proper_score_semantics": (CUT3R_SOURCE_COMPETENCE_V2_PROPER_SCORE_SEMANTICS),
             "require_complete_manifest_roster": True,
         },
         REFERENCE_BYTES,
@@ -183,9 +179,7 @@ def _entry(group: str, case: str, frame: int, seed: int) -> dict[str, object]:
         "frame_index": frame,
         "random_seed": seed,
         "point_rows": point_rows,
-        "endpoint_rows": [
-            [group, case, frame, "distal", 101, "registered-world"]
-        ],
+        "endpoint_rows": [[group, case, frame, "distal", 101, "registered-world"]],
         "proper_score_rows": [
             [group, case, frame, point_id, axis, "registered-world"]
             for point_id in (100, 101)
@@ -311,9 +305,7 @@ def _records(
         "source_competence_lock_id": source_lock["source_competence_lock_id"],
         "common_support_lock_id": v2_lock["common_support_lock_id"],
         "record_definition_sha256": source_lock["record_definition_sha256"],
-        "common_support_definition_sha256": v2_lock[
-            "common_support_definition_sha256"
-        ],
+        "common_support_definition_sha256": v2_lock["common_support_definition_sha256"],
         "source_truth_used": True,
         "target_payloads_opened": False,
         "target_outcomes_opened": False,
@@ -339,9 +331,7 @@ def _setup() -> tuple[dict[str, object], ...]:
 
 
 def test_audit_builds_passing_claim_bearing_receipt() -> None:
-    comparison, source_lock, v2_lock, audit_lock, manifest, records, v2_report = (
-        _setup()
-    )
+    comparison, source_lock, v2_lock, audit_lock, manifest, records, v2_report = _setup()
 
     report = build_cut3r_source_competence_support_audit_report(
         comparison,
@@ -360,12 +350,10 @@ def test_audit_builds_passing_claim_bearing_receipt() -> None:
     assert report["audited_source_competence_pass"]
     assert mean_gate.status == "pass"
     assert identity_gate.status == "pass"
-    assert mean_gate.evidence_id == report[
-        "source_competence_support_audit_report_id"
-    ]
-    assert mean_gate.metadata["metric_support_manifest_id"] == manifest[
-        "metric_support_manifest_id"
-    ]
+    assert mean_gate.evidence_id == report["source_competence_support_audit_report_id"]
+    assert (
+        mean_gate.metadata["metric_support_manifest_id"] == manifest["metric_support_manifest_id"]
+    )
 
 
 def test_independent_rows_reject_colluding_supplied_hashes() -> None:
@@ -532,9 +520,7 @@ def test_valid_negative_v2_result_remains_auditable() -> None:
 
 
 def test_report_replay_rejects_tampering() -> None:
-    comparison, source_lock, v2_lock, audit_lock, manifest, records, v2_report = (
-        _setup()
-    )
+    comparison, source_lock, v2_lock, audit_lock, manifest, records, v2_report = _setup()
     report = build_cut3r_source_competence_support_audit_report(
         comparison,
         source_lock,
@@ -561,9 +547,7 @@ def test_report_replay_rejects_tampering() -> None:
 
 
 def test_publication_is_idempotent_and_no_clobber(tmp_path) -> None:
-    comparison, source_lock, v2_lock, audit_lock, manifest, records, v2_report = (
-        _setup()
-    )
+    comparison, source_lock, v2_lock, audit_lock, manifest, records, v2_report = _setup()
     report = build_cut3r_source_competence_support_audit_report(
         comparison,
         source_lock,
@@ -636,76 +620,82 @@ def test_cli_roundtrip(tmp_path, capsys) -> None:
         {
             "common_support_definition_sha256": "3" * 64,
             "proper_score_reference_artifact_id": "a" * 64,
-            "proper_score_reference_fit_scope": (
-                CUT3R_PROPER_SCORE_REFERENCE_FIT_SCOPE
-            ),
-            "proper_score_semantics": (
-                CUT3R_SOURCE_COMPETENCE_V2_PROPER_SCORE_SEMANTICS
-            ),
+            "proper_score_reference_fit_scope": (CUT3R_PROPER_SCORE_REFERENCE_FIT_SCOPE),
+            "proper_score_semantics": (CUT3R_SOURCE_COMPETENCE_V2_PROPER_SCORE_SEMANTICS),
             "require_complete_manifest_roster": True,
         },
     )
     reference_path.write_bytes(REFERENCE_BYTES)
-    assert audit_main(
-        [
-            "freeze",
-            str(comparison_path),
-            str(source_path),
-            str(v2_lock_path),
-            str(audit_spec_path),
-            str(reference_path),
-            "--output",
-            str(audit_lock_path),
-        ]
-    ) == 0
+    assert (
+        audit_main(
+            [
+                "freeze",
+                str(comparison_path),
+                str(source_path),
+                str(v2_lock_path),
+                str(audit_spec_path),
+                str(reference_path),
+                "--output",
+                str(audit_lock_path),
+            ]
+        )
+        == 0
+    )
     dump(manifest_input_path, _manifest_input())
-    assert audit_main(
-        [
-            "manifest",
-            str(comparison_path),
-            str(source_path),
-            str(v2_lock_path),
-            str(audit_lock_path),
-            str(manifest_input_path),
-            "--output",
-            str(manifest_path),
-        ]
-    ) == 0
+    assert (
+        audit_main(
+            [
+                "manifest",
+                str(comparison_path),
+                str(source_path),
+                str(v2_lock_path),
+                str(audit_lock_path),
+                str(manifest_input_path),
+                "--output",
+                str(manifest_path),
+            ]
+        )
+        == 0
+    )
     manifest = json.loads(manifest_path.read_text())
     records = _records(comparison, source_lock, v2_lock, manifest)
-    v2_report = build_cut3r_source_competence_v2_report(
-        comparison, source_lock, v2_lock, records
-    )
+    v2_report = build_cut3r_source_competence_v2_report(comparison, source_lock, v2_lock, records)
     dump(records_path, records)
     dump(v2_report_path, v2_report)
-    assert audit_main(
-        [
-            "report",
-            str(comparison_path),
-            str(source_path),
-            str(v2_lock_path),
-            str(audit_lock_path),
-            str(records_path),
-            str(manifest_path),
-            str(v2_report_path),
-            "--output",
-            str(audit_report_path),
-            "--require-pass",
-        ]
-    ) == 0
-    assert audit_main(
-        [
-            "gates",
-            str(comparison_path),
-            str(source_path),
-            str(v2_lock_path),
-            str(audit_lock_path),
-            str(records_path),
-            str(manifest_path),
-            str(v2_report_path),
-            str(audit_report_path),
-        ]
-    ) == 0
+    assert (
+        audit_main(
+            [
+                "report",
+                str(comparison_path),
+                str(source_path),
+                str(v2_lock_path),
+                str(audit_lock_path),
+                str(records_path),
+                str(manifest_path),
+                str(v2_report_path),
+                "--output",
+                str(audit_report_path),
+                "--require-pass",
+            ]
+        )
+        == 0
+    )
+    assert (
+        audit_main(
+            [
+                "gates",
+                str(comparison_path),
+                str(source_path),
+                str(v2_lock_path),
+                str(audit_lock_path),
+                str(records_path),
+                str(manifest_path),
+                str(v2_report_path),
+                str(audit_report_path),
+            ]
+        )
+        == 0
+    )
     output = capsys.readouterr().out.splitlines()[-1]
     gates = json.loads(output)
     assert gates["source_mean"]["status"] == "pass"
