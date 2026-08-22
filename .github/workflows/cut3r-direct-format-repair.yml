@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   repair:
-    name: Apply canonical Ruff bytes and self-remove
+    name: Apply canonical Ruff bytes to code only
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.head.ref == 'agent/cut3r-direct-pointmap-v2'
@@ -47,7 +47,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Apply canonical formatting and remove all repair machinery
+      - name: Apply and validate canonical code formatting
         shell: bash
         run: |
           set -euo pipefail
@@ -65,27 +65,45 @@ jobs:
           )
           python -m ruff check --fix "${files[@]}"
           python -m ruff format "${files[@]}"
-          python - <<'PY'
-          from pathlib import Path
-
-          path = Path(".github/workflows/cut3r-direct-pointmap.yml")
-          text = path.read_text(encoding="utf-8")
-          start = text.index("      - name: Produce canonical formatting artifact\n")
-          stop = text.index("      - name: Check focused quality\n", start)
-          path.write_text(text[:start] + text[stop:], encoding="utf-8")
-          PY
-          git rm .github/workflows/cut3r-direct-format-repair.yml
           python -m ruff check "${files[@]}"
           python -m ruff format --check "${files[@]}"
-          test -z "$(git status --porcelain=v1 --untracked-files=all | grep '^??' || true)"
+          mapfile -t changed < <(git diff --name-only)
+          test "${#changed[@]}" -gt 0
+          for path in "${changed[@]}"; do
+            case "$path" in
+              src/prob4d/_cut3r_direct_cli.py|\
+              src/prob4d/_cut3r_direct_source.py|\
+              src/prob4d/_cut3r_direct_window.py|\
+              src/prob4d/_cut3r_limits.py|\
+              src/prob4d/_cut3r_window.py|\
+              src/prob4d/cut3r_direct_provider_adapter.py|\
+              src/prob4d/cut3r_pointmap_fidelity.py|\
+              src/prob4d/prediction_cli.py|\
+              tests/test_cut3r_direct_pointmap.py)
+                ;;
+              *)
+                echo "Refusing unexpected formatted path: $path" >&2
+                exit 1
+                ;;
+            esac
+          done
 
-      - name: Commit exact canonical bytes to the same reviewed branch
+      - name: Commit exact canonical code bytes to the same reviewed branch
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
+          git add \
+            src/prob4d/_cut3r_direct_cli.py \
+            src/prob4d/_cut3r_direct_source.py \
+            src/prob4d/_cut3r_direct_window.py \
+            src/prob4d/_cut3r_limits.py \
+            src/prob4d/_cut3r_window.py \
+            src/prob4d/cut3r_direct_provider_adapter.py \
+            src/prob4d/cut3r_pointmap_fidelity.py \
+            src/prob4d/prediction_cli.py \
+            tests/test_cut3r_direct_pointmap.py
           test -n "$(git status --porcelain=v1)"
           git commit -m "Apply canonical CUT3R direct-route formatting"
           git push origin HEAD:refs/heads/agent/cut3r-direct-pointmap-v2
