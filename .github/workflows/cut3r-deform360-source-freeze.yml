@@ -8,7 +8,13 @@ on:
       - ".github/workflows/trusted-self-hosted-validation.yml"
       - "protocols/cut3r_deform360_source_v1.json"
       - "scripts/science/build_cut3r_deform360_source_freeze.py"
+      - "scripts/science/verify_cut3r_deform360_source_freeze.py"
+      - "src/prob4d/_cut3r_source_freeze_verify_bindings.py"
+      - "src/prob4d/_cut3r_source_freeze_verify_common.py"
+      - "src/prob4d/_cut3r_source_freeze_verify_structure.py"
+      - "src/prob4d/cut3r_source_freeze_verification.py"
       - "tests/test_cut3r_deform360_source_freeze.py"
+      - "tests/test_verify_cut3r_deform360_source_freeze.py"
       - "tests/test_trusted_self_hosted_validation_policy.py"
       - "docs/cut3r-deform360-source-freeze.md"
   workflow_dispatch:
@@ -53,14 +59,32 @@ jobs:
           python -m pip check
           python -m ruff check \
             scripts/science/build_cut3r_deform360_source_freeze.py \
+            scripts/science/verify_cut3r_deform360_source_freeze.py \
+            src/prob4d/_cut3r_source_freeze_verify_bindings.py \
+            src/prob4d/_cut3r_source_freeze_verify_common.py \
+            src/prob4d/_cut3r_source_freeze_verify_structure.py \
+            src/prob4d/cut3r_source_freeze_verification.py \
             tests/test_cut3r_deform360_source_freeze.py \
+            tests/test_verify_cut3r_deform360_source_freeze.py \
             tests/test_trusted_self_hosted_validation_policy.py
           python -m ruff format --check \
             scripts/science/build_cut3r_deform360_source_freeze.py \
+            scripts/science/verify_cut3r_deform360_source_freeze.py \
+            src/prob4d/_cut3r_source_freeze_verify_bindings.py \
+            src/prob4d/_cut3r_source_freeze_verify_common.py \
+            src/prob4d/_cut3r_source_freeze_verify_structure.py \
+            src/prob4d/cut3r_source_freeze_verification.py \
             tests/test_cut3r_deform360_source_freeze.py \
+            tests/test_verify_cut3r_deform360_source_freeze.py \
             tests/test_trusted_self_hosted_validation_policy.py
           python -m pytest -q \
             tests/test_cut3r_deform360_source_freeze.py \
+            tests/test_verify_cut3r_deform360_source_freeze.py \
             tests/test_trusted_self_hosted_validation_policy.py
           python -m compileall -q \
-            scripts/science/build_cut3r_deform360_source_freeze.py
+            scripts/science/build_cut3r_deform360_source_freeze.py \
+            scripts/science/verify_cut3r_deform360_source_freeze.py \
+            src/prob4d/_cut3r_source_freeze_verify_bindings.py \
+            src/prob4d/_cut3r_source_freeze_verify_common.py \
+            src/prob4d/_cut3r_source_freeze_verify_structure.py \
+            src/prob4d/cut3r_source_freeze_verification.py

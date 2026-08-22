@@ -76,6 +76,44 @@ prob4d prediction cut3r-comparison verify \
   cut3r-comparison-lock.json
 ```
 
+## Portable retained-artifact verification
+
+The protected builder has access to the source videos and calibration files, but
+reviewers of the retained result should not need those protected paths merely to
+check artifact integrity. The portable verifier rechecks the source-freeze
+content address, exact field sets, source/target roster separation, reconstructed
+common-camera support, camera-panel membership, calibration identities, the full
+source-group-by-camera case product, every source-case content address, and the
+schema-v1 no-access boundary.
+
+For a support-positive freeze, supply all three external bindings to obtain a
+complete verification:
+
+```bash
+python scripts/science/verify_cut3r_deform360_source_freeze.py \
+  outputs/cut3r/source-freeze/cut3r-deform360-source-freeze.json \
+  --comparison-spec \
+    outputs/cut3r/source-freeze/cut3r-comparison-spec.json \
+  --protocol protocols/cut3r_deform360_source_v1.json \
+  --selection /path/to/deform360_official_hub_selection.json \
+  --require-complete-bindings \
+  --require-support-pass \
+  --json
+```
+
+With the protocol present, the verifier independently reconstructs the complete
+comparison specification from the retained source cases and frozen windowing
+policy. A comparison file whose digest was merely rebound after changing an
+evaluation interval therefore fails verification. With the selection lock
+present, it also rechecks the calibration and forbidden-confirmation rosters,
+not only the selection file hash.
+
+A valid support-negative freeze needs no comparison specification. Verification
+returns status `0` for either a valid pass or a valid negative, status `2` for an
+invalid or noncanonical artifact, and status `3` for a valid support negative
+when `--require-support-pass` is requested. The command reads no source video,
+prediction, residual, or confirmation payload.
+
 ## Protected runner configuration
 
 The `cut3r-deform360-source-freeze` profile of the repository's single
@@ -95,17 +133,19 @@ content-addressed artifacts.
 
 ## Publication order
 
-1. Merge the protocol, builder, tests, documentation, hosted contract workflow,
-   and the fixed protected-runner profile.
+1. Merge the protocol, builder, verifier, tests, documentation, hosted contract
+   workflow, and the fixed protected-runner profile.
 2. Create a dedicated same-repository execution/lock pull request from that
    merged `main` revision. Keep the scientific inputs unchanged.
 3. From `main`, dispatch `Trusted exact-head validation` with that open pull
    request number, its exact reviewed head SHA, and profile
    `cut3r-deform360-source-freeze`; approve the protected environment
    independently.
-4. Retain the uploaded artifact. For a support-positive result, commit the exact
-   generated source-freeze and comparison-lock JSON under `protocols/locks/` to
-   the execution/lock pull request.
+4. Retain the uploaded artifact. Run the portable verifier against the exact
+   retained source-freeze, protocol, and selection bytes. For a support-positive
+   result, also verify and commit the exact generated source-freeze and
+   comparison-lock JSON under `protocols/locks/` to the execution/lock pull
+   request.
 5. Only after those exact locks are merged, execute the three causal arms:
    `native-continuous`, `restarted-newest`, and
    `restarted-prob4d-fused` on the frozen source inputs.
