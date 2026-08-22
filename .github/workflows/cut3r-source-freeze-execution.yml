@@ -1,0 +1,628 @@
+name: Execute retained CUT3R Deform360 source freeze
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/cut3r-source-freeze-execution.yml"
+      - "CHANGELOG.d/cut3r-source-freeze-execution.md"
+      - "docs/cut3r-source-freeze-execution.md"
+      - "protocols/execution_requests/cut3r_deform360_source_freeze_v1.json"
+      - "tests/test_trusted_self_hosted_validation_policy.py"
+  push:
+    branches: [main]
+    paths:
+      - "protocols/execution_requests/cut3r_deform360_source_freeze_v1.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cut3r-source-freeze-${{ github.ref }}-${{ github.sha }}
+  cancel-in-progress: false
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+  REQUEST_PATH: protocols/execution_requests/cut3r_deform360_source_freeze_v1.json
+
+jobs:
+  contract:
+    name: Hosted execution-contract validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact reviewed revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: >-
+            ${{ github.event_name == 'pull_request' &&
+                github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Validate reviewed execution surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -e ".[dev]"
+          python -m pip check
+          python -m ruff check tests/test_trusted_self_hosted_validation_policy.py
+          python -m ruff format --check tests/test_trusted_self_hosted_validation_policy.py
+          python -m pytest -q \
+            tests/test_trusted_self_hosted_validation_policy.py \
+            tests/test_github_action_pins.py
+          python -m compileall -q scripts/science/build_cut3r_deform360_source_freeze.py
+
+  authorize:
+    name: Authorize merged-main source-freeze request
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      head_sha: ${{ steps.request.outputs.head_sha }}
+      base_sha: ${{ steps.request.outputs.base_sha }}
+      request_id: ${{ steps.request.outputs.request_id }}
+      profile: ${{ steps.request.outputs.profile }}
+    steps:
+      - name: Require an ordinary non-forced push to main
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_REF: ${{ github.ref }}
+          EVENT_BEFORE: ${{ github.event.before }}
+          EVENT_AFTER: ${{ github.event.after }}
+          EVENT_FORCED: ${{ github.event.forced }}
+          EVENT_DELETED: ${{ github.event.deleted }}
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_NAME" = "push"
+          test "$EVENT_REF" = "refs/heads/main"
+          test "$EVENT_AFTER" = "$EXPECTED_SHA"
+          test "$EVENT_FORCED" = "false"
+          test "$EVENT_DELETED" = "false"
+          test "$EVENT_BEFORE" != "0000000000000000000000000000000000000000"
+
+      - name: Check out exact merged main revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+          clean: true
+
+      - name: Verify the immutable execution request
+        id: request
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+          BASE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          test "$(/usr/bin/git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(/usr/bin/git status --porcelain=v1 --untracked-files=all)"
+          /usr/bin/git diff-tree --no-commit-id --name-only -r "$BASE_SHA" "$EXPECTED_SHA" \
+            | grep -Fx "$REQUEST_PATH" >/dev/null
+          python - <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import json
+          import os
+          import re
+          import subprocess
+          from pathlib import Path
+
+          path = Path(os.environ["REQUEST_PATH"])
+          request = json.loads(path.read_text(encoding="utf-8"))
+          expected_fields = {
+              "schema",
+              "schema_version",
+              "request_id",
+              "issue_number",
+              "profile",
+              "source_protocol_path",
+              "source_protocol_git_blob_sha",
+              "source_group_count",
+              "forbidden_target_group_count",
+              "source_rgb_frames_decoded",
+              "source_prediction_payloads_opened",
+              "source_residuals_or_truth_opened",
+              "target_payloads_opened",
+              "target_outcomes_opened",
+              "comparison_execution_authorized",
+              "claim_boundary",
+          }
+          if type(request) is not dict or set(request) != expected_fields:
+              raise SystemExit("execution request fields changed")
+          if request["schema"] != (
+              "prob4d.cut3r-deform360-source-freeze-execution-request"
+          ):
+              raise SystemExit("unexpected execution-request schema")
+          if request["schema_version"] != 1:
+              raise SystemExit("unsupported execution-request version")
+          if request["issue_number"] != 49:
+              raise SystemExit("execution request is not bound to issue 49")
+          if request["profile"] != "cut3r-deform360-source-freeze":
+              raise SystemExit("execution request names the wrong fixed profile")
+          if request["source_protocol_path"] != (
+              "protocols/cut3r_deform360_source_v1.json"
+          ):
+              raise SystemExit("source protocol path changed")
+          if request["source_group_count"] != 10:
+              raise SystemExit("source group count changed")
+          if request["forbidden_target_group_count"] != 12:
+              raise SystemExit("forbidden target group count changed")
+          false_fields = (
+              "source_rgb_frames_decoded",
+              "source_prediction_payloads_opened",
+              "source_residuals_or_truth_opened",
+              "target_payloads_opened",
+              "target_outcomes_opened",
+              "comparison_execution_authorized",
+          )
+          if any(request[name] is not False for name in false_fields):
+              raise SystemExit("execution request exceeds the source-freeze boundary")
+          request_id = request["request_id"]
+          if type(request_id) is not str or re.fullmatch(
+              r"[0-9a-f]{64}", request_id
+          ) is None:
+              raise SystemExit("request_id must be a lowercase SHA-256 digest")
+          identity = dict(request)
+          identity.pop("request_id")
+          measured_id = hashlib.sha256(
+              json.dumps(
+                  identity,
+                  sort_keys=True,
+                  separators=(",", ":"),
+                  ensure_ascii=False,
+                  allow_nan=False,
+              ).encode("utf-8")
+          ).hexdigest()
+          if measured_id != request_id:
+              raise SystemExit("execution request ID mismatch")
+          protocol_path = str(request["source_protocol_path"])
+          measured_blob = subprocess.run(
+              ["git", "hash-object", protocol_path],
+              check=True,
+              capture_output=True,
+              text=True,
+          ).stdout.strip()
+          if measured_blob != request["source_protocol_git_blob_sha"]:
+              raise SystemExit("source protocol Git blob differs from the request")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"head_sha={os.environ['EXPECTED_SHA']}\n")
+              output.write(f"base_sha={os.environ['BASE_SHA']}\n")
+              output.write(f"request_id={request_id}\n")
+              output.write(f"profile={request['profile']}\n")
+          PY
+
+  execute:
+    name: Freeze retained source inputs on workstation2
+    if: github.event_name == 'push'
+    needs: [contract, authorize]
+    permissions:
+      contents: read
+    environment: trusted-self-hosted-validation
+    runs-on: [self-hosted, Linux, X64, nvidia-smi]
+    timeout-minutes: 180
+    outputs:
+      artifact_name: ${{ steps.freeze.outputs.artifact_name }}
+      decision: ${{ steps.freeze.outputs.decision }}
+      exit_status: ${{ steps.freeze.outputs.exit_status }}
+      freeze_artifact_id: ${{ steps.freeze.outputs.freeze_artifact_id }}
+    steps:
+      - name: Initialize isolated execution workspace
+        id: workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${RUNNER_TEMP}/prob4d-cut3r-source-freeze-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          expected="${RUNNER_TEMP}/prob4d-cut3r-source-freeze-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          test "$root" = "$expected"
+          /usr/bin/rm -rf -- "$root"
+          /usr/bin/mkdir -p \
+            "$root/home" \
+            "$root/cache" \
+            "$root/tmp" \
+            "$root/evidence"
+          echo "root=$root" >> "$GITHUB_OUTPUT"
+          {
+            echo "HOME=$root/home"
+            echo "XDG_CACHE_HOME=$root/cache"
+            echo "PIP_CACHE_DIR=$root/cache/pip"
+            echo "HF_HOME=$root/cache/huggingface"
+            echo "TMPDIR=$root/tmp"
+          } >> "$GITHUB_ENV"
+
+      - name: Check out only the authorized merged main revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.authorize.outputs.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+
+      - name: Verify exact clean checkout and request identity
+        shell: bash
+        env:
+          EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+          EXPECTED_REQUEST_ID: ${{ needs.authorize.outputs.request_id }}
+        run: |
+          set -euo pipefail
+          test "$(/usr/bin/git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test -z "$(/usr/bin/git status --porcelain=v1 --untracked-files=all)"
+          EXPECTED_REQUEST_ID="$EXPECTED_REQUEST_ID" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          request = json.loads(Path(os.environ["REQUEST_PATH"]).read_text(encoding="utf-8"))
+          if request["request_id"] != os.environ["EXPECTED_REQUEST_ID"]:
+              raise SystemExit("checked-out request identity changed")
+          PY
+
+      - name: Provision Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Build the exact reviewed wheel
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          python -m venv "$root/build-venv"
+          build_python="$root/build-venv/bin/python"
+          "$build_python" -m pip install \
+            "pip==25.2" \
+            "setuptools==80.9.0" \
+            "wheel==0.45.1" \
+            "build==1.3.0"
+          wheel_dir="$root/wheelhouse"
+          /usr/bin/mkdir -p "$wheel_dir"
+          "$build_python" -m build --wheel --outdir "$wheel_dir"
+          mapfile -t wheels < <(find "$wheel_dir" -maxdepth 1 -type f -name '*.whl' | sort)
+          test "${#wheels[@]}" -eq 1
+          echo "wheel=${wheels[0]}" >> "$GITHUB_OUTPUT"
+        id: wheel
+
+      - name: Run target-closed source freeze
+        id: freeze
+        shell: bash
+        env:
+          BPT_CHECKOUT: ${{ vars.BPT_CHECKOUT }}
+          CUT3R_CHECKOUT: ${{ vars.CUT3R_CHECKOUT }}
+          CUT3R_CHECKPOINT: ${{ vars.CUT3R_CHECKPOINT }}
+          DEFORM360_PROCESSED_ROOT: ${{ vars.DEFORM360_PROCESSED_ROOT }}
+          REQUEST_ID: ${{ needs.authorize.outputs.request_id }}
+          EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+          WHEEL_PATH: ${{ steps.wheel.outputs.wheel }}
+        run: |
+          set -euo pipefail
+          for name in \
+            BPT_CHECKOUT \
+            CUT3R_CHECKOUT \
+            CUT3R_CHECKPOINT \
+            DEFORM360_PROCESSED_ROOT \
+            WHEEL_PATH
+          do
+            value=${!name:-}
+            if [[ -z "$value" ]]; then
+              echo "Required protected execution input $name is unset" >&2
+              exit 2
+            fi
+          done
+          test -d "$BPT_CHECKOUT/.git"
+          test -d "$CUT3R_CHECKOUT/.git"
+          test -f "$CUT3R_CHECKPOINT"
+          test -d "$DEFORM360_PROCESSED_ROOT"
+          test -f "$WHEEL_PATH"
+
+          root="${{ steps.workspace.outputs.root }}"
+          run_venv="$root/run-venv"
+          output="$root/evidence/cut3r-deform360-source-freeze"
+          raw_log="$root/tmp/source-freeze.log"
+          sanitized_log="$output/freeze.log"
+          /usr/bin/rm -rf -- "$run_venv" "$output" "$raw_log"
+          /usr/bin/mkdir -p "$output"
+
+          python -m venv "$run_venv"
+          "$run_venv/bin/python" -m pip install "pip==25.2"
+          "$run_venv/bin/python" -m pip install "$WHEEL_PATH"
+          "$run_venv/bin/python" -m pip check
+
+          selection="$BPT_CHECKOUT/protocols/locks/deform360_official_hub_visuotactile_v1_selection.json"
+          test -f "$selection"
+          set +e
+          "$run_venv/bin/python" scripts/science/build_cut3r_deform360_source_freeze.py \
+            --repository . \
+            --protocol protocols/cut3r_deform360_source_v1.json \
+            --selection "$selection" \
+            --processed-root "$DEFORM360_PROCESSED_ROOT" \
+            --cut3r-checkout "$CUT3R_CHECKOUT" \
+            --checkpoint "$CUT3R_CHECKPOINT" \
+            --prob4d-wheel "$WHEEL_PATH" \
+            --output-dir "$output" \
+            > "$raw_log" 2>&1
+          status=$?
+          set -e
+
+          RAW_LOG="$raw_log" SANITIZED_LOG="$sanitized_log" \
+            "$run_venv/bin/python" - <<'PY'
+          from __future__ import annotations
+
+          import os
+          from pathlib import Path
+
+          text = Path(os.environ["RAW_LOG"]).read_text(
+              encoding="utf-8",
+              errors="replace",
+          )
+          replacements: dict[str, str] = {}
+          for name in (
+              "BPT_CHECKOUT",
+              "CUT3R_CHECKOUT",
+              "CUT3R_CHECKPOINT",
+              "DEFORM360_PROCESSED_ROOT",
+              "WHEEL_PATH",
+          ):
+              value = os.environ.get(name, "")
+              if value:
+                  replacements[value] = f"<{name}>"
+          for value in sorted(replacements, key=len, reverse=True):
+              text = text.replace(value, replacements[value])
+          Path(os.environ["SANITIZED_LOG"]).write_text(text, encoding="utf-8")
+          PY
+          cat "$sanitized_log"
+          printf '%s\n' "$status" > "$output/exit-status.txt"
+          /usr/bin/rm -f -- "$raw_log"
+          if [[ $status -ne 0 && $status -ne 3 ]]; then
+            exit "$status"
+          fi
+
+          if [[ $status -eq 0 ]]; then
+            "$run_venv/bin/prob4d" prediction cut3r-comparison build \
+              "$output/cut3r-comparison-spec.json" \
+              --output "$output/cut3r-comparison-lock.json"
+            "$run_venv/bin/prob4d" prediction cut3r-comparison verify \
+              "$output/cut3r-comparison-lock.json"
+            "$run_venv/bin/prob4d" prediction cut3r-comparison summarize \
+              "$output/cut3r-comparison-lock.json" \
+              --json \
+              > "$output/cut3r-comparison-summary.json"
+          fi
+
+          STATUS="$status" OUTPUT_DIR="$output" \
+          EXPECTED_HEAD_SHA="$EXPECTED_HEAD_SHA" REQUEST_ID="$REQUEST_ID" \
+          RUN_ID="$GITHUB_RUN_ID" RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" \
+            "$run_venv/bin/python" - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          from pathlib import Path
+
+          output = Path(os.environ["OUTPUT_DIR"])
+          status = int(os.environ["STATUS"])
+          freeze_path = output / "cut3r-deform360-source-freeze.json"
+          freeze = json.loads(freeze_path.read_text(encoding="utf-8"))
+          boundary = freeze["information_boundary"]
+          forbidden_true = (
+              "source_rgb_frames_decoded",
+              "source_prediction_payloads_opened",
+              "source_residuals_or_truth_opened",
+              "source_future_geometry_opened",
+              "target_payloads_opened",
+              "target_outcomes_opened",
+              "downstream_physical_innovations_opened",
+          )
+          if any(boundary[name] is not False for name in forbidden_true):
+              raise SystemExit("source-freeze information boundary was exceeded")
+          if freeze["source_group_count"] != 10:
+              raise SystemExit("source freeze does not contain exactly ten groups")
+          if freeze["forbidden_target_group_count"] != 12:
+              raise SystemExit("source freeze does not retain all forbidden targets")
+
+          specification = output / "cut3r-comparison-spec.json"
+          lock = output / "cut3r-comparison-lock.json"
+          if status == 0:
+              decision = "source-support-freeze-ready"
+              if freeze["decision"] != decision:
+                  raise SystemExit("successful source freeze has the wrong decision")
+              if not specification.is_file() or not lock.is_file():
+                  raise SystemExit("successful source freeze lacks comparison outputs")
+          else:
+              decision = "insufficient-common-camera-support"
+              if freeze["decision"] != decision:
+                  raise SystemExit("support-negative source freeze has the wrong decision")
+              if specification.exists() or lock.exists():
+                  raise SystemExit("support-negative source freeze published comparison outputs")
+
+          summary = {
+              "schema": "prob4d.cut3r-source-freeze-execution-summary",
+              "schema_version": 1,
+              "request_id": os.environ["REQUEST_ID"],
+              "repository_revision": os.environ["EXPECTED_HEAD_SHA"],
+              "workflow_run_id": int(os.environ["RUN_ID"]),
+              "workflow_run_attempt": int(os.environ["RUN_ATTEMPT"]),
+              "exit_status": status,
+              "decision": decision,
+              "freeze_artifact_id": freeze["artifact_id"],
+              "source_group_count": freeze["source_group_count"],
+              "forbidden_target_group_count": freeze["forbidden_target_group_count"],
+              "target_payloads_opened": False,
+              "target_outcomes_opened": False,
+          }
+          (output / "execution-summary.json").write_text(
+              json.dumps(summary, indent=2, sort_keys=True, allow_nan=False) + "\n",
+              encoding="utf-8",
+          )
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as stream:
+              artifact_name = (
+                  "cut3r-source-freeze-"
+                  f"{os.environ['REQUEST_ID'][:12]}-"
+                  f"{os.environ['RUN_ID']}-{os.environ['RUN_ATTEMPT']}"
+              )
+              stream.write(f"artifact_name={artifact_name}\n")
+              stream.write(f"decision={decision}\n")
+              stream.write(f"exit_status={status}\n")
+              stream.write(f"freeze_artifact_id={freeze['artifact_id']}\n")
+          PY
+
+          /usr/bin/git restore --worktree -- src/prob4d.egg-info
+          /usr/bin/git diff --exit-code
+          test -z "$(/usr/bin/git status --porcelain=v1 --untracked-files=no)"
+
+      - name: Record exact execution environment
+        if: ${{ always() && steps.workspace.outcome == 'success' }}
+        shell: bash
+        env:
+          EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+          REQUEST_ID: ${{ needs.authorize.outputs.request_id }}
+          EXECUTION_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+          root="${{ steps.workspace.outputs.root }}"
+          {
+            echo "repository=${GITHUB_REPOSITORY}"
+            echo "head_sha=$EXPECTED_HEAD_SHA"
+            echo "checked_out_sha=$(/usr/bin/git rev-parse HEAD)"
+            echo "request_id=$REQUEST_ID"
+            echo "execution_status=$EXECUTION_STATUS"
+            echo "runner_name=$RUNNER_NAME"
+            echo "runner_os=$RUNNER_OS"
+            echo "runner_arch=$RUNNER_ARCH"
+            "$root/run-venv/bin/python" --version 2>/dev/null || true
+            "$root/run-venv/bin/python" -m pip freeze --all 2>/dev/null || true
+          } > "$root/evidence/environment.txt"
+          {
+            /usr/bin/uname -a
+            command -v lscpu >/dev/null 2>&1 && lscpu || true
+            command -v free >/dev/null 2>&1 && free -b || true
+            command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi || true
+          } > "$root/evidence/host.txt" 2>&1
+          python - "$root/evidence" <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          from pathlib import Path
+          import sys
+
+          root = Path(sys.argv[1])
+          lines = []
+          for path in sorted(root.rglob("*")):
+              if path.is_file() and path.name != "SHA256SUMS":
+                  digest = hashlib.sha256(path.read_bytes()).hexdigest()
+                  lines.append(f"{digest}  {path.relative_to(root).as_posix()}")
+          (root / "SHA256SUMS").write_text(
+              "\n".join(lines) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Upload retained source-freeze evidence
+        if: ${{ always() && steps.workspace.outcome == 'success' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: ${{ steps.freeze.outputs.artifact_name || format('cut3r-source-freeze-failed-{0}-{1}', github.run_id, github.run_attempt) }}
+          path: ${{ steps.workspace.outputs.root }}/evidence/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Remove isolated workspace and checkout residue
+        if: ${{ always() && steps.workspace.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          expected="${RUNNER_TEMP}/prob4d-cut3r-source-freeze-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          test "$root" = "$expected"
+          /usr/bin/rm -rf -- "$root"
+          /usr/bin/git reset --hard HEAD
+          /usr/bin/git clean -ffdx
+
+  report:
+    name: Publish source-freeze run pointer
+    if: ${{ always() && github.event_name == 'push' }}
+    needs: [authorize, execute]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Comment the retained execution status on issue 49
+        shell: bash
+        env:
+          API_URL: ${{ github.api_url }}
+          REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+          REQUEST_ID: ${{ needs.authorize.outputs.request_id }}
+          HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+          EXECUTION_RESULT: ${{ needs.execute.result }}
+          DECISION: ${{ needs.execute.outputs.decision }}
+          EXIT_STATUS: ${{ needs.execute.outputs.exit_status }}
+          FREEZE_ARTIFACT_ID: ${{ needs.execute.outputs.freeze_artifact_id }}
+          ARTIFACT_NAME: ${{ needs.execute.outputs.artifact_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          import urllib.request
+
+          decision = os.environ.get("DECISION") or "workflow-failed-before-decision"
+          artifact_name = os.environ.get("ARTIFACT_NAME") or "not-produced"
+          freeze_id = os.environ.get("FREEZE_ARTIFACT_ID") or "not-produced"
+          exit_status = os.environ.get("EXIT_STATUS") or "not-produced"
+          body = "\n".join(
+              (
+                  "## Retained CUT3R source-freeze workflow",
+                  "",
+                  f"- request ID: `{os.environ['REQUEST_ID']}`",
+                  f"- exact merged-main revision: `{os.environ['HEAD_SHA']}`",
+                  f"- workflow result: `{os.environ['EXECUTION_RESULT']}`",
+                  f"- source-freeze decision: `{decision}`",
+                  f"- builder exit status: `{exit_status}`",
+                  f"- freeze artifact ID: `{freeze_id}`",
+                  f"- Actions artifact: `{artifact_name}`",
+                  f"- workflow run: {os.environ['RUN_URL']}",
+                  "",
+                  "This run is target-closed. It does not execute CUT3R, open source "
+                  "residuals, or authorize confirmation/target access.",
+              )
+          )
+          payload = json.dumps({"body": body}).encode("utf-8")
+          request = urllib.request.Request(
+              f"{os.environ['API_URL']}/repos/{os.environ['REPOSITORY']}/issues/49/comments",
+              data=payload,
+              method="POST",
+              headers={
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
+                  "Content-Type": "application/json",
+                  "X-GitHub-Api-Version": "2022-11-28",
+              },
+          )
+          with urllib.request.urlopen(request, timeout=30):
+              pass
+          PY
