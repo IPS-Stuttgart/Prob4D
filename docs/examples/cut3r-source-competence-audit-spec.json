@@ -1,0 +1,7 @@
+{
+  "common_support_definition_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+  "proper_score_reference_artifact_id": "4444444444444444444444444444444444444444444444444444444444444444",
+  "proper_score_reference_fit_scope": "development-and-calibration-only",
+  "proper_score_semantics": "arm-neutral-fixed-scale-gaussian-score-v1",
+  "require_complete_manifest_roster": true
+}

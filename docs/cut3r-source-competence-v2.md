@@ -169,6 +169,19 @@ python -m prob4d.cut3r_source_competence_v2 gates \
 Identity is `not-evaluated` after a source-mean failure. A v1 absolute pass cannot
 rescue a v2 common-support or paired-endpoint failure.
 
+## Claim-bearing support audit
+
+Version 2 rejects candidate/baseline support disagreement, but the two arms still
+receive their support hashes from the scorer. For the frozen CUT3R execution, use
+the additive `prob4d.cut3r_source_competence_audit` layer before consuming these
+gates. It reconstructs every digest from retained canonical rows, checks both arms
+independently, and binds the exact development/calibration-only fixed-scale score
+reference bytes. See `docs/cut3r-source-competence-support-audit.md`.
+
+Existing v2 artifacts and valid negative decisions remain replay-compatible. Once
+an audit lock is frozen, only the audited gate evidence is claim-bearing; direct v2
+gate output remains diagnostic.
+
 ## Ordered next action
 
 After the lock is frozen, execute exactly the three already registered causal
