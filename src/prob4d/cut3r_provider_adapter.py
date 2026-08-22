@@ -36,9 +36,7 @@ from .prediction_provider_manifest import (
 CUT3R_OFFICIAL_REPOSITORY: Final = "CUT3R/CUT3R"
 CUT3R_ONLINE_SOURCE_LAYOUT: Final = "cut3r-demo-recurrent-depth-conf-camera-v1"
 CUT3R_CAMERA_RAY_SEMANTICS: Final = "camera-ray-unit-vector"
-CUT3R_CAMERA_RAY_FRAME_SEMANTICS: Final = (
-    "camera-origin-unit-rays-in-sequence-local-frame-v1"
-)
+CUT3R_CAMERA_RAY_FRAME_SEMANTICS: Final = "camera-origin-unit-rays-in-sequence-local-frame-v1"
 _ADAPTER_DOMAIN: Final = "prob4d.cut3r-online-provider-adapter.v2"
 _MODEL_SET_DOMAIN: Final = "prob4d.cut3r-online-model-set.v1"
 _SOURCE_BUNDLE_DOMAIN: Final = "prob4d.cut3r-online-source-bundle.v1"
@@ -209,9 +207,7 @@ def import_cut3r_online_prediction_manifest(
                 "source_member_total_bytes": source_member_bytes,
                 "dense_array_byte_count": dense_array_bytes,
                 "ray_direction_array_byte_count": ray_direction_array_bytes,
-                "total_dense_array_byte_count": (
-                    dense_array_bytes + ray_direction_array_bytes
-                ),
+                "total_dense_array_byte_count": (dense_array_bytes + ray_direction_array_bytes),
                 "canonicalization_backend": "frame-streamed-npy-memmap-v1",
                 "sequence_wide_dense_stack_avoided": True,
                 "input_video_sha256": video_sha256,
@@ -228,8 +224,7 @@ def import_cut3r_online_prediction_manifest(
                 "camera_ray_translation_invariant": True,
                 "world_origin_ray_fallback_allowed": False,
                 "camera_relative_depth_model": (
-                    "prob4d.cut3r_camera_geometry."
-                    "CameraRelativeDepthDisagreementModel"
+                    "prob4d.cut3r_camera_geometry.CameraRelativeDepthDisagreementModel"
                 ),
                 "metric_scale_claimed": False,
                 "uses_truth": False,

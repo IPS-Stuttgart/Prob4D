@@ -155,9 +155,7 @@ def _dense_vector_byte_count(
     width: int,
     storage_dtype: DenseStorageDType,
 ) -> int:
-    dense_itemsize = np.dtype(
-        np.float32 if storage_dtype == "float32" else np.float64
-    ).itemsize
+    dense_itemsize = np.dtype(np.float32 if storage_dtype == "float32" else np.float64).itemsize
     return frame_count * height * width * 3 * dense_itemsize
 
 
