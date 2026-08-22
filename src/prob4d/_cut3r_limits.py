@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Final, cast
+from typing import Final, Literal, overload, cast
 
 import numpy as np
 
@@ -85,6 +85,7 @@ def _validated_grid_shape(
     return shape
 
 
+@overload
 def _unproject_world_points(
     depth: np.ndarray,
     confidence: np.ndarray,
@@ -92,8 +93,37 @@ def _unproject_world_points(
     intrinsics: np.ndarray,
     *,
     confidence_threshold: float,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Return common-frame points, true camera rays, and the support mask."""
+    return_ray_directions: Literal[False] = False,
+) -> tuple[np.ndarray, np.ndarray]: ...
+
+
+@overload
+def _unproject_world_points(
+    depth: np.ndarray,
+    confidence: np.ndarray,
+    pose: np.ndarray,
+    intrinsics: np.ndarray,
+    *,
+    confidence_threshold: float,
+    return_ray_directions: Literal[True],
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]: ...
+
+
+def _unproject_world_points(
+    depth: np.ndarray,
+    confidence: np.ndarray,
+    pose: np.ndarray,
+    intrinsics: np.ndarray,
+    *,
+    confidence_threshold: float,
+    return_ray_directions: bool = False,
+) -> tuple[np.ndarray, np.ndarray] | tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Return common-frame points and support, optionally retaining camera rays.
+
+    The explicit option keeps the historical two-array private helper usable by
+    representation audits while production importers request and persist the true
+    camera-origin unit rays.
+    """
 
     _validate_camera(pose, intrinsics)
 
@@ -146,7 +176,9 @@ def _unproject_world_points(
     valid &= np.all(np.isfinite(world_ray_directions), axis=-1)
     world[~valid] = 0.0
     world_ray_directions[~valid] = 0.0
-    return world, world_ray_directions, valid
+    if return_ray_directions:
+        return world, world_ray_directions, valid
+    return world, valid
 
 
 def _dense_vector_byte_count(
@@ -155,7 +187,9 @@ def _dense_vector_byte_count(
     width: int,
     storage_dtype: DenseStorageDType,
 ) -> int:
-    dense_itemsize = np.dtype(np.float32 if storage_dtype == "float32" else np.float64).itemsize
+    dense_itemsize = np.dtype(
+        np.float32 if storage_dtype == "float32" else np.float64
+    ).itemsize
     return frame_count * height * width * 3 * dense_itemsize
 
 
