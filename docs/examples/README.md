@@ -17,3 +17,6 @@ with the exact content identity from the frozen provider protocol.
 - `cut3r-source-competence-v2-spec.json` freezes exact common metric support,
   arm-neutral source-mean proper-score semantics, and paired source endpoints on
   top of an existing CUT3R source-competence v1 lock.
+- `cut3r-source-competence-audit-spec.json` binds the exact arm-neutral score-
+  reference artifact and enables independent reconstruction of every support
+  digest from retained canonical rows.

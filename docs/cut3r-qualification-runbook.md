@@ -152,6 +152,26 @@ session records and report at least:
 Stop on a source-mean negative. Do not relabel inaccurate means, drift, broken
 identities, or poor support as a covariance problem.
 
+### Independent support and proper-score audit
+
+The common-support v2 envelope is necessary but not sufficient for a claim-bearing
+source decision: both arms could still carry the same incorrectly supplied digest.
+Before emitting readiness gates, freeze and execute the additive audit in
+`docs/cut3r-source-competence-support-audit.md`. It must:
+
+- bind the exact development/calibration-only proper-score reference artifact and
+  exact file-byte SHA-256 before source scores are opened;
+- retain the ordered canonical point, endpoint, proper-score, and seam row arrays;
+- independently reconstruct every digest, count, and score dimension;
+- compare the reconstruction separately with `restarted-newest` and
+  `restarted-prob4d-fused`; and
+- emit source-mean and identity gates whose evidence ID is the audit report ID.
+
+Once the support-audit lock exists, the unaudited v2 gate output is diagnostic and
+may not enter the claim-bearing readiness portfolio. A valid negative v2 decision
+remains reportable after successful support/reference auditing. A support or
+reference mismatch invalidates the metric construction and stops the execution.
+
 ## Phase 4: localize uncertainty failure
 
 Only after source means and identities pass, run the joint covariance diagnostic

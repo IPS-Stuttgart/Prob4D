@@ -1,0 +1,26 @@
+{
+  "canonical_hash_encoding": "SHA-256 over exact UTF-8 JSON with sorted object keys, compact separators, finite values only, and support-row array order preserved",
+  "claim_boundary": "This source-only audit independently reconstructs the exact CUT3R Deform360 metric support and binds the exact arm-neutral proper-score reference. It does not open confirmation or target data, change any metric, authorize BayesianPhysTwin or Causal4D use, or establish state of the art.",
+  "common_support_definition_sha256": "c7873ffe65fd6ac97721d2ab17328710a5879f9947c6c6ad55a491f1bd867ae3",
+  "manifest_entry_unit": "one frozen (group_id, case_id, frame_index, random_seed) pair shared by both scored arms",
+  "manifest_roster_rule": "Every frozen nonfailed source pair is represented exactly once; the Deform360 claim-bearing policy requires the complete four-object roster and zero technical failures.",
+  "proper_score_reference": {
+    "fit_scope": "development-and-calibration-only",
+    "required_bindings": [
+      "proper_score_reference_artifact_id",
+      "proper_score_reference_sha256"
+    ],
+    "semantics": "arm-neutral-fixed-scale-gaussian-score-v1"
+  },
+  "reconstruction_rule": "The auditor recomputes each support digest and count/dimension from retained canonical row arrays and compares the result independently with both candidate and baseline records. Equality between the two supplied record envelopes is insufficient.",
+  "row_relations": {
+    "endpoint_and_seam_rows": "must reference material points present in point_rows",
+    "proper_score_rows": "must reference every point row with exactly three distinct and globally consistent coordinate-axis labels",
+    "row_order": "is claim-bearing and must not be sorted or altered after metric construction"
+  },
+  "schema": "prob4d.cut3r-deform360-source-competence-support-audit",
+  "schema_version": 1,
+  "source_truth_used": true,
+  "target_outcomes_opened": false,
+  "target_payloads_opened": false
+}
