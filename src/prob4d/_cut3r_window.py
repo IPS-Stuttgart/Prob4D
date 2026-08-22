@@ -15,6 +15,7 @@ from ._atomic_file import publish_temporary_file
 from ._cut3r_limits import (
     Cut3RImportLimits,
     _dense_array_byte_count,
+    _dense_vector_byte_count,
     _unproject_world_points,
     _validated_grid_shape,
 )
@@ -60,6 +61,7 @@ def _canonical_window(
         tuple[_SourceMemberDescriptor, ...],
         int,
         int,
+        int,
     ]
 ]:
     depth_members, confidence_members, camera_members = _validated_source_members(root)
@@ -75,6 +77,7 @@ def _canonical_window(
 
     workspace = Path(tempfile.mkdtemp(prefix=".prob4d-cut3r-import."))
     point_writer: np.memmap | None = None
+    ray_writer: np.memmap | None = None
     mask_writer: np.memmap | None = None
     frame_writer: np.memmap | None = None
     read_only_maps: list[np.ndarray] = []
@@ -82,9 +85,11 @@ def _canonical_window(
         descriptors: list[_SourceMemberDescriptor] = []
         shape: tuple[int, int] | None = None
         dense_bytes = 0
+        ray_bytes = 0
         any_valid = False
         dense_dtype = np.float32 if storage_dtype == "float32" else np.float64
         point_path = workspace / "point_map.npy"
+        ray_path = workspace / "ray_directions.npy"
         mask_path = workspace / "valid_mask.npy"
         frame_path = workspace / "frame_indices.npy"
 
@@ -109,14 +114,27 @@ def _canonical_window(
                         shape[1],
                         storage_dtype,
                     )
-                    if dense_bytes > limits.max_dense_bytes:
+                    ray_bytes = _dense_vector_byte_count(
+                        frame_count,
+                        shape[0],
+                        shape[1],
+                        storage_dtype,
+                    )
+                    total_dense_bytes = dense_bytes + ray_bytes
+                    if total_dense_bytes > limits.max_dense_bytes:
                         raise ValueError(
                             "CUT3R dense array byte count "
-                            f"{dense_bytes} exceeds max_dense_bytes="
+                            f"{total_dense_bytes} exceeds max_dense_bytes="
                             f"{limits.max_dense_bytes}"
                         )
                     point_writer = np.lib.format.open_memmap(
                         point_path,
+                        mode="w+",
+                        dtype=dense_dtype,
+                        shape=(frame_count, shape[0], shape[1], 3),
+                    )
+                    ray_writer = np.lib.format.open_memmap(
+                        ray_path,
                         mode="w+",
                         dtype=dense_dtype,
                         shape=(frame_count, shape[0], shape[1], 3),
@@ -140,7 +158,7 @@ def _canonical_window(
                     )
 
                 pose, intrinsics, camera_descriptor = _load_camera(camera_members[index])
-                world, valid = _unproject_world_points(
+                world, world_rays, valid = _unproject_world_points(
                     depth,
                     confidence,
                     pose,
@@ -148,8 +166,10 @@ def _canonical_window(
                     confidence_threshold=confidence_threshold,
                 )
                 assert point_writer is not None
+                assert ray_writer is not None
                 assert mask_writer is not None
                 point_writer[index] = world
+                ray_writer[index] = world_rays
                 mask_writer[index] = valid
                 any_valid = any_valid or bool(np.any(valid))
                 descriptors.extend((depth_descriptor, confidence_descriptor, camera_descriptor))
@@ -161,12 +181,14 @@ def _canonical_window(
             raise ValueError("CUT3R output contains no point above the frozen support threshold")
         assert shape is not None
         assert point_writer is not None
+        assert ray_writer is not None
         assert mask_writer is not None
         assert frame_writer is not None
-        for active_writer in (point_writer, mask_writer, frame_writer):
+        for active_writer in (point_writer, ray_writer, mask_writer, frame_writer):
             active_writer.flush()
             _close_memmap(active_writer)
         point_writer = None
+        ray_writer = None
         mask_writer = None
         frame_writer = None
 
@@ -179,18 +201,31 @@ def _canonical_window(
 
         frame_indices = _load_read_only_npy(frame_path, name="frame indices")
         point_map = _load_read_only_npy(point_path, name="point map")
+        ray_directions = _load_read_only_npy(ray_path, name="ray directions")
         valid_mask = _load_read_only_npy(mask_path, name="valid mask")
-        read_only_maps.extend((frame_indices, point_map, valid_mask))
+        read_only_maps.extend((frame_indices, point_map, ray_directions, valid_mask))
         window = MMapPredictionWindow(
             window_id=window_id,
             frame_indices=frame_indices,
             point_map=point_map,
             valid_mask=valid_mask,
+            ray_directions=ray_directions,
             dense_storage_dtype=storage_dtype,
         )
-        yield window, tuple(descriptors), described_source_bytes, dense_bytes
+        yield (
+            window,
+            tuple(descriptors),
+            described_source_bytes,
+            dense_bytes,
+            ray_bytes,
+        )
     finally:
-        for pending_writer in (point_writer, mask_writer, frame_writer):
+        for pending_writer in (
+            point_writer,
+            ray_writer,
+            mask_writer,
+            frame_writer,
+        ):
             if pending_writer is not None:
                 _close_memmap(pending_writer)
         for value in read_only_maps:
@@ -199,6 +234,16 @@ def _canonical_window(
 
 
 def _windows_equal(first: PredictionWindow, second: PredictionWindow) -> bool:
+    rays_equal = (
+        first.ray_directions is not None
+        and second.ray_directions is not None
+        and np.allclose(
+            first.ray_directions,
+            second.ray_directions,
+            atol=5e-7,
+            rtol=5e-7,
+        )
+    )
     return (
         first.window_id == second.window_id
         and first.dense_storage_dtype == second.dense_storage_dtype
@@ -207,8 +252,7 @@ def _windows_equal(first: PredictionWindow, second: PredictionWindow) -> bool:
         and np.array_equal(first.valid_mask, second.valid_mask)
         and first.scene_flow is None
         and second.scene_flow is None
-        and first.ray_directions is None
-        and second.ray_directions is None
+        and rays_equal
     )
 
 

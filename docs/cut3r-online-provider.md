@@ -46,7 +46,68 @@ For depth `z` at pixel `(u, v)`, the adapter backprojects the pixel with the
 stored intrinsics and applies the camera-to-common-frame pose. Invalid depth,
 non-finite confidence, nonpositive depth, and confidence below the frozen
 threshold are excluded from the canonical support mask. The confidence threshold
-is a support rule, not calibrated source reliability.
+is a support rule, not calibrated source reliability. The exact confidence files
+remain part of the source-bundle identity and must be retained for any later
+source-only reliability or heteroscedastic-covariance study.
+
+## Camera-ray and depth semantics
+
+A point in the CUT3R common frame is
+
+```text
+p_common = R_camera_to_common (z K^-1 [u, v, 1]) + t_camera_to_common.
+```
+
+The corresponding viewing direction is not generally
+`p_common / ||p_common||`, because the common-frame origin is arbitrary and the
+camera translation can be nonzero. The adapter therefore exports the true unit
+ray
+
+```text
+r_common =
+    normalize(R_camera_to_common K^-1 [u, v, 1]).
+```
+
+Camera translation changes the common-frame point but not this direction. The
+portable prediction window records these vectors as `ray_directions`, the
+provider payload declares `has_ray_directions=true`, and the manifest uses the
+provider-neutral ray semantic
+`camera-ray-unit-vector`. Its metadata binds the stricter frame declaration
+
+```text
+camera-origin-unit-rays-in-sequence-local-frame-v1
+```
+
+so downstream code cannot reinterpret the vectors as common-origin directions
+or replace them with a world-origin fallback.
+
+Depth-conditioned covariance must likewise use camera-relative range rather than
+`||p_common||`. `prob4d.cut3r_camera_geometry` recovers one camera centre per
+frame from the common-frame points and rays and supplies
+`CameraRelativeDepthDisagreementModel`. Its range and anisotropic covariance are
+invariant to a rigid translation of the complete common frame. Recovery fails
+closed when rays are absent, geometrically inconsistent, or too degenerate to
+identify a camera centre.
+
+```python
+from prob4d.cut3r_camera_geometry import (
+    CameraRelativeDepthDisagreementModel,
+    recover_camera_relative_geometry,
+)
+from prob4d.data import PredictionWindow
+
+window = PredictionWindow.from_npz(
+    "outputs/provider/payloads/sequence-cut3r-online.npz",
+    dense_storage_dtype="float32",
+)
+geometry = recover_camera_relative_geometry(window)
+model = CameraRelativeDepthDisagreementModel()
+conditional_covariance = model.predict(window)
+```
+
+This model is an additive source-side correction. It does not by itself promote
+CUT3R, replace the ordered provider-readiness gates, or establish calibrated
+target uncertainty.
 
 ## Import
 
@@ -70,12 +131,13 @@ The importer:
 2. hashes every depth, confidence, and camera member while checking that it does
    not change during reading;
 3. rechecks the complete source tree after canonical loading;
-4. writes one immutable versioned `PredictionWindow` payload;
+4. writes one immutable versioned `PredictionWindow` payload containing the
+   common-frame point map, support mask, and true common-frame camera rays;
 5. records frame `i` as depending on the complete source prefix ending at
    `i + 1` exclusively;
 6. binds the CUT3R code revision, checkpoint, input video, source bundle, the
-   complete adapter implementation-set digest, threshold, and output payload into
-   content identities; and
+   complete adapter implementation-set digest, threshold, ray semantics, and
+   output payload into content identities; and
 7. immediately reopens and verifies the published provider manifest.
 
 The canonical coordinate declaration is `sequence-local-sim3`. Even when an
@@ -85,12 +147,13 @@ claim without an independently calibrated metric anchor.
 ## Bounded-memory canonicalization
 
 The adapter reads depth and confidence members through read-only NumPy memory
-maps, reconstructs one frame at a time, and writes the canonical point map and
-support mask into temporary NPY memory maps. It no longer retains a Python list
-of every reconstructed frame, performs a sequence-wide dense `stack`, or asks the
-ordinary `PredictionWindow` constructor to copy the complete sequence before NPZ
-publication. The portable NPZ schema and provider-manifest semantics are
-unchanged.
+maps, reconstructs one frame at a time, and writes the canonical point map,
+camera rays, and support mask into temporary NPY memory maps. It does not retain
+a Python list of every reconstructed frame, perform a sequence-wide dense
+`stack`, or ask the ordinary `PredictionWindow` constructor to copy the complete
+sequence before NPZ publication. The existing portable NPZ schema already
+supports optional ray directions, so no prediction-window schema migration is
+required.
 
 Imports fail closed before large allocations when any configured budget is
 exceeded. The defaults are:
@@ -100,25 +163,25 @@ exceeded. The defaults are:
 - `--max-width 4096`;
 - `--max-source-bytes 137438953472` (128 GiB); and
 - `--max-dense-bytes 137438953472` (128 GiB of uncompressed frame indices,
-  point-map values, and support-mask values).
+  point-map values, camera-ray values, and support-mask values).
 
 Use smaller values in automated ingestion environments. Raising a limit only
 permits a larger import; it does not alter the reconstructed values, confidence
 threshold, causal lineage, statistical dependence declarations, or scientific
-readiness decision. The manifest records the actual source-member and dense-array
-byte counts together with `canonicalization_backend="frame-streamed-npy-memmap-v1"`.
+readiness decision. The manifest separately records the historical
+point/mask/index byte count, the camera-ray byte count, and their total.
 
 ## Scientific progression
 
-A valid import proves byte-level interoperability and declared causal lineage
-only. The next order is:
+A valid import proves byte-level interoperability, declared causal lineage, and
+correct camera-origin ray geometry only. The next order is:
 
 1. freeze and run provider support feasibility before opening source residuals;
 2. evaluate source mean quality and identity competence by complete physical
    object or acquisition session;
 3. localize gauge/dependence and conditional point-covariance failures;
-4. fit reliability or uncertainty only when the corresponding source gate
-   authorizes it; and
+4. use camera-relative range and retained source confidence only if the ordered
+   source gates authorize uncertainty or reliability development; and
 5. permit one held-out target evaluation only after the complete fresh-provider
    readiness decision passes.
 
