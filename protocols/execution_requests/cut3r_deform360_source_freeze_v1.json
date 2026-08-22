@@ -1,0 +1,18 @@
+{
+  "claim_boundary": "This request authorizes one target-closed source-input freeze on merged main. It does not authorize CUT3R inference, source scoring, confirmation or target access, BayesianPhysTwin use, Causal4D use, deployment, or a scientific benefit claim.",
+  "comparison_execution_authorized": false,
+  "forbidden_target_group_count": 12,
+  "issue_number": 49,
+  "profile": "cut3r-deform360-source-freeze",
+  "request_id": "c5036516bdf226f6975caabac88cbf4d1b55e359989b658c1c36f82ea78eea95",
+  "schema": "prob4d.cut3r-deform360-source-freeze-execution-request",
+  "schema_version": 1,
+  "source_group_count": 10,
+  "source_prediction_payloads_opened": false,
+  "source_protocol_git_blob_sha": "4103f3216edcbf4c31c30b38e86777a219d21077",
+  "source_protocol_path": "protocols/cut3r_deform360_source_v1.json",
+  "source_residuals_or_truth_opened": false,
+  "source_rgb_frames_decoded": false,
+  "target_outcomes_opened": false,
+  "target_payloads_opened": false
+}
