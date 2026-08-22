@@ -5,9 +5,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW_ROOT = ROOT / ".github" / "workflows"
 TRUSTED_WORKFLOW = WORKFLOW_ROOT / "trusted-self-hosted-validation.yml"
-SOURCE_FREEZE_EXECUTION_WORKFLOW = (
-    WORKFLOW_ROOT / "cut3r-source-freeze-execution.yml"
-)
+SOURCE_FREEZE_EXECUTION_WORKFLOW = WORKFLOW_ROOT / "cut3r-source-freeze-execution.yml"
 TRUSTED_SELF_HOSTED_WORKFLOWS = (
     TRUSTED_WORKFLOW,
     SOURCE_FREEZE_EXECUTION_WORKFLOW,
@@ -20,10 +18,7 @@ REMOVED_TEMPORARY_WORKFLOWS = (
 
 
 def _workflow_files() -> tuple[Path, ...]:
-    return tuple(
-        sorted(WORKFLOW_ROOT.glob("*.yml"))
-        + sorted(WORKFLOW_ROOT.glob("*.yaml"))
-    )
+    return tuple(sorted(WORKFLOW_ROOT.glob("*.yml")) + sorted(WORKFLOW_ROOT.glob("*.yaml")))
 
 
 def _uses_self_hosted_runner(text: str) -> bool:
@@ -39,9 +34,7 @@ def _uses_self_hosted_runner(text: str) -> bool:
             continuation_stripped = continuation.lstrip()
             if not continuation_stripped:
                 continue
-            continuation_indentation = len(continuation) - len(
-                continuation_stripped
-            )
+            continuation_indentation = len(continuation) - len(continuation_stripped)
             if continuation_indentation <= indentation:
                 break
             if "self-hosted" in continuation:
@@ -112,10 +105,7 @@ def test_privileged_profiles_are_fixed_and_reports_bind_exact_source() -> None:
     assert "status -ne 0 && $status -ne 3" in text
     assert "--frames 25 --height 320 --width 640 --contributors 3" in text
     assert "--include-flow" in text
-    assert (
-        'report["repository_revision"] != '
-        'os.environ["EXPECTED_HEAD_SHA"]'
-    ) in text
+    assert ('report["repository_revision"] != os.environ["EXPECTED_HEAD_SHA"]') in text
     assert "git push" not in text
 
 
@@ -124,10 +114,7 @@ def test_source_freeze_execution_is_merged_main_bound_and_target_closed() -> Non
 
     assert "\n  push:" in text
     assert "branches: [main]" in text
-    assert (
-        "protocols/execution_requests/"
-        "cut3r_deform360_source_freeze_v1.json"
-    ) in text
+    assert ("protocols/execution_requests/cut3r_deform360_source_freeze_v1.json") in text
     assert "pull_request_target:" not in text
     assert "github.event_name == 'push'" in text
     assert 'test "$EVENT_REF" = "refs/heads/main"' in text
