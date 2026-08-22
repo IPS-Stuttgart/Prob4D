@@ -64,47 +64,6 @@ jobs:
           python -m pip install -e ".[dev]" "numpy>=1.24,<2.3"
           python -m pip check
 
-      - name: Produce canonical formatting artifact
-        shell: bash
-        run: |
-          set -euo pipefail
-          files=(
-            src/prob4d/_cut3r_direct_cli.py
-            src/prob4d/_cut3r_direct_source.py
-            src/prob4d/_cut3r_direct_window.py
-            src/prob4d/_cut3r_limits.py
-            src/prob4d/_cut3r_window.py
-            src/prob4d/cut3r_direct_provider_adapter.py
-            src/prob4d/cut3r_pointmap_fidelity.py
-            src/prob4d/prediction_cli.py
-            tests/test_cut3r_direct_pointmap.py
-          )
-          python -m ruff check --fix "${files[@]}"
-          python -m ruff format "${files[@]}"
-          /usr/bin/rm -rf -- formatting formatting.patch
-          for path in "${files[@]}"; do
-            /usr/bin/mkdir -p "formatting/$(dirname "$path")"
-            /usr/bin/cp -- "$path" "formatting/$path"
-          done
-          /usr/bin/git diff --binary -- "${files[@]}" > formatting.patch
-          test -s formatting.patch
-
-      - name: Upload canonical formatting artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: cut3r-direct-canonical-${{ github.event.pull_request.head.sha || github.sha }}
-          path: |
-            formatting/
-            formatting.patch
-          if-no-files-found: error
-          retention-days: 1
-
-      - name: Require reviewed branch to contain canonical bytes
-        shell: bash
-        run: |
-          set -euo pipefail
-          /usr/bin/git diff --exit-code
-
       - name: Check focused quality
         shell: bash
         run: |
