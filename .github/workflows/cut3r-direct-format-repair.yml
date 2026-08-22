@@ -1,8 +1,8 @@
 name: Temporary CUT3R direct formatting repair
 
 on:
-  push:
-    branches: [agent/cut3r-direct-pointmap-v2]
+  pull_request:
+    branches: [main]
     paths:
       - ".github/workflows/cut3r-direct-format-repair.yml"
 
@@ -17,24 +17,26 @@ jobs:
   repair:
     name: Apply canonical Ruff bytes and self-remove
     if: >-
-      github.repository == 'IPS-Stuttgart/Prob4D' &&
-      github.ref == 'refs/heads/agent/cut3r-direct-pointmap-v2'
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'agent/cut3r-direct-pointmap-v2'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - name: Check out the exact repair request
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 2
           persist-credentials: true
           clean: true
 
       - name: Verify the request is limited to this temporary workflow
         shell: bash
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
           mapfile -t changed < <(git diff-tree --no-commit-id --name-only -r HEAD^ HEAD)
           test "${#changed[@]}" -eq 1
           test "${changed[0]}" = ".github/workflows/cut3r-direct-format-repair.yml"
