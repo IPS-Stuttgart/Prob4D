@@ -1,0 +1,89 @@
+name: Temporary CUT3R direct formatting repair
+
+on:
+  push:
+    branches: [agent/cut3r-direct-pointmap-v2]
+    paths:
+      - ".github/workflows/cut3r-direct-format-repair.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cut3r-direct-format-repair
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    name: Apply canonical Ruff bytes and self-remove
+    if: >-
+      github.repository == 'IPS-Stuttgart/Prob4D' &&
+      github.ref == 'refs/heads/agent/cut3r-direct-pointmap-v2'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out the exact repair request
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: true
+          clean: true
+
+      - name: Verify the request is limited to this temporary workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          mapfile -t changed < <(git diff-tree --no-commit-id --name-only -r HEAD^ HEAD)
+          test "${#changed[@]}" -eq 1
+          test "${changed[0]}" = ".github/workflows/cut3r-direct-format-repair.yml"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Apply canonical formatting and remove all repair machinery
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install "ruff==0.16.4"
+          files=(
+            src/prob4d/_cut3r_direct_cli.py
+            src/prob4d/_cut3r_direct_source.py
+            src/prob4d/_cut3r_direct_window.py
+            src/prob4d/_cut3r_limits.py
+            src/prob4d/_cut3r_window.py
+            src/prob4d/cut3r_direct_provider_adapter.py
+            src/prob4d/cut3r_pointmap_fidelity.py
+            src/prob4d/prediction_cli.py
+            tests/test_cut3r_direct_pointmap.py
+          )
+          python -m ruff check --fix "${files[@]}"
+          python -m ruff format "${files[@]}"
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path(".github/workflows/cut3r-direct-pointmap.yml")
+          text = path.read_text(encoding="utf-8")
+          start = text.index("      - name: Produce canonical formatting artifact\n")
+          stop = text.index("      - name: Check focused quality\n", start)
+          path.write_text(text[:start] + text[stop:], encoding="utf-8")
+          PY
+          git rm .github/workflows/cut3r-direct-format-repair.yml
+          python -m ruff check "${files[@]}"
+          python -m ruff format --check "${files[@]}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all | grep '^??' || true)"
+
+      - name: Commit exact canonical bytes to the same reviewed branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          test -n "$(git status --porcelain=v1)"
+          git commit -m "Apply canonical CUT3R direct-route formatting"
+          git push origin HEAD:refs/heads/agent/cut3r-direct-pointmap-v2
