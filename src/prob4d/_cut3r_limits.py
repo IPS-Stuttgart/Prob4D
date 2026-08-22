@@ -92,7 +92,9 @@ def _unproject_world_points(
     intrinsics: np.ndarray,
     *,
     confidence_threshold: float,
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Return common-frame points, true camera rays, and the support mask."""
+
     _validate_camera(pose, intrinsics)
 
     depth64 = np.asarray(depth, dtype=np.float64)
@@ -117,11 +119,44 @@ def _unproject_world_points(
         ).T.reshape(height, width, 3)
     except np.linalg.LinAlgError as error:
         raise ValueError("CUT3R camera intrinsics must be nonsingular") from error
+
+    camera_ray_norms = np.linalg.norm(camera_rays, axis=-1, keepdims=True)
+    if np.any(camera_ray_norms <= np.finfo(np.float64).eps):
+        raise ValueError("CUT3R intrinsics produced a zero viewing ray")
+    camera_ray_directions = camera_rays / camera_ray_norms
+
+    rotation = pose[:3, :3]
     camera_points = camera_rays * depth64[..., None]
-    world = np.einsum("ij,hwj->hwi", pose[:3, :3], camera_points) + pose[:3, 3]
+    world = np.einsum("ij,hwj->hwi", rotation, camera_points) + pose[:3, 3]
+    world_ray_directions = np.einsum(
+        "ij,hwj->hwi",
+        rotation,
+        camera_ray_directions,
+    )
+    world_ray_norms = np.linalg.norm(
+        world_ray_directions,
+        axis=-1,
+        keepdims=True,
+    )
+    if np.any(world_ray_norms <= np.finfo(np.float64).eps):
+        raise ValueError("CUT3R camera pose produced a zero common-frame ray")
+    world_ray_directions /= world_ray_norms
+
     valid &= np.all(np.isfinite(world), axis=-1)
+    valid &= np.all(np.isfinite(world_ray_directions), axis=-1)
     world[~valid] = 0.0
-    return world, valid
+    world_ray_directions[~valid] = 0.0
+    return world, world_ray_directions, valid
+
+
+def _dense_vector_byte_count(
+    frame_count: int,
+    height: int,
+    width: int,
+    storage_dtype: DenseStorageDType,
+) -> int:
+    dense_itemsize = np.dtype(np.float32 if storage_dtype == "float32" else np.float64).itemsize
+    return frame_count * height * width * 3 * dense_itemsize
 
 
 def _dense_array_byte_count(
@@ -130,8 +165,12 @@ def _dense_array_byte_count(
     width: int,
     storage_dtype: DenseStorageDType,
 ) -> int:
-    dense_itemsize = np.dtype(np.float32 if storage_dtype == "float32" else np.float64).itemsize
-    point_bytes = frame_count * height * width * 3 * dense_itemsize
+    point_bytes = _dense_vector_byte_count(
+        frame_count,
+        height,
+        width,
+        storage_dtype,
+    )
     mask_bytes = frame_count * height * width * np.dtype(bool).itemsize
     frame_index_bytes = frame_count * np.dtype(np.int64).itemsize
     return point_bytes + mask_bytes + frame_index_bytes
