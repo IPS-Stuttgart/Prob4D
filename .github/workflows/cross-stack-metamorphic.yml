@@ -1,0 +1,127 @@
+name: Cross-stack metamorphic invariants
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/cross-stack-metamorphic.yml"
+      - "CHANGELOG.d/cross-stack-metamorphic-v1.md"
+      - "docs/cross-stack-metamorphic-v1.md"
+      - "integration_tests/test_three_repository_metamorphic_v1.py"
+      - "tests/test_cross_stack_metamorphic_workflow.py"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/cross-stack-metamorphic.yml"
+      - "CHANGELOG.d/cross-stack-metamorphic-v1.md"
+      - "docs/cross-stack-metamorphic-v1.md"
+      - "integration_tests/test_three_repository_metamorphic_v1.py"
+      - "tests/test_cross_stack_metamorphic_workflow.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cross-stack-metamorphic-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUNBUFFERED: "1"
+  PROB4D_REQUIRE_CROSS_STACK_METAMORPHIC: "1"
+  BAYESIAN_PHYSTWIN_REF: c41974ad5583e2d426d12cf0afd3274b6a47d9b6
+  CAUSAL4D_REF: d5260f65fb3c7660a576ac4c8742190406247103
+
+jobs:
+  installed-wheel-metamorphic:
+    name: Installed-wheel metamorphic invariants
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out exact Prob4D revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: >-
+            ${{ github.event_name == 'pull_request' &&
+                github.event.pull_request.head.sha || github.sha }}
+          path: prob4d
+          persist-credentials: false
+          clean: true
+
+      - name: Check out exact BayesianPhysTwin revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: IPS-Stuttgart/BayesianPhysTwin
+          ref: ${{ env.BAYESIAN_PHYSTWIN_REF }}
+          path: bayesian-phystwin
+          persist-credentials: false
+          clean: true
+
+      - name: Check out exact Causal4D revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: IPS-Stuttgart/Causal4D
+          ref: ${{ env.CAUSAL4D_REF }}
+          path: causal4d
+          persist-credentials: false
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            prob4d/pyproject.toml
+            bayesian-phystwin/pyproject.toml
+            causal4d/pyproject.toml
+
+      - name: Build and install exactly three wheels
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install build
+          mkdir -p "${RUNNER_TEMP}/wheelhouse"
+          python -m build --wheel --outdir "${RUNNER_TEMP}/wheelhouse" prob4d
+          python -m build --wheel --outdir "${RUNNER_TEMP}/wheelhouse" bayesian-phystwin
+          python -m build --wheel --outdir "${RUNNER_TEMP}/wheelhouse" causal4d
+          test "$(find "${RUNNER_TEMP}/wheelhouse" -maxdepth 1 -name '*.whl' | wc -l)" -eq 3
+          sha256sum "${RUNNER_TEMP}"/wheelhouse/*.whl | tee wheel-sha256.txt
+
+          python -m venv "${RUNNER_TEMP}/cross-stack-metamorphic"
+          python_bin="${RUNNER_TEMP}/cross-stack-metamorphic/bin/python"
+          "${python_bin}" -m pip install --upgrade pip
+          "${python_bin}" -m pip install pytest "${RUNNER_TEMP}"/wheelhouse/*.whl
+          "${python_bin}" -m pip check
+
+      - name: Run the isolated installed-wheel metamorphic suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_root="${RUNNER_TEMP}/cross-stack-metamorphic-run"
+          mkdir -p "${run_root}"
+          cp \
+            prob4d/integration_tests/test_three_repository_metamorphic_v1.py \
+            "${run_root}/test_three_repository_metamorphic_v1.py"
+          cd "${run_root}"
+          env -u PYTHONPATH \
+            PYTHONNOUSERSITE=1 \
+            PROB4D_REQUIRE_CROSS_STACK_METAMORPHIC=1 \
+            "${RUNNER_TEMP}/cross-stack-metamorphic/bin/python" -I -m pytest \
+            -q \
+            --junitxml="${GITHUB_WORKSPACE}/cross-stack-metamorphic.xml" \
+            test_three_repository_metamorphic_v1.py \
+            2>&1 | tee "${GITHUB_WORKSPACE}/cross-stack-metamorphic.log"
+
+      - name: Upload metamorphic evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: cross-stack-metamorphic
+          path: |
+            cross-stack-metamorphic.log
+            cross-stack-metamorphic.xml
+            wheel-sha256.txt
+          if-no-files-found: error
+          retention-days: 30
