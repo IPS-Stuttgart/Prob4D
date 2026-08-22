@@ -5,6 +5,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW_ROOT = ROOT / ".github" / "workflows"
 TRUSTED_WORKFLOW = WORKFLOW_ROOT / "trusted-self-hosted-validation.yml"
+SOURCE_FREEZE_EXECUTION_WORKFLOW = WORKFLOW_ROOT / "cut3r-source-freeze-execution.yml"
+TRUSTED_SELF_HOSTED_WORKFLOWS = (
+    TRUSTED_WORKFLOW,
+    SOURCE_FREEZE_EXECUTION_WORKFLOW,
+)
 REMOVED_TEMPORARY_WORKFLOWS = (
     WORKFLOW_ROOT / "issue-49-protected-cohort-inventory.yml",
     WORKFLOW_ROOT / "issue-49-protected-cohort-inventory-launch.yml",
@@ -37,11 +42,11 @@ def _uses_self_hosted_runner(text: str) -> bool:
     return False
 
 
-def test_only_the_protected_manual_workflow_can_use_self_hosted_runners() -> None:
-    assert TRUSTED_WORKFLOW.is_file()
+def test_only_reviewed_protected_workflows_can_use_self_hosted_runners() -> None:
+    assert all(path.is_file() for path in TRUSTED_SELF_HOSTED_WORKFLOWS)
     offenders = []
     for path in _workflow_files():
-        if path == TRUSTED_WORKFLOW:
+        if path in TRUSTED_SELF_HOSTED_WORKFLOWS:
             continue
         text = path.read_text(encoding="utf-8")
         if _uses_self_hosted_runner(text):
@@ -100,8 +105,50 @@ def test_privileged_profiles_are_fixed_and_reports_bind_exact_source() -> None:
     assert "status -ne 0 && $status -ne 3" in text
     assert "--frames 25 --height 320 --width 640 --contributors 3" in text
     assert "--include-flow" in text
-    assert 'report["repository_revision"] != os.environ["EXPECTED_HEAD_SHA"]' in text
+    assert ('report["repository_revision"] != os.environ["EXPECTED_HEAD_SHA"]') in text
     assert "git push" not in text
+
+
+def test_source_freeze_execution_is_merged_main_bound_and_target_closed() -> None:
+    text = SOURCE_FREEZE_EXECUTION_WORKFLOW.read_text(encoding="utf-8")
+
+    assert "\n  push:" in text
+    assert "branches: [main]" in text
+    assert ("protocols/execution_requests/cut3r_deform360_source_freeze_v1.json") in text
+    assert "pull_request_target:" not in text
+    assert "github.event_name == 'push'" in text
+    assert 'test "$EVENT_REF" = "refs/heads/main"' in text
+    assert 'test "$EVENT_FORCED" = "false"' in text
+    assert "source_protocol_git_blob_sha" in text
+    assert "execution request ID mismatch" in text
+    assert "environment: trusted-self-hosted-validation" in text
+    assert "runs-on: [self-hosted, Linux, X64, nvidia-smi]" in text
+    assert "ref: ${{ needs.authorize.outputs.head_sha }}" in text
+    assert "persist-credentials: false" in text
+    assert "contents: write" not in text
+    assert "pull-requests: write" not in text
+    assert "secrets." not in text
+    assert "comparison_execution_authorized" in text
+    assert '"source_rgb_frames_decoded"' in text
+    assert '"target_payloads_opened"' in text
+    assert '"target_outcomes_opened"' in text
+    assert "status -ne 0 && $status -ne 3" in text
+    assert "git push" not in text
+
+
+def test_source_freeze_execution_keeps_write_permission_off_self_hosted_job() -> None:
+    text = SOURCE_FREEZE_EXECUTION_WORKFLOW.read_text(encoding="utf-8")
+
+    execute_start = text.index("\n  execute:")
+    report_start = text.index("\n  report:")
+    execute = text[execute_start:report_start]
+    report = text[report_start:]
+
+    assert "permissions:\n      contents: read" in execute
+    assert "issues: write" not in execute
+    assert "contents: write" not in execute
+    assert "permissions:\n      contents: read\n      issues: write" in report
+    assert "runs-on: ubuntu-latest" in report
 
 
 def test_full_validation_tracks_the_05_cleanup_surface() -> None:
