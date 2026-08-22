@@ -5,7 +5,10 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from prob4d.cut3r_camera_geometry import CameraRelativeDepthDisagreementModel
 from prob4d.cut3r_direct_provider_adapter import (
+    CUT3R_DIRECT_RAY_FRAME_SEMANTICS,
+    CUT3R_DIRECT_RAY_SEMANTICS,
     import_cut3r_direct_prediction_manifest,
 )
 from prob4d.cut3r_pointmap_fidelity import (
@@ -23,6 +26,7 @@ def _write_direct_frame(
     index: int,
     *,
     point_offset_x: float = 0.1,
+    common_translation: np.ndarray | None = None,
 ) -> np.ndarray:
     stem = f"{index:06d}"
     for directory in ("points", "depth", "conf", "camera"):
@@ -40,6 +44,8 @@ def _write_direct_frame(
     points[..., 0] += point_offset_x
     pose = np.eye(4, dtype=np.float64)
     pose[0, 3] = float(index)
+    if common_translation is not None:
+        pose[:3, 3] += np.asarray(common_translation, dtype=np.float64)
 
     np.save(root / "points" / f"{stem}.npy", points.astype(np.float32))
     np.save(root / "depth" / f"{stem}.npy", depth)
@@ -66,7 +72,7 @@ def _import(root: Path, output: Path):
     )
 
 
-def test_direct_import_preserves_original_xyz_before_pose(tmp_path: Path) -> None:
+def test_direct_import_preserves_original_xyz_and_camera_rays(tmp_path: Path) -> None:
     source = tmp_path / "cut3r"
     first_points = _write_direct_frame(source, 0)
     second_points = _write_direct_frame(source, 1)
@@ -75,11 +81,21 @@ def test_direct_import_preserves_original_xyz_before_pose(tmp_path: Path) -> Non
     manifest = _import(source, output)
 
     assert manifest.provider_family == "CUT3R-online-direct"
+    assert manifest.ray_semantics == CUT3R_DIRECT_RAY_SEMANTICS
     assert manifest.metadata["direct_pointmap_preserved"] is True
     assert manifest.metadata["depth_reprojection_used"] is False
     assert manifest.metadata["geometry_source"] == "pts3d-in-self-view-direct-v1"
     assert manifest.metadata["raw_confidence_source_bound"] is True
+    assert (
+        manifest.metadata["camera_ray_frame_semantics"]
+        == CUT3R_DIRECT_RAY_FRAME_SEMANTICS
+    )
+    assert manifest.metadata["world_origin_ray_fallback_allowed"] is False
+    assert manifest.metadata["dense_array_byte_count"] == 120
+    assert manifest.metadata["ray_direction_array_byte_count"] == 96
+    assert manifest.metadata["total_dense_array_byte_count"] == 216
     payload = manifest.payloads[0]
+    assert payload.has_ray_directions is True
     window = PredictionWindow.from_npz(
         output.parent / payload.path,
         dense_storage_dtype="float32",
@@ -88,8 +104,65 @@ def test_direct_import_preserves_original_xyz_before_pose(tmp_path: Path) -> Non
     expected_second = second_points.copy()
     expected_second[..., 0] += 1.0
     np.testing.assert_allclose(window.point_map[1], expected_second, atol=1e-6)
+    assert window.ray_directions is not None
+    expected_rays = first_points / np.linalg.norm(first_points, axis=-1, keepdims=True)
+    np.testing.assert_allclose(window.ray_directions[0], expected_rays, atol=1e-6)
+    np.testing.assert_allclose(window.ray_directions[1], expected_rays, atol=1e-6)
     assert window.frame_indices.tolist() == [10, 11]
     assert np.all(window.valid_mask)
+
+
+def test_direct_camera_relative_covariance_is_common_translation_invariant(
+    tmp_path: Path,
+) -> None:
+    first_source = tmp_path / "first"
+    second_source = tmp_path / "second"
+    _write_direct_frame(first_source, 0)
+    _write_direct_frame(
+        second_source,
+        0,
+        common_translation=np.asarray([100.0, -40.0, 25.0]),
+    )
+    first_output = tmp_path / "first-bundle" / "provider.json"
+    second_output = tmp_path / "second-bundle" / "provider.json"
+    first_manifest = _import(first_source, first_output)
+    second_manifest = _import(second_source, second_output)
+    first = PredictionWindow.from_npz(
+        first_output.parent / first_manifest.payloads[0].path,
+        dense_storage_dtype="float32",
+    )
+    second = PredictionWindow.from_npz(
+        second_output.parent / second_manifest.payloads[0].path,
+        dense_storage_dtype="float32",
+    )
+
+    model = CameraRelativeDepthDisagreementModel(
+        parallel_floor=0.1,
+        parallel_depth_coefficient=0.2,
+        lateral_floor=0.05,
+        lateral_depth_coefficient=0.1,
+    )
+    first_covariance = model.predict(first)
+    second_covariance = model.predict(second)
+
+    np.testing.assert_allclose(
+        first_covariance.parallel_variance,
+        second_covariance.parallel_variance,
+        atol=2e-5,
+        rtol=2e-5,
+    )
+    np.testing.assert_allclose(
+        first_covariance.lateral_variance,
+        second_covariance.lateral_variance,
+        atol=2e-5,
+        rtol=2e-5,
+    )
+    np.testing.assert_allclose(
+        first_covariance.ray_directions,
+        second_covariance.ray_directions,
+        atol=1e-6,
+        rtol=1e-6,
+    )
 
 
 def test_direct_import_requires_direct_point_members(tmp_path: Path) -> None:
