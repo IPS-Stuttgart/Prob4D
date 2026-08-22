@@ -1,0 +1,116 @@
+name: CUT3R direct point-map fidelity
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/cut3r-direct-pointmap.yml"
+      - "CHANGELOG.d/cut3r-direct-pointmap.md"
+      - "docs/cut3r-direct-pointmap.md"
+      - "docs/cut3r-online-provider.md"
+      - "docs/cut3r-comparison.md"
+      - "src/prob4d/_cut3r_direct_cli.py"
+      - "src/prob4d/_cut3r_direct_source.py"
+      - "src/prob4d/_cut3r_direct_window.py"
+      - "src/prob4d/_cut3r_limits.py"
+      - "src/prob4d/_cut3r_window.py"
+      - "src/prob4d/cut3r_direct_provider_adapter.py"
+      - "src/prob4d/cut3r_pointmap_fidelity.py"
+      - "src/prob4d/prediction_cli.py"
+      - "tests/test_cut3r_direct_pointmap.py"
+      - "tests/test_cut3r_provider_adapter.py"
+      - "tests/test_prediction_cli_extensions.py"
+      - "tests/test_cli.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cut3r-direct-pointmap-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  contract:
+    name: Direct geometry, causal closure, and compatibility
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out reviewed revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install lightweight development environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -e ".[dev]" "numpy>=1.24,<2.3"
+          python -m pip check
+
+      - name: Check focused quality
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m ruff check \
+            src/prob4d/_cut3r_direct_cli.py \
+            src/prob4d/_cut3r_direct_source.py \
+            src/prob4d/_cut3r_direct_window.py \
+            src/prob4d/_cut3r_limits.py \
+            src/prob4d/_cut3r_window.py \
+            src/prob4d/cut3r_direct_provider_adapter.py \
+            src/prob4d/cut3r_pointmap_fidelity.py \
+            src/prob4d/prediction_cli.py \
+            tests/test_cut3r_direct_pointmap.py
+          python -m ruff format --check \
+            src/prob4d/_cut3r_direct_cli.py \
+            src/prob4d/_cut3r_direct_source.py \
+            src/prob4d/_cut3r_direct_window.py \
+            src/prob4d/_cut3r_limits.py \
+            src/prob4d/_cut3r_window.py \
+            src/prob4d/cut3r_direct_provider_adapter.py \
+            src/prob4d/cut3r_pointmap_fidelity.py \
+            src/prob4d/prediction_cli.py \
+            tests/test_cut3r_direct_pointmap.py
+          python -m mypy \
+            src/prob4d/_cut3r_direct_cli.py \
+            src/prob4d/_cut3r_direct_source.py \
+            src/prob4d/_cut3r_direct_window.py \
+            src/prob4d/cut3r_direct_provider_adapter.py \
+            src/prob4d/cut3r_pointmap_fidelity.py
+
+      - name: Run focused and adjacent regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pytest -q \
+            tests/test_cut3r_direct_pointmap.py \
+            tests/test_cut3r_provider_adapter.py \
+            tests/test_prediction_cli_extensions.py \
+            tests/test_cli.py \
+            tests/test_uncertainty.py
+          python -m compileall -q src/prob4d
+
+      - name: Smoke installed command routes
+        shell: bash
+        run: |
+          set -euo pipefail
+          prob4d prediction import-cut3r-direct --help
+          prob4d prediction import-cut3r-online --help
+          prob4d prediction cut3r-fidelity --help

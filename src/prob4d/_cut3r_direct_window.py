@@ -1,53 +1,107 @@
-"""Bounded-memory canonical prediction windows for CUT3R imports."""
+"""Bounded-memory canonical windows from direct CUT3R XYZ point maps."""
 
 from __future__ import annotations
 
-import os
 import shutil
 import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 
 import numpy as np
 
-from ._atomic_file import publish_temporary_file
+from ._cut3r_direct_source import (
+    _direct_source_tree_byte_count,
+    _validated_direct_source_members,
+)
 from ._cut3r_limits import (
     Cut3RImportLimits,
     _dense_array_byte_count,
     _dense_vector_byte_count,
-    _unproject_world_points,
-    _validated_grid_shape,
+    _validate_camera,
 )
-from ._cut3r_source import (
-    _load_camera,
-    _load_npy,
-    _source_tree_byte_count,
-    _SourceMemberDescriptor,
-    _validated_source_members,
-)
-from .data import DenseStorageDType, PredictionWindow
+from ._cut3r_source import _load_camera, _load_npy, _SourceMemberDescriptor
+from ._cut3r_window import _close_memmap, _load_read_only_npy
+from .data import DenseStorageDType
 from .prediction_store import MMapPredictionWindow
 
 
-def _close_memmap(value: np.ndarray) -> None:
-    mapping = getattr(value, "_mmap", None)
-    if mapping is not None:
-        mapping.close()
+def _validated_direct_grid_shape(
+    points: np.ndarray,
+    confidence: np.ndarray,
+    *,
+    limits: Cut3RImportLimits,
+    expected_shape: tuple[int, int] | None,
+) -> tuple[int, int]:
+    if points.ndim != 3 or points.shape[-1] != 3:
+        raise ValueError("CUT3R direct point maps must have shape (H, W, 3)")
+    if confidence.shape != points.shape[:-1]:
+        raise ValueError("CUT3R confidence must match the direct point-map grid")
+    if points.dtype.kind not in {"f", "i", "u"} or confidence.dtype.kind not in {
+        "f",
+        "i",
+        "u",
+    }:
+        raise ValueError("CUT3R direct points and confidence must be real numeric arrays")
+    height = int(points.shape[0])
+    width = int(points.shape[1])
+    if height > limits.max_height:
+        raise ValueError(f"CUT3R frame height {height} exceeds max_height={limits.max_height}")
+    if width > limits.max_width:
+        raise ValueError(f"CUT3R frame width {width} exceeds max_width={limits.max_width}")
+    shape = (height, width)
+    if expected_shape is not None and shape != expected_shape:
+        raise ValueError("CUT3R direct point maps must share one spatial grid")
+    return shape
 
 
-def _load_read_only_npy(path: Path, *, name: str) -> np.ndarray:
-    try:
-        loaded = np.load(path, mmap_mode="r", allow_pickle=False)
-    except (OSError, ValueError) as error:
-        raise ValueError(f"cannot reopen canonical CUT3R {name}") from error
-    if not isinstance(loaded, np.ndarray):
-        raise ValueError(f"canonical CUT3R {name} must be one NPY array")
-    return loaded
+def _direct_world_points(
+    points: np.ndarray,
+    confidence: np.ndarray,
+    pose: np.ndarray,
+    intrinsics: np.ndarray,
+    *,
+    confidence_threshold: float,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Return direct common-frame points, camera rays, and support."""
+
+    _validate_camera(pose, intrinsics)
+    points64 = np.asarray(points, dtype=np.float64)
+    confidence64 = np.asarray(confidence, dtype=np.float64)
+    point_norms = np.linalg.norm(points64, axis=-1, keepdims=True)
+    valid = (
+        np.all(np.isfinite(points64), axis=-1)
+        & np.isfinite(confidence64)
+        & (points64[..., 2] > 0.0)
+        & (confidence64 >= confidence_threshold)
+        & (point_norms[..., 0] > np.finfo(np.float64).eps)
+    )
+    camera_rays = np.divide(
+        points64,
+        point_norms,
+        out=np.zeros_like(points64),
+        where=point_norms > np.finfo(np.float64).eps,
+    )
+    rotation = pose[:3, :3]
+    world = np.einsum("ij,hwj->hwi", rotation, points64) + pose[:3, 3]
+    world_rays = np.einsum("ij,hwj->hwi", rotation, camera_rays)
+    world_ray_norms = np.linalg.norm(world_rays, axis=-1, keepdims=True)
+    valid &= np.all(np.isfinite(world), axis=-1)
+    valid &= np.all(np.isfinite(world_rays), axis=-1)
+    valid &= world_ray_norms[..., 0] > np.finfo(np.float64).eps
+    world_rays = np.divide(
+        world_rays,
+        world_ray_norms,
+        out=np.zeros_like(world_rays),
+        where=world_ray_norms > np.finfo(np.float64).eps,
+    )
+    world[~valid] = 0.0
+    world_rays[~valid] = 0.0
+    return world, world_rays, valid
 
 
 @contextmanager
-def _canonical_window(
+def _canonical_direct_window(
     root: Path,
     *,
     frame_start: int,
@@ -64,18 +118,22 @@ def _canonical_window(
         int,
     ]
 ]:
-    depth_members, confidence_members, camera_members = _validated_source_members(root)
-    frame_count = len(depth_members)
+    point_members, confidence_members, camera_members = _validated_direct_source_members(root)
+    frame_count = len(point_members)
     if frame_count > limits.max_frames:
         raise ValueError(f"CUT3R frame count {frame_count} exceeds max_frames={limits.max_frames}")
-    source_bytes = _source_tree_byte_count((depth_members, confidence_members, camera_members))
+    source_bytes = _direct_source_tree_byte_count(
+        point_members,
+        confidence_members,
+        camera_members,
+    )
     if source_bytes > limits.max_source_bytes:
         raise ValueError(
-            "CUT3R source tree byte count "
+            "CUT3R direct source tree byte count "
             f"{source_bytes} exceeds max_source_bytes={limits.max_source_bytes}"
         )
 
-    workspace = Path(tempfile.mkdtemp(prefix=".prob4d-cut3r-import."))
+    workspace = Path(tempfile.mkdtemp(prefix=".prob4d-cut3r-direct-import."))
     point_writer: np.memmap | None = None
     ray_writer: np.memmap | None = None
     mask_writer: np.memmap | None = None
@@ -94,14 +152,17 @@ def _canonical_window(
         frame_path = workspace / "frame_indices.npy"
 
         for index in range(frame_count):
-            depth, depth_descriptor = _load_npy(depth_members[index], label="depth")
+            points, point_descriptor = _load_npy(
+                point_members[index],
+                label="direct points",
+            )
             confidence, confidence_descriptor = _load_npy(
                 confidence_members[index],
                 label="confidence",
             )
             try:
-                frame_shape = _validated_grid_shape(
-                    depth,
+                frame_shape = _validated_direct_grid_shape(
+                    points,
                     confidence,
                     limits=limits,
                     expected_shape=shape,
@@ -123,7 +184,7 @@ def _canonical_window(
                     total_dense_bytes = dense_bytes + ray_bytes
                     if total_dense_bytes > limits.max_dense_bytes:
                         raise ValueError(
-                            "CUT3R dense array byte count "
+                            "CUT3R direct dense array byte count "
                             f"{total_dense_bytes} exceeds max_dense_bytes="
                             f"{limits.max_dense_bytes}"
                         )
@@ -158,13 +219,12 @@ def _canonical_window(
                     )
 
                 pose, intrinsics, camera_descriptor = _load_camera(camera_members[index])
-                world, world_rays, valid = _unproject_world_points(
-                    depth,
+                world, world_rays, valid = _direct_world_points(
+                    points,
                     confidence,
                     pose,
                     intrinsics,
                     confidence_threshold=confidence_threshold,
-                    return_ray_directions=True,
                 )
                 assert point_writer is not None
                 assert ray_writer is not None
@@ -173,13 +233,15 @@ def _canonical_window(
                 ray_writer[index] = world_rays
                 mask_writer[index] = valid
                 any_valid = any_valid or bool(np.any(valid))
-                descriptors.extend((depth_descriptor, confidence_descriptor, camera_descriptor))
+                descriptors.extend((point_descriptor, confidence_descriptor, camera_descriptor))
             finally:
-                _close_memmap(depth)
+                _close_memmap(points)
                 _close_memmap(confidence)
 
         if not any_valid:
-            raise ValueError("CUT3R output contains no point above the frozen support threshold")
+            raise ValueError(
+                "CUT3R direct output contains no point above the frozen support threshold"
+            )
         assert shape is not None
         assert point_writer is not None
         assert ray_writer is not None
@@ -196,8 +258,9 @@ def _canonical_window(
         described_source_bytes = sum(member["byte_count"] for member in descriptors)
         if described_source_bytes > limits.max_source_bytes:
             raise ValueError(
-                "CUT3R described source byte count "
-                f"{described_source_bytes} exceeds max_source_bytes={limits.max_source_bytes}"
+                "CUT3R described direct source byte count "
+                f"{described_source_bytes} exceeds max_source_bytes="
+                f"{limits.max_source_bytes}"
             )
 
         frame_indices = _load_read_only_npy(frame_path, name="frame indices")
@@ -234,62 +297,4 @@ def _canonical_window(
         shutil.rmtree(workspace, ignore_errors=True)
 
 
-def _windows_equal(first: PredictionWindow, second: PredictionWindow) -> bool:
-    rays_equal = (
-        first.ray_directions is not None
-        and second.ray_directions is not None
-        and np.allclose(
-            first.ray_directions,
-            second.ray_directions,
-            atol=5e-7,
-            rtol=5e-7,
-        )
-    )
-    return (
-        first.window_id == second.window_id
-        and first.dense_storage_dtype == second.dense_storage_dtype
-        and np.array_equal(first.frame_indices, second.frame_indices)
-        and np.array_equal(first.point_map, second.point_map)
-        and np.array_equal(first.valid_mask, second.valid_mask)
-        and first.scene_flow is None
-        and second.scene_flow is None
-        and rays_equal
-    )
-
-
-def _write_window_atomically(path: Path, window: PredictionWindow) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary_name = tempfile.mkstemp(
-        prefix=f".{path.stem}.",
-        suffix=".npz",
-        dir=path.parent,
-    )
-    os.close(descriptor)
-    temporary = Path(temporary_name)
-    try:
-        window.to_npz(temporary)
-        try:
-            publish_temporary_file(temporary, path, overwrite=False)
-        except FileExistsError:
-            existing = PredictionWindow.from_npz(
-                path,
-                dense_storage_dtype=window.dense_storage_dtype,
-            )
-            if not _windows_equal(existing, window):
-                raise ValueError(
-                    f"refusing to replace different canonical CUT3R payload {path.name!r}"
-                ) from None
-    finally:
-        temporary.unlink(missing_ok=True)
-
-
-def _relative_member(path: Path, *, root: Path) -> str:
-    try:
-        relative = path.resolve().relative_to(root.resolve())
-    except ValueError as error:
-        raise ValueError(
-            "canonical CUT3R payload must lie inside the manifest directory"
-        ) from error
-    if any(part in {"", ".", ".."} for part in relative.parts):
-        raise ValueError("canonical CUT3R payload path is not confined")
-    return PurePosixPath(*relative.parts).as_posix()
+__all__ = ["_canonical_direct_window", "_direct_world_points"]
