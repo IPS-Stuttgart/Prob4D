@@ -1,0 +1,23 @@
+{
+  "artifact_name_prefix": "cut3r-source-freeze-v2-34eb4065a5be-",
+  "claim_boundary": "This request publishes only the exact target-closed source-freeze and comparison-lock bytes produced by the retained CUT3R source-support workflow. It does not execute CUT3R, open source residuals or truth, open confirmation or target payloads, authorize BayesianPhysTwin or Causal4D, or establish provider competence.",
+  "forbidden_target_group_count": 12,
+  "issue_number": 49,
+  "output_paths": {
+    "comparison_lock": "protocols/locks/cut3r_deform360_comparison_lock_v2.json",
+    "comparison_spec": "protocols/locks/cut3r_deform360_comparison_spec_v2.json",
+    "comparison_summary": "protocols/locks/cut3r_deform360_comparison_summary_v2.json",
+    "execution_summary": "protocols/locks/cut3r_deform360_source_freeze_execution_v2.json",
+    "source_freeze": "protocols/locks/cut3r_deform360_source_freeze_v2.json"
+  },
+  "publication_request_id": "34eb4065a5be84ab6939595b38e53721d4555793a3d75eeb4cfc38170847b166",
+  "required_decision": "source-support-freeze-ready",
+  "schema": "prob4d.cut3r-source-freeze-publication-request",
+  "schema_version": 1,
+  "source_group_count": 10,
+  "source_request_id": "34eb4065a5be84ab6939595b38e53721d4555793a3d75eeb4cfc38170847b166",
+  "source_rgb_frames_decoded": false,
+  "source_residuals_or_truth_opened": false,
+  "target_outcomes_opened": false,
+  "target_payloads_opened": false
+}
