@@ -1,0 +1,13 @@
+{
+  "bootstrap_replicates": 10000,
+  "bootstrap_seed": 20260823,
+  "confidence_level": 0.95,
+  "minimum_recurrence_gap_by_metric": {
+    "absolute_drift_slope_m_per_frame": 0.0,
+    "endpoint_rmse_m": 0.0,
+    "point_rmse_m": 0.0,
+    "proper_score": 0.0,
+    "seam_rmse_m": 0.0
+  },
+  "minimum_valid_bootstrap_fraction": 0.8
+}
