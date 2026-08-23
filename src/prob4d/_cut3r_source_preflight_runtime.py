@@ -197,7 +197,9 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         if cut3r["checkpoint_byte_count"] != contract["checkpoint_byte_count"]:
             failures.append("CUT3R checkpoint byte count differs from the source freeze")
         if cut3r["executable_probe_authorized"] is not True:
-            failures.append("CUT3R executable probes were not authorized by exact provider identity")
+            failures.append(
+                "CUT3R executable probes were not authorized by exact provider identity"
+            )
         if cut3r["demo_relative_path"] is None:
             failures.append("CUT3R tracked demo.py was not uniquely resolved")
         if cut3r["demo_help_status"] != 0:
