@@ -19,7 +19,6 @@ from prob4d._cut3r_recovery_v2_spec import (
 )
 from prob4d.prediction_cli import main as prediction_main
 
-
 _SPECIFICATION_PATH = (
     Path(__file__).resolve().parents[1]
     / "protocols"
