@@ -161,13 +161,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         role: sum(1 for item in cases if item["role"] == role) for role in SOURCE_ROLES
     }
     role_group_counts = {
-        role: len(
-            {
-                cast(str, item["group_id"])
-                for item in cases
-                if item["role"] == role
-            }
-        )
+        role: len({cast(str, item["group_id"]) for item in cases if item["role"] == role})
         for role in SOURCE_ROLES
     }
 
@@ -176,8 +170,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     except (OSError, ValueError) as error:
         cut3r = {"inspection_status": "technical-failure"}
         failures.append(
-            "CUT3R provider inspection failed: "
-            + _sanitize_text(str(error), redactions)
+            "CUT3R provider inspection failed: " + _sanitize_text(str(error), redactions)
         )
     else:
         cut3r["inspection_status"] = "completed"
