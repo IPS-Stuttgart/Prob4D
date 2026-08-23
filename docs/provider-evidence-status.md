@@ -57,6 +57,8 @@ must not be retuned on the same opened target cohort.
 - [CUT3R source qualification runbook](cut3r-qualification-runbook.md)
 - [CUT3R recurrent-online provider](cut3r-online-provider.md)
 - [CUT3R native-versus-Prob4D comparison](cut3r-comparison.md)
+- [CUT3R recurrent-state recovery v1](cut3r-recurrent-state-recovery.md)
+- [Denominator-safe CUT3R recurrent-state recovery v2](cut3r-recurrent-state-recovery-v2.md)
 - [Provider readiness localization](provider-readiness-localization.md)
 - [Held-out provider promotion](heldout-provider-promotion.md)
 - [Material-identity stream](material-identity-stream.md)
