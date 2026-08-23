@@ -10,15 +10,8 @@ from types import ModuleType
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-DRIVER_PATH = (
-    ROOT / "scripts" / "science" / "run_cut3r_source_freeze_execution.py"
-)
-REQUEST_PATH = (
-    ROOT
-    / "protocols"
-    / "execution_requests"
-    / "cut3r_deform360_source_freeze_v2.json"
-)
+DRIVER_PATH = ROOT / "scripts" / "science" / "run_cut3r_source_freeze_execution.py"
+REQUEST_PATH = ROOT / "protocols" / "execution_requests" / "cut3r_deform360_source_freeze_v2.json"
 
 
 def _driver() -> ModuleType:
@@ -52,9 +45,7 @@ def test_checked_in_v2_request_is_content_addressed_and_target_closed() -> None:
 
     assert request_id == _canonical_id(identity)
     assert request["schema_version"] == 2
-    assert request["authorization_mode"] == (
-        "merged-main-read-only-self-hosted-v1"
-    )
+    assert request["authorization_mode"] == ("merged-main-read-only-self-hosted-v1")
     assert request["source_group_count"] == 10
     assert request["forbidden_target_group_count"] == 12
     assert request["repository_write_token_on_self_hosted"] is False
