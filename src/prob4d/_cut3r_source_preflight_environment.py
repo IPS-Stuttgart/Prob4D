@@ -312,13 +312,14 @@ def _cut3r_surface(
         help_text = "tracked demo.py not uniquely resolved"
         if demo is not None:
             help_status, help_text = _run_text(
-                (sys.executable, os.fspath(demo), "--help"),
+                (sys.executable, "-B", os.fspath(demo), "--help"),
                 cwd=checkout,
                 timeout=120,
             )
         import_status, import_text = _run_text(
             (
                 sys.executable,
+                "-B",
                 "-c",
                 (
                     "import json; import cv2, numpy, torch; "
@@ -337,6 +338,11 @@ def _cut3r_surface(
             except (json.JSONDecodeError, IndexError):
                 versions = {"error": "dependency-probe-invalid-json"}
 
+    post_status, post_output = _run_text(
+        ("git", "status", "--porcelain", "--untracked-files=all"),
+        cwd=checkout,
+    )
+    post_clean = post_status == 0 and not post_output.strip()
     return {
         "checkout_revision_status": revision_status,
         "checkout_revision": checkout_revision,
@@ -354,6 +360,9 @@ def _cut3r_surface(
         "dependency_probe_status": import_status,
         "dependency_versions": versions,
         "dependency_probe_output_evidence": _text_evidence(import_text, replacements),
+        "post_probe_worktree_status": post_status,
+        "post_probe_worktree_clean_including_untracked": post_clean,
+        "post_probe_worktree_output_evidence": _text_evidence(post_output, replacements),
         "checkpoint_filename": checkpoint.name,
         "checkpoint_sha256": checkpoint_sha,
         "checkpoint_byte_count": checkpoint_byte_count,
