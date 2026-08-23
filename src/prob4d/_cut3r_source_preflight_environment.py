@@ -239,65 +239,107 @@ def _tracked_demo(checkout: Path) -> tuple[Path | None, int, dict[str, object]]:
     )
 
 
-def _cut3r_surface(checkout: Path, checkpoint: Path) -> dict[str, object]:
+def _cut3r_surface(
+    checkout: Path,
+    checkpoint: Path,
+    *,
+    expected_repository: str,
+    expected_revision: str,
+    expected_checkpoint_filename: str,
+    expected_checkpoint_sha256: str,
+    expected_checkpoint_byte_count: int,
+) -> dict[str, object]:
     replacements = {
         os.fspath(checkout): "<CUT3R_CHECKOUT>",
         os.fspath(checkout.resolve(strict=True)): "<CUT3R_CHECKOUT>",
         os.fspath(checkpoint): "<CUT3R_CHECKPOINT>",
         os.fspath(checkpoint.resolve(strict=True)): "<CUT3R_CHECKPOINT>",
     }
-    revision_status, revision = _run_text(("git", "rev-parse", "HEAD"), cwd=checkout)
-    remote_status, remote = _run_text(
+    revision_status, revision_output = _run_text(
+        ("git", "rev-parse", "HEAD"),
+        cwd=checkout,
+    )
+    remote_status, remote_output = _run_text(
         ("git", "remote", "get-url", "origin"),
         cwd=checkout,
     )
-    worktree_status, worktree = _run_text(
-        ("git", "status", "--porcelain", "--untracked-files=no"),
+    worktree_status, worktree_output = _run_text(
+        ("git", "status", "--porcelain", "--untracked-files=all"),
         cwd=checkout,
     )
-    demo, demo_resolution_status, demo_resolution = _tracked_demo(checkout)
-    help_status = 127
-    help_text = "tracked demo.py not uniquely resolved"
-    if demo is not None:
-        help_status, help_text = _run_text(
-            (sys.executable, os.fspath(demo), "--help"),
-            cwd=checkout,
-            timeout=120,
-        )
-    import_status, import_text = _run_text(
-        (
-            sys.executable,
-            "-c",
-            (
-                "import json; import cv2, numpy, torch; "
-                "print(json.dumps({'cv2': cv2.__version__, "
-                "'numpy': numpy.__version__, 'torch': torch.__version__, "
-                "'cuda_available': bool(torch.cuda.is_available())}, sort_keys=True))"
-            ),
-        ),
-        cwd=checkout,
-        timeout=60,
+    checkout_revision = revision_output.strip() if revision_status == 0 else None
+    origin_repository = (
+        _github_repository_from_remote(remote_output) if remote_status == 0 else None
     )
-    versions: object = {"error": "dependency-probe-failed"}
-    if import_status == 0:
-        try:
-            versions = json.loads(import_text.splitlines()[-1])
-        except (json.JSONDecodeError, IndexError):
-            versions = {"error": "dependency-probe-invalid-json"}
+    worktree_clean = worktree_status == 0 and not worktree_output.strip()
+
     checkpoint_before = checkpoint.stat()
     checkpoint_sha = _file_sha256(checkpoint)
     checkpoint_after = checkpoint.stat()
     if _stat_identity(checkpoint_before) != _stat_identity(checkpoint_after):
         raise ValueError("CUT3R checkpoint changed during provider inspection")
+    checkpoint_byte_count = int(checkpoint_before.st_size)
+
+    executable_probe_authorized = (
+        checkout_revision == expected_revision
+        and origin_repository == expected_repository
+        and worktree_clean
+        and checkpoint.name == expected_checkpoint_filename
+        and checkpoint_sha == expected_checkpoint_sha256
+        and checkpoint_byte_count == expected_checkpoint_byte_count
+    )
+    demo: Path | None = None
+    demo_resolution_status = 126
+    authorization_text = "executable probe blocked by frozen provider identity"
+    demo_resolution: dict[str, object] = {
+        "tracked_candidate_count": 0,
+        "output_evidence": _text_evidence(authorization_text, replacements),
+    }
+    help_status = 126
+    help_text = authorization_text
+    import_status = 126
+    import_text = authorization_text
+    versions: object = {"error": "dependency-probe-not-authorized"}
+
+    if executable_probe_authorized:
+        demo, demo_resolution_status, demo_resolution = _tracked_demo(checkout)
+        help_status = 127
+        help_text = "tracked demo.py not uniquely resolved"
+        if demo is not None:
+            help_status, help_text = _run_text(
+                (sys.executable, os.fspath(demo), "--help"),
+                cwd=checkout,
+                timeout=120,
+            )
+        import_status, import_text = _run_text(
+            (
+                sys.executable,
+                "-c",
+                (
+                    "import json; import cv2, numpy, torch; "
+                    "print(json.dumps({'cv2': cv2.__version__, "
+                    "'numpy': numpy.__version__, 'torch': torch.__version__, "
+                    "'cuda_available': bool(torch.cuda.is_available())}, sort_keys=True))"
+                ),
+            ),
+            cwd=checkout,
+            timeout=60,
+        )
+        versions = {"error": "dependency-probe-failed"}
+        if import_status == 0:
+            try:
+                versions = json.loads(import_text.splitlines()[-1])
+            except (json.JSONDecodeError, IndexError):
+                versions = {"error": "dependency-probe-invalid-json"}
+
     return {
         "checkout_revision_status": revision_status,
-        "checkout_revision": revision.strip() if revision_status == 0 else None,
+        "checkout_revision": checkout_revision,
         "origin_status": remote_status,
-        "origin_repository": (
-            _github_repository_from_remote(remote) if remote_status == 0 else None
-        ),
-        "tracked_worktree_status": worktree_status,
-        "tracked_worktree_clean": worktree_status == 0 and not worktree.strip(),
+        "origin_repository": origin_repository,
+        "worktree_status": worktree_status,
+        "worktree_clean_including_untracked": worktree_clean,
+        "executable_probe_authorized": executable_probe_authorized,
         "demo_resolution_status": demo_resolution_status,
         "demo_resolution": demo_resolution,
         "demo_relative_path": (demo.relative_to(checkout).as_posix() if demo is not None else None),
@@ -309,7 +351,7 @@ def _cut3r_surface(checkout: Path, checkpoint: Path) -> dict[str, object]:
         "dependency_probe_output_evidence": _text_evidence(import_text, replacements),
         "checkpoint_filename": checkpoint.name,
         "checkpoint_sha256": checkpoint_sha,
-        "checkpoint_byte_count": int(checkpoint_before.st_size),
+        "checkpoint_byte_count": checkpoint_byte_count,
     }
 
 
