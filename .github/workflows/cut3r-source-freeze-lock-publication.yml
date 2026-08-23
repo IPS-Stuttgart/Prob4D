@@ -149,7 +149,6 @@ jobs:
         id: branch
         shell: bash
         env:
-          REQUEST_ID: 34eb4065a5be84ab6939595b38e53721d4555793a3d75eeb4cfc38170847b166
           FREEZE_ARTIFACT_ID: ${{ steps.publish.outputs.freeze_artifact_id }}
         run: |
           set -euo pipefail

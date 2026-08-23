@@ -6,9 +6,11 @@ ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW_ROOT = ROOT / ".github" / "workflows"
 TRUSTED_WORKFLOW = WORKFLOW_ROOT / "trusted-self-hosted-validation.yml"
 SOURCE_FREEZE_EXECUTION_WORKFLOW = WORKFLOW_ROOT / "cut3r-source-freeze-execution.yml"
+SOURCE_FREEZE_AUTO_V2_WORKFLOW = WORKFLOW_ROOT / "cut3r-source-freeze-auto-v2.yml"
 TRUSTED_SELF_HOSTED_WORKFLOWS = (
     TRUSTED_WORKFLOW,
     SOURCE_FREEZE_EXECUTION_WORKFLOW,
+    SOURCE_FREEZE_AUTO_V2_WORKFLOW,
 )
 REMOVED_TEMPORARY_WORKFLOWS = (
     WORKFLOW_ROOT / "issue-49-protected-cohort-inventory.yml",
@@ -149,6 +151,39 @@ def test_source_freeze_execution_keeps_write_permission_off_self_hosted_job() ->
     assert "contents: write" not in execute
     assert "permissions:\n      contents: read\n      issues: write" in report
     assert "runs-on: ubuntu-latest" in report
+
+
+def test_auto_v2_source_freeze_is_exact_main_bound_and_read_only() -> None:
+    text = SOURCE_FREEZE_AUTO_V2_WORKFLOW.read_text(encoding="utf-8")
+
+    assert "\n  push:" in text
+    assert "branches: [main]" in text
+    assert "pull_request_target:" not in text
+    assert "if: github.event_name == 'push'" in text
+    assert 'test "$EVENT_REF" = "refs/heads/main"' in text
+    assert 'test "$EVENT_AFTER" = "$EXPECTED_SHA"' in text
+    assert 'test "$EVENT_FORCED" = "false"' in text
+    assert 'test "$EVENT_DELETED" = "false"' in text
+    assert "ref: ${{ needs.authorize.outputs.head_sha }}" in text
+    assert "runs-on: [self-hosted, Linux, X64, nvidia-smi]" in text
+
+    execute_start = text.index("\n  execute:")
+    report_start = text.index("\n  report:")
+    execute = text[execute_start:report_start]
+    report = text[report_start:]
+
+    assert "if: github.event_name == 'push'" in execute
+    assert "permissions:\n      contents: read" in execute
+    assert "issues: write" not in execute
+    assert "contents: write" not in execute
+    assert "pull-requests: write" not in execute
+    assert "persist-credentials: false" in execute
+    assert "secrets." not in execute
+    assert "repository_write_token_on_self_hosted=false" in execute
+    assert "environment_approval_required=false" in execute
+    assert "git push" not in execute
+    assert "runs-on: ubuntu-latest" in report
+    assert "issues: write" in report
 
 
 def test_full_validation_tracks_the_05_cleanup_surface() -> None:
