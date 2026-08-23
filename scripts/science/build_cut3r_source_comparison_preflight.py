@@ -21,9 +21,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path, PurePosixPath
 from typing import Any, Final, cast
 
-REQUEST_SCHEMA: Final = (
-    "prob4d.cut3r-deform360-source-comparison-preflight-request"
-)
+REQUEST_SCHEMA: Final = "prob4d.cut3r-deform360-source-comparison-preflight-request"
 REQUEST_VERSION: Final = 1
 REPORT_SCHEMA: Final = "prob4d.cut3r-deform360-source-comparison-preflight"
 REPORT_VERSION: Final = 1
@@ -162,9 +160,11 @@ def _descriptor_from_mapping(mapping: Mapping[str, Any]) -> tuple[str, str, int]
     byte_count = _first_integer(mapping, BYTE_KEYS)
     if digest is None or byte_count is None:
         return None
-    return _safe_relative(path, name="source video path"), _sha256(
-        digest, name="source video sha256"
-    ), byte_count
+    return (
+        _safe_relative(path, name="source video path"),
+        _sha256(digest, name="source video sha256"),
+        byte_count,
+    )
 
 
 def _context_value(mapping: Mapping[str, Any], keys: Sequence[str]) -> str | None:
@@ -203,9 +203,7 @@ def _collect_video_descriptors(value: object) -> list[dict[str, object]]:
                 if type(child) is str and child.lower().endswith(".mp4"):
                     prefix = key.removesuffix("_path").removesuffix("_relative_path")
                     digest = mapping.get(f"{prefix}_sha256", mapping.get("sha256"))
-                    byte_count = mapping.get(
-                        f"{prefix}_byte_count", mapping.get("byte_count")
-                    )
+                    byte_count = mapping.get(f"{prefix}_byte_count", mapping.get("byte_count"))
                     if type(digest) is str and type(byte_count) is int:
                         found.append(
                             {
@@ -213,9 +211,7 @@ def _collect_video_descriptors(value: object) -> list[dict[str, object]]:
                                 "relative_video_path": _safe_relative(
                                     child, name="source video path"
                                 ),
-                                "video_sha256": _sha256(
-                                    digest, name="source video sha256"
-                                ),
+                                "video_sha256": _sha256(digest, name="source video sha256"),
                                 "video_byte_count": byte_count,
                             }
                         )
@@ -304,11 +300,7 @@ def _derive_identity(record: Mapping[str, object]) -> tuple[str, str, str, str]:
     group = cast(str | None, record.get("group_id"))
     if not group:
         match = re.search(r"(\d{3}-[^/]+).*?(?:episode[-_]?0*(\d+))", text, re.I)
-        group = (
-            f"{match.group(1)}-episode-{int(match.group(2)):04d}"
-            if match
-            else "unknown-group"
-        )
+        group = f"{match.group(1)}-episode-{int(match.group(2)):04d}" if match else "unknown-group"
     view = cast(str | None, record.get("view_id"))
     if not view:
         view = path.parent.name
@@ -356,9 +348,7 @@ def _candidate_reference_files(video: Path, *, root: Path) -> list[dict[str, obj
 
 
 def _cut3r_surface(checkout: Path, checkpoint: Path) -> dict[str, object]:
-    revision_status, revision = _run_text(
-        ("git", "rev-parse", "HEAD"), cwd=checkout
-    )
+    revision_status, revision = _run_text(("git", "rev-parse", "HEAD"), cwd=checkout)
     demo_candidates = [checkout / "demo.py"]
     if not demo_candidates[0].is_file():
         demo_candidates = sorted(checkout.glob("**/demo.py"))
@@ -394,9 +384,7 @@ def _cut3r_surface(checkout: Path, checkpoint: Path) -> dict[str, object]:
     return {
         "checkout_revision_status": revision_status,
         "checkout_revision": revision.strip() if revision_status == 0 else None,
-        "demo_relative_path": (
-            demo.relative_to(checkout).as_posix() if demo is not None else None
-        ),
+        "demo_relative_path": (demo.relative_to(checkout).as_posix() if demo is not None else None),
         "demo_sha256": _file_sha256(demo) if demo is not None else None,
         "demo_help_status": help_status,
         "demo_help": help_text[-20000:],
@@ -464,9 +452,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
                 "video_sha256": measured_sha,
                 "video_byte_count": measured_bytes,
                 "video_probe": _ffprobe(path),
-                "candidate_reference_files": _candidate_reference_files(
-                    path, root=processed_root
-                ),
+                "candidate_reference_files": _candidate_reference_files(path, root=processed_root),
             }
         )
     cases.sort(key=lambda item: (str(item["group_id"]), str(item["case_id"])))
@@ -480,13 +466,9 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     expected_cases = cast(int, request["expected_case_count"])
     decision = "source-comparison-preflight-ready"
     if len(cases) != expected_cases:
-        failures.append(
-            f"resolved case count {len(cases)} differs from expected {expected_cases}"
-        )
+        failures.append(f"resolved case count {len(cases)} differs from expected {expected_cases}")
     if len(group_ids) != cast(int, request["source_group_count"]):
-        failures.append(
-            f"resolved group count {len(group_ids)} differs from expected 10"
-        )
+        failures.append(f"resolved group count {len(group_ids)} differs from expected 10")
     if cut3r["checkout_revision_status"] != 0:
         failures.append("CUT3R checkout revision could not be read")
     if cut3r["demo_relative_path"] is None:
