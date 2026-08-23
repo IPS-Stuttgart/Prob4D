@@ -62,9 +62,7 @@ def _inspect(
 
 
 def test_clean_exact_provider_authorizes_tracked_demo_probe(tmp_path: Path) -> None:
-    checkout, checkpoint, revision, checkpoint_sha, checkpoint_bytes = _provider_fixture(
-        tmp_path
-    )
+    checkout, checkpoint, revision, checkpoint_sha, checkpoint_bytes = _provider_fixture(tmp_path)
 
     surface = _inspect(
         checkout,
@@ -83,9 +81,7 @@ def test_clean_exact_provider_authorizes_tracked_demo_probe(tmp_path: Path) -> N
 
 
 def test_untracked_checkout_content_blocks_all_executable_probes(tmp_path: Path) -> None:
-    checkout, checkpoint, revision, checkpoint_sha, checkpoint_bytes = _provider_fixture(
-        tmp_path
-    )
+    checkout, checkpoint, revision, checkpoint_sha, checkpoint_bytes = _provider_fixture(tmp_path)
     (checkout / "torch.py").write_text(
         "raise RuntimeError('untracked shadow module executed')\n",
         encoding="utf-8",
@@ -107,9 +103,7 @@ def test_untracked_checkout_content_blocks_all_executable_probes(tmp_path: Path)
 
 
 def test_wrong_checkpoint_blocks_all_executable_probes(tmp_path: Path) -> None:
-    checkout, checkpoint, revision, checkpoint_sha, checkpoint_bytes = _provider_fixture(
-        tmp_path
-    )
+    checkout, checkpoint, revision, checkpoint_sha, checkpoint_bytes = _provider_fixture(tmp_path)
 
     surface = environment._cut3r_surface(
         checkout,
