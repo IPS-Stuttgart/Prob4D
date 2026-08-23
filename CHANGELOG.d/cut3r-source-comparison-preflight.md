@@ -7,8 +7,10 @@ and publishes reports atomically without decoding frames, executing inference,
 or opening source, confirmation, or target outcomes.
 
 The preflight revalidates the source-freeze information boundary and exact
-recurrent-online provider mode, verifies video identity before `ffprobe`, executes
-only a uniquely resolved tracked `demo.py`, excludes raw remote URLs and absolute
-retained paths, and stores command diagnostics only as redacted content digests.
-The initial workflow is hosted-only and cannot enter the retained self-hosted
-runner before the exact source locks are published.
+recurrent-online provider mode, verifies video identity before `ffprobe`, and
+requires exact repository, revision, checkpoint, and completely clean worktree
+identity before executing any provider Python. It executes only a uniquely
+resolved Git-tracked `demo.py`, excludes raw remote URLs and absolute retained
+paths, and stores command diagnostics only as redacted content digests. The
+initial workflow is hosted-only and cannot enter the retained self-hosted runner
+before the exact source locks are published.
