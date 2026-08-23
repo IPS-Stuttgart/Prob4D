@@ -26,6 +26,14 @@ solution. When every factor is admitted before either endpoint leaves the lag,
 increasing the lag approaches the corresponding batch solution; the regression
 suite checks exact chain-model marginals and full-batch parity.
 
+The legacy `FixedLagGaugeSmoother` remains available as a marginal-only control.
+Its optimization damping is not treated as posterior information: after the
+accepted final step, Prob4D recomputes the undamped Gauss--Newton Jacobian and
+forms covariance only when the complete active gauge state is observable. A
+rank-deficient active system now fails closed instead of silently returning a
+pseudoinverse covariance. The legacy path still discards cross-window covariance
+blocks and therefore must not be used as claim-bearing joint uncertainty.
+
 This change does not alter the production sequential `ObservationBeliefV1`
 contract. The fixed-lag export still contains block-diagonal historical marginals
 rather than one exact all-window covariance, so fixed-lag mode remains an
