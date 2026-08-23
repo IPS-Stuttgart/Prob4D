@@ -11,18 +11,27 @@ or target object/session.
 
 ## What the preflight checks
 
-For the exact source-freeze and comparison-lock bytes named by
-`protocols/execution_requests/cut3r_deform360_source_comparison_preflight_v1.json`,
-the builder:
+For the exact request, source-freeze, comparison-specification, and
+comparison-lock bytes, the builder:
 
-- resolves the 40 frozen source video cases across 10 complete source groups;
-- verifies every retained video byte count and SHA-256 digest;
+- recomputes the canonical request, source-freeze, source-case, comparison-spec,
+  and comparison-lock identities;
+- regenerates the canonical comparison lock from the retained specification and
+  requires exact equality with the published lock;
+- resolves exactly 40 frozen source video cases across 10 complete source groups;
+- requires every case, group role, camera, video digest, and video byte count to
+  agree across the source freeze and comparison lock;
+- verifies the three frozen input sidecars for every case by exact path, byte
+  count, and SHA-256 digest;
 - records container-level `ffprobe` metadata without decoding frames;
-- records the exact CUT3R checkout revision and checkpoint identity;
-- verifies that one `demo.py` surface is available and that its `--help`
+- requires the retained CUT3R checkout revision, GitHub origin, clean tracked
+  worktree, checkpoint filename, checkpoint digest, and checkpoint byte count to
+  match the frozen provider identity;
+- verifies that exactly one `demo.py` surface is available and that its `--help`
   invocation and required Python imports succeed; and
 - inventories candidate source-reference file names, suffixes, and byte counts
-  without opening their contents.
+  only inside each explicitly frozen source episode, without opening those file
+  contents or traversing sibling target objects.
 
 The report is content-addressed and returns one of two decisions:
 
@@ -36,8 +45,9 @@ checkpoint, or opening outcomes.
 ## Frozen request identity
 
 The checked-in `preflight_request_id` is the SHA-256 digest of canonical JSON
-after removing the `preflight_request_id` field itself. The hosted contract test
-recomputes that digest, so any request change requires an explicit new identity.
+after removing the `preflight_request_id` field itself. Runtime validation and
+the hosted contract test both recompute that digest, so any request change
+requires an explicit new identity.
 
 The request binds the expected publication paths:
 
@@ -48,7 +58,8 @@ protocols/locks/cut3r_deform360_comparison_lock_v2.json
 ```
 
 Those files are produced only after the currently authorized source-freeze
-workflow succeeds and its exact-byte publication step completes.
+workflow succeeds and its exact-byte publication step completes. Missing,
+symlinked, noncanonical, or mutually inconsistent lock bytes fail closed.
 
 ## Local or retained-runner invocation
 
@@ -66,14 +77,16 @@ python scripts/science/build_cut3r_source_comparison_preflight.py \
 ```
 
 Exit status `0` means the preflight is ready. Exit status `3` means the
-predeclared technical preflight failed.
+predeclared technical preflight failed. Output publication is atomic and
+no-clobber: an identical existing report is accepted idempotently, while
+different retained bytes are never overwritten.
 
 ## Execution boundary in this PR
 
 The workflow added with this capability is intentionally **GitHub-hosted only**.
-It validates the implementation, request identity, action pins, and
-self-hosted-runner policy. It cannot enter a self-hosted runner and cannot write
-an issue comment.
+It validates the implementation, request identity, canonical lock contract,
+action pins, and self-hosted-runner policy. It cannot enter a self-hosted runner
+and cannot write an issue comment.
 
 A later exact-main execution route is justified only after the source-freeze and
 comparison locks have been published. That route must follow the repository's
@@ -82,8 +95,8 @@ pull-request-controlled source on the retained runner.
 
 ## Claim boundary
 
-This preflight establishes only that the frozen source files and installed CUT3R
-surface can be resolved without opening outcomes. It does not establish support,
-provider competence, uncertainty calibration, recurrent-state recovery,
-BayesianPhysTwin benefit, Causal4D benefit, deployment safety, or state of the
-art. Confirmation and target access remain forbidden.
+This preflight establishes only that the frozen source files, lock identities,
+and installed CUT3R surface can be resolved without opening outcomes. It does not
+establish support, provider competence, uncertainty calibration, recurrent-state
+recovery, BayesianPhysTwin benefit, Causal4D benefit, deployment safety, or state
+of the art. Confirmation and target access remain forbidden.
