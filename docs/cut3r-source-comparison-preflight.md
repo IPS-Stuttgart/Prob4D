@@ -5,9 +5,9 @@ This capability revives the useful part of the abandoned
 performs an **outcome-blind retained-input check** between publication of the
 frozen CUT3R source locks and any source-comparison inference.
 
-It does not select a model, execute CUT3R, decode RGB frames, open source
-predictions or residuals, inspect source truth values, or access any confirmation
-or target object/session.
+It does not select a model, execute CUT3R inference, decode RGB frames, open
+source predictions or residuals, inspect source truth values, or access any
+confirmation or target object/session.
 
 ## What the preflight checks
 
@@ -29,19 +29,23 @@ comparison-lock bytes, the builder:
   count, and SHA-256 digest;
 - records container-level `ffprobe` metadata without decoding frames;
 - requires the retained CUT3R checkout revision, normalized GitHub repository,
-  clean tracked worktree, checkpoint filename, checkpoint digest, and checkpoint
-  byte count to match the frozen provider identity;
-- resolves `demo.py` exclusively from Git's tracked-file inventory, requires one
-  confined regular file, and then checks its `--help` invocation and required
-  Python imports; and
+  checkpoint filename, checkpoint digest, and checkpoint byte count to match the
+  frozen provider identity;
+- requires the complete CUT3R worktree—including untracked files—to be clean
+  before any provider Python is executed;
+- authorizes executable probes only after all provider and checkpoint identities
+  match, then resolves `demo.py` exclusively from Git's tracked-file inventory,
+  requires one confined regular file, and checks its `--help` invocation and
+  required Python imports; and
 - inventories candidate source-reference file names, suffixes, and byte counts
   only inside each explicitly frozen source episode, without opening those file
   contents or traversing sibling target objects.
 
-Untracked or symlinked `demo.py` files are never executed. Raw remote URLs,
-absolute retained paths, command output, and diagnostic text are not stored in
-the report. Diagnostic output is redacted and retained only as a SHA-256 digest
-and byte count.
+Untracked or symlinked `demo.py` files are never executed. Untracked Python files
+cannot shadow the provider dependency probe because any untracked checkout
+content blocks all executable probes. Raw remote URLs, absolute retained paths,
+command output, and diagnostic text are not stored in the report. Diagnostic
+output is redacted and retained only as a SHA-256 digest and byte count.
 
 The report is content-addressed and returns one of two decisions:
 
