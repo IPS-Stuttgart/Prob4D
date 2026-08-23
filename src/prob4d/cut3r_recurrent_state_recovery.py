@@ -189,7 +189,7 @@ def _bootstrap_index(
     material = (
         f"{CUT3R_RECURRENT_STATE_RECOVERY_BOOTSTRAP}:"
         f"{seed}:{replicate}:{position}:{group_count}"
-    ).encode("utf-8")
+    ).encode()
     return int.from_bytes(hashlib.sha256(material).digest(), "big") % group_count
 
 
