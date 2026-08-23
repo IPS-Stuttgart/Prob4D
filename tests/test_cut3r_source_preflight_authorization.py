@@ -77,14 +77,16 @@ def test_clean_exact_provider_authorizes_tracked_demo_probe(tmp_path: Path) -> N
     assert surface["origin_repository"] == "CUT3R/CUT3R"
     assert surface["demo_relative_path"] == "demo.py"
     assert surface["demo_help_status"] == 0
+    assert surface["post_demo_worktree_clean_including_untracked"] is True
+    assert surface["post_probe_worktree_clean_including_untracked"] is True
     assert "origin_url" not in surface
 
 
-def test_provider_probe_mutation_is_detected(tmp_path: Path) -> None:
+def test_provider_probe_mutation_is_detected_and_stops_probe_chain(tmp_path: Path) -> None:
     checkout, checkpoint, _, checkpoint_sha, checkpoint_bytes = _provider_fixture(tmp_path)
     (checkout / "demo.py").write_text(
         "from pathlib import Path\n"
-        "Path('probe-side-effect').write_text('mutated', encoding='utf-8')\n"
+        "Path('torch.py').write_text(\"raise RuntimeError('shadow')\\n\")\n"
         "import argparse\n"
         "argparse.ArgumentParser().parse_args()\n",
         encoding="utf-8",
@@ -103,8 +105,10 @@ def test_provider_probe_mutation_is_detected(tmp_path: Path) -> None:
 
     assert surface["executable_probe_authorized"] is True
     assert surface["demo_help_status"] == 0
+    assert surface["post_demo_worktree_clean_including_untracked"] is False
+    assert surface["dependency_probe_status"] == 126
     assert surface["post_probe_worktree_clean_including_untracked"] is False
-    assert (checkout / "probe-side-effect").read_text(encoding="utf-8") == "mutated"
+    assert (checkout / "torch.py").is_file()
 
 
 def test_untracked_checkout_content_blocks_all_executable_probes(tmp_path: Path) -> None:
@@ -127,6 +131,8 @@ def test_untracked_checkout_content_blocks_all_executable_probes(tmp_path: Path)
     assert surface["demo_relative_path"] is None
     assert surface["demo_help_status"] == 127
     assert surface["dependency_probe_status"] == 127
+    assert surface["post_demo_worktree_clean_including_untracked"] is False
+    assert surface["post_probe_worktree_clean_including_untracked"] is False
 
 
 def test_wrong_checkpoint_blocks_all_executable_probes(tmp_path: Path) -> None:
