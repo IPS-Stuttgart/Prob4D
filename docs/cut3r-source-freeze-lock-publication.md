@@ -11,7 +11,7 @@ request without recomputing any scientific value.
 `protocols/publication_requests/cut3r_deform360_source_freeze_v2.json` binds:
 
 - source request ID
-  `34eb4065a5be84ab6939595b38e53721d4555793a3d75eeb4cfc38170847b166`;
+  `8f3c9fba12f8a16895edce89d7a92e4806a43cb2f34b5a05faff71945809b63e`;
 - the corresponding Actions artifact-name prefix;
 - the required `source-support-freeze-ready` decision;
 - ten source object-session groups;

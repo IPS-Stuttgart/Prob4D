@@ -10,10 +10,15 @@ from types import ModuleType
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = ROOT / "scripts/science/publish_cut3r_source_freeze_lock.py"
+SCRIPT = ROOT / "scripts" / "science" / "publish_cut3r_source_freeze_lock.py"
 REQUEST = (
     ROOT
-    / "protocols/publication_requests/cut3r_deform360_source_freeze_v2.json"
+    / "protocols"
+    / "publication_requests"
+    / "cut3r_deform360_source_freeze_v2.json"
+)
+SOURCE_REQUEST_ID = (
+    "8f3c9fba12f8a16895edce89d7a92e4806a43cb2f34b5a05faff71945809b63e"
 )
 
 
@@ -41,9 +46,7 @@ def _artifact_fixture(root: Path) -> dict[str, object]:
     evidence = root / "evidence"
     payload = evidence / "cut3r-deform360-source-freeze"
     execution = {
-        "request_id": (
-            "34eb4065a5be84ab6939595b38e53721d4555793a3d75eeb4cfc38170847b166"
-        ),
+        "request_id": SOURCE_REQUEST_ID,
         "decision": "source-support-freeze-ready",
         "freeze_artifact_id": "a" * 64,
         "source_group_count": 10,
@@ -89,6 +92,12 @@ def test_checked_in_publication_request_is_target_closed() -> None:
     module = _module()
     request = module.validate_request(REQUEST)
 
+    assert request["publication_request_id"] == SOURCE_REQUEST_ID
+    assert request["source_request_id"] == SOURCE_REQUEST_ID
+    assert request["artifact_name_prefix"].startswith(
+        "cut3r-source-freeze-v2-8f3c9fba12f8-"
+    )
+    assert "issue_number" not in request
     assert request["source_group_count"] == 10
     assert request["forbidden_target_group_count"] == 12
     assert request["source_rgb_frames_decoded"] is False
@@ -113,7 +122,7 @@ def test_artifact_validation_and_exact_publication(tmp_path: Path) -> None:
     repository = tmp_path / "repository"
     artifact = {
         "id": 123,
-        "name": "cut3r-source-freeze-v2-34eb4065a5be-123-1",
+        "name": "cut3r-source-freeze-v2-8f3c9fba12f8-123-1",
         "workflow_run": {"id": 456},
     }
     receipt = module._publish_exact_files(

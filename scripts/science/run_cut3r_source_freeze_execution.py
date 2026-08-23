@@ -101,13 +101,8 @@ def _load_json_object(path: Path, *, name: str) -> dict[str, Any]:
 
 
 def _lower_hex(value: object, *, name: str, length: int) -> str:
-    if (
-        type(value) is not str
-        or re.fullmatch(rf"[0-9a-f]{{{length}}}", value) is None
-    ):
-        raise ValueError(
-            f"{name} must be an exact lowercase {length}-character digest"
-        )
+    if type(value) is not str or re.fullmatch(rf"[0-9a-f]{{{length}}}", value) is None:
+        raise ValueError(f"{name} must be an exact lowercase {length}-character digest")
     return value
 
 
@@ -146,9 +141,7 @@ def validate_request(
     if set(request) != EXPECTED_REQUEST_FIELDS:
         missing = sorted(EXPECTED_REQUEST_FIELDS - set(request))
         extra = sorted(set(request) - EXPECTED_REQUEST_FIELDS)
-        raise ValueError(
-            f"execution request fields changed; missing={missing}, extra={extra}"
-        )
+        raise ValueError(f"execution request fields changed; missing={missing}, extra={extra}")
     if request["schema"] != REQUEST_SCHEMA:
         raise ValueError("unexpected source-freeze execution-request schema")
     if request["schema_version"] != REQUEST_VERSION:
@@ -169,9 +162,7 @@ def validate_request(
     if request["forbidden_target_group_count"] != 12:
         raise ValueError("source-freeze forbidden target group count changed")
     if any(request[name] is not False for name in FALSE_REQUEST_FIELDS):
-        raise ValueError(
-            "source-freeze execution request exceeds its target-closed boundary"
-        )
+        raise ValueError("source-freeze execution request exceeds its target-closed boundary")
 
     request_id = _lower_hex(request["request_id"], name="request_id", length=64)
     identity = dict(request)
@@ -187,9 +178,7 @@ def validate_request(
         raise ValueError("source-freeze protocol path changed")
     protocol_path = repository / protocol_relative
     if protocol_path.is_symlink() or not protocol_path.is_file():
-        raise ValueError(
-            "source-freeze protocol must be an ordinary repository file"
-        )
+        raise ValueError("source-freeze protocol must be an ordinary repository file")
     measured_blob = _git_output(["hash-object", protocol_relative], cwd=repository)
     expected_blob = _lower_hex(
         request["source_protocol_git_blob_sha"],
@@ -209,9 +198,7 @@ def validate_request(
         name="expected_revision",
         length=40,
     ):
-        raise ValueError(
-            "checked-out repository revision differs from authorization"
-        )
+        raise ValueError("checked-out repository revision differs from authorization")
     if require_clean and _git_output(
         ["status", "--porcelain=v1", "--untracked-files=all"],
         cwd=repository,
@@ -235,9 +222,7 @@ def _publish_json(path: Path, value: object) -> None:
     if path.exists():
         if path.read_bytes() == encoded:
             return
-        raise FileExistsError(
-            f"refusing to replace different retained bytes: {path}"
-        )
+        raise FileExistsError(f"refusing to replace different retained bytes: {path}")
     path.write_bytes(encoded)
 
 
@@ -287,21 +272,14 @@ def _validate_freeze(
     output_directory: Path,
 ) -> str:
     if freeze.get("source_group_count") != 10:
-        raise ValueError(
-            "source freeze does not contain exactly ten source groups"
-        )
+        raise ValueError("source freeze does not contain exactly ten source groups")
     if freeze.get("forbidden_target_group_count") != 12:
-        raise ValueError(
-            "source freeze does not retain all twelve forbidden targets"
-        )
+        raise ValueError("source freeze does not retain all twelve forbidden targets")
     boundary = freeze.get("information_boundary")
     if type(boundary) is not dict:
         raise ValueError("source freeze has no exact information boundary")
     boundary_mapping = cast(dict[str, Any], boundary)
-    if any(
-        boundary_mapping.get(name) is not False
-        for name in FALSE_FREEZE_BOUNDARY_FIELDS
-    ):
+    if any(boundary_mapping.get(name) is not False for name in FALSE_FREEZE_BOUNDARY_FIELDS):
         raise ValueError("source-freeze information boundary was exceeded")
 
     specification = output_directory / "cut3r-comparison-spec.json"
@@ -310,17 +288,13 @@ def _validate_freeze(
         if freeze.get("decision") != SUPPORT_PASS:
             raise ValueError("successful source freeze has the wrong decision")
         if not specification.is_file() or not lock.is_file():
-            raise ValueError(
-                "successful source freeze lacks canonical comparison outputs"
-            )
+            raise ValueError("successful source freeze lacks canonical comparison outputs")
         return SUPPORT_PASS
     if builder_status == 3:
         if freeze.get("decision") != SUPPORT_NEGATIVE:
             raise ValueError("support-negative source freeze has the wrong decision")
         if specification.exists() or lock.exists():
-            raise ValueError(
-                "support-negative source freeze published comparison outputs"
-            )
+            raise ValueError("support-negative source freeze published comparison outputs")
         return SUPPORT_NEGATIVE
     raise ValueError("unexpected source-freeze builder status")
 
@@ -337,9 +311,7 @@ def execute(args: argparse.Namespace) -> int:
     output_directory.mkdir(parents=True, exist_ok=False)
     raw_log: list[str] = []
 
-    builder = (
-        repository / "scripts/science/build_cut3r_deform360_source_freeze.py"
-    )
+    builder = repository / "scripts/science/build_cut3r_deform360_source_freeze.py"
     builder_status = _run(
         (
             sys.executable,
@@ -347,9 +319,7 @@ def execute(args: argparse.Namespace) -> int:
             "--repository",
             os.fspath(repository),
             "--protocol",
-            os.fspath(
-                repository / cast(str, request["source_protocol_path"])
-            ),
+            os.fspath(repository / cast(str, request["source_protocol_path"])),
             "--selection",
             os.fspath(args.selection.resolve()),
             "--processed-root",
@@ -420,9 +390,7 @@ def execute(args: argparse.Namespace) -> int:
 
     replacements = {
         os.fspath(args.selection.resolve()): "<BPT_SELECTION_LOCK>",
-        os.fspath(
-            args.processed_root.resolve()
-        ): "<DEFORM360_PROCESSED_ROOT>",
+        os.fspath(args.processed_root.resolve()): "<DEFORM360_PROCESSED_ROOT>",
         os.fspath(args.cut3r_checkout.resolve()): "<CUT3R_CHECKOUT>",
         os.fspath(args.checkpoint.resolve()): "<CUT3R_CHECKPOINT>",
         os.fspath(args.prob4d_wheel.resolve()): "<PROB4D_WHEEL>",
@@ -480,9 +448,7 @@ def execute(args: argparse.Namespace) -> int:
         "freeze_artifact_id": freeze_artifact_id,
         "artifact_name": artifact_name,
         "source_group_count": freeze["source_group_count"],
-        "forbidden_target_group_count": freeze[
-            "forbidden_target_group_count"
-        ],
+        "forbidden_target_group_count": freeze["forbidden_target_group_count"],
         "source_rgb_frames_decoded": False,
         "source_prediction_payloads_opened": False,
         "source_residuals_or_truth_opened": False,
@@ -547,9 +513,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             with args.github_output.open("a", encoding="utf-8") as stream:
                 stream.write(f"request_id={request['request_id']}\n")
                 stream.write(f"profile={request['profile']}\n")
-                stream.write(
-                    f"authorization_mode={request['authorization_mode']}\n"
-                )
+                stream.write(f"authorization_mode={request['authorization_mode']}\n")
         print(
             json.dumps(
                 {
