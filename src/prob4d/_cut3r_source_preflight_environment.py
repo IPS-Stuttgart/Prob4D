@@ -239,6 +239,14 @@ def _tracked_demo(checkout: Path) -> tuple[Path | None, int, dict[str, object]]:
     )
 
 
+def _worktree_status(checkout: Path) -> tuple[int, str, bool]:
+    status, output = _run_text(
+        ("git", "status", "--porcelain", "--untracked-files=all"),
+        cwd=checkout,
+    )
+    return status, output, status == 0 and not output.strip()
+
+
 def _cut3r_surface(
     checkout: Path,
     checkpoint: Path,
@@ -263,15 +271,11 @@ def _cut3r_surface(
         ("git", "remote", "get-url", "origin"),
         cwd=checkout,
     )
-    worktree_status, worktree_output = _run_text(
-        ("git", "status", "--porcelain", "--untracked-files=all"),
-        cwd=checkout,
-    )
+    worktree_status, worktree_output, worktree_clean = _worktree_status(checkout)
     checkout_revision = revision_output.strip() if revision_status == 0 else None
     origin_repository = (
         _github_repository_from_remote(remote_output) if remote_status == 0 else None
     )
-    worktree_clean = worktree_status == 0 and not worktree_output.strip()
 
     checkpoint_before = checkpoint.stat()
     checkpoint_sha = _file_sha256(checkpoint)
@@ -316,6 +320,8 @@ def _cut3r_surface(
                 cwd=checkout,
                 timeout=120,
             )
+    post_demo_status, post_demo_output, post_demo_clean = _worktree_status(checkout)
+    if executable_probe_authorized and demo is not None and help_status == 0 and post_demo_clean:
         import_status, import_text = _run_text(
             (
                 sys.executable,
@@ -337,12 +343,12 @@ def _cut3r_surface(
                 versions = json.loads(import_text.splitlines()[-1])
             except (json.JSONDecodeError, IndexError):
                 versions = {"error": "dependency-probe-invalid-json"}
+    elif executable_probe_authorized:
+        import_status = 126
+        import_text = "dependency probe blocked after demo probe"
+        versions = {"error": "dependency-probe-blocked-after-demo"}
 
-    post_status, post_output = _run_text(
-        ("git", "status", "--porcelain", "--untracked-files=all"),
-        cwd=checkout,
-    )
-    post_clean = post_status == 0 and not post_output.strip()
+    post_status, post_output, post_clean = _worktree_status(checkout)
     return {
         "checkout_revision_status": revision_status,
         "checkout_revision": checkout_revision,
@@ -357,6 +363,9 @@ def _cut3r_surface(
         "demo_sha256": _file_sha256(demo) if demo is not None else None,
         "demo_help_status": help_status,
         "demo_help_output_evidence": _text_evidence(help_text, replacements),
+        "post_demo_worktree_status": post_demo_status,
+        "post_demo_worktree_clean_including_untracked": post_demo_clean,
+        "post_demo_worktree_output_evidence": _text_evidence(post_demo_output, replacements),
         "dependency_probe_status": import_status,
         "dependency_versions": versions,
         "dependency_probe_output_evidence": _text_evidence(import_text, replacements),
