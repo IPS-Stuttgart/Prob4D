@@ -166,7 +166,15 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     }
 
     try:
-        cut3r = _cut3r_surface(checkout, checkpoint)
+        cut3r = _cut3r_surface(
+            checkout,
+            checkpoint,
+            expected_repository=cast(str, contract["provider_repository"]),
+            expected_revision=cast(str, contract["provider_revision"]),
+            expected_checkpoint_filename=cast(str, contract["checkpoint_filename"]),
+            expected_checkpoint_sha256=cast(str, contract["checkpoint_sha256"]),
+            expected_checkpoint_byte_count=cast(int, contract["checkpoint_byte_count"]),
+        )
     except (OSError, ValueError) as error:
         cut3r = {"inspection_status": "technical-failure"}
         failures.append(
@@ -180,14 +188,16 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
             failures.append("CUT3R checkout differs from the frozen provider revision")
         if cut3r["origin_repository"] != contract["provider_repository"]:
             failures.append("CUT3R checkout origin differs from the frozen provider repository")
-        if cut3r["tracked_worktree_clean"] is not True:
-            failures.append("CUT3R checkout has tracked local modifications")
+        if cut3r["worktree_clean_including_untracked"] is not True:
+            failures.append("CUT3R checkout contains tracked or untracked local files")
         if cut3r["checkpoint_filename"] != contract["checkpoint_filename"]:
             failures.append("CUT3R checkpoint filename differs from the source freeze")
         if cut3r["checkpoint_sha256"] != contract["checkpoint_sha256"]:
             failures.append("CUT3R checkpoint digest differs from the source freeze")
         if cut3r["checkpoint_byte_count"] != contract["checkpoint_byte_count"]:
             failures.append("CUT3R checkpoint byte count differs from the source freeze")
+        if cut3r["executable_probe_authorized"] is not True:
+            failures.append("CUT3R executable probes were not authorized by exact provider identity")
         if cut3r["demo_relative_path"] is None:
             failures.append("CUT3R tracked demo.py was not uniquely resolved")
         if cut3r["demo_help_status"] != 0:
