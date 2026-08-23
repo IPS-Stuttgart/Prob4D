@@ -159,11 +159,7 @@ def _validate_source_freeze(
         if measured != expected:
             raise ValueError(f"source case {case_id!r} differs from the comparison lock")
     expected_roles = {
-        role: sorted(
-            group_id
-            for group_id, group in source_groups.items()
-            if group["role"] == role
-        )
+        role: sorted(group_id for group_id, group in source_groups.items() if group["role"] == role)
         for role in SOURCE_ROLES
     }
     if lock["group_roles"] != expected_roles:
