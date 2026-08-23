@@ -10,15 +10,12 @@ executes CUT3R or opens source residuals, truth, confirmation, or target payload
 from __future__ import annotations
 
 import argparse
-import base64
 import hashlib
 import io
 import json
-import os
 import re
 import shutil
 import stat
-import tempfile
 import urllib.error
 import urllib.request
 import zipfile
@@ -355,7 +352,10 @@ def _publish_exact_files(
         "target_outcomes_opened": False,
         "claim_boundary": request["claim_boundary"],
     }
-    receipt_path = repository_root / "protocols/locks/cut3r_deform360_source_freeze_publication_v2.json"
+    receipt_path = (
+        repository_root
+        / "protocols/locks/cut3r_deform360_source_freeze_publication_v2.json"
+    )
     encoded = (json.dumps(receipt, indent=2, sort_keys=True, allow_nan=False) + "\n").encode()
     if receipt_path.exists() and receipt_path.read_bytes() != encoded:
         raise FileExistsError("refusing to replace a different publication receipt")
