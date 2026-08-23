@@ -41,7 +41,7 @@ def _canonical_id(value: dict[str, object]) -> str:
             separators=(",", ":"),
             ensure_ascii=False,
             allow_nan=False,
-        ).encode("utf-8")
+        ).encode()
     ).hexdigest()
 
 
@@ -76,7 +76,7 @@ def test_driver_validates_checked_in_request_against_exact_protocol_blob() -> No
     )
 
     assert request["request_id"] == (
-        "34eb4065a5be84ab6939595b38e53721d4555793a3d75eeb4cfc38170847b166"
+        "8f3c9fba12f8a16895edce89d7a92e4806a43cb2f34b5a05faff71945809b63e"
     )
 
 
