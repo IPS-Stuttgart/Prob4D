@@ -48,6 +48,10 @@ def _help_parser() -> argparse.ArgumentParser:
         help="aggregate complete paired CUT3R source records into competence evidence",
     )
     subparsers.add_parser(
+        "cut3r-recovery",
+        help="quantify how much recurrent-state loss Prob4D fusion recovers",
+    )
+    subparsers.add_parser(
         "compatibility",
         help="build or compare additive semantic-compatibility manifests",
     )
@@ -106,6 +110,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         from .cut3r_source_competence import main as cut3r_source_competence_main
 
         return int(cut3r_source_competence_main(arguments[1:]))
+    if arguments[0] == "cut3r-recovery":
+        from .cut3r_recurrent_state_recovery import main as cut3r_recovery_main
+
+        return int(cut3r_recovery_main(arguments[1:]))
     if arguments[0] == "compatibility":
         from .semantic_compatibility import main as compatibility_main
 
