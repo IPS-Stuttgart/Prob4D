@@ -1,8 +1,11 @@
 import numpy as np
+import pytest
 
 from prob4d.gauge import (
     FixedLagGaugeSmoother,
+    GaugeAnchor,
     GaugeCovarianceCalibration,
+    GaugeEstimate,
     RelativeGaugeConstraint,
     ScaleAnchor,
     SequentialGaugeEstimator,
@@ -94,6 +97,59 @@ def test_sparse_scale_anchor_reduces_chain_scale_drift() -> None:
 
     final_error = abs(np.log(smoothed["w2"].global_from_local.scale))
     assert final_error < initial_error * 0.2
+
+
+def test_fixed_lag_covariance_uses_final_undamped_information() -> None:
+    anchor_covariance = np.diag([0.04, 0.03, 0.02, 0.01, 0.05, 0.06, 0.07])
+    initial = {
+        window_id: GaugeEstimate(window_id, Sim3.identity(), np.eye(7))
+        for window_id in ("w0", "w1")
+    }
+
+    smoothed = FixedLagGaugeSmoother(lag=2, damping=1e6).smooth(
+        ["w0", "w1"],
+        initial,
+        [],
+        gauge_anchors=[GaugeAnchor("w1", Sim3.identity(), anchor_covariance)],
+    )
+
+    np.testing.assert_allclose(
+        smoothed["w1"].covariance,
+        anchor_covariance,
+        rtol=2e-5,
+        atol=1e-10,
+    )
+
+
+def test_fixed_lag_covariance_fails_closed_when_active_state_is_rank_deficient() -> None:
+    initial = {
+        window_id: GaugeEstimate(window_id, Sim3.identity(), np.eye(7))
+        for window_id in ("w0", "w1")
+    }
+
+    with pytest.raises(ValueError, match="rank-deficient"):
+        FixedLagGaugeSmoother(lag=2).smooth(
+            ["w0", "w1"],
+            initial,
+            [],
+            scale_anchors=[ScaleAnchor("w1", 1.0, 0.1)],
+        )
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        ({"max_iterations": 0}, "max_iterations"),
+        ({"damping": -1.0}, "damping"),
+        ({"tolerance": 0.0}, "tolerance"),
+    ],
+)
+def test_fixed_lag_rejects_invalid_numerical_settings(
+    kwargs: dict[str, float],
+    message: str,
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        FixedLagGaugeSmoother(**kwargs)
 
 
 def test_gauge_covariance_calibration_fits_blockwise_inflation() -> None:
