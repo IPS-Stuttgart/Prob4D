@@ -128,7 +128,11 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         if measured_sha != expected_sha or measured_bytes != expected_bytes:
             failures.append(f"source video identity changed: {relative_video}")
             continue
-        if probe.get("available") is not True or probe.get("status") != 0 or "stream" not in probe:
+        if (
+            probe.get("available") is not True
+            or probe.get("status") != 0
+            or "stream" not in probe
+        ):
             failures.append(f"ffprobe could not inspect source video: {relative_video}")
         case_record = dict(descriptor)
         case_record.pop("sidecars")
@@ -149,9 +153,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         )
     cases.sort(key=lambda item: cast(str, item["case_id"]))
     group_ids = sorted({cast(str, item["group_id"]) for item in cases})
-    role_counts = {
-        role: sum(1 for item in cases if item["role"] == role) for role in SOURCE_ROLES
-    }
+    role_counts = {role: sum(1 for item in cases if item["role"] == role) for role in SOURCE_ROLES}
 
     cut3r = _cut3r_surface(checkout, checkpoint)
     if len(cases) != cast(int, request["expected_case_count"]):
@@ -186,9 +188,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         failures.append("CUT3R Python dependency probe failed")
 
     decision = (
-        "source-comparison-preflight-ready"
-        if not failures
-        else "technical-preflight-failure"
+        "source-comparison-preflight-ready" if not failures else "technical-preflight-failure"
     )
     report: dict[str, Any] = {
         "schema": REPORT_SCHEMA,
