@@ -5,11 +5,15 @@ from pathlib import Path
 
 import pytest
 
-from prob4d.cut3r_recurrent_state_recovery_v2 import (
-    _build_v2_from_validated_v1_report,
+from prob4d._cut3r_recovery_v2_exact import (
     _exact_group_bootstrap,
     _leave_one_group_out,
     _triplet_v2,
+)
+from prob4d._cut3r_recovery_v2_report import (
+    _build_v2_from_validated_v1_report,
+)
+from prob4d._cut3r_recovery_v2_spec import (
     build_cut3r_recurrent_state_recovery_v2_specification,
     load_cut3r_recurrent_state_recovery_v2_specification,
 )
