@@ -1,0 +1,85 @@
+name: Validate CUT3R source-comparison preflight
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/cut3r-source-comparison-preflight.yml"
+      - "CHANGELOG.d/cut3r-source-comparison-preflight.md"
+      - "docs/cut3r-source-comparison-preflight.md"
+      - "protocols/execution_requests/cut3r_deform360_source_comparison_preflight_v1.json"
+      - "scripts/science/build_cut3r_source_comparison_preflight.py"
+      - "tests/test_cut3r_source_comparison_preflight.py"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/cut3r-source-comparison-preflight.yml"
+      - "CHANGELOG.d/cut3r-source-comparison-preflight.md"
+      - "docs/cut3r-source-comparison-preflight.md"
+      - "protocols/execution_requests/cut3r_deform360_source_comparison_preflight_v1.json"
+      - "scripts/science/build_cut3r_source_comparison_preflight.py"
+      - "tests/test_cut3r_source_comparison_preflight.py"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cut3r-source-comparison-preflight-contract-${{ github.ref }}-${{ github.sha }}
+  cancel-in-progress: false
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  contract:
+    name: Hosted source-comparison preflight contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out exact reviewed revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: >-
+            ${{ github.event_name == 'pull_request' &&
+                github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Validate outcome-blind preflight implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -e ".[dev]"
+          python -m pip check
+          python -m ruff check \
+            scripts/science/build_cut3r_source_comparison_preflight.py \
+            tests/test_cut3r_source_comparison_preflight.py
+          python -m ruff format --check \
+            scripts/science/build_cut3r_source_comparison_preflight.py \
+            tests/test_cut3r_source_comparison_preflight.py
+          python -m pytest -q \
+            tests/test_cut3r_source_comparison_preflight.py \
+            tests/test_github_action_pins.py \
+            tests/test_trusted_self_hosted_validation_policy.py
+          python -m compileall -q \
+            scripts/science/build_cut3r_source_comparison_preflight.py
+
+      - name: Confirm this PR cannot enter a self-hosted runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -Fq "self-hosted" \
+            .github/workflows/cut3r-source-comparison-preflight.yml
+          ! grep -Fq "issues: write" \
+            .github/workflows/cut3r-source-comparison-preflight.yml
+          ! grep -Fq "secrets." \
+            .github/workflows/cut3r-source-comparison-preflight.yml
