@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Mapping
+import os
+import tempfile
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -59,25 +61,74 @@ def _artifact_id(
     return observation_contract_artifact_id(descriptor, arrays)
 
 
-def _validate_sha256(value: str, *, name: str) -> None:
-    if len(value) != 64 or any(
+def _genuine_integer(value: object, *, name: str) -> int:
+    if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, np.integer)):
+        raise ValueError(f"{name} must be an integer")
+    return int(value)
+
+
+def _canonical_string_tuple(
+    values: object,
+    *,
+    name: str,
+    allow_empty: bool,
+    invalid_message: str,
+) -> tuple[str, ...]:
+    if isinstance(values, (str, bytes)) or not isinstance(values, Sequence):
+        raise ValueError(invalid_message)
+    result = tuple(values)
+    if not allow_empty and not result:
+        raise ValueError(invalid_message)
+    if any(type(value) is not str or not value for value in result):
+        raise ValueError(invalid_message)
+    return result
+
+
+def _validate_sha256(value: object, *, name: str) -> str:
+    if type(value) is not str or len(value) != 64 or any(
         character not in "0123456789abcdef" for character in value
     ):
         raise ValueError(f"{name} must be a lowercase SHA-256 digest")
+    return value
 
 
 def _validated_metadata(values: Mapping[str, Any]) -> Mapping[str, Any]:
     return frozen_finite_json_mapping(values, name="metadata")
 
 
-def _readonly(
-    values: np.ndarray,
-    *,
-    dtype: np.dtype[Any] | type | None = None,
-) -> np.ndarray:
-    result = np.asarray(values, dtype=dtype).copy()
-    result.setflags(write=False)
-    return result
+def _immutable_array(values: np.ndarray, *, dtype: np.dtype[Any]) -> np.ndarray:
+    array = np.array(values, dtype=dtype, copy=True, order="C")
+    if array.dtype.hasobject:
+        raise TypeError("contract arrays must not contain Python objects")
+    payload = array.tobytes(order="C")
+    return np.frombuffer(payload, dtype=array.dtype).reshape(array.shape)
+
+
+def _readonly_float(values: object, *, name: str) -> np.ndarray:
+    try:
+        raw = np.asarray(values)
+    except (TypeError, ValueError, OverflowError) as error:
+        raise ValueError(f"{name} must contain real numeric values") from error
+    if raw.dtype.kind not in "iuf":
+        raise ValueError(f"{name} must contain real numeric values")
+    return _immutable_array(raw, dtype=np.dtype(np.float64))
+
+
+def _readonly_integer(values: object, *, name: str) -> np.ndarray:
+    try:
+        raw = np.asarray(values)
+    except (TypeError, ValueError, OverflowError) as error:
+        raise ValueError(f"{name} must contain integers") from error
+    integer_dtype = np.issubdtype(raw.dtype, np.integer) and not np.issubdtype(
+        raw.dtype, np.bool_
+    )
+    if not integer_dtype:
+        raise ValueError(f"{name} must contain integers")
+    if np.issubdtype(raw.dtype, np.unsignedinteger) and np.any(
+        raw > np.iinfo(np.int64).max
+    ):
+        raise ValueError(f"{name} contains integers outside int64 range")
+    return _immutable_array(raw, dtype=np.dtype("<i8"))
 
 
 @dataclass(frozen=True)
@@ -118,49 +169,93 @@ class ObservationBeliefExportV1:
     metadata: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        if not self.case_id or not self.stream_id:
+        if (
+            type(self.case_id) is not str
+            or not self.case_id
+            or type(self.stream_id) is not str
+            or not self.stream_id
+        ):
             raise ValueError("case_id and stream_id must be nonempty")
-        if self.causal_frame_stop < 1:
+        causal_frame_stop = _genuine_integer(
+            self.causal_frame_stop,
+            name="causal_frame_stop",
+        )
+        if causal_frame_stop < 1:
             raise ValueError("causal_frame_stop must be positive")
-        if not self.view_names or any(not name for name in self.view_names):
-            raise ValueError("view_names must contain nonempty names")
-        if not self.window_names or any(not name for name in self.window_names):
-            raise ValueError("window_names must contain nonempty names")
-        if any(not name for name in self.factor_names):
-            raise ValueError("factor_names must be nonempty when present")
-        if not self.source_repository or not self.source_revision:
+        view_names = _canonical_string_tuple(
+            self.view_names,
+            name="view_names",
+            allow_empty=False,
+            invalid_message="view_names must contain nonempty names",
+        )
+        window_names = _canonical_string_tuple(
+            self.window_names,
+            name="window_names",
+            allow_empty=False,
+            invalid_message="window_names must contain nonempty names",
+        )
+        factor_names = _canonical_string_tuple(
+            self.factor_names,
+            name="factor_names",
+            allow_empty=True,
+            invalid_message="factor_names must be nonempty when present",
+        )
+        if (
+            type(self.source_repository) is not str
+            or not self.source_repository
+            or type(self.source_revision) is not str
+            or not self.source_revision
+        ):
             raise ValueError("source repository and revision must be nonempty")
-        _validate_sha256(
+        source_artifact_sha256 = _validate_sha256(
             self.source_artifact_sha256,
             name="source_artifact_sha256",
         )
 
-        declared_frames = _readonly(self.declared_frame_ids, dtype=np.int64)
-        mean = _readonly(self.mean_xyz_m, dtype=np.float64)
-        frame_ids = _readonly(self.frame_ids, dtype=np.int64)
-        entity_ids = _readonly(self.entity_ids, dtype=np.int64)
-        view_indices = _readonly(self.view_indices, dtype=np.int64)
-        window_indices = _readonly(self.window_indices, dtype=np.int64)
-        correlation_groups = _readonly(
-            self.correlation_group_ids, dtype=np.int64
+        declared_frames = _readonly_integer(
+            self.declared_frame_ids,
+            name="declared_frame_ids",
         )
-        factor_groups = _readonly(self.factor_group_ids, dtype=np.int64)
-        prior_reliability = _readonly(
-            self.prior_reliability, dtype=np.float64
+        mean = _readonly_float(self.mean_xyz_m, name="mean_xyz_m")
+        frame_ids = _readonly_integer(self.frame_ids, name="frame_ids")
+        entity_ids = _readonly_integer(self.entity_ids, name="entity_ids")
+        view_indices = _readonly_integer(self.view_indices, name="view_indices")
+        window_indices = _readonly_integer(
+            self.window_indices,
+            name="window_indices",
         )
-        association_probability = _readonly(
-            self.association_probability, dtype=np.float64
+        correlation_groups = _readonly_integer(
+            self.correlation_group_ids,
+            name="correlation_group_ids",
         )
-        local_covariance = _readonly(
-            self.local_covariance_m2, dtype=np.float64
+        factor_groups = _readonly_integer(
+            self.factor_group_ids,
+            name="factor_group_ids",
         )
-        factors = _readonly(self.low_rank_factor_m, dtype=np.float64)
-        group_ids = _readonly(self.group_ids, dtype=np.int64)
-        group_prior = _readonly(
-            self.group_prior_nominal_probability, dtype=np.float64
+        prior_reliability = _readonly_float(
+            self.prior_reliability,
+            name="prior_reliability",
         )
-        group_weight = _readonly(
-            self.group_composite_weight, dtype=np.float64
+        association_probability = _readonly_float(
+            self.association_probability,
+            name="association_probability",
+        )
+        local_covariance = _readonly_float(
+            self.local_covariance_m2,
+            name="local_covariance_m2",
+        )
+        factors = _readonly_float(
+            self.low_rank_factor_m,
+            name="low_rank_factor_m",
+        )
+        group_ids = _readonly_integer(self.group_ids, name="group_ids")
+        group_prior = _readonly_float(
+            self.group_prior_nominal_probability,
+            name="group_prior_nominal_probability",
+        )
+        group_weight = _readonly_float(
+            self.group_composite_weight,
+            name="group_composite_weight",
         )
 
         if (
@@ -170,9 +265,10 @@ class ObservationBeliefExportV1:
             or np.any(np.diff(declared_frames) <= 0)
         ):
             raise ValueError(
-                "declared_frame_ids must be nonempty, nonnegative, and strictly increasing"
+                "declared_frame_ids must be nonempty, nonnegative, and "
+                "strictly increasing"
             )
-        if np.any(declared_frames >= self.causal_frame_stop):
+        if np.any(declared_frames >= causal_frame_stop):
             raise ValueError("declared frames violate the causal boundary")
         if mean.ndim != 2 or mean.shape[1] != 3 or len(mean) == 0:
             raise ValueError("mean_xyz_m must have nonempty shape (N, 3)")
@@ -192,7 +288,7 @@ class ObservationBeliefExportV1:
                 raise ValueError(f"{name} must have shape ({observation_count},)")
         if local_covariance.shape != (observation_count, 3, 3):
             raise ValueError("local_covariance_m2 must have shape (N, 3, 3)")
-        factor_rank = len(self.factor_names)
+        factor_rank = len(factor_names)
         if factors.shape != (observation_count, 3, factor_rank):
             raise ValueError(
                 "low_rank_factor_m must have shape "
@@ -206,14 +302,14 @@ class ObservationBeliefExportV1:
             raise ValueError("low-rank factors must be finite")
         if np.any(entity_ids < 0):
             raise ValueError("entity_ids must be nonnegative")
-        if np.any(frame_ids < 0) or np.any(frame_ids >= self.causal_frame_stop):
+        if np.any(frame_ids < 0) or np.any(frame_ids >= causal_frame_stop):
             raise ValueError("observation frames cross the causal boundary")
         if not np.all(np.isin(frame_ids, declared_frames)):
             raise ValueError("frame_ids must be contained in declared_frame_ids")
-        if np.any(view_indices < 0) or np.any(view_indices >= len(self.view_names)):
+        if np.any(view_indices < 0) or np.any(view_indices >= len(view_names)):
             raise ValueError("view_indices reference unavailable views")
         if np.any(window_indices < 0) or np.any(
-            window_indices >= len(self.window_names)
+            window_indices >= len(window_names)
         ):
             raise ValueError("window_indices reference unavailable windows")
         if np.any(correlation_groups < 0) or np.any(factor_groups < 0):
@@ -279,6 +375,15 @@ class ObservationBeliefExportV1:
                 "observation identity (frame, entity, view, window) must be unique"
             )
 
+        object.__setattr__(self, "causal_frame_stop", causal_frame_stop)
+        object.__setattr__(self, "view_names", view_names)
+        object.__setattr__(self, "window_names", window_names)
+        object.__setattr__(self, "factor_names", factor_names)
+        object.__setattr__(
+            self,
+            "source_artifact_sha256",
+            source_artifact_sha256,
+        )
         object.__setattr__(self, "declared_frame_ids", declared_frames)
         object.__setattr__(self, "mean_xyz_m", mean)
         object.__setattr__(self, "frame_ids", frame_ids)
@@ -364,24 +469,44 @@ class ObservationBeliefExportV1:
 def save_observation_belief_export(
     path: str | Path, artifact: ObservationBeliefExportV1
 ) -> None:
-    """Write a non-pickled, content-addressed observation artifact."""
+    """Atomically write a non-pickled, content-addressed observation artifact."""
 
     target = Path(path)
+    if target.is_symlink():
+        raise ValueError(f"refusing to replace symlink {target}")
     target.parent.mkdir(parents=True, exist_ok=True)
     descriptor = artifact.descriptor()
     descriptor["artifact_id"] = artifact.artifact_id
-    np.savez_compressed(
-        target,
-        descriptor_json=np.asarray(
-            json.dumps(
-                descriptor,
-                sort_keys=True,
-                separators=(",", ":"),
-                allow_nan=False,
+    temporary_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w+b",
+            dir=target.parent,
+            prefix=f".{target.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as handle:
+            temporary_path = Path(handle.name)
+            np.savez_compressed(
+                handle,
+                descriptor_json=np.asarray(
+                    json.dumps(
+                        descriptor,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                        allow_nan=False,
+                    )
+                ),
+                **artifact.arrays(),
             )
-        ),
-        **artifact.arrays(),
-    )
+            handle.flush()
+            os.fsync(handle.fileno())
+        assert temporary_path is not None
+        os.replace(temporary_path, target)
+    except BaseException:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
+        raise
 
 
 __all__ = [
