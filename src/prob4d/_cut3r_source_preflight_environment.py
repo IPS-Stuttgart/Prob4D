@@ -2,18 +2,21 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import stat
 import subprocess
 import sys
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Final
 
 from ._cut3r_source_preflight_common import (
+    _confined_regular_file,
     _file_sha256,
     _revision,
+    _stat_identity,
 )
 
 REFERENCE_TOKENS: Final = (
@@ -60,12 +63,32 @@ def _run_text(arguments: Sequence[str], *, cwd: Path, timeout: int = 60) -> tupl
     return int(completed.returncode), completed.stdout + completed.stderr
 
 
+def _sanitize_text(text: str, replacements: Mapping[str, str]) -> str:
+    sanitized = text
+    for source in sorted((item for item in replacements if item), key=len, reverse=True):
+        sanitized = sanitized.replace(source, replacements[source])
+    return sanitized
+
+
+def _text_evidence(text: str, replacements: Mapping[str, str]) -> dict[str, object]:
+    encoded = _sanitize_text(text, replacements).encode("utf-8", errors="replace")
+    return {
+        "sha256": hashlib.sha256(encoded).hexdigest(),
+        "byte_count": len(encoded),
+        "content_retained": False,
+    }
+
+
 def _ffprobe(path: Path) -> dict[str, object]:
     from shutil import which
 
+    replacements = {
+        os.fspath(path): "<SOURCE_VIDEO>",
+        os.fspath(path.resolve(strict=True)): "<SOURCE_VIDEO>",
+    }
     executable = which("ffprobe")
     if executable is None:
-        return {"available": False, "status": 127, "error": "ffprobe is unavailable"}
+        return {"available": False, "status": 127, "error": "ffprobe-unavailable"}
     status, output = _run_text(
         (
             executable,
@@ -81,16 +104,37 @@ def _ffprobe(path: Path) -> dict[str, object]:
         ),
         cwd=path.parent,
     )
+    output_evidence = _text_evidence(output, replacements)
     if status != 0:
-        return {"available": True, "status": status, "error": output[-1000:]}
+        return {
+            "available": True,
+            "status": status,
+            "error": "ffprobe-failed",
+            "output_evidence": output_evidence,
+        }
     try:
         payload = json.loads(output)
     except json.JSONDecodeError:
-        return {"available": True, "status": status, "error": "invalid ffprobe JSON"}
+        return {
+            "available": True,
+            "status": status,
+            "error": "invalid-ffprobe-json",
+            "output_evidence": output_evidence,
+        }
     streams = payload.get("streams", [])
     if type(streams) is not list or len(streams) != 1 or type(streams[0]) is not dict:
-        return {"available": True, "status": status, "error": "video stream was not unique"}
-    return {"available": True, "status": status, "stream": streams[0]}
+        return {
+            "available": True,
+            "status": status,
+            "error": "video-stream-not-unique",
+            "output_evidence": output_evidence,
+        }
+    return {
+        "available": True,
+        "status": status,
+        "stream": streams[0],
+        "output_evidence": output_evidence,
+    }
 
 
 def _candidate_reference_files(
@@ -145,7 +189,47 @@ def _github_repository_from_remote(value: str) -> str | None:
     return None
 
 
+def _tracked_demo(checkout: Path) -> tuple[Path | None, int, dict[str, object]]:
+    status, output = _run_text(
+        ("git", "ls-files", "--", "demo.py", ":(glob)**/demo.py"),
+        cwd=checkout,
+    )
+    replacements = {os.fspath(checkout): "<CUT3R_CHECKOUT>"}
+    if status != 0:
+        return None, status, {
+            "tracked_candidate_count": 0,
+            "output_evidence": _text_evidence(output, replacements),
+        }
+    relative_paths = sorted({line.strip() for line in output.splitlines() if line.strip()})
+    if len(relative_paths) != 1:
+        return None, status, {
+            "tracked_candidate_count": len(relative_paths),
+            "output_evidence": _text_evidence(output, replacements),
+        }
+    try:
+        demo = _confined_regular_file(
+            checkout,
+            relative_paths[0],
+            name="tracked CUT3R demo.py",
+        )
+    except ValueError as error:
+        return None, 1, {
+            "tracked_candidate_count": 1,
+            "output_evidence": _text_evidence(str(error), replacements),
+        }
+    return demo, status, {
+        "tracked_candidate_count": 1,
+        "output_evidence": _text_evidence(output, replacements),
+    }
+
+
 def _cut3r_surface(checkout: Path, checkpoint: Path) -> dict[str, object]:
+    replacements = {
+        os.fspath(checkout): "<CUT3R_CHECKOUT>",
+        os.fspath(checkout.resolve(strict=True)): "<CUT3R_CHECKOUT>",
+        os.fspath(checkpoint): "<CUT3R_CHECKPOINT>",
+        os.fspath(checkpoint.resolve(strict=True)): "<CUT3R_CHECKPOINT>",
+    }
     revision_status, revision = _run_text(("git", "rev-parse", "HEAD"), cwd=checkout)
     remote_status, remote = _run_text(
         ("git", "remote", "get-url", "origin"),
@@ -155,14 +239,9 @@ def _cut3r_surface(checkout: Path, checkpoint: Path) -> dict[str, object]:
         ("git", "status", "--porcelain", "--untracked-files=no"),
         cwd=checkout,
     )
-    demo_candidates = [checkout / "demo.py"]
-    if not demo_candidates[0].is_file() or demo_candidates[0].is_symlink():
-        demo_candidates = sorted(
-            path for path in checkout.glob("**/demo.py") if path.is_file() and not path.is_symlink()
-        )
-    demo = demo_candidates[0] if len(demo_candidates) == 1 else None
+    demo, demo_resolution_status, demo_resolution = _tracked_demo(checkout)
     help_status = 127
-    help_text = "demo.py not uniquely resolved"
+    help_text = "tracked demo.py not uniquely resolved"
     if demo is not None:
         help_status, help_text = _run_text(
             (sys.executable, os.fspath(demo), "--help"),
@@ -183,32 +262,38 @@ def _cut3r_surface(checkout: Path, checkpoint: Path) -> dict[str, object]:
         cwd=checkout,
         timeout=60,
     )
-    versions: object = {"error": import_text[-2000:]}
+    versions: object = {"error": "dependency-probe-failed"}
     if import_status == 0:
         try:
             versions = json.loads(import_text.splitlines()[-1])
         except (json.JSONDecodeError, IndexError):
-            versions = {"error": "dependency probe returned invalid JSON"}
+            versions = {"error": "dependency-probe-invalid-json"}
+    checkpoint_before = checkpoint.stat()
     checkpoint_sha = _file_sha256(checkpoint)
+    checkpoint_after = checkpoint.stat()
+    if _stat_identity(checkpoint_before) != _stat_identity(checkpoint_after):
+        raise ValueError("CUT3R checkpoint changed during provider inspection")
     return {
         "checkout_revision_status": revision_status,
         "checkout_revision": revision.strip() if revision_status == 0 else None,
         "origin_status": remote_status,
-        "origin_url": remote.strip() if remote_status == 0 else None,
         "origin_repository": (
             _github_repository_from_remote(remote) if remote_status == 0 else None
         ),
         "tracked_worktree_status": worktree_status,
         "tracked_worktree_clean": worktree_status == 0 and not worktree.strip(),
+        "demo_resolution_status": demo_resolution_status,
+        "demo_resolution": demo_resolution,
         "demo_relative_path": (demo.relative_to(checkout).as_posix() if demo is not None else None),
         "demo_sha256": _file_sha256(demo) if demo is not None else None,
         "demo_help_status": help_status,
-        "demo_help": help_text[-20000:],
+        "demo_help_output_evidence": _text_evidence(help_text, replacements),
         "dependency_probe_status": import_status,
         "dependency_versions": versions,
+        "dependency_probe_output_evidence": _text_evidence(import_text, replacements),
         "checkpoint_filename": checkpoint.name,
         "checkpoint_sha256": checkpoint_sha,
-        "checkpoint_byte_count": int(checkpoint.stat().st_size),
+        "checkpoint_byte_count": int(checkpoint_before.st_size),
     }
 
 
