@@ -100,9 +100,7 @@ def _synthetic_contract():
                 "episode_id": episode_id,
                 "camera": camera,
                 "relative_episode_path": f"{object_id}/episode_{episode_id:04d}",
-                "relative_camera_path": (
-                    f"{object_id}/episode_{episode_id:04d}/{camera}"
-                ),
+                "relative_camera_path": (f"{object_id}/episode_{episode_id:04d}/{camera}"),
                 "input_video_sha256": digest,
                 "input_video_byte_count": byte_count,
                 "aligned_timestamp_count": 64,
@@ -259,9 +257,7 @@ def test_validate_source_freeze_matches_real_locator_shape() -> None:
     assert len(contract["descriptors"]) == 40
     first = contract["descriptors"][0]
     assert first["relative_video_path"].endswith("/cam0/undistorted.mp4")
-    assert first["sidecars"]["alignment.json"]["relative_path"].endswith(
-        "/cam0/alignment.json"
-    )
+    assert first["sidecars"]["alignment.json"]["relative_path"].endswith("/cam0/alignment.json")
 
 
 def test_load_comparison_lock_rejects_noncanonical_retained_bytes(
