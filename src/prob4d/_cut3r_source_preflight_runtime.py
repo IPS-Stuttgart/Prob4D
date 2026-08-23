@@ -128,11 +128,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         if measured_sha != expected_sha or measured_bytes != expected_bytes:
             failures.append(f"source video identity changed: {relative_video}")
             continue
-        if (
-            probe.get("available") is not True
-            or probe.get("status") != 0
-            or "stream" not in probe
-        ):
+        if probe.get("available") is not True or probe.get("status") != 0 or "stream" not in probe:
             failures.append(f"ffprobe could not inspect source video: {relative_video}")
         case_record = dict(descriptor)
         case_record.pop("sidecars")
