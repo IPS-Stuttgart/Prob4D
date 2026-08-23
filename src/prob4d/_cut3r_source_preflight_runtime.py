@@ -206,6 +206,8 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
             failures.append("CUT3R tracked demo.py --help failed")
         if cut3r["dependency_probe_status"] != 0:
             failures.append("CUT3R Python dependency probe failed")
+        if cut3r["post_probe_worktree_clean_including_untracked"] is not True:
+            failures.append("CUT3R executable probes modified the retained checkout")
 
     if len(cases) != cast(int, request["expected_case_count"]):
         failures.append(
