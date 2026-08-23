@@ -196,16 +196,24 @@ def _tracked_demo(checkout: Path) -> tuple[Path | None, int, dict[str, object]]:
     )
     replacements = {os.fspath(checkout): "<CUT3R_CHECKOUT>"}
     if status != 0:
-        return None, status, {
-            "tracked_candidate_count": 0,
-            "output_evidence": _text_evidence(output, replacements),
-        }
+        return (
+            None,
+            status,
+            {
+                "tracked_candidate_count": 0,
+                "output_evidence": _text_evidence(output, replacements),
+            },
+        )
     relative_paths = sorted({line.strip() for line in output.splitlines() if line.strip()})
     if len(relative_paths) != 1:
-        return None, status, {
-            "tracked_candidate_count": len(relative_paths),
-            "output_evidence": _text_evidence(output, replacements),
-        }
+        return (
+            None,
+            status,
+            {
+                "tracked_candidate_count": len(relative_paths),
+                "output_evidence": _text_evidence(output, replacements),
+            },
+        )
     try:
         demo = _confined_regular_file(
             checkout,
@@ -213,14 +221,22 @@ def _tracked_demo(checkout: Path) -> tuple[Path | None, int, dict[str, object]]:
             name="tracked CUT3R demo.py",
         )
     except ValueError as error:
-        return None, 1, {
+        return (
+            None,
+            1,
+            {
+                "tracked_candidate_count": 1,
+                "output_evidence": _text_evidence(str(error), replacements),
+            },
+        )
+    return (
+        demo,
+        status,
+        {
             "tracked_candidate_count": 1,
-            "output_evidence": _text_evidence(str(error), replacements),
-        }
-    return demo, status, {
-        "tracked_candidate_count": 1,
-        "output_evidence": _text_evidence(output, replacements),
-    }
+            "output_evidence": _text_evidence(output, replacements),
+        },
+    )
 
 
 def _cut3r_surface(checkout: Path, checkpoint: Path) -> dict[str, object]:
