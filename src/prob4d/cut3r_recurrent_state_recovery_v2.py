@@ -6,14 +6,7 @@ import argparse
 import json
 from collections.abc import Sequence
 
-from ._cut3r_recovery_v2_exact import (
-    _count_vectors,
-    _exact_group_bootstrap,
-    _leave_one_group_out,
-    _triplet_v2,
-)
 from ._cut3r_recovery_v2_report import (
-    _build_v2_from_validated_v1_report,
     build_cut3r_recurrent_state_recovery_v2_report,
     cut3r_recurrent_state_recovery_v2_summary,
     load_cut3r_recurrent_state_recovery_v2_report,
@@ -35,7 +28,6 @@ from ._cut3r_recovery_v2_spec import (
     validate_cut3r_recurrent_state_recovery_v2_specification,
 )
 from .cut3r_recurrent_state_recovery import (
-    CUT3R_RECURRENT_STATE_RECOVERY_METRICS,
     _add_bound_evidence_arguments,
     _load_bound_inputs,
 )
@@ -105,7 +97,6 @@ __all__ = [
     "CUT3R_RECURRENT_STATE_RECOVERY_V2_SPEC_SCHEMA",
     "CUT3R_RECURRENT_STATE_RECOVERY_V2_SPEC_VERSION",
     "CUT3R_RECURRENT_STATE_RECOVERY_V2_VERSION",
-    "_build_v2_from_validated_v1_report",
     "build_cut3r_recurrent_state_recovery_v2_report",
     "build_cut3r_recurrent_state_recovery_v2_specification",
     "cut3r_recurrent_state_recovery_v2_summary",
