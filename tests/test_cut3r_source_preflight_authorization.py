@@ -80,6 +80,33 @@ def test_clean_exact_provider_authorizes_tracked_demo_probe(tmp_path: Path) -> N
     assert "origin_url" not in surface
 
 
+def test_provider_probe_mutation_is_detected(tmp_path: Path) -> None:
+    checkout, checkpoint, _, checkpoint_sha, checkpoint_bytes = _provider_fixture(tmp_path)
+    (checkout / "demo.py").write_text(
+        "from pathlib import Path\n"
+        "Path('probe-side-effect').write_text('mutated', encoding='utf-8')\n"
+        "import argparse\n"
+        "argparse.ArgumentParser().parse_args()\n",
+        encoding="utf-8",
+    )
+    _git(checkout, "add", "demo.py")
+    _git(checkout, "commit", "-qm", "mutating fixture")
+    revision = _git(checkout, "rev-parse", "HEAD")
+
+    surface = _inspect(
+        checkout,
+        checkpoint,
+        revision,
+        checkpoint_sha,
+        checkpoint_bytes,
+    )
+
+    assert surface["executable_probe_authorized"] is True
+    assert surface["demo_help_status"] == 0
+    assert surface["post_probe_worktree_clean_including_untracked"] is False
+    assert (checkout / "probe-side-effect").read_text(encoding="utf-8") == "mutated"
+
+
 def test_untracked_checkout_content_blocks_all_executable_probes(tmp_path: Path) -> None:
     checkout, checkpoint, revision, checkpoint_sha, checkpoint_bytes = _provider_fixture(tmp_path)
     (checkout / "torch.py").write_text(
