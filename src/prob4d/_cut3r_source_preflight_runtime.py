@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 from collections.abc import Mapping
 from typing import Any, Final, cast
 
@@ -21,6 +22,7 @@ from ._cut3r_source_preflight_environment import (
     _cut3r_surface,
     _ffprobe,
     _repository_revision,
+    _sanitize_text,
 )
 from ._cut3r_source_preflight_freeze import (
     _load_comparison_lock,
@@ -65,12 +67,20 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     if not checkpoint.is_file():
         raise ValueError("CUT3R checkpoint must be an ordinary file")
 
+    redactions = {
+        os.fspath(repository): "<PROB4D_REPOSITORY>",
+        os.fspath(processed_root): "<DEFORM360_PROCESSED_ROOT>",
+        os.fspath(checkout): "<CUT3R_CHECKOUT>",
+        os.fspath(checkpoint): "<CUT3R_CHECKPOINT>",
+    }
     cases: list[dict[str, object]] = []
     failures: list[str] = []
     reference_cache: dict[str, list[dict[str, object]]] = {}
     for descriptor in cast(list[dict[str, object]], contract["descriptors"]):
         case_id = cast(str, descriptor["case_id"])
         relative_video = cast(str, descriptor["relative_video_path"])
+        expected_sha = cast(str, descriptor["video_sha256"])
+        expected_bytes = cast(int, descriptor["video_byte_count"])
         try:
             path = _confined_regular_file(
                 processed_root,
@@ -80,6 +90,9 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
             before = path.stat()
             measured_sha = _file_sha256(path)
             measured_bytes = int(path.stat().st_size)
+            if measured_sha != expected_sha or measured_bytes != expected_bytes:
+                raise ValueError(f"source video identity changed: {relative_video}")
+
             probe = _ffprobe(path)
             verified_sidecars: list[dict[str, object]] = []
             for sidecar_name, raw_sidecar in cast(
@@ -121,12 +134,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
                     episode, root=processed_root
                 )
         except (OSError, ValueError) as error:
-            failures.append(f"{case_id}: {error}")
-            continue
-        expected_sha = cast(str, descriptor["video_sha256"])
-        expected_bytes = cast(int, descriptor["video_byte_count"])
-        if measured_sha != expected_sha or measured_bytes != expected_bytes:
-            failures.append(f"source video identity changed: {relative_video}")
+            failures.append(f"{case_id}: {_sanitize_text(str(error), redactions)}")
             continue
         if probe.get("available") is not True or probe.get("status") != 0 or "stream" not in probe:
             failures.append(f"ffprobe could not inspect source video: {relative_video}")
@@ -149,9 +157,51 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         )
     cases.sort(key=lambda item: cast(str, item["case_id"]))
     group_ids = sorted({cast(str, item["group_id"]) for item in cases})
-    role_counts = {role: sum(1 for item in cases if item["role"] == role) for role in SOURCE_ROLES}
+    role_case_counts = {
+        role: sum(1 for item in cases if item["role"] == role) for role in SOURCE_ROLES
+    }
+    role_group_counts = {
+        role: len(
+            {
+                cast(str, item["group_id"])
+                for item in cases
+                if item["role"] == role
+            }
+        )
+        for role in SOURCE_ROLES
+    }
 
-    cut3r = _cut3r_surface(checkout, checkpoint)
+    try:
+        cut3r = _cut3r_surface(checkout, checkpoint)
+    except (OSError, ValueError) as error:
+        cut3r = {"inspection_status": "technical-failure"}
+        failures.append(
+            "CUT3R provider inspection failed: "
+            + _sanitize_text(str(error), redactions)
+        )
+    else:
+        cut3r["inspection_status"] = "completed"
+        if cut3r["checkout_revision_status"] != 0:
+            failures.append("CUT3R checkout revision could not be read")
+        if cut3r["checkout_revision"] != contract["provider_revision"]:
+            failures.append("CUT3R checkout differs from the frozen provider revision")
+        if cut3r["origin_repository"] != contract["provider_repository"]:
+            failures.append("CUT3R checkout origin differs from the frozen provider repository")
+        if cut3r["tracked_worktree_clean"] is not True:
+            failures.append("CUT3R checkout has tracked local modifications")
+        if cut3r["checkpoint_filename"] != contract["checkpoint_filename"]:
+            failures.append("CUT3R checkpoint filename differs from the source freeze")
+        if cut3r["checkpoint_sha256"] != contract["checkpoint_sha256"]:
+            failures.append("CUT3R checkpoint digest differs from the source freeze")
+        if cut3r["checkpoint_byte_count"] != contract["checkpoint_byte_count"]:
+            failures.append("CUT3R checkpoint byte count differs from the source freeze")
+        if cut3r["demo_relative_path"] is None:
+            failures.append("CUT3R tracked demo.py was not uniquely resolved")
+        if cut3r["demo_help_status"] != 0:
+            failures.append("CUT3R tracked demo.py --help failed")
+        if cut3r["dependency_probe_status"] != 0:
+            failures.append("CUT3R Python dependency probe failed")
+
     if len(cases) != cast(int, request["expected_case_count"]):
         failures.append(
             f"resolved case count {len(cases)} differs from expected "
@@ -162,26 +212,6 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
             f"resolved group count {len(group_ids)} differs from expected "
             f"{request['source_group_count']}"
         )
-    if cut3r["checkout_revision_status"] != 0:
-        failures.append("CUT3R checkout revision could not be read")
-    if cut3r["checkout_revision"] != contract["provider_revision"]:
-        failures.append("CUT3R checkout differs from the frozen provider revision")
-    if cut3r["origin_repository"] != contract["provider_repository"]:
-        failures.append("CUT3R checkout origin differs from the frozen provider repository")
-    if cut3r["tracked_worktree_clean"] is not True:
-        failures.append("CUT3R checkout has tracked local modifications")
-    if cut3r["checkpoint_filename"] != contract["checkpoint_filename"]:
-        failures.append("CUT3R checkpoint filename differs from the source freeze")
-    if cut3r["checkpoint_sha256"] != contract["checkpoint_sha256"]:
-        failures.append("CUT3R checkpoint digest differs from the source freeze")
-    if cut3r["checkpoint_byte_count"] != contract["checkpoint_byte_count"]:
-        failures.append("CUT3R checkpoint byte count differs from the source freeze")
-    if cut3r["demo_relative_path"] is None:
-        failures.append("CUT3R demo.py was not uniquely resolved")
-    if cut3r["demo_help_status"] != 0:
-        failures.append("CUT3R demo.py --help failed")
-    if cut3r["dependency_probe_status"] != 0:
-        failures.append("CUT3R Python dependency probe failed")
 
     decision = (
         "source-comparison-preflight-ready" if not failures else "technical-preflight-failure"
@@ -194,15 +224,23 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         "source_freeze_id": contract["source_freeze_id"],
         "comparison_spec_sha256": contract["comparison_spec_sha256"],
         "comparison_lock_id": contract["comparison_lock_id"],
+        "prob4d_distribution": {
+            "revision": contract["prob4d_revision"],
+            "filename": contract["prob4d_distribution_filename"],
+            "sha256": contract["prob4d_distribution_sha256"],
+            "byte_count": contract["prob4d_distribution_byte_count"],
+        },
         "decision": decision,
         "resolved_case_count": len(cases),
         "resolved_group_count": len(group_ids),
-        "role_case_counts": role_counts,
+        "role_case_counts": role_case_counts,
+        "role_group_counts": role_group_counts,
         "cases": cases,
         "cut3r": cut3r,
         "failures": failures,
         "source_rgb_frames_decoded": False,
         "cut3r_inference_executed": False,
+        "source_input_video_bytes_hashed": True,
         "source_input_sidecars_hashed": True,
         "source_prediction_payloads_opened": False,
         "source_residuals_or_truth_opened": False,
