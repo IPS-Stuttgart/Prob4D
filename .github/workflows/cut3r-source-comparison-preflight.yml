@@ -73,11 +73,12 @@ jobs:
           python -m compileall -q \
             scripts/science/build_cut3r_source_comparison_preflight.py
 
-      - name: Confirm this PR cannot enter a self-hosted runner
+      - name: Confirm hosted-only runner boundary
         shell: bash
         run: |
           set -euo pipefail
-          ! grep -Fq "self-hosted" \
+          needle="self"'-hosted'
+          ! grep -Fq "$needle" \
             .github/workflows/cut3r-source-comparison-preflight.yml
           ! grep -Fq "issues: write" \
             .github/workflows/cut3r-source-comparison-preflight.yml
