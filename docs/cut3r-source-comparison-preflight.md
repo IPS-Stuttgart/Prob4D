@@ -16,22 +16,32 @@ comparison-lock bytes, the builder:
 
 - recomputes the canonical request, source-freeze, source-case, comparison-spec,
   and comparison-lock identities;
+- revalidates the exact source-freeze information boundary, recurrent-online
+  execution mode, single revisit, disabled global alignment, and disabled second
+  pass;
 - regenerates the canonical comparison lock from the retained specification and
   requires exact equality with the published lock;
 - resolves exactly 40 frozen source video cases across 10 complete source groups;
 - requires every case, group role, camera, video digest, and video byte count to
   agree across the source freeze and comparison lock;
+- verifies each video digest and byte count before passing the file to `ffprobe`;
 - verifies the three frozen input sidecars for every case by exact path, byte
   count, and SHA-256 digest;
 - records container-level `ffprobe` metadata without decoding frames;
-- requires the retained CUT3R checkout revision, GitHub origin, clean tracked
-  worktree, checkpoint filename, checkpoint digest, and checkpoint byte count to
-  match the frozen provider identity;
-- verifies that exactly one `demo.py` surface is available and that its `--help`
-  invocation and required Python imports succeed; and
+- requires the retained CUT3R checkout revision, normalized GitHub repository,
+  clean tracked worktree, checkpoint filename, checkpoint digest, and checkpoint
+  byte count to match the frozen provider identity;
+- resolves `demo.py` exclusively from Git's tracked-file inventory, requires one
+  confined regular file, and then checks its `--help` invocation and required
+  Python imports; and
 - inventories candidate source-reference file names, suffixes, and byte counts
   only inside each explicitly frozen source episode, without opening those file
   contents or traversing sibling target objects.
+
+Untracked or symlinked `demo.py` files are never executed. Raw remote URLs,
+absolute retained paths, command output, and diagnostic text are not stored in
+the report. Diagnostic output is redacted and retained only as a SHA-256 digest
+and byte count.
 
 The report is content-addressed and returns one of two decisions:
 
@@ -88,10 +98,12 @@ It validates the implementation, request identity, canonical lock contract,
 action pins, and self-hosted-runner policy. It cannot enter a self-hosted runner
 and cannot write an issue comment.
 
-A later exact-main execution route is justified only after the source-freeze and
-comparison locks have been published. That route must follow the repository's
-current read-only, exact-merged-main authorization pattern rather than execute
-pull-request-controlled source on the retained runner.
+The capability can be merged before the retained lock files exist because runtime
+validation requires those exact merged files and fails closed when they are
+absent. A later exact-main execution route is justified only after the
+source-freeze and comparison locks have been published. That route must follow
+the repository's current read-only, exact-merged-main authorization pattern
+rather than execute pull-request-controlled source on the retained runner.
 
 ## Claim boundary
 
