@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -43,6 +44,19 @@ REQUEST_VALUE = {
     "source_prediction_payloads_opened": False,
     "source_residuals_or_truth_opened": False,
     "source_rgb_frames_decoded": False,
+    "target_outcomes_opened": False,
+    "target_payloads_opened": False,
+}
+
+INFORMATION_BOUNDARY = {
+    "camera_panel_change_after_freeze_allowed": False,
+    "downstream_physical_innovations_opened": False,
+    "replacement_after_freeze_allowed": False,
+    "source_future_geometry_opened": False,
+    "source_prediction_payloads_opened": False,
+    "source_residuals_or_truth_opened": False,
+    "source_rgb_frames_decoded": False,
+    "source_rgb_video_bytes_hashed": True,
     "target_outcomes_opened": False,
     "target_payloads_opened": False,
 }
@@ -180,16 +194,24 @@ def _synthetic_contract():
             "checkpoint_filename": "model.pth",
             "checkpoint_sha256": checkpoint_sha,
             "checkpoint_byte_count": 1234,
+            "execution_mode": "recurrent-online",
+            "revisit_count": 1,
+            "global_alignment": False,
+            "second_pass_allowed": False,
         },
         "prob4d": {
             "revision": prob4d_revision,
+            "distribution_filename": "prob4d.whl",
             "distribution_sha256": distribution_sha,
+            "distribution_byte_count": 4321,
         },
         "comparison_spec_sha256": common._record_id(spec),
         "camera_panel": {
             "selected_cameras": cameras,
         },
         "source_cases": source_cases,
+        "information_boundary": dict(INFORMATION_BOUNDARY),
+        "claim_boundary": "synthetic source-only boundary",
     }
     freeze["source_freeze_id"] = common._record_id(freeze)
     return _request(), spec, lock, freeze
@@ -254,10 +276,26 @@ def test_validate_source_freeze_matches_real_locator_shape() -> None:
 
     assert contract["provider_revision"] == "a" * 40
     assert contract["checkpoint_sha256"] == "b" * 64
+    assert contract["prob4d_distribution_filename"] == "prob4d.whl"
     assert len(contract["descriptors"]) == 40
     first = contract["descriptors"][0]
     assert first["relative_video_path"].endswith("/cam0/undistorted.mp4")
     assert first["sidecars"]["alignment.json"]["relative_path"].endswith("/cam0/alignment.json")
+
+
+def test_validate_source_freeze_rejects_information_boundary_drift() -> None:
+    request, spec, lock, freeze = _synthetic_contract()
+    freeze["information_boundary"]["target_payloads_opened"] = True
+    freeze.pop("source_freeze_id")
+    freeze["source_freeze_id"] = common._record_id(freeze)
+
+    with pytest.raises(ValueError, match="information boundary"):
+        freeze_contract._validate_source_freeze(
+            freeze,
+            request=request,
+            spec=spec,
+            lock=lock,
+        )
 
 
 def test_load_comparison_lock_rejects_noncanonical_retained_bytes(
@@ -350,6 +388,53 @@ def test_request_rejects_missing_merged_lock(tmp_path: Path) -> None:
         common.validate_request(request_path, repository=tmp_path)
 
 
+def test_diagnostics_are_content_addressed_without_retaining_paths() -> None:
+    text = "/retained/cut3r/checkpoint /retained/cut3r"
+    replacements = {
+        "/retained/cut3r": "<CUT3R_CHECKOUT>",
+        "/retained/cut3r/checkpoint": "<CUT3R_CHECKPOINT>",
+    }
+
+    sanitized = environment._sanitize_text(text, replacements)
+    evidence = environment._text_evidence(text, replacements)
+
+    assert sanitized == "<CUT3R_CHECKPOINT> <CUT3R_CHECKOUT>"
+    assert evidence["content_retained"] is False
+    assert set(evidence) == {"sha256", "byte_count", "content_retained"}
+
+
+def test_cut3r_surface_refuses_untracked_demo(tmp_path: Path) -> None:
+    checkout = tmp_path / "cut3r"
+    checkout.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=checkout, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "tests@example.invalid"],
+        cwd=checkout,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Prob4D tests"],
+        cwd=checkout,
+        check=True,
+    )
+    (checkout / "README.md").write_text("fixture\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README.md"], cwd=checkout, check=True)
+    subprocess.run(["git", "commit", "-qm", "fixture"], cwd=checkout, check=True)
+    (checkout / "demo.py").write_text(
+        "raise SystemExit('untracked demo must not execute')\n",
+        encoding="utf-8",
+    )
+    checkpoint = tmp_path / "model.pth"
+    checkpoint.write_bytes(b"checkpoint")
+
+    surface = environment._cut3r_surface(checkout, checkpoint)
+
+    assert surface["demo_relative_path"] is None
+    assert surface["demo_resolution"]["tracked_candidate_count"] == 0
+    assert surface["demo_help_status"] == 127
+    assert "origin_url" not in surface
+
+
 def test_github_remote_normalization_is_exact() -> None:
     assert (
         environment._github_repository_from_remote("https://github.com/CUT3R/CUT3R.git")
@@ -360,3 +445,9 @@ def test_github_remote_normalization_is_exact() -> None:
         == "CUT3R/CUT3R"
     )
     assert environment._github_repository_from_remote("/tmp/local-cut3r") is None
+    assert (
+        environment._github_repository_from_remote(
+            "https://token@example.invalid@github.com/CUT3R/CUT3R.git"
+        )
+        is None
+    )
