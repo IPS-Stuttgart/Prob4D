@@ -7,8 +7,8 @@ from pathlib import Path
 from typing import Any, Final, cast
 
 from .cut3r_recurrent_state_recovery import (
-    CUT3R_RECURRENT_STATE_RECOVERY_METRICS,
     _finite_float,
+    CUT3R_RECURRENT_STATE_RECOVERY_METRICS,
 )
 from .cut3r_source_competence import (
     _canonical_json,
