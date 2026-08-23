@@ -1,0 +1,29 @@
+{
+  "analysis_specification_id": "1e2f77a39a71410dd54e0eeb50da0765b8d6f5c79589777ea80c3ad8e6bfdbf7",
+  "claim_boundary": "This prospective specification was frozen before CUT3R source outcomes were opened. It authorizes only a descriptive source-only analysis of already registered three-arm evidence. It does not alter a provider, source gate, readiness decision, target protocol, BayesianPhysTwin guard, or Causal4D handoff, and target access remains forbidden.",
+  "confidence_level": 0.95,
+  "interval_method": "exact-multinomial-equal-group-bootstrap-nearest-rank-v1",
+  "leave_one_group_out": true,
+  "maximum_exact_group_count": 10,
+  "minimum_recurrence_gap_by_metric": {
+    "absolute_drift_slope_m_per_frame": 1e-05,
+    "endpoint_rmse_m": 0.0001,
+    "point_rmse_m": 0.0001,
+    "proper_score": 0.01,
+    "seam_rmse_m": 0.0001
+  },
+  "minimum_recurrence_gap_rationale_by_metric": {
+    "absolute_drift_slope_m_per_frame": "Prospective 0.01 mm/frame practical-separation floor for absolute drift slope.",
+    "endpoint_rmse_m": "Prospective 0.1 mm practical-separation floor for endpoint RMSE.",
+    "point_rmse_m": "Prospective 0.1 mm practical-separation floor for point RMSE.",
+    "proper_score": "Prospective 0.01 fixed-score practical-separation floor.",
+    "seam_rmse_m": "Prospective 0.1 mm practical-separation floor for seam RMSE."
+  },
+  "minimum_valid_denominator_probability": 0.8,
+  "primary_endpoint": "prob4d_gain",
+  "schema": "prob4d.cut3r-recurrent-state-recovery-specification",
+  "schema_version": 2,
+  "secondary_endpoint": "recovery_fraction_when_recurrence_gap_separated",
+  "source_outcomes_opened_before_specification": false,
+  "target_access": "forbidden"
+}
