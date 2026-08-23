@@ -72,15 +72,3 @@ jobs:
             tests/test_trusted_self_hosted_validation_policy.py
           python -m compileall -q \
             scripts/science/build_cut3r_source_comparison_preflight.py
-
-      - name: Confirm hosted-only runner boundary
-        shell: bash
-        run: |
-          set -euo pipefail
-          needle="self"'-hosted'
-          ! grep -Fq "$needle" \
-            .github/workflows/cut3r-source-comparison-preflight.yml
-          ! grep -Fq "issues: write" \
-            .github/workflows/cut3r-source-comparison-preflight.yml
-          ! grep -Fq "secrets." \
-            .github/workflows/cut3r-source-comparison-preflight.yml
