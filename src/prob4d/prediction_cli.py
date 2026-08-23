@@ -52,6 +52,10 @@ def _help_parser() -> argparse.ArgumentParser:
         help="quantify how much recurrent-state loss Prob4D fusion recovers",
     )
     subparsers.add_parser(
+        "cut3r-recovery-v2",
+        help="run denominator-safe exact group inference for recurrent-state recovery",
+    )
+    subparsers.add_parser(
         "compatibility",
         help="build or compare additive semantic-compatibility manifests",
     )
@@ -114,6 +118,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         from .cut3r_recurrent_state_recovery import main as cut3r_recovery_main
 
         return int(cut3r_recovery_main(arguments[1:]))
+    if arguments[0] == "cut3r-recovery-v2":
+        from .cut3r_recurrent_state_recovery_v2 import main as cut3r_recovery_v2_main
+
+        return int(cut3r_recovery_v2_main(arguments[1:]))
     if arguments[0] == "compatibility":
         from .semantic_compatibility import main as compatibility_main
 
