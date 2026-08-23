@@ -243,11 +243,11 @@ def _cut3r_surface(
     checkout: Path,
     checkpoint: Path,
     *,
-    expected_repository: str,
-    expected_revision: str,
-    expected_checkpoint_filename: str,
-    expected_checkpoint_sha256: str,
-    expected_checkpoint_byte_count: int,
+    expected_repository: str | None = None,
+    expected_revision: str | None = None,
+    expected_checkpoint_filename: str | None = None,
+    expected_checkpoint_sha256: str | None = None,
+    expected_checkpoint_byte_count: int | None = None,
 ) -> dict[str, object]:
     replacements = {
         os.fspath(checkout): "<CUT3R_CHECKOUT>",
@@ -281,7 +281,12 @@ def _cut3r_surface(
     checkpoint_byte_count = int(checkpoint_before.st_size)
 
     executable_probe_authorized = (
-        checkout_revision == expected_revision
+        expected_repository is not None
+        and expected_revision is not None
+        and expected_checkpoint_filename is not None
+        and expected_checkpoint_sha256 is not None
+        and expected_checkpoint_byte_count is not None
+        and checkout_revision == expected_revision
         and origin_repository == expected_repository
         and worktree_clean
         and checkpoint.name == expected_checkpoint_filename
@@ -295,9 +300,9 @@ def _cut3r_surface(
         "tracked_candidate_count": 0,
         "output_evidence": _text_evidence(authorization_text, replacements),
     }
-    help_status = 126
+    help_status = 127
     help_text = authorization_text
-    import_status = 126
+    import_status = 127
     import_text = authorization_text
     versions: object = {"error": "dependency-probe-not-authorized"}
 
