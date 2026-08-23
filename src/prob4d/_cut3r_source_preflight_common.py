@@ -51,9 +51,7 @@ FALSE_FIELDS: Final = (
     "target_outcomes_opened",
     "comparison_execution_authorized",
 )
-SOURCE_GROUP_FIELDS: Final = frozenset(
-    {"object_id", "episode_id", "stratum", "group_id", "role"}
-)
+SOURCE_GROUP_FIELDS: Final = frozenset({"object_id", "episode_id", "stratum", "group_id", "role"})
 TARGET_GROUP_FIELDS: Final = frozenset({"object_id", "episode_id", "stratum"})
 SOURCE_CASE_FIELDS: Final = frozenset(
     {
