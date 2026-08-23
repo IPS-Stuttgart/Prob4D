@@ -1,15 +1,19 @@
 from __future__ import annotations
 
 import hashlib
-import importlib.util
 import json
 from pathlib import Path
-from types import ModuleType
 
 import pytest
 
+from prob4d import _cut3r_source_preflight_cases as cases
+from prob4d import _cut3r_source_preflight_common as common
+from prob4d import _cut3r_source_preflight_environment as environment
+from prob4d import _cut3r_source_preflight_freeze as freeze_contract
+from prob4d import _cut3r_source_preflight_runtime as runtime
+from prob4d.cut3r_comparison import build_cut3r_comparison_lock
+
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = ROOT / "scripts/science/build_cut3r_source_comparison_preflight.py"
 REQUEST = (
     ROOT
     / "protocols"
@@ -17,21 +21,191 @@ REQUEST = (
     / "cut3r_deform360_source_comparison_preflight_v1.json"
 )
 
+REQUEST_VALUE = {
+    "claim_boundary": (
+        "This request authorizes one retained-runner metadata preflight for the frozen "
+        "CUT3R Deform360 source comparison. It may resolve exact source video and "
+        "sidecar paths, verify hashes, inspect CUT3R's installed callable surface, and "
+        "enumerate source-only candidate reference files. It may not decode RGB frames, "
+        "execute CUT3R, open source residuals or truth values, open confirmation or "
+        "target payloads, run BayesianPhysTwin, or run Causal4D."
+    ),
+    "comparison_execution_authorized": False,
+    "comparison_lock_path": "protocols/locks/cut3r_deform360_comparison_lock_v2.json",
+    "comparison_spec_path": "protocols/locks/cut3r_deform360_comparison_spec_v2.json",
+    "expected_case_count": 40,
+    "forbidden_target_group_count": 12,
+    "issue_number": 49,
+    "schema": "prob4d.cut3r-deform360-source-comparison-preflight-request",
+    "schema_version": 1,
+    "source_freeze_path": "protocols/locks/cut3r_deform360_source_freeze_v2.json",
+    "source_group_count": 10,
+    "source_prediction_payloads_opened": False,
+    "source_residuals_or_truth_opened": False,
+    "source_rgb_frames_decoded": False,
+    "target_outcomes_opened": False,
+    "target_payloads_opened": False,
+}
 
-def _module() -> ModuleType:
-    specification = importlib.util.spec_from_file_location(
-        "cut3r_source_comparison_preflight",
-        SCRIPT,
-    )
-    assert specification is not None
-    assert specification.loader is not None
-    module = importlib.util.module_from_spec(specification)
-    specification.loader.exec_module(module)
-    return module
+
+def _request() -> dict[str, object]:
+    request = dict(REQUEST_VALUE)
+    request["preflight_request_id"] = common._record_id(request)
+    return request
+
+
+def _synthetic_contract():
+    provider_revision = "a" * 40
+    checkpoint_sha = "b" * 64
+    prob4d_revision = "c" * 40
+    distribution_sha = "d" * 64
+    cameras = ["cam0", "cam1", "cam2", "cam3"]
+    roles = {
+        "development": [],
+        "calibration": [],
+        "source_evaluation": [],
+    }
+    source_groups = []
+    source_cases = []
+    lock_groups = []
+    for group_index in range(10):
+        group_id = f"group-{group_index:02d}"
+        object_id = f"{group_index:03d}-object"
+        episode_id = group_index + 1
+        if group_index < 4:
+            role = "development"
+        elif group_index < 7:
+            role = "calibration"
+        else:
+            role = "source_evaluation"
+        roles[role].append(group_id)
+        source_groups.append(
+            {
+                "object_id": object_id,
+                "episode_id": episode_id,
+                "stratum": f"stratum-{group_index % 2}",
+                "group_id": group_id,
+                "role": role,
+            }
+        )
+        lock_cases = []
+        for camera_index, camera in enumerate(cameras):
+            case_id = f"{group_id}-{camera}"
+            digest = f"{group_index:02x}{camera_index:02x}".ljust(64, "e")
+            byte_count = 1000 + group_index * 10 + camera_index
+            locator = {
+                "case_id": case_id,
+                "group_id": group_id,
+                "object_id": object_id,
+                "episode_id": episode_id,
+                "camera": camera,
+                "relative_episode_path": f"{object_id}/episode_{episode_id:04d}",
+                "relative_camera_path": (
+                    f"{object_id}/episode_{episode_id:04d}/{camera}"
+                ),
+                "input_video_sha256": digest,
+                "input_video_byte_count": byte_count,
+                "aligned_timestamp_count": 64,
+                "sidecar_sha256": {
+                    "aligned_timestamps.txt": "1" * 64,
+                    "alignment.json": "2" * 64,
+                    "metadata.json": "3" * 64,
+                },
+                "sidecar_byte_count": {
+                    "aligned_timestamps.txt": 10,
+                    "alignment.json": 11,
+                    "metadata.json": 12,
+                },
+            }
+            locator["source_case_id"] = common._record_id(locator)
+            source_cases.append(locator)
+            lock_cases.append(
+                {
+                    "case_id": case_id,
+                    "input_video_sha256": digest,
+                    "input_video_byte_count": byte_count,
+                    "frame_start": 0,
+                    "frame_stop_exclusive": 64,
+                    "evaluation_frame_start": 16,
+                    "evaluation_frame_stop_exclusive": 64,
+                }
+            )
+        lock_groups.append({"group_id": group_id, "cases": lock_cases})
+    spec = {
+        "protocol_name": "synthetic",
+        "provider_revision": provider_revision,
+        "checkpoint_sha256": checkpoint_sha,
+        "prob4d_revision": prob4d_revision,
+        "prob4d_distribution_sha256": distribution_sha,
+        "window_size": 16,
+        "overlap": 8,
+        "confidence_threshold": 0.0,
+        "storage_dtype": "float32",
+        "random_seeds": [0],
+        "groups": lock_groups,
+        "group_roles": roles,
+        "include_revisit_diagnostic": False,
+    }
+    lock = {
+        "lock_id": "f" * 64,
+        "provider": {
+            "repository": "CUT3R/CUT3R",
+            "revision": provider_revision,
+            "checkpoint_sha256": checkpoint_sha,
+        },
+        "prob4d": {
+            "project_id": "prob4d",
+            "revision": prob4d_revision,
+            "distribution_sha256": distribution_sha,
+        },
+        "groups": lock_groups,
+        "group_roles": roles,
+    }
+    freeze = {
+        "schema": "prob4d.cut3r-deform360-source-freeze",
+        "schema_version": 1,
+        "decision": "source-support-freeze-ready",
+        "source_group_count": 10,
+        "source_groups": source_groups,
+        "forbidden_target_group_count": 12,
+        "forbidden_target_groups": [
+            {
+                "object_id": f"target-{index:02d}",
+                "episode_id": 100 + index,
+                "stratum": "target",
+            }
+            for index in range(12)
+        ],
+        "provider": {
+            "repository": "CUT3R/CUT3R",
+            "revision": provider_revision,
+            "checkpoint_filename": "model.pth",
+            "checkpoint_sha256": checkpoint_sha,
+            "checkpoint_byte_count": 1234,
+        },
+        "prob4d": {
+            "revision": prob4d_revision,
+            "distribution_sha256": distribution_sha,
+        },
+        "comparison_spec_sha256": common._record_id(spec),
+        "camera_panel": {
+            "selected_cameras": cameras,
+        },
+        "source_cases": source_cases,
+    }
+    freeze["source_freeze_id"] = common._record_id(freeze)
+    return _request(), spec, lock, freeze
+
+
+def test_checked_in_request_matches_canonical_request() -> None:
+    checked_in = json.loads(REQUEST.read_text(encoding="utf-8"))
+
+    assert checked_in == _request()
+    assert runtime._file_sha256 is common._file_sha256
 
 
 def test_checked_in_request_preserves_outcome_blind_boundary() -> None:
-    request = json.loads(REQUEST.read_text(encoding="utf-8"))
+    request = _request()
 
     assert request["source_group_count"] == 10
     assert request["forbidden_target_group_count"] == 12
@@ -44,85 +218,120 @@ def test_checked_in_request_preserves_outcome_blind_boundary() -> None:
     assert request["comparison_execution_authorized"] is False
 
 
-def test_checked_in_request_id_is_canonical_and_content_addressed() -> None:
-    request = json.loads(REQUEST.read_text(encoding="utf-8"))
+def test_request_id_is_canonical_and_content_addressed() -> None:
+    request = _request()
     recorded = request.pop("preflight_request_id")
-    encoded = json.dumps(
-        request,
-        sort_keys=True,
-        separators=(",", ":"),
-        allow_nan=False,
-    ).encode("utf-8")
 
-    assert recorded == hashlib.sha256(encoded).hexdigest()
+    assert recorded == hashlib.sha256(common._canonical_json_bytes(request)).hexdigest()
 
 
-def test_video_descriptor_collection_preserves_context_and_deduplicates() -> None:
-    module = _module()
-    digest = "a" * 64
-    value = {
-        "groups": [
-            {
-                "group_id": "group-a",
-                "role": "source-evaluation",
-                "cases": [
-                    {
-                        "case_id": "case-a",
-                        "view_id": "camera-0",
-                        "video": {
-                            "path": "group-a/camera-0/undistorted.mp4",
-                            "sha256": digest,
-                            "byte_count": 123,
-                        },
-                    }
-                ],
-            }
-        ]
-    }
+def test_validate_request_recomputes_identity(tmp_path: Path) -> None:
+    repository = tmp_path / "repo"
+    for relative in (
+        REQUEST_VALUE["source_freeze_path"],
+        REQUEST_VALUE["comparison_spec_path"],
+        REQUEST_VALUE["comparison_lock_path"],
+    ):
+        path = repository / str(relative)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("{}\n", encoding="utf-8")
+    request = _request()
+    request["claim_boundary"] = str(request["claim_boundary"]) + " changed"
+    request_path = tmp_path / "request.json"
+    request_path.write_text(json.dumps(request), encoding="utf-8")
 
-    records = module._collect_video_descriptors(value)
-
-    assert records == [
-        {
-            "group_id": "group-a",
-            "role": "source-evaluation",
-            "case_id": "case-a",
-            "view_id": "camera-0",
-            "relative_video_path": "group-a/camera-0/undistorted.mp4",
-            "video_sha256": digest,
-            "video_byte_count": 123,
-        }
-    ]
+    with pytest.raises(ValueError, match="does not match"):
+        common.validate_request(request_path, repository=repository)
 
 
-def test_video_descriptor_rejects_path_escape() -> None:
-    module = _module()
-    with pytest.raises(ValueError, match="confined relative path"):
-        module._collect_video_descriptors(
-            {
-                "path": "../undistorted.mp4",
-                "sha256": "a" * 64,
-                "byte_count": 1,
-            }
+def test_validate_source_freeze_matches_real_locator_shape() -> None:
+    request, spec, lock, freeze = _synthetic_contract()
+
+    contract = freeze_contract._validate_source_freeze(
+        freeze,
+        request=request,
+        spec=spec,
+        lock=lock,
+    )
+
+    assert contract["provider_revision"] == "a" * 40
+    assert contract["checkpoint_sha256"] == "b" * 64
+    assert len(contract["descriptors"]) == 40
+    first = contract["descriptors"][0]
+    assert first["relative_video_path"].endswith("/cam0/undistorted.mp4")
+    assert first["sidecars"]["alignment.json"]["relative_path"].endswith(
+        "/cam0/alignment.json"
+    )
+
+
+def test_load_comparison_lock_rejects_noncanonical_retained_bytes(
+    tmp_path: Path,
+) -> None:
+    request, spec, lock, freeze = _synthetic_contract()
+    del request, lock, freeze
+    canonical = build_cut3r_comparison_lock(spec)
+    path = tmp_path / "comparison-lock.json"
+    path.write_text(json.dumps(canonical), encoding="utf-8")
+
+    assert freeze_contract._load_comparison_lock(path, spec) == canonical
+
+    canonical["claim_boundary"] = str(canonical["claim_boundary"]) + " changed"
+    path.write_text(json.dumps(canonical), encoding="utf-8")
+    with pytest.raises(ValueError):
+        freeze_contract._load_comparison_lock(path, spec)
+
+
+def test_validate_source_freeze_rejects_provider_drift() -> None:
+    request, spec, lock, freeze = _synthetic_contract()
+    freeze["provider"]["revision"] = "9" * 40
+    freeze.pop("source_freeze_id")
+    freeze["source_freeze_id"] = common._record_id(freeze)
+
+    with pytest.raises(ValueError, match="different provider revisions"):
+        freeze_contract._validate_source_freeze(
+            freeze,
+            request=request,
+            spec=spec,
+            lock=lock,
         )
 
 
-def test_candidate_reference_inventory_does_not_open_content(tmp_path: Path) -> None:
-    module = _module()
-    root = tmp_path / "processed"
-    video = root / "object" / "camera" / "undistorted.mp4"
-    video.parent.mkdir(parents=True)
-    video.write_bytes(b"video")
-    point_map = root / "object" / "point_map.npz"
-    point_map.write_bytes(b"not-opened")
-    unrelated = root / "object" / "notes.bin"
-    unrelated.write_bytes(b"ignored")
+def test_source_case_rejects_noncanonical_camera_path() -> None:
+    request, spec, lock, freeze = _synthetic_contract()
+    del request, spec, lock
+    case = freeze["source_cases"][0]
+    case["relative_camera_path"] = "../target"
+    case.pop("source_case_id")
+    case["source_case_id"] = common._record_id(case)
+    groups = cases._validate_source_groups(freeze["source_groups"], expected_count=10)
 
-    records = module._candidate_reference_files(video, root=root)
+    with pytest.raises(ValueError, match="confined relative path"):
+        cases._collect_source_case_descriptors(
+            freeze,
+            source_groups=groups,
+            expected_case_count=40,
+        )
+
+
+def test_candidate_reference_inventory_is_confined_to_source_episode(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "processed"
+    episode = root / "source" / "episode_0001"
+    camera = episode / "cam0"
+    camera.mkdir(parents=True)
+    (camera / "undistorted.mp4").write_bytes(b"video")
+    source_map = episode / "point_map.npz"
+    source_map.write_bytes(b"not-opened")
+    target = root / "target" / "episode_0002"
+    target.mkdir(parents=True)
+    (target / "truth.npy").write_bytes(b"forbidden")
+
+    records = environment._candidate_reference_files(episode, root=root)
 
     assert records == [
         {
-            "relative_path": "object/point_map.npz",
+            "relative_path": "source/episode_0001/point_map.npz",
             "byte_count": len(b"not-opened"),
             "suffix": ".npz",
             "content_opened": False,
@@ -131,18 +340,27 @@ def test_candidate_reference_inventory_does_not_open_content(tmp_path: Path) -> 
 
 
 def test_file_hash_is_streaming_and_exact(tmp_path: Path) -> None:
-    module = _module()
     path = tmp_path / "video.mp4"
     path.write_bytes(b"abc" * 1000)
 
-    assert module._file_sha256(path) == hashlib.sha256(path.read_bytes()).hexdigest()
+    assert common._file_sha256(path) == hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def test_request_rejects_missing_merged_lock(tmp_path: Path) -> None:
-    module = _module()
-    request = json.loads(REQUEST.read_text(encoding="utf-8"))
     request_path = tmp_path / "request.json"
-    request_path.write_text(json.dumps(request), encoding="utf-8")
+    request_path.write_text(json.dumps(_request()), encoding="utf-8")
 
-    with pytest.raises(ValueError, match="required merged lock is missing"):
-        module.validate_request(request_path, repository=tmp_path)
+    with pytest.raises(ValueError, match="required merged lock"):
+        common.validate_request(request_path, repository=tmp_path)
+
+
+def test_github_remote_normalization_is_exact() -> None:
+    assert (
+        environment._github_repository_from_remote("https://github.com/CUT3R/CUT3R.git")
+        == "CUT3R/CUT3R"
+    )
+    assert (
+        environment._github_repository_from_remote("git@github.com:CUT3R/CUT3R.git")
+        == "CUT3R/CUT3R"
+    )
+    assert environment._github_repository_from_remote("/tmp/local-cut3r") is None
