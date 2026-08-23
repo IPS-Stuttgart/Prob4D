@@ -360,6 +360,47 @@ def _whitener(covariance: FloatArray, floor: float = 1e-10) -> FloatArray:
     return (eigenvectors * (1.0 / np.sqrt(eigenvalues))) @ eigenvectors.T
 
 
+def _full_rank_gauss_newton_covariance(
+    residual_function: Callable[[FloatArray], FloatArray],
+    vector: FloatArray,
+    *,
+    name: str,
+) -> FloatArray:
+    """Return final undamped covariance or fail closed on an unobservable state."""
+
+    jacobian = _numerical_jacobian(residual_function, vector)
+    if not np.all(np.isfinite(jacobian)):
+        raise ValueError(f"{name} Jacobian must be finite")
+    _, singular_values, right_vectors_transpose = np.linalg.svd(
+        jacobian,
+        full_matrices=False,
+    )
+    largest_singular_value = (
+        float(singular_values[0]) if singular_values.size else 0.0
+    )
+    rank_tolerance = (
+        np.finfo(np.float64).eps
+        * max(jacobian.shape)
+        * largest_singular_value
+    )
+    rank = int(np.count_nonzero(singular_values > rank_tolerance))
+    dimension = int(vector.size)
+    if rank != dimension:
+        raise ValueError(
+            f"{name} is rank-deficient ({rank}/{dimension}); "
+            "legacy fixed-lag covariance requires a fully observable active state"
+        )
+    inverse_squared = 1.0 / np.square(singular_values)
+    covariance = (right_vectors_transpose.T * inverse_squared) @ right_vectors_transpose
+    covariance = 0.5 * (covariance + covariance.T)
+    return validated_covariance_psd(
+        covariance,
+        name=f"{name} covariance",
+        shape=(dimension, dimension),
+        readonly=False,
+    )
+
+
 _ComposeWithCovariance = Callable[
     [Sim3, FloatArray, Sim3, FloatArray],
     tuple[Sim3, FloatArray],
@@ -487,7 +528,14 @@ def constraint_cost(
 
 
 class FixedLagGaugeSmoother:
-    """Rolling nonlinear least-squares smoother over recent ``Sim(3)`` gauges."""
+    """Legacy marginal-only fixed-lag smoother over recent ``Sim(3)`` gauges.
+
+    Damping is used only to compute optimization steps. Covariance is recomputed
+    from the undamped Jacobian at the accepted final state and fails closed when
+    that active state is not fully observable. Cross-window covariance blocks are
+    still discarded; claim-bearing joint uncertainty should use the marginalized
+    fixed-lag or joint-gauge posterior paths.
+    """
 
     def __init__(
         self,
@@ -499,6 +547,12 @@ class FixedLagGaugeSmoother:
     ) -> None:
         if lag < 2:
             raise ValueError("fixed-lag smoother requires lag >= 2")
+        if max_iterations < 1:
+            raise ValueError("max_iterations must be positive")
+        if not np.isfinite(damping) or damping < 0.0:
+            raise ValueError("damping must be finite and non-negative")
+        if not np.isfinite(tolerance) or tolerance <= 0.0:
+            raise ValueError("tolerance must be finite and positive")
         self.lag = lag
         self.max_iterations = max_iterations
         self.damping = damping
@@ -596,16 +650,18 @@ class FixedLagGaugeSmoother:
                 return np.concatenate(residual_parts)
 
             vector = initial_vector
-            hessian = np.eye(vector.size)
             for _ in range(self.max_iterations):
                 residual = residual_vector(vector)
                 jacobian = _numerical_jacobian(residual_vector, vector)
-                hessian = jacobian.T @ jacobian + self.damping * np.eye(vector.size)
+                damped_hessian = (
+                    jacobian.T @ jacobian
+                    + self.damping * np.eye(vector.size)
+                )
                 gradient = jacobian.T @ residual
                 try:
-                    increment = -np.linalg.solve(hessian, gradient)
+                    increment = -np.linalg.solve(damped_hessian, gradient)
                 except np.linalg.LinAlgError:
-                    increment = -np.linalg.lstsq(hessian, gradient, rcond=None)[0]
+                    increment = -np.linalg.lstsq(damped_hessian, gradient, rcond=None)[0]
                 if np.linalg.norm(increment) < self.tolerance:
                     break
                 current_cost = float(residual @ residual)
@@ -621,7 +677,11 @@ class FixedLagGaugeSmoother:
                     break
 
             optimized = unpack(vector)
-            joint_covariance = np.linalg.pinv(hessian, rcond=1e-10)
+            joint_covariance = _full_rank_gauss_newton_covariance(
+                residual_vector,
+                vector,
+                name="fixed-lag active gauge posterior",
+            )
             for index, window_id in enumerate(active_ids):
                 state[window_id] = optimized[window_id]
                 block = joint_covariance[7 * index : 7 * (index + 1), 7 * index : 7 * (index + 1)]
