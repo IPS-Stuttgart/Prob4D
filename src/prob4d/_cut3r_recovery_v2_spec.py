@@ -7,8 +7,8 @@ from pathlib import Path
 from typing import Any, Final, cast
 
 from .cut3r_recurrent_state_recovery import (
-    _finite_float,
     CUT3R_RECURRENT_STATE_RECOVERY_METRICS,
+    _finite_float,
 )
 from .cut3r_source_competence import (
     _canonical_json,
@@ -18,7 +18,6 @@ from .cut3r_source_competence import (
     _strict_json,
     _strict_mapping,
 )
-
 
 CUT3R_RECURRENT_STATE_RECOVERY_V2_SCHEMA: Final = (
     "prob4d.cut3r-recurrent-state-recovery-v2"
