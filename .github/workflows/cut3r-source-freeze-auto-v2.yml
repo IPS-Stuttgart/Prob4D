@@ -86,7 +86,7 @@ jobs:
             scripts/ci/cut3r_execution_preflight.py \
             scripts/science/run_cut3r_source_freeze_execution.py \
             tests/test_cut3r_execution_preflight.py \
-            tests/test_cut3r_source_freeze_execution_driver.py \
+            tests/test_source_freeze_execution_driver.py \
             tests/test_trusted_self_hosted_validation_policy.py
           python -m pytest -q \
             tests/test_cut3r_execution_preflight.py \
@@ -367,7 +367,7 @@ jobs:
     needs: [contract, authorize, preflight, announce]
     permissions:
       contents: read
-    runs-on: [self-hosted, Linux, X64, nvidia-smi, data-prob4d-deform360-source-v1, prob4d-cut3r]
+    runs-on: [self-hosted, host-workstation2]
     timeout-minutes: 180
     outputs:
       artifact_name: ${{ steps.freeze.outputs.artifact_name }}
@@ -376,6 +376,15 @@ jobs:
       freeze_artifact_id: ${{ steps.freeze.outputs.freeze_artifact_id }}
       request_id: ${{ steps.freeze.outputs.request_id }}
     steps:
+      - name: Bind the sole retained Deform360 runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_NAME" = "workstation2"
+          test "$RUNNER_OS" = "Linux"
+          test "$RUNNER_ARCH" = "X64"
+          command -v nvidia-smi >/dev/null 2>&1
+
       - name: Initialize isolated read-only execution workspace
         id: workspace
         shell: bash
