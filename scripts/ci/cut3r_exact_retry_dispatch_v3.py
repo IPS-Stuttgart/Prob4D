@@ -262,8 +262,7 @@ def validate_zero_execution_timeout_retry(
         row
         for row in watchdog_steps
         if isinstance(row, dict)
-        and row.get("name")
-        == "Cancel a run that no matching runner accepts within twenty minutes"
+        and row.get("name") == "Cancel a run that no matching runner accepts within twenty minutes"
     ]
     if len(timeout_steps) != 1:
         _fail("timed-out retry watchdog timeout step mismatch")
