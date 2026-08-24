@@ -31,14 +31,20 @@ The GitHub-hosted job:
 5. lists target-workflow `workflow_dispatch` runs created after the original
    dispatch-control merge;
 6. resolves and publishes any existing retry rather than dispatching a duplicate;
-7. otherwise verifies that historical run `32621813949` is terminal,
-   unsuccessful at the retained-data job, and artifact-free;
+7. otherwise verifies that historical run `32621813949` is terminal and
+   unsuccessful at the retained-data job, then admits only the reviewed
+   failure-evidence artifact `9532584642` with its exact name, byte size,
+   historical run, branch, and revision binding;
 8. dispatches the exact historical revision and request ID once; and
 9. polls the Actions API until it can publish the concrete target run ID.
 
 The concurrency group serializes exact command events. A repeated command
 therefore resolves the already-created retry rather than creating another
 scientific execution.
+
+The admitted artifact contains only request verification, execution-environment,
+and host records from the configuration failure on `workstation1`. Any additional,
+renamed, resized, expired, or differently bound artifact keeps the retry closed.
 
 ## Scientific boundary
 
