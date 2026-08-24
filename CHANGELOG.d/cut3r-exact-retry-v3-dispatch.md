@@ -1,0 +1,1 @@
+- Add a v3 exact CUT3R retry dispatcher that admits only the registered 3,106-byte failure-diagnostic artifact from the historical zero-result run. It binds the artifact ID, digest, size, run, retained-data job, and step outcomes; rejects any additional or changed artifact; prevents duplicate target dispatches; and leaves every scientific input and outcome boundary unchanged.
