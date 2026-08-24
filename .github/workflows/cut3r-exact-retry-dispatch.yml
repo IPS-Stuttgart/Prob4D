@@ -44,6 +44,7 @@ jobs:
           ref: >-
             ${{ github.event_name == 'pull_request' &&
                 github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
           persist-credentials: false
           clean: true
 
