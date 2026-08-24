@@ -1,0 +1,27 @@
+{
+  "claim_boundary": "This operational request cancels only the stale zero-evidence workflow run and dispatches the already registered exact historical retry from current main. It changes no scientific input and does not authorize CUT3R inference, source residual or truth access, confirmation or target access, BayesianPhysTwin use, Causal4D use, deployment, or a scientific benefit claim.",
+  "historical_execution_sha": "8b923e8cd67ca65f09312cffe305e36852f36fbb",
+  "issue_number": 49,
+  "required_runner_labels": [
+    "self-hosted",
+    "Linux",
+    "X64",
+    "nvidia-smi",
+    "data-prob4d-deform360-source-v1",
+    "prob4d-cut3r"
+  ],
+  "repository": "IPS-Stuttgart/Prob4D",
+  "retained_request_id": "8f3c9fba12f8a16895edce89d7a92e4806a43cb2f34b5a05faff71945809b63e",
+  "retained_request_path": "protocols/execution_requests/cut3r_deform360_source_freeze_v2.json",
+  "schema": "prob4d.cut3r-source-freeze-exact-retry-dispatch-request",
+  "schema_version": 1,
+  "scientific_inputs_changed": false,
+  "source_outcomes_opened": false,
+  "superseded_execute_job_name": "Freeze retained source inputs from trusted merged main",
+  "superseded_run_expected_event": "push",
+  "superseded_run_expected_head_sha": "8b923e8cd67ca65f09312cffe305e36852f36fbb",
+  "superseded_workflow_run_id": 32621813949,
+  "target_outcomes_opened": false,
+  "target_ref": "main",
+  "target_workflow": "cut3r-source-freeze-auto-v2.yml"
+}
