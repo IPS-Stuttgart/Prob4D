@@ -1,0 +1,149 @@
+name: Authorize exact CUT3R retry v3 from issue 49
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/cut3r-exact-retry-v3-comment-dispatch.yml"
+      - "CHANGELOG.d/cut3r-exact-retry-v3-dispatch.md"
+      - "docs/cut3r-exact-retry-v3-dispatch.md"
+      - "scripts/ci/cut3r_exact_retry_dispatch_v3.py"
+      - "tests/test_cut3r_exact_retry_dispatch_v3.py"
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cut3r-exact-retry-v3-comment-dispatch
+  cancel-in-progress: false
+
+env:
+  DISPATCH_COMMAND: /prob4d-dispatch-cut3r-source-freeze-v3 8b923e8cd67ca65f09312cffe305e36852f36fbb 8f3c9fba12f8a16895edce89d7a92e4806a43cb2f34b5a05faff71945809b63e
+  RETAINED_REQUEST_PATH: protocols/execution_requests/cut3r_deform360_source_freeze_v2.json
+  TARGET_WORKFLOW: cut3r-source-freeze-auto-v2.yml
+  HISTORICAL_EXECUTION_SHA: 8b923e8cd67ca65f09312cffe305e36852f36fbb
+  RETAINED_REQUEST_ID: 8f3c9fba12f8a16895edce89d7a92e4806a43cb2f34b5a05faff71945809b63e
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+
+jobs:
+  contract:
+    name: Exact retry-v3 contract
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out exact reviewed revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Validate v3 dispatch policy and historical authorization
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -e ".[dev]"
+          python -m pip check
+          python -m ruff check \
+            scripts/ci/cut3r_exact_retry_dispatch_v3.py \
+            tests/test_cut3r_exact_retry_dispatch_v3.py
+          python -m ruff format --check \
+            scripts/ci/cut3r_exact_retry_dispatch_v3.py \
+            tests/test_cut3r_exact_retry_dispatch_v3.py
+          python -m pytest -q \
+            tests/test_cut3r_exact_retry_dispatch_v3.py \
+            tests/test_github_action_pins.py \
+            tests/test_trusted_self_hosted_validation_policy.py
+          python scripts/ci/cut3r_execution_preflight.py authorize-retry \
+            --repository . \
+            --request "$RETAINED_REQUEST_PATH" \
+            --current-revision "$(git rev-parse HEAD)" \
+            --execution-revision "$HISTORICAL_EXECUTION_SHA" \
+            --expected-request-id "$RETAINED_REQUEST_ID" \
+            > "$RUNNER_TEMP/cut3r-retry-v3-contract.json"
+
+  comment-dispatch:
+    name: Resolve or dispatch exact retained retry v3
+    if: >-
+      github.event_name == 'issue_comment' &&
+      github.event.issue.number == 49 &&
+      github.actor == 'FlorianPfaff' &&
+      github.event.comment.user.login == 'FlorianPfaff' &&
+      github.event.comment.body == '/prob4d-dispatch-cut3r-source-freeze-v3 8b923e8cd67ca65f09312cffe305e36852f36fbb 8f3c9fba12f8a16895edce89d7a92e4806a43cb2f34b5a05faff71945809b63e'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      actions: write
+      contents: read
+      issues: write
+    steps:
+      - name: Check out the exact default-branch event revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Reauthorize exact historical request and routed workflow
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+          EVENT_COMMENT_BODY: ${{ github.event.comment.body }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test "$EVENT_COMMENT_BODY" = "$DISPATCH_COMMAND"
+          grep -F \
+            "runs-on: [self-hosted, Linux, X64, nvidia-smi, data-prob4d-deform360-source-v1, prob4d-cut3r]" \
+            ".github/workflows/$TARGET_WORKFLOW" >/dev/null
+          python scripts/ci/cut3r_execution_preflight.py authorize-retry \
+            --repository . \
+            --request "$RETAINED_REQUEST_PATH" \
+            --current-revision "$EXPECTED_SHA" \
+            --execution-revision "$HISTORICAL_EXECUTION_SHA" \
+            --expected-request-id "$RETAINED_REQUEST_ID" \
+            > "$RUNNER_TEMP/cut3r-retry-v3-authorization.json"
+
+      - name: Publish accepted exact-command receipt
+        shell: bash
+        env:
+          API_URL: ${{ github.api_url }}
+          REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+          COMMAND_COMMENT_URL: ${{ github.event.comment.html_url }}
+          HELPER_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          python scripts/ci/cut3r_exact_retry_dispatch_v3.py accepted
+
+      - name: Resolve existing retry or dispatch exact v3 request
+        shell: bash
+        env:
+          API_URL: ${{ github.api_url }}
+          REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+          COMMAND_COMMENT_URL: ${{ github.event.comment.html_url }}
+          HELPER_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          python scripts/ci/cut3r_exact_retry_dispatch_v3.py dispatch
