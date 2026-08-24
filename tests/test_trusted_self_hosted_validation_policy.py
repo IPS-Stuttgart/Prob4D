@@ -20,10 +20,7 @@ REMOVED_TEMPORARY_WORKFLOWS = (
 
 
 def _workflow_files() -> tuple[Path, ...]:
-    return tuple(
-        sorted(WORKFLOW_ROOT.glob("*.yml"))
-        + sorted(WORKFLOW_ROOT.glob("*.yaml"))
-    )
+    return tuple(sorted(WORKFLOW_ROOT.glob("*.yml")) + sorted(WORKFLOW_ROOT.glob("*.yaml")))
 
 
 def _uses_self_hosted_runner(text: str) -> bool:
@@ -39,9 +36,7 @@ def _uses_self_hosted_runner(text: str) -> bool:
             continuation_stripped = continuation.lstrip()
             if not continuation_stripped:
                 continue
-            continuation_indentation = len(continuation) - len(
-                continuation_stripped
-            )
+            continuation_indentation = len(continuation) - len(continuation_stripped)
             if continuation_indentation <= indentation:
                 break
             if "self-hosted" in continuation:
@@ -121,9 +116,7 @@ def test_source_freeze_execution_is_merged_main_bound_and_target_closed() -> Non
 
     assert "\n  push:" in text
     assert "branches: [main]" in text
-    assert (
-        "protocols/execution_requests/cut3r_deform360_source_freeze_v1.json"
-    ) in text
+    assert ("protocols/execution_requests/cut3r_deform360_source_freeze_v1.json") in text
     assert "pull_request_target:" not in text
     assert "github.event_name == 'push'" in text
     assert 'test "$EVENT_REF" = "refs/heads/main"' in text
@@ -174,14 +167,14 @@ def test_auto_v2_source_freeze_supports_exact_retry_and_bounded_queue() -> None:
     assert 'test "$EVENT_FORCED" = "false"' in text
     assert 'test "$EVENT_DELETED" = "false"' in text
     assert "authorize-retry" in text
-    assert "--execution-revision \"$EXECUTION_SHA\"" in text
-    assert "--expected-request-id \"$EXPECTED_REQUEST_ID\"" in text
+    assert '--execution-revision "$EXECUTION_SHA"' in text
+    assert '--expected-request-id "$EXPECTED_REQUEST_ID"' in text
     assert "ref: ${{ needs.authorize.outputs.head_sha }}" in text
     assert "runs-on: [self-hosted, Linux, X64, nvidia-smi]" in text
     assert "check-variables" in text
     assert "missing repository-variable names" in text
     assert "Bound self-hosted runner acceptance wait" in text
-    assert "RUNNER_ACCEPTANCE_TIMEOUT_SECONDS: \"1200\"" in text
+    assert 'RUNNER_ACCEPTANCE_TIMEOUT_SECONDS: "1200"' in text
     assert "/actions/runs/{run_id}/jobs" in text
     assert "/actions/runs/{run_id}/cancel" in text
     assert "actions: write" in text
