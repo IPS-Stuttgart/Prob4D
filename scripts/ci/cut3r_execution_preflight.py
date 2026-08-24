@@ -24,9 +24,7 @@ PROFILE: Final = "cut3r-deform360-source-freeze"
 AUTHORIZATION_MODE: Final = "merged-main-read-only-self-hosted-v1"
 READINESS_SCHEMA: Final = "prob4d.cut3r-source-freeze-variable-readiness"
 READINESS_VERSION: Final = 1
-REQUEST_PATH: Final = (
-    "protocols/execution_requests/cut3r_deform360_source_freeze_v2.json"
-)
+REQUEST_PATH: Final = "protocols/execution_requests/cut3r_deform360_source_freeze_v2.json"
 DRIVER_PATH: Final = "scripts/science/run_cut3r_source_freeze_execution.py"
 EXPECTED_REQUEST_FIELDS: Final = frozenset(
     {
@@ -86,17 +84,13 @@ def _content_id(value: object) -> str:
 
 def _lower_hex(value: object, *, name: str, length: int) -> str:
     if type(value) is not str or re.fullmatch(rf"[0-9a-f]{{{length}}}", value) is None:
-        raise ValueError(
-            f"{name} must be an exact lowercase {length}-character hexadecimal value"
-        )
+        raise ValueError(f"{name} must be an exact lowercase {length}-character hexadecimal value")
     return value
 
 
 def _variable_name(value: object) -> str:
     if type(value) is not str or re.fullmatch(r"[A-Z][A-Z0-9_]*", value) is None:
-        raise ValueError(
-            "required variable names must match [A-Z][A-Z0-9_]* exactly"
-        )
+        raise ValueError("required variable names must match [A-Z][A-Z0-9_]* exactly")
     return value
 
 
@@ -158,8 +152,7 @@ def _validate_request_identity(request: Mapping[str, Any]) -> str:
         missing = sorted(EXPECTED_REQUEST_FIELDS - set(request))
         extra = sorted(set(request) - EXPECTED_REQUEST_FIELDS)
         raise ValueError(
-            "source-freeze execution request fields changed; "
-            f"missing={missing}, extra={extra}"
+            f"source-freeze execution request fields changed; missing={missing}, extra={extra}"
         )
     if request.get("schema") != REQUEST_SCHEMA:
         raise ValueError("unexpected source-freeze execution-request schema")
@@ -170,9 +163,7 @@ def _validate_request_identity(request: Mapping[str, Any]) -> str:
     if request.get("authorization_mode") != AUTHORIZATION_MODE:
         raise ValueError("source-freeze authorization mode changed")
     if any(request.get(name) is not False for name in FALSE_BOUNDARY_FIELDS):
-        raise ValueError(
-            "source-freeze execution request exceeds its target-closed boundary"
-        )
+        raise ValueError("source-freeze execution request exceeds its target-closed boundary")
     request_id = _lower_hex(request.get("request_id"), name="request_id", length=64)
     identity = dict(request)
     identity.pop("request_id", None)
