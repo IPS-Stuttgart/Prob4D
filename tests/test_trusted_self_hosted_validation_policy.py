@@ -202,6 +202,8 @@ def test_auto_v2_source_freeze_supports_exact_retry_and_bounded_queue() -> None:
     assert "secrets." not in execute
     assert "repository_write_token_on_self_hosted=false" in execute
     assert "environment_approval_required=false" in execute
+    assert '/usr/bin/python3 - "$root/evidence"' in execute
+    assert 'python - "$root/evidence"' not in execute
     assert "git push" not in execute
 
     assert "runs-on: ubuntu-latest" in watchdog
