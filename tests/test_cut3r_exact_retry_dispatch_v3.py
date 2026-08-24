@@ -229,10 +229,11 @@ def test_workflow_reauthorizes_and_uses_routed_target() -> None:
     assert "authorize-retry" in text
     assert '--execution-revision "$HISTORICAL_EXECUTION_SHA"' in text
     assert '--expected-request-id "$RETAINED_REQUEST_ID"' in text
-    assert (
-        "runs-on: [self-hosted, Linux, X64, nvidia-smi, "
-        "data-prob4d-deform360-source-v1, prob4d-cut3r]"
-    ) in text
+    assert "runs-on: [self-hosted, host-workstation2]" in text
+    assert 'test "$RUNNER_NAME" = "workstation2"' in text
+    assert 'test "$RUNNER_OS" = "Linux"' in text
+    assert 'test "$RUNNER_ARCH" = "X64"' in text
+    assert "command -v nvidia-smi >/dev/null 2>&1" in text
     assert "cut3r_exact_retry_dispatch_v3.py accepted" in text
     assert "cut3r_exact_retry_dispatch_v3.py dispatch" in text
     assert "actions: write" in text
