@@ -28,9 +28,6 @@ env:
   HISTORICAL_EXECUTION_SHA: 8b923e8cd67ca65f09312cffe305e36852f36fbb
   RETAINED_REQUEST_ID: 8f3c9fba12f8a16895edce89d7a92e4806a43cb2f34b5a05faff71945809b63e
   SUPERSEDED_RUN_ID: "32621813949"
-  SUPERSEDED_FAILURE_ARTIFACT_ID: "9532584642"
-  SUPERSEDED_FAILURE_ARTIFACT_NAME: cut3r-source-freeze-v2-failed-32621813949-2
-  SUPERSEDED_FAILURE_ARTIFACT_SIZE: "3106"
   PYTHONHASHSEED: "0"
   PYTHONUNBUFFERED: "1"
   PYTHONDONTWRITEBYTECODE: "1"
@@ -296,43 +293,10 @@ jobs:
               "GET",
               f"/repos/{repository}/actions/runs/{stale_run_id}/artifacts?per_page=100",
           )
-          artifact_rows = (
-              artifacts.get("artifacts") if isinstance(artifacts, dict) else None
-          )
-          if (
-              not isinstance(artifact_rows, list)
-              or artifacts.get("total_count") != 1
-              or len(artifact_rows) != 1
-              or not isinstance(artifact_rows[0], dict)
-          ):
+          artifact_count = artifacts.get("total_count") if isinstance(artifacts, dict) else None
+          if artifact_count != 0:
               raise SystemExit(
-                  "superseded run artifact set is not the exact reviewed failure evidence"
-              )
-          artifact = artifact_rows[0]
-          expected_artifact = {
-              "id": int(os.environ["SUPERSEDED_FAILURE_ARTIFACT_ID"]),
-              "name": os.environ["SUPERSEDED_FAILURE_ARTIFACT_NAME"],
-              "size_in_bytes": int(os.environ["SUPERSEDED_FAILURE_ARTIFACT_SIZE"]),
-              "expired": False,
-          }
-          for field, expected in expected_artifact.items():
-              if artifact.get(field) != expected:
-                  raise SystemExit(
-                      "superseded run failure-evidence artifact "
-                      f"{field} mismatch: {artifact.get(field)!r} != {expected!r}"
-                  )
-          artifact_run = artifact.get("workflow_run")
-          if not isinstance(artifact_run, dict) or {
-              "id": artifact_run.get("id"),
-              "head_branch": artifact_run.get("head_branch"),
-              "head_sha": artifact_run.get("head_sha"),
-          } != {
-              "id": stale_run_id,
-              "head_branch": "main",
-              "head_sha": expected_head,
-          }:
-              raise SystemExit(
-                  "superseded failure-evidence artifact run binding mismatch"
+                  "superseded run has retained artifacts; refusing to classify it as zero-evidence"
               )
 
           status = run.get("status")
@@ -354,7 +318,7 @@ jobs:
 
           if status != "completed" or conclusion not in {"cancelled", "failure"}:
               raise SystemExit(
-                  f"superseded run terminal state is not retryable: {status}/{conclusion}"
+                  f"superseded run terminal state is not zero-evidence: {status}/{conclusion}"
               )
 
           request_json(
