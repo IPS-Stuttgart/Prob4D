@@ -1,0 +1,1 @@
+Generate the README provider-evidence table from a strict machine-readable snapshot pinned to a reviewed repository-local status contract. CI now rejects stale source identity, duplicate JSON keys, and README drift without changing any provider, protocol, data-access boundary, or scientific result.

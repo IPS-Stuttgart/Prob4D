@@ -10,17 +10,25 @@ resulting BayesianPhysTwin belief rather than raw Prob4D artifacts.
 
 ## Provider evidence status
 
-Snapshot: **2026-08-18**. Adapter maturity and scientific evidence are separate.
-The authoritative claim and data-access status remains in
+<!-- provider-evidence-status:begin -->
+Snapshot: **2026-08-24**. Adapter maturity and scientific evidence are separate.
+The authoritative cross-repository claim and data-access status remains in
 [`FlorianPfaff/BayesianPhysTwin-Paper`](https://github.com/FlorianPfaff/BayesianPhysTwin-Paper).
 
 | Provider route | Implementation state | Current evidence boundary |
 | --- | --- | --- |
 | Controlled synthetic provider | Stable mechanism study | Positive controlled evidence only; not real-provider competence |
-| MotionCrafter | Mature producer and causal-window path | Frozen retrospective real transfer negative; not a promotion candidate on the opened cohort |
+| MotionCrafter | Mature producer and causal-window path | Frozen retrospective real-transfer negative; the opened cohort is not a promotion candidate |
 | Deform360 official-Hub route | Executed under a sealed support protocol | Terminal source-support negative; confirmation remains closed |
-| CUT3R recurrent-online | Causal adapter ready | Source mean, identity, and uncertainty competence not yet evaluated |
+| CUT3R recurrent-online | Causal adapter, direct-point-map route, and frozen comparison ready | Source mean, identity, gauge/dependence, covariance, and query relevance are not yet established |
 | VGGT | Baseline/export adapter ready | Diagnostic baseline only |
+
+This table is generated from
+[`evidence/provider_status_snapshot_v1.json`](evidence/provider_status_snapshot_v1.json),
+which pins the repository provider-status contract by Git blob identity.
+Regenerate it with `python scripts/render_provider_status.py --write`; CI
+checks that the contract, snapshot, and README stay synchronized.
+<!-- provider-evidence-status:end -->
 
 A production-quality artifact path is not evidence of production-quality
 perception. Every real provider must still pass support, mean, identity,
