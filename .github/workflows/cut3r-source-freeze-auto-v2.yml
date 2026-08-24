@@ -538,7 +538,7 @@ jobs:
             command -v free >/dev/null 2>&1 && free -b || true
             command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi || true
           } > "$root/evidence/host.txt" 2>&1
-          python - "$root/evidence" <<'PY'
+          /usr/bin/python3 - "$root/evidence" <<'PY'
           from __future__ import annotations
 
           import hashlib
