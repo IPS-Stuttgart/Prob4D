@@ -12,9 +12,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "ci" / "cut3r_execution_preflight.py"
-REQUEST_RELATIVE = Path(
-    "protocols/execution_requests/cut3r_deform360_source_freeze_v2.json"
-)
+REQUEST_RELATIVE = Path("protocols/execution_requests/cut3r_deform360_source_freeze_v2.json")
 PROTOCOL_RELATIVE = Path("protocols/cut3r_deform360_source_v1.json")
 DRIVER_RELATIVE = Path("scripts/science/run_cut3r_source_freeze_execution.py")
 
