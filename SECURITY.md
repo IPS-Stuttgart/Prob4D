@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Security and integrity fixes are applied to the current `0.3.x` development line.
+Security and integrity fixes are applied to the current `0.5.x` development line.
 Frozen historical revisions remain reproducible but may not receive backports.
 
 ## Legacy PhysTwin dataset boundary
@@ -15,12 +15,19 @@ minimal NumPy array-reconstruction globals. Arbitrary Python globals fail
 closed. Portable Prob4D prediction, calibration, observation, and evidence
 artifacts never use pickle.
 
-The restriction prevents ordinary pickle code execution through those two
-adapter paths; it is not a general sandbox against malformed or
-resource-exhausting files. Use only locally verified official dataset files and
-retain their hashes in claim-bearing run provenance. Other explicitly diagnostic
-legacy import paths remain trusted-input boundaries unless their own contract
-states otherwise.
+The restriction prevents ordinary pickle code execution through those adapter
+paths; it is not a general sandbox against malformed or resource-exhausting
+files. The legacy PhysTwin experiment and state diagnostics use the same
+restricted loader. Use only locally verified official dataset files and retain
+their hashes in claim-bearing run provenance.
+
+A fail-closed source policy rejects new direct `pickle.load`, `pickle.loads`, and
+NumPy `allow_pickle=True` calls. The sole retained exception is the exact
+historical CUT3R Deform360 source-freeze-v1 builder. That builder is bound to a
+frozen source-only protocol and revision and must not be copied into a new
+claim-bearing path. A future execution that changes this boundary requires a
+separately versioned protocol and safe non-object NPZ/JSON conversion before
+claim-bearing execution; it may not silently reinterpret the frozen request.
 
 ## Self-hosted workflow boundary
 

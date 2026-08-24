@@ -51,11 +51,33 @@ def test_cross_stack_paths_trigger_pull_request_and_push_runs() -> None:
     pull_request, remainder = text.split("  push:\n", maxsplit=1)
     push, _ = remainder.split("  workflow_dispatch:\n", maxsplit=1)
 
-    for path_filter in (
-        '      - ".github/workflows/cross-stack-metamorphic.yml"',
-        '      - "integration_tests/test_three_repository_metamorphic_v1.py"',
-        '      - "tests/test_cross_stack_metamorphic_workflow.py"',
+    for path in (
+        ".github/workflows/cross-stack-metamorphic.yml",
+        "CHANGELOG.d/cross-stack-*.md",
+        "docs/cross-stack-*.md",
+        "integration_tests/test_three_repository_metamorphic_v1.py",
+        "pyproject.toml",
+        "src/prob4d/__init__.py",
+        "src/prob4d/_build_identity.py",
+        "src/prob4d/_gauge*.py",
+        "src/prob4d/_observation_*.py",
+        "src/prob4d/_provider_*.py",
+        "src/prob4d/api/**",
+        "src/prob4d/contract_data/**",
+        "src/prob4d/gauge*.py",
+        "src/prob4d/observation_*.py",
+        "src/prob4d/project_identity.py",
+        "src/prob4d/provider_attestation.py",
+        "src/prob4d/provider_v2*.py",
+        "src/prob4d/public_api_manifest.py",
+        "src/prob4d/query_*.py",
+        "src/prob4d/runtime_revision.py",
+        "src/prob4d/sim3.py",
+        "src/prob4d/sparse_observation_factors.py",
+        "src/prob4d/tree_sparse_observation_*.py",
+        "tests/test_cross_stack_metamorphic_workflow.py",
     ):
+        path_filter = f'      - "{path}"'
         assert path_filter in pull_request
         assert path_filter in push
         assert text.count(path_filter) == 2

@@ -1,0 +1,132 @@
+name: Cross-stack moving-head drift diagnostic
+
+on:
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cross-stack-drift-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUNBUFFERED: "1"
+  PROB4D_REQUIRE_CROSS_STACK_METAMORPHIC: "1"
+
+jobs:
+  installed-wheel-drift:
+    name: Installed-wheel moving-head drift diagnostic
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Initialize retained diagnostic files
+        shell: bash
+        run: |
+          set -euo pipefail
+          : > cross-stack-drift.log
+          : > cross-stack-drift.xml
+          : > wheel-sha256.txt
+
+      - name: Check out current Prob4D main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          path: prob4d
+          persist-credentials: false
+          clean: true
+
+      - name: Check out current BayesianPhysTwin main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: IPS-Stuttgart/BayesianPhysTwin
+          ref: main
+          path: bayesian-phystwin
+          persist-credentials: false
+          clean: true
+
+      - name: Check out current Causal4D main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: IPS-Stuttgart/Causal4D
+          ref: main
+          path: causal4d
+          persist-credentials: false
+          clean: true
+
+      - name: Record exact resolved revisions
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            printf 'Prob4D %s\n' "$(git -C prob4d rev-parse HEAD)"
+            printf 'BayesianPhysTwin %s\n' "$(git -C bayesian-phystwin rev-parse HEAD)"
+            printf 'Causal4D %s\n' "$(git -C causal4d rev-parse HEAD)"
+          } | tee resolved-revisions.txt
+          test "$(wc -l < resolved-revisions.txt)" -eq 3
+          test -z "$(git -C prob4d status --porcelain=v1 --untracked-files=all)"
+          test -z "$(git -C bayesian-phystwin status --porcelain=v1 --untracked-files=all)"
+          test -z "$(git -C causal4d status --porcelain=v1 --untracked-files=all)"
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            prob4d/pyproject.toml
+            bayesian-phystwin/pyproject.toml
+            causal4d/pyproject.toml
+
+      - name: Build and install exactly three wheels
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install build
+          mkdir -p "${RUNNER_TEMP}/wheelhouse"
+          python -m build --wheel --outdir "${RUNNER_TEMP}/wheelhouse" prob4d
+          python -m build --wheel --outdir "${RUNNER_TEMP}/wheelhouse" bayesian-phystwin
+          python -m build --wheel --outdir "${RUNNER_TEMP}/wheelhouse" causal4d
+          test "$(find "${RUNNER_TEMP}/wheelhouse" -maxdepth 1 -name '*.whl' | wc -l)" -eq 3
+          sha256sum "${RUNNER_TEMP}"/wheelhouse/*.whl | tee wheel-sha256.txt
+
+          python -m venv "${RUNNER_TEMP}/cross-stack-drift"
+          python_bin="${RUNNER_TEMP}/cross-stack-drift/bin/python"
+          "${python_bin}" -m pip install --upgrade pip
+          "${python_bin}" -m pip install pytest "${RUNNER_TEMP}"/wheelhouse/*.whl
+          "${python_bin}" -m pip check
+
+      - name: Run the isolated installed-wheel metamorphic suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_root="${RUNNER_TEMP}/cross-stack-drift-run"
+          mkdir -p "${run_root}"
+          cp \
+            prob4d/integration_tests/test_three_repository_metamorphic_v1.py \
+            "${run_root}/test_three_repository_metamorphic_v1.py"
+          cd "${run_root}"
+          env -u PYTHONPATH \
+            PYTHONNOUSERSITE=1 \
+            PROB4D_REQUIRE_CROSS_STACK_METAMORPHIC=1 \
+            "${RUNNER_TEMP}/cross-stack-drift/bin/python" -I -m pytest \
+            -q \
+            --junitxml="${GITHUB_WORKSPACE}/cross-stack-drift.xml" \
+            test_three_repository_metamorphic_v1.py \
+            2>&1 | tee "${GITHUB_WORKSPACE}/cross-stack-drift.log"
+
+      - name: Upload moving-head drift diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: cross-stack-drift-${{ github.run_id }}
+          path: |
+            cross-stack-drift.log
+            cross-stack-drift.xml
+            resolved-revisions.txt
+            wheel-sha256.txt
+          if-no-files-found: error
+          retention-days: 30
