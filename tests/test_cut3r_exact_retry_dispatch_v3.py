@@ -237,6 +237,33 @@ def test_exact_registered_runner_timeout_is_admitted() -> None:
     assert admitted["id"] == 32764290533
 
 
+def test_registered_timeout_identity_and_job_outcome_drift_are_rejected() -> None:
+    module = _load_module()
+    run = _valid_registered_timeout_run()
+    run["head_sha"] = "drift"
+
+    with pytest.raises(module.DispatchError, match="head_sha mismatch"):
+        module.validate_registered_runner_timeout(
+            run,
+            _valid_registered_timeout_jobs(),
+            _valid_registered_timeout_artifacts(),
+        )
+
+    jobs = _valid_registered_timeout_jobs()
+    rows = jobs["jobs"]
+    assert isinstance(rows, list)
+    authorize_job = rows[0]
+    assert isinstance(authorize_job, dict)
+    authorize_job["conclusion"] = "failure"
+
+    with pytest.raises(module.DispatchError, match="conclusion mismatch"):
+        module.validate_registered_runner_timeout(
+            _valid_registered_timeout_run(),
+            jobs,
+            _valid_registered_timeout_artifacts(),
+        )
+
+
 def test_registered_timeout_with_retained_steps_is_rejected() -> None:
     module = _load_module()
     jobs = _valid_registered_timeout_jobs()
@@ -365,6 +392,7 @@ def test_validation_does_not_mutate_inputs() -> None:
     module.validate_superseded_run(run, jobs, artifacts)
 
     assert (run, jobs, artifacts) == before
+
 
 def test_registered_timeout_validation_does_not_mutate_inputs() -> None:
     module = _load_module()
