@@ -1,0 +1,59 @@
+{
+  "contract": "prob4d.provider-status-snapshot",
+  "contract_version": 1,
+  "snapshot_date": "2026-08-24",
+  "evidence_source": {
+    "path": "docs/provider-status-contract-v1.md",
+    "git_blob_sha1": "be6408cf8dac3123425df0e86210432d74e4603e",
+    "role": "repository-local provider status contract"
+  },
+  "routes": [
+    {
+      "id": "controlled_synthetic",
+      "table_order": 1,
+      "provider_route": "Controlled synthetic provider",
+      "implementation_state": "Stable mechanism study",
+      "evidence_state": "controlled_only",
+      "evidence_boundary": "Positive controlled evidence only; not real-provider competence"
+    },
+    {
+      "id": "motioncrafter",
+      "table_order": 2,
+      "provider_route": "MotionCrafter",
+      "implementation_state": "Mature producer and causal-window path",
+      "evidence_state": "retrospective_negative",
+      "evidence_boundary": "Frozen retrospective real-transfer negative; the opened cohort is not a promotion candidate"
+    },
+    {
+      "id": "deform360_official_hub",
+      "table_order": 3,
+      "provider_route": "Deform360 official-Hub route",
+      "implementation_state": "Executed under a sealed support protocol",
+      "evidence_state": "terminal_support_negative",
+      "evidence_boundary": "Terminal source-support negative; confirmation remains closed"
+    },
+    {
+      "id": "cut3r_recurrent_online",
+      "table_order": 4,
+      "provider_route": "CUT3R recurrent-online",
+      "implementation_state": "Causal adapter, direct-point-map route, and frozen comparison ready",
+      "evidence_state": "not_established",
+      "evidence_boundary": "Source mean, identity, gauge/dependence, covariance, and query relevance are not yet established"
+    },
+    {
+      "id": "vggt",
+      "table_order": 5,
+      "provider_route": "VGGT",
+      "implementation_state": "Baseline/export adapter ready",
+      "evidence_state": "diagnostic_only",
+      "evidence_boundary": "Diagnostic baseline only"
+    }
+  ],
+  "not_authorized": [
+    "real-provider competence",
+    "fresh-object physical benefit",
+    "downstream Causal4D intervention benefit",
+    "deployment safety",
+    "state of the art"
+  ]
+}
