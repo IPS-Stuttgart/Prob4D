@@ -34,6 +34,32 @@ outcome drift fails closed.
 This is narrower than allowing arbitrary failure artifacts. It is an exact
 custody exception for one already inspected diagnostic bundle.
 
+## Exact zero-execution queue-timeout replacement
+
+The first v3 target retry, workflow run `32764290533`, passed its hosted contract,
+exact historical authorization, repository-variable preflight, and queued-run
+receipt, but no retained runner accepted its execution job before the bounded
+20-minute watchdog fired. The workflow ended `cancelled` without a retained
+execution step and produced zero Actions artifacts.
+
+After the reviewed runner-routing repair, the dispatcher may replace this one
+specific retry only after independently re-reading GitHub and verifying:
+
+- run ID `32764290533`, the exact target workflow, `main`, `workflow_dispatch`,
+  registered head revision, terminal `cancelled` state, and no other run identity;
+- the exact seven-job roster and job IDs from the timeout execution;
+- success of authorization, hosted contract, variable preflight, queued receipt,
+  and terminal receipt;
+- cancelled retained-execution job `97550358844` with zero executed steps;
+- watchdog job `97550358906` whose bounded cancellation step completed
+  successfully; and
+- zero Actions artifacts.
+
+Any drift fails closed. After a replacement is created, every newer target retry
+is duplicate-protected regardless of whether it is queued, running, or complete.
+This exception therefore cannot be used to repeat a run that reached retained
+execution or produced scientific evidence.
+
 ## Exact command
 
 After the workflow is merged to `main`, only this exact comment by
@@ -44,9 +70,11 @@ After the workflow is merged to `main`, only this exact comment by
 ```
 
 The GitHub-hosted dispatcher checks out the exact default-branch event revision,
-replays the existing historical retry authorization, verifies the routed
-retained-data/CUT3R runner labels, and resolves any already-created target retry
-before dispatching. Repeated commands cannot create duplicate target executions.
+replays the existing historical retry authorization, verifies the exact
+`host-workstation2` target binding together with the fail-closed
+`workstation2`/Linux/X64/`nvidia-smi` runtime checks, and resolves any
+already-created target retry before dispatching. Repeated commands cannot create
+duplicate target executions.
 
 ## Next operational gate
 
@@ -62,7 +90,7 @@ DEFORM360_PROCESSED_ROOT
 Only their names and readiness state may be published. If any variable remains
 unset, the target workflow stops before queueing the self-hosted job and opens no
 retained input. If all are configured, the exact historical request is queued on
-the routed runner and remains bounded by its runner-acceptance watchdog.
+the exact retained runner and remains bounded by its runner-acceptance watchdog.
 
 ## Scientific boundary
 
