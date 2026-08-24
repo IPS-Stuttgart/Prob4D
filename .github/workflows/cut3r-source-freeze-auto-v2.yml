@@ -86,7 +86,7 @@ jobs:
             scripts/ci/cut3r_execution_preflight.py \
             scripts/science/run_cut3r_source_freeze_execution.py \
             tests/test_cut3r_execution_preflight.py \
-            tests/test_source_freeze_execution_driver.py \
+            tests/test_cut3r_source_freeze_execution_driver.py \
             tests/test_trusted_self_hosted_validation_policy.py
           python -m pytest -q \
             tests/test_cut3r_execution_preflight.py \
