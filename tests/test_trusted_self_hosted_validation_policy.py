@@ -11,6 +11,7 @@ CUT3R_RUNNER_SELECTOR = (
     "runs-on: [self-hosted, Linux, X64, nvidia-smi, "
     + "data-prob4d-deform360-source-v1, prob4d-cut3r]"
 )
+CUT3R_AUTO_V2_RUNNER_SELECTOR = "runs-on: [self-hosted, host-workstation2]"
 TRUSTED_SELF_HOSTED_WORKFLOWS = (
     TRUSTED_WORKFLOW,
     SOURCE_FREEZE_EXECUTION_WORKFLOW,
@@ -174,7 +175,11 @@ def test_auto_v2_source_freeze_supports_exact_retry_and_bounded_queue() -> None:
     assert '--execution-revision "$EXECUTION_SHA"' in text
     assert '--expected-request-id "$EXPECTED_REQUEST_ID"' in text
     assert "ref: ${{ needs.authorize.outputs.head_sha }}" in text
-    assert CUT3R_RUNNER_SELECTOR in text
+    assert CUT3R_AUTO_V2_RUNNER_SELECTOR in text
+    assert 'test "$RUNNER_NAME" = "workstation2"' in text
+    assert 'test "$RUNNER_OS" = "Linux"' in text
+    assert 'test "$RUNNER_ARCH" = "X64"' in text
+    assert "command -v nvidia-smi" in text
     assert "check-variables" in text
     assert "missing repository-variable names" in text
     assert "Bound self-hosted runner acceptance wait" in text
