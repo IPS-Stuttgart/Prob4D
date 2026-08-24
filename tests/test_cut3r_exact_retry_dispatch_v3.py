@@ -98,6 +98,64 @@ def _valid_artifacts() -> dict[str, object]:
     }
 
 
+def _valid_timeout_run() -> dict[str, object]:
+    return {
+        "id": 32764290533,
+        "name": "Execute retained CUT3R source freeze automatically v2",
+        "path": ".github/workflows/cut3r-source-freeze-auto-v2.yml",
+        "head_sha": "78a209c2b217c264ab8b7bebfcc42fe7cd7d2ebf",
+        "head_branch": "main",
+        "event": "workflow_dispatch",
+        "status": "completed",
+        "conclusion": "cancelled",
+    }
+
+
+def _valid_timeout_jobs() -> dict[str, object]:
+    jobs = [
+        (97550105116, "Authorize exact merged-main v2 request", "success", []),
+        (97550105469, "Hosted automatic-execution contract", "success", []),
+        (97550286850, "Check retained execution configuration", "success", []),
+        (97550323593, "Publish queued run pointer", "success", []),
+        (
+            97550358844,
+            "Freeze retained source inputs from trusted merged main",
+            "cancelled",
+            [],
+        ),
+        (
+            97550358906,
+            "Bound self-hosted runner acceptance wait",
+            "cancelled",
+            [
+                {
+                    "name": "Cancel a run that no matching runner accepts within twenty minutes",
+                    "status": "completed",
+                    "conclusion": "success",
+                }
+            ],
+        ),
+        (97556521290, "Publish terminal v2 source-freeze receipt", "success", []),
+    ]
+    return {
+        "jobs": [
+            {
+                "id": job_id,
+                "name": name,
+                "run_id": 32764290533,
+                "status": "completed",
+                "conclusion": conclusion,
+                "steps": steps,
+            }
+            for job_id, name, conclusion, steps in jobs
+        ]
+    }
+
+
+def _valid_timeout_artifacts() -> dict[str, object]:
+    return {"total_count": 0, "artifacts": []}
+
+
 def test_exact_failure_diagnostic_is_admitted() -> None:
     module = _load_module()
 
@@ -170,6 +228,71 @@ def test_successful_scientific_job_is_rejected() -> None:
             _valid_run(),
             jobs,
             _valid_artifacts(),
+        )
+
+
+def test_exact_zero_execution_timeout_retry_is_replaceable() -> None:
+    module = _load_module()
+
+    module.validate_zero_execution_timeout_retry(
+        _valid_timeout_run(),
+        _valid_timeout_jobs(),
+        _valid_timeout_artifacts(),
+    )
+
+
+def test_timeout_retry_with_execute_steps_is_rejected() -> None:
+    module = _load_module()
+    jobs = _valid_timeout_jobs()
+    rows = jobs["jobs"]
+    assert isinstance(rows, list)
+    execute = next(
+        row
+        for row in rows
+        if isinstance(row, dict)
+        and row.get("name") == "Freeze retained source inputs from trusted merged main"
+    )
+    assert isinstance(execute, dict)
+    execute["steps"] = [
+        {"name": "unexpected retained execution", "status": "completed", "conclusion": "success"}
+    ]
+
+    with pytest.raises(module.DispatchError, match="unexpectedly contains executed steps"):
+        module.validate_zero_execution_timeout_retry(
+            _valid_timeout_run(),
+            jobs,
+            _valid_timeout_artifacts(),
+        )
+
+
+def test_timeout_retry_with_artifact_is_rejected() -> None:
+    module = _load_module()
+    artifacts = _valid_timeout_artifacts()
+    rows = artifacts["artifacts"]
+    assert isinstance(rows, list)
+    rows.append({"id": 1, "name": "unexpected-result"})
+    artifacts["total_count"] = 1
+
+    with pytest.raises(module.DispatchError, match="unexpectedly produced an Actions artifact"):
+        module.validate_zero_execution_timeout_retry(
+            _valid_timeout_run(),
+            _valid_timeout_jobs(),
+            artifacts,
+        )
+
+
+def test_timeout_retry_job_roster_drift_is_rejected() -> None:
+    module = _load_module()
+    jobs = _valid_timeout_jobs()
+    rows = jobs["jobs"]
+    assert isinstance(rows, list)
+    rows.pop()
+
+    with pytest.raises(module.DispatchError, match="job roster mismatch"):
+        module.validate_zero_execution_timeout_retry(
+            _valid_timeout_run(),
+            jobs,
+            _valid_timeout_artifacts(),
         )
 
 
@@ -246,8 +369,16 @@ def test_validation_does_not_mutate_inputs() -> None:
     run = _valid_run()
     jobs = _valid_jobs()
     artifacts = _valid_artifacts()
-    before = deepcopy((run, jobs, artifacts))
+    timeout_run = _valid_timeout_run()
+    timeout_jobs = _valid_timeout_jobs()
+    timeout_artifacts = _valid_timeout_artifacts()
+    before = deepcopy((run, jobs, artifacts, timeout_run, timeout_jobs, timeout_artifacts))
 
     module.validate_superseded_run(run, jobs, artifacts)
+    module.validate_zero_execution_timeout_retry(
+        timeout_run,
+        timeout_jobs,
+        timeout_artifacts,
+    )
 
-    assert (run, jobs, artifacts) == before
+    assert (run, jobs, artifacts, timeout_run, timeout_jobs, timeout_artifacts) == before
