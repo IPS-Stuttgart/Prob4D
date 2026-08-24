@@ -113,7 +113,15 @@ jobs:
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
           test "$EVENT_COMMENT_BODY" = "$DISPATCH_COMMAND"
           grep -F \
-            "runs-on: [self-hosted, Linux, X64, nvidia-smi, data-prob4d-deform360-source-v1, prob4d-cut3r]" \
+            "runs-on: [self-hosted, host-workstation2]" \
+            ".github/workflows/$TARGET_WORKFLOW" >/dev/null
+          grep -F 'test "$RUNNER_NAME" = "workstation2"' \
+            ".github/workflows/$TARGET_WORKFLOW" >/dev/null
+          grep -F 'test "$RUNNER_OS" = "Linux"' \
+            ".github/workflows/$TARGET_WORKFLOW" >/dev/null
+          grep -F 'test "$RUNNER_ARCH" = "X64"' \
+            ".github/workflows/$TARGET_WORKFLOW" >/dev/null
+          grep -F 'command -v nvidia-smi >/dev/null 2>&1' \
             ".github/workflows/$TARGET_WORKFLOW" >/dev/null
           python scripts/ci/cut3r_execution_preflight.py authorize-retry \
             --repository . \
