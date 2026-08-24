@@ -1,0 +1,1 @@
+- Add an exact maintainer-comment dispatcher for the retained CUT3R source-freeze retry. It publishes its own run immediately, discovers and resolves any existing retry before dispatch, verifies the historical zero-evidence boundary, and publishes the concrete target workflow run without opening retained data or changing scientific inputs.

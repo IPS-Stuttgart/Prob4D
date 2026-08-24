@@ -1,0 +1,429 @@
+name: Authorize exact CUT3R retry from issue 49
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/cut3r-exact-retry-comment-dispatch.yml"
+      - "CHANGELOG.d/cut3r-exact-retry-comment-dispatch.md"
+      - "docs/cut3r-exact-retry-comment-dispatch.md"
+      - "tests/test_cut3r_exact_retry_comment_dispatch.py"
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cut3r-exact-retry-comment-dispatch-v1
+  cancel-in-progress: false
+
+env:
+  DISPATCH_COMMAND: /prob4d-dispatch-cut3r-source-freeze-v2 8b923e8cd67ca65f09312cffe305e36852f36fbb 8f3c9fba12f8a16895edce89d7a92e4806a43cb2f34b5a05faff71945809b63e
+  DISPATCH_REQUEST_PATH: protocols/dispatch_requests/cut3r_deform360_source_freeze_exact_retry_v1.json
+  RETAINED_REQUEST_PATH: protocols/execution_requests/cut3r_deform360_source_freeze_v2.json
+  TARGET_WORKFLOW: cut3r-source-freeze-auto-v2.yml
+  HISTORICAL_EXECUTION_SHA: 8b923e8cd67ca65f09312cffe305e36852f36fbb
+  RETAINED_REQUEST_ID: 8f3c9fba12f8a16895edce89d7a92e4806a43cb2f34b5a05faff71945809b63e
+  SUPERSEDED_RUN_ID: "32621813949"
+  RETRY_WINDOW_START_UTC: "2026-08-24T18:12:05Z"
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+
+jobs:
+  contract:
+    name: Issue-comment retry contract
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out exact reviewed revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Validate comment-dispatch policy and historical authorization
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -e ".[dev]"
+          python -m pip check
+          python -m ruff check tests/test_cut3r_exact_retry_comment_dispatch.py
+          python -m ruff format --check tests/test_cut3r_exact_retry_comment_dispatch.py
+          python -m pytest -q \
+            tests/test_cut3r_exact_retry_comment_dispatch.py \
+            tests/test_github_action_pins.py \
+            tests/test_trusted_self_hosted_validation_policy.py
+          python scripts/ci/cut3r_execution_preflight.py authorize-retry \
+            --repository . \
+            --request "$RETAINED_REQUEST_PATH" \
+            --current-revision "$(git rev-parse HEAD)" \
+            --execution-revision "$HISTORICAL_EXECUTION_SHA" \
+            --expected-request-id "$RETAINED_REQUEST_ID" \
+            > "$RUNNER_TEMP/cut3r-comment-retry-contract.json"
+
+  comment-dispatch:
+    name: Resolve or dispatch exact retained retry
+    if: >-
+      github.event_name == 'issue_comment' &&
+      github.event.issue.number == 49 &&
+      github.actor == 'FlorianPfaff' &&
+      github.event.comment.user.login == 'FlorianPfaff' &&
+      github.event.comment.body == '/prob4d-dispatch-cut3r-source-freeze-v2 8b923e8cd67ca65f09312cffe305e36852f36fbb 8f3c9fba12f8a16895edce89d7a92e4806a43cb2f34b5a05faff71945809b63e'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      actions: write
+      contents: read
+      issues: write
+    steps:
+      - name: Publish accepted exact-command receipt
+        shell: bash
+        env:
+          API_URL: ${{ github.api_url }}
+          REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+          COMMENT_URL: ${{ github.event.comment.html_url }}
+          HELPER_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          EVENT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          import urllib.request
+
+          body = "\n".join(
+              (
+                  "## Exact CUT3R retry command accepted",
+                  "",
+                  f"- command comment: {os.environ['COMMENT_URL']}",
+                  f"- default-branch event revision: `{os.environ['EVENT_SHA']}`",
+                  f"- helper workflow: {os.environ['HELPER_RUN_URL']}",
+                  "",
+                  "The hosted helper will first discover any already-dispatched exact retry. "
+                  "It opens no retained path, source outcome, confirmation payload, target "
+                  "payload, BayesianPhysTwin result, or Causal4D result.",
+              )
+          )
+          request = urllib.request.Request(
+              f"{os.environ['API_URL']}/repos/{os.environ['REPOSITORY']}/issues/49/comments",
+              data=json.dumps({"body": body}).encode("utf-8"),
+              method="POST",
+              headers={
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
+                  "Content-Type": "application/json",
+                  "User-Agent": "prob4d-cut3r-comment-dispatch",
+                  "X-GitHub-Api-Version": "2022-11-28",
+              },
+          )
+          with urllib.request.urlopen(request, timeout=30):
+              pass
+          PY
+
+      - name: Check out the exact default-branch event revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Reauthorize exact historical request and routed workflow
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+          EVENT_COMMENT_BODY: ${{ github.event.comment.body }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test "$EVENT_COMMENT_BODY" = "$DISPATCH_COMMAND"
+          grep -F \
+            "runs-on: [self-hosted, Linux, X64, nvidia-smi, data-prob4d-deform360-source-v1, prob4d-cut3r]" \
+            ".github/workflows/$TARGET_WORKFLOW" >/dev/null
+          python scripts/ci/cut3r_execution_preflight.py authorize-retry \
+            --repository . \
+            --request "$RETAINED_REQUEST_PATH" \
+            --current-revision "$EXPECTED_SHA" \
+            --execution-revision "$HISTORICAL_EXECUTION_SHA" \
+            --expected-request-id "$RETAINED_REQUEST_ID" \
+            > "$RUNNER_TEMP/cut3r-comment-retry-authorization.json"
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          from pathlib import Path
+
+          request = json.loads(Path(os.environ["DISPATCH_REQUEST_PATH"]).read_text())
+          checks = {
+              "historical_execution_sha": os.environ["HISTORICAL_EXECUTION_SHA"],
+              "retained_request_id": os.environ["RETAINED_REQUEST_ID"],
+              "superseded_workflow_run_id": int(os.environ["SUPERSEDED_RUN_ID"]),
+              "target_ref": "main",
+              "target_workflow": os.environ["TARGET_WORKFLOW"],
+              "scientific_inputs_changed": False,
+              "source_outcomes_opened": False,
+              "target_outcomes_opened": False,
+          }
+          for key, expected in checks.items():
+              if request.get(key) != expected:
+                  raise SystemExit(
+                      f"dispatch request {key} mismatch: {request.get(key)!r} != {expected!r}"
+                  )
+          PY
+
+      - name: Resolve an existing retry or dispatch exactly once
+        shell: bash
+        env:
+          API_URL: ${{ github.api_url }}
+          REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+          CURRENT_MAIN_SHA: ${{ github.sha }}
+          COMMAND_COMMENT_URL: ${{ github.event.comment.html_url }}
+          HELPER_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          import time
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+          from datetime import datetime, timezone
+          from typing import Any
+
+          api_url = os.environ["API_URL"].rstrip("/")
+          repository = os.environ["REPOSITORY"]
+          token = os.environ["GITHUB_TOKEN"]
+          stale_run_id = int(os.environ["SUPERSEDED_RUN_ID"])
+          expected_head = os.environ["HISTORICAL_EXECUTION_SHA"]
+          expected_job_name = "Freeze retained source inputs from trusted merged main"
+          target_workflow = os.environ["TARGET_WORKFLOW"]
+          window_start = datetime.fromisoformat(
+              os.environ["RETRY_WINDOW_START_UTC"].replace("Z", "+00:00")
+          )
+
+          def request_json(
+              method: str,
+              path: str,
+              payload: dict[str, Any] | None = None,
+          ) -> Any:
+              data = None if payload is None else json.dumps(payload).encode("utf-8")
+              request = urllib.request.Request(
+                  f"{api_url}{path}",
+                  data=data,
+                  method=method,
+                  headers={
+                      "Accept": "application/vnd.github+json",
+                      "Authorization": f"Bearer {token}",
+                      "Content-Type": "application/json",
+                      "User-Agent": "prob4d-cut3r-comment-dispatch",
+                      "X-GitHub-Api-Version": "2022-11-28",
+                  },
+              )
+              try:
+                  with urllib.request.urlopen(request, timeout=30) as response:
+                      body = response.read()
+              except urllib.error.HTTPError as error:
+                  detail = error.read().decode("utf-8", errors="replace")
+                  raise RuntimeError(
+                      f"GitHub API {method} {path} failed with {error.code}: {detail}"
+                  ) from error
+              return None if not body else json.loads(body)
+
+          def post_issue_comment(body: str) -> None:
+              request_json(
+                  "POST",
+                  f"/repos/{repository}/issues/49/comments",
+                  {"body": body},
+              )
+
+          encoded_workflow = urllib.parse.quote(target_workflow, safe="")
+          runs_path = (
+              f"/repos/{repository}/actions/workflows/{encoded_workflow}/runs"
+              "?event=workflow_dispatch&branch=main&per_page=50"
+          )
+
+          def relevant_runs() -> list[dict[str, Any]]:
+              response = request_json("GET", runs_path)
+              rows = response.get("workflow_runs") if isinstance(response, dict) else None
+              if not isinstance(rows, list):
+                  raise SystemExit("target workflow run listing is unavailable")
+              selected: list[dict[str, Any]] = []
+              for row in rows:
+                  if not isinstance(row, dict):
+                      continue
+                  created_raw = row.get("created_at")
+                  if not isinstance(created_raw, str):
+                      continue
+                  created = datetime.fromisoformat(created_raw.replace("Z", "+00:00"))
+                  if (
+                      row.get("event") == "workflow_dispatch"
+                      and row.get("head_branch") == "main"
+                      and created >= window_start
+                  ):
+                      selected.append(row)
+              return sorted(
+                  selected,
+                  key=lambda row: (str(row.get("created_at")), int(row.get("id", 0))),
+                  reverse=True,
+              )
+
+          existing = relevant_runs()
+          if existing:
+              run = existing[0]
+              post_issue_comment(
+                  "\n".join(
+                      (
+                          "## Existing exact CUT3R retry resolved",
+                          "",
+                          f"- workflow run: {run.get('html_url')}",
+                          f"- run ID: `{run.get('id')}`",
+                          f"- status: `{run.get('status')}`",
+                          f"- conclusion: `{run.get('conclusion')}`",
+                          f"- created at: `{run.get('created_at')}`",
+                          f"- command comment: {os.environ['COMMAND_COMMENT_URL']}",
+                          f"- resolver workflow: {os.environ['HELPER_RUN_URL']}",
+                          "",
+                          "No duplicate retry was dispatched. This resolution opens no outcome.",
+                      )
+                  )
+              )
+              raise SystemExit(0)
+
+          run_path = f"/repos/{repository}/actions/runs/{stale_run_id}"
+          stale_run = request_json("GET", run_path)
+          if not isinstance(stale_run, dict):
+              raise SystemExit("superseded workflow run response is not an object")
+          expected_run = {
+              "id": stale_run_id,
+              "name": "Execute retained CUT3R source freeze automatically v2",
+              "path": ".github/workflows/cut3r-source-freeze-auto-v2.yml",
+              "head_sha": expected_head,
+              "event": "push",
+              "status": "completed",
+          }
+          for field, expected in expected_run.items():
+              if stale_run.get(field) != expected:
+                  raise SystemExit(
+                      f"superseded run {field} mismatch: "
+                      f"{stale_run.get(field)!r} != {expected!r}"
+                  )
+          if stale_run.get("conclusion") not in {"failure", "cancelled"}:
+              raise SystemExit("superseded run is not a terminal zero-evidence failure")
+
+          jobs = request_json(
+              "GET",
+              f"/repos/{repository}/actions/runs/{stale_run_id}/jobs?per_page=100",
+          )
+          job_rows = jobs.get("jobs") if isinstance(jobs, dict) else None
+          if not isinstance(job_rows, list):
+              raise SystemExit("superseded workflow jobs are unavailable")
+          execute_jobs = [
+              row
+              for row in job_rows
+              if isinstance(row, dict) and row.get("name") == expected_job_name
+          ]
+          if len(execute_jobs) != 1:
+              raise SystemExit("expected exactly one superseded source-freeze job")
+          if execute_jobs[0].get("conclusion") == "success":
+              raise SystemExit("superseded source-freeze job succeeded; duplicate forbidden")
+
+          artifacts = request_json(
+              "GET",
+              f"/repos/{repository}/actions/runs/{stale_run_id}/artifacts?per_page=100",
+          )
+          if not isinstance(artifacts, dict) or artifacts.get("total_count") != 0:
+              raise SystemExit("superseded run is not artifact-free")
+
+          before_ids = {
+              int(row["id"])
+              for row in relevant_runs()
+              if isinstance(row.get("id"), int)
+          }
+          request_json(
+              "POST",
+              f"/repos/{repository}/actions/workflows/{encoded_workflow}/dispatches",
+              {
+                  "ref": "main",
+                  "inputs": {
+                      "execution_sha": expected_head,
+                      "request_id": os.environ["RETAINED_REQUEST_ID"],
+                  },
+              },
+          )
+
+          discovered: dict[str, Any] | None = None
+          for _ in range(30):
+              time.sleep(2)
+              for row in relevant_runs():
+                  run_id = row.get("id")
+                  if isinstance(run_id, int) and run_id not in before_ids:
+                      discovered = row
+                      break
+              if discovered is not None:
+                  break
+
+          if discovered is None:
+              post_issue_comment(
+                  "\n".join(
+                      (
+                          "## Exact CUT3R retry dispatch accepted but not yet discoverable",
+                          "",
+                          f"- historical execution revision: `{expected_head}`",
+                          f"- retained request ID: `{os.environ['RETAINED_REQUEST_ID']}`",
+                          f"- current control-plane revision: `{os.environ['CURRENT_MAIN_SHA']}`",
+                          f"- command comment: {os.environ['COMMAND_COMMENT_URL']}",
+                          f"- helper workflow: {os.environ['HELPER_RUN_URL']}",
+                          "",
+                          "GitHub accepted the workflow dispatch, but the new run did not "
+                          "appear in the bounded discovery interval. No outcome was opened.",
+                      )
+                  )
+              )
+              raise SystemExit("accepted workflow dispatch was not discoverable")
+
+          post_issue_comment(
+              "\n".join(
+                  (
+                      "## Exact retained CUT3R source-freeze retry dispatched",
+                      "",
+                      f"- workflow run: {discovered.get('html_url')}",
+                      f"- run ID: `{discovered.get('id')}`",
+                      f"- status: `{discovered.get('status')}`",
+                      f"- historical execution revision: `{expected_head}`",
+                      f"- retained request ID: `{os.environ['RETAINED_REQUEST_ID']}`",
+                      f"- current control-plane revision: `{os.environ['CURRENT_MAIN_SHA']}`",
+                      f"- command comment: {os.environ['COMMAND_COMMENT_URL']}",
+                      f"- dispatcher workflow: {os.environ['HELPER_RUN_URL']}",
+                      "",
+                      "The target workflow independently repeats exact authorization, uses "
+                      "the routed retained-data/CUT3R runner labels, and remains target-closed.",
+                  )
+              )
+          )
+          PY
