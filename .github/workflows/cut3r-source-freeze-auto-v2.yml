@@ -8,19 +8,33 @@ on:
       - "CHANGELOG.d/cut3r-source-freeze-auto-v2.md"
       - "docs/cut3r-source-freeze-auto-v2.md"
       - "protocols/execution_requests/cut3r_deform360_source_freeze_v2.json"
+      - "scripts/ci/cut3r_execution_preflight.py"
       - "scripts/science/run_cut3r_source_freeze_execution.py"
+      - "tests/test_cut3r_execution_preflight.py"
       - "tests/test_cut3r_source_freeze_execution_driver.py"
       - "tests/test_trusted_self_hosted_validation_policy.py"
   push:
     branches: [main]
     paths:
       - "protocols/execution_requests/cut3r_deform360_source_freeze_v2.json"
+  workflow_dispatch:
+    inputs:
+      execution_sha:
+        description: Exact historical merged-main SHA containing the retained request
+        required: true
+        type: string
+      request_id:
+        description: Exact 64-character retained source-freeze request ID
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: cut3r-source-freeze-auto-v2-${{ github.ref }}-${{ github.sha }}
+  group: >-
+    cut3r-source-freeze-auto-v2-${{ github.event_name }}-${{
+    inputs.execution_sha || github.sha }}-${{ inputs.request_id || 'push' }}
   cancel-in-progress: false
 
 env:
@@ -63,34 +77,46 @@ jobs:
           python -m pip install -e ".[dev]"
           python -m pip check
           python -m ruff check \
+            scripts/ci/cut3r_execution_preflight.py \
             scripts/science/run_cut3r_source_freeze_execution.py \
+            tests/test_cut3r_execution_preflight.py \
             tests/test_cut3r_source_freeze_execution_driver.py \
             tests/test_trusted_self_hosted_validation_policy.py
           python -m ruff format --check \
+            scripts/ci/cut3r_execution_preflight.py \
             scripts/science/run_cut3r_source_freeze_execution.py \
+            tests/test_cut3r_execution_preflight.py \
             tests/test_cut3r_source_freeze_execution_driver.py \
             tests/test_trusted_self_hosted_validation_policy.py
           python -m pytest -q \
+            tests/test_cut3r_execution_preflight.py \
             tests/test_cut3r_source_freeze_execution_driver.py \
             tests/test_trusted_self_hosted_validation_policy.py \
             tests/test_github_action_pins.py
           python -m compileall -q \
+            scripts/ci/cut3r_execution_preflight.py \
             scripts/science/run_cut3r_source_freeze_execution.py \
             scripts/science/build_cut3r_deform360_source_freeze.py
 
   authorize:
     name: Authorize exact merged-main v2 request
-    if: github.event_name == 'push'
+    if: >-
+      github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
-      head_sha: ${{ steps.request.outputs.head_sha }}
-      base_sha: ${{ steps.request.outputs.base_sha }}
-      request_id: ${{ steps.request.outputs.request_id }}
-      profile: ${{ steps.request.outputs.profile }}
-      authorization_mode: ${{ steps.request.outputs.authorization_mode }}
+      head_sha: ${{ steps.push_request.outputs.head_sha || steps.retry_request.outputs.head_sha }}
+      base_sha: ${{ steps.push_request.outputs.base_sha || steps.retry_request.outputs.base_sha }}
+      request_id: ${{ steps.push_request.outputs.request_id || steps.retry_request.outputs.request_id }}
+      profile: ${{ steps.push_request.outputs.profile || steps.retry_request.outputs.profile }}
+      authorization_mode: >-
+        ${{ steps.push_request.outputs.authorization_mode ||
+            steps.retry_request.outputs.authorization_mode }}
+      trigger_mode: >-
+        ${{ steps.push_request.outputs.trigger_mode ||
+            steps.retry_request.outputs.trigger_mode }}
     steps:
-      - name: Require an ordinary non-forced push to main
+      - name: Require an ordinary main push or a main-bound manual retry
         shell: bash
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -102,23 +128,33 @@ jobs:
           EXPECTED_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          test "$EVENT_NAME" = "push"
-          test "$EVENT_REF" = "refs/heads/main"
-          test "$EVENT_AFTER" = "$EXPECTED_SHA"
-          test "$EVENT_FORCED" = "false"
-          test "$EVENT_DELETED" = "false"
-          test "$EVENT_BEFORE" != "0000000000000000000000000000000000000000"
+          if [[ "$EVENT_NAME" == "push" ]]; then
+            test "$EVENT_REF" = "refs/heads/main"
+            test "$EVENT_AFTER" = "$EXPECTED_SHA"
+            test "$EVENT_FORCED" = "false"
+            test "$EVENT_DELETED" = "false"
+            test "$EVENT_BEFORE" != "0000000000000000000000000000000000000000"
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            test "$EVENT_REF" = "refs/heads/main" || {
+              echo "exact retry must be dispatched from main" >&2
+              exit 1
+            }
+          else
+            echo "unsupported execution trigger" >&2
+            exit 1
+          fi
 
-      - name: Check out exact merged main revision
+      - name: Check out current merged main with complete ancestry
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
-          fetch-depth: 2
+          fetch-depth: 0
           persist-credentials: false
           clean: true
 
-      - name: Verify immutable request and changed-path authorization
-        id: request
+      - name: Verify immutable push request and changed-path authorization
+        id: push_request
+        if: github.event_name == 'push'
         shell: bash
         env:
           EXPECTED_SHA: ${{ github.sha }}
@@ -137,12 +173,136 @@ jobs:
           {
             echo "head_sha=$EXPECTED_SHA"
             echo "base_sha=$BASE_SHA"
+            echo "trigger_mode=merged_main_push"
           } >> "$GITHUB_OUTPUT"
+
+      - name: Verify exact historical request retry
+        id: retry_request
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        env:
+          CURRENT_MAIN_SHA: ${{ github.sha }}
+          EXECUTION_SHA: ${{ inputs.execution_sha }}
+          EXPECTED_REQUEST_ID: ${{ inputs.request_id }}
+        run: |
+          set -euo pipefail
+          python scripts/ci/cut3r_execution_preflight.py authorize-retry \
+            --repository . \
+            --request "$REQUEST_PATH" \
+            --current-revision "$CURRENT_MAIN_SHA" \
+            --execution-revision "$EXECUTION_SHA" \
+            --expected-request-id "$EXPECTED_REQUEST_ID" \
+            --github-output "$GITHUB_OUTPUT"
+
+  preflight:
+    name: Check retained execution configuration
+    if: >-
+      success() &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    needs: [contract, authorize]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Check out current reviewed control-plane helper
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          clean: true
+
+      - name: Check repository-variable presence without publishing values
+        id: variables
+        continue-on-error: true
+        shell: bash
+        env:
+          BPT_CHECKOUT: ${{ vars.BPT_CHECKOUT }}
+          CUT3R_CHECKOUT: ${{ vars.CUT3R_CHECKOUT }}
+          CUT3R_CHECKPOINT: ${{ vars.CUT3R_CHECKPOINT }}
+          DEFORM360_PROCESSED_ROOT: ${{ vars.DEFORM360_PROCESSED_ROOT }}
+        run: |
+          set -euo pipefail
+          python scripts/ci/cut3r_execution_preflight.py check-variables \
+            --required-variable BPT_CHECKOUT \
+            --required-variable CUT3R_CHECKOUT \
+            --required-variable CUT3R_CHECKPOINT \
+            --required-variable DEFORM360_PROCESSED_ROOT \
+            --report "$RUNNER_TEMP/cut3r-variable-readiness.json" \
+            --github-output "$GITHUB_OUTPUT" \
+            --require-ready
+
+      - name: Publish bounded configuration blocker
+        if: steps.variables.outputs.ready != 'true'
+        shell: bash
+        env:
+          API_URL: ${{ github.api_url }}
+          REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+          REQUEST_ID: ${{ needs.authorize.outputs.request_id }}
+          HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+          MISSING_VARIABLES: ${{ steps.variables.outputs.missing_variables_json }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          import urllib.request
+
+          try:
+              missing = json.loads(os.environ.get("MISSING_VARIABLES") or "[]")
+          except json.JSONDecodeError:
+              missing = ["preflight-report-unavailable"]
+          if not isinstance(missing, list) or any(
+              not isinstance(value, str) for value in missing
+          ):
+              missing = ["preflight-report-unavailable"]
+          body = "\n".join(
+              (
+                  "## Retained CUT3R source-freeze configuration blocked",
+                  "",
+                  f"- request ID: `{os.environ['REQUEST_ID']}`",
+                  f"- exact execution revision: `{os.environ['HEAD_SHA']}`",
+                  f"- missing repository-variable names: `{json.dumps(missing)}`",
+                  f"- workflow run: {os.environ['RUN_URL']}",
+                  "",
+                  "No variable value or retained path is published. The self-hosted "
+                  "job was not queued, and no source, confirmation, target, "
+                  "BayesianPhysTwin, or Causal4D outcome was opened.",
+              )
+          )
+          request = urllib.request.Request(
+              f"{os.environ['API_URL']}/repos/{os.environ['REPOSITORY']}/issues/49/comments",
+              data=json.dumps({"body": body}).encode("utf-8"),
+              method="POST",
+              headers={
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
+                  "Content-Type": "application/json",
+                  "X-GitHub-Api-Version": "2022-11-28",
+              },
+          )
+          with urllib.request.urlopen(request, timeout=30):
+              pass
+          PY
+
+      - name: Fail closed when retained configuration is incomplete
+        if: steps.variables.outputs.ready != 'true'
+        shell: bash
+        run: |
+          echo "retained CUT3R execution configuration is incomplete" >&2
+          exit 1
 
   announce:
     name: Publish queued run pointer
-    if: github.event_name == 'push'
-    needs: [contract, authorize]
+    if: >-
+      success() &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    needs: [contract, authorize, preflight]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -158,6 +318,7 @@ jobs:
           REQUEST_ID: ${{ needs.authorize.outputs.request_id }}
           HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
           AUTHORIZATION_MODE: ${{ needs.authorize.outputs.authorization_mode }}
+          TRIGGER_MODE: ${{ needs.authorize.outputs.trigger_mode }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
@@ -175,6 +336,7 @@ jobs:
                   f"- request ID: `{os.environ['REQUEST_ID']}`",
                   f"- exact merged-main revision: `{os.environ['HEAD_SHA']}`",
                   f"- authorization: `{os.environ['AUTHORIZATION_MODE']}`",
+                  f"- trigger: `{os.environ['TRIGGER_MODE']}`",
                   f"- workflow run: {os.environ['RUN_URL']}",
                   "",
                   "The self-hosted job has a read-only repository token and receives "
@@ -199,8 +361,10 @@ jobs:
 
   execute:
     name: Freeze retained source inputs from trusted merged main
-    if: github.event_name == 'push'
-    needs: [contract, authorize, announce]
+    if: >-
+      success() &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    needs: [contract, authorize, preflight, announce]
     permissions:
       contents: read
     runs-on: [self-hosted, Linux, X64, nvidia-smi]
@@ -414,10 +578,147 @@ jobs:
           /usr/bin/git reset --hard HEAD
           /usr/bin/git clean -ffdx
 
+  watchdog:
+    name: Bound self-hosted runner acceptance wait
+    if: >-
+      success() &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    needs: [contract, authorize, preflight, announce]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      actions: write
+      contents: read
+      issues: write
+    steps:
+      - name: Cancel a run that no matching runner accepts within twenty minutes
+        shell: bash
+        env:
+          API_URL: ${{ github.api_url }}
+          REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          REQUEST_ID: ${{ needs.authorize.outputs.request_id }}
+          HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+          EXECUTE_JOB_NAME: Freeze retained source inputs from trusted merged main
+          RUNNER_ACCEPTANCE_TIMEOUT_SECONDS: "1200"
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          import time
+          import urllib.request
+
+          api_url = os.environ["API_URL"]
+          repository = os.environ["REPOSITORY"]
+          token = os.environ["GITHUB_TOKEN"]
+          run_id = os.environ["RUN_ID"]
+          job_name = os.environ["EXECUTE_JOB_NAME"]
+          deadline = time.monotonic() + int(
+              os.environ["RUNNER_ACCEPTANCE_TIMEOUT_SECONDS"]
+          )
+          headers = {
+              "Accept": "application/vnd.github+json",
+              "Authorization": f"Bearer {token}",
+              "X-GitHub-Api-Version": "2022-11-28",
+          }
+
+          def job_status() -> str | None:
+              request = urllib.request.Request(
+                  f"{api_url}/repos/{repository}/actions/runs/{run_id}/jobs"
+                  "?filter=latest&per_page=100",
+                  headers=headers,
+              )
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  payload = json.load(response)
+              jobs = payload.get("jobs")
+              if not isinstance(jobs, list):
+                  raise SystemExit("workflow jobs response is malformed")
+              matches = [
+                  job
+                  for job in jobs
+                  if isinstance(job, dict) and job.get("name") == job_name
+              ]
+              if len(matches) > 1:
+                  raise SystemExit("self-hosted execution job identity is ambiguous")
+              if not matches:
+                  return None
+              status = matches[0].get("status")
+              if status not in {
+                  "queued",
+                  "in_progress",
+                  "completed",
+                  "waiting",
+                  "pending",
+                  "requested",
+              }:
+                  raise SystemExit("self-hosted execution job status is unsupported")
+              return str(status)
+
+          while time.monotonic() < deadline:
+              status = job_status()
+              if status in {"in_progress", "completed"}:
+                  with open(
+                      os.environ["GITHUB_STEP_SUMMARY"],
+                      "a",
+                      encoding="utf-8",
+                  ) as summary:
+                      summary.write(
+                          "The retained self-hosted job was accepted before the "
+                          "bounded queue deadline.\n"
+                      )
+                  raise SystemExit(0)
+              time.sleep(15)
+
+          final_status = job_status()
+          if final_status in {"in_progress", "completed"}:
+              raise SystemExit(0)
+
+          body = "\n".join(
+              (
+                  "## Retained CUT3R source-freeze runner acceptance timeout",
+                  "",
+                  f"- request ID: `{os.environ['REQUEST_ID']}`",
+                  f"- exact execution revision: `{os.environ['HEAD_SHA']}`",
+                  f"- last observed execution-job status: `{final_status or 'not-listed'}`",
+                  f"- bounded acceptance window: `20 minutes`",
+                  f"- workflow run: {os.environ['RUN_URL']}",
+                  "",
+                  "The hosted controller canceled the run before an unavailable "
+                  "self-hosted queue could remain pending indefinitely. No source "
+                  "outcome, confirmation object, target payload, BayesianPhysTwin "
+                  "result, or Causal4D result is claimed by this receipt.",
+              )
+          )
+          comment = urllib.request.Request(
+              f"{api_url}/repos/{repository}/issues/49/comments",
+              data=json.dumps({"body": body}).encode("utf-8"),
+              method="POST",
+              headers={**headers, "Content-Type": "application/json"},
+          )
+          with urllib.request.urlopen(comment, timeout=30):
+              pass
+
+          cancel = urllib.request.Request(
+              f"{api_url}/repos/{repository}/actions/runs/{run_id}/cancel",
+              data=b"{}",
+              method="POST",
+              headers={**headers, "Content-Type": "application/json"},
+          )
+          with urllib.request.urlopen(cancel, timeout=30):
+              pass
+          PY
+
   report:
     name: Publish terminal v2 source-freeze receipt
-    if: ${{ always() && github.event_name == 'push' }}
-    needs: [authorize, execute]
+    if: >-
+      always() &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    needs: [authorize, preflight, execute, watchdog]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -432,7 +733,10 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           REQUEST_ID: ${{ needs.authorize.outputs.request_id }}
           HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+          TRIGGER_MODE: ${{ needs.authorize.outputs.trigger_mode }}
+          PREFLIGHT_RESULT: ${{ needs.preflight.result }}
           EXECUTION_RESULT: ${{ needs.execute.result }}
+          WATCHDOG_RESULT: ${{ needs.watchdog.result }}
           DECISION: ${{ needs.execute.outputs.decision }}
           EXIT_STATUS: ${{ needs.execute.outputs.exit_status }}
           FREEZE_ARTIFACT_ID: ${{ needs.execute.outputs.freeze_artifact_id }}
@@ -455,9 +759,12 @@ jobs:
               (
                   "## Retained CUT3R source-freeze v2 terminal receipt",
                   "",
-                  f"- request ID: `{os.environ['REQUEST_ID']}`",
-                  f"- exact merged-main revision: `{os.environ['HEAD_SHA']}`",
+                  f"- request ID: `{os.environ.get('REQUEST_ID') or 'not-authorized'}`",
+                  f"- exact merged-main revision: `{os.environ.get('HEAD_SHA') or 'not-authorized'}`",
+                  f"- trigger: `{os.environ.get('TRIGGER_MODE') or 'not-authorized'}`",
+                  f"- configuration preflight: `{os.environ['PREFLIGHT_RESULT']}`",
                   f"- workflow result: `{os.environ['EXECUTION_RESULT']}`",
+                  f"- watchdog result: `{os.environ['WATCHDOG_RESULT']}`",
                   f"- source-freeze decision: `{decision}`",
                   f"- builder exit status: `{exit_status}`",
                   f"- freeze artifact ID: `{freeze_id}`",
