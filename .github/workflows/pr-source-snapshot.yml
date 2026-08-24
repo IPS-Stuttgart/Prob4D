@@ -60,13 +60,10 @@ jobs:
           cat > "${RUNNER_TEMP}/expected-paths.txt" <<'EOF'
           .github/workflows/cross-stack-metamorphic.yml
           .github/workflows/tests.yml
-          CHANGELOG.d/safe-calibration-and-ci-gates.md
           docs/cut3r-deform360-source-freeze.md
-          docs/legacy-camera-calibration-loading.md
           scripts/science/build_cut3r_deform360_source_freeze.py
           tests/test_cross_stack_metamorphic_workflow.py
           tests/test_cut3r_deform360_source_freeze.py
-          tests/test_tests_workflow_merge_gate.py
           EOF
           git diff --name-only "${BASE_SHA}" | LC_ALL=C sort \
             > "${RUNNER_TEMP}/actual-paths.txt"
