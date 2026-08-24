@@ -7,6 +7,10 @@ WORKFLOW_ROOT = ROOT / ".github" / "workflows"
 TRUSTED_WORKFLOW = WORKFLOW_ROOT / "trusted-self-hosted-validation.yml"
 SOURCE_FREEZE_EXECUTION_WORKFLOW = WORKFLOW_ROOT / "cut3r-source-freeze-execution.yml"
 SOURCE_FREEZE_AUTO_V2_WORKFLOW = WORKFLOW_ROOT / "cut3r-source-freeze-auto-v2.yml"
+CUT3R_RUNNER_SELECTOR = (
+    "runs-on: [self-hosted, Linux, X64, nvidia-smi, "
+    "data-prob4d-deform360-source-v1, prob4d-cut3r]"
+)
 TRUSTED_SELF_HOSTED_WORKFLOWS = (
     TRUSTED_WORKFLOW,
     SOURCE_FREEZE_EXECUTION_WORKFLOW,
@@ -67,7 +71,7 @@ def test_trusted_workflow_is_manual_main_bound_and_exact_sha_authorized() -> Non
     assert "DISPATCH_REF: ${{ github.ref }}" in text
     assert "refs/heads/main" in text
     assert "environment: trusted-self-hosted-validation" in text
-    assert "runs-on: [self-hosted, Linux, X64, nvidia-smi, data-prob4d-deform360-source-v1, prob4d-cut3r]" in text
+    assert CUT3R_RUNNER_SELECTOR in text
     assert "[0-9a-f]{40}" in text
     assert "only same-repository pull requests are admitted" in text
     assert "pull request base must be main" in text
@@ -124,7 +128,7 @@ def test_source_freeze_execution_is_merged_main_bound_and_target_closed() -> Non
     assert "source_protocol_git_blob_sha" in text
     assert "execution request ID mismatch" in text
     assert "environment: trusted-self-hosted-validation" in text
-    assert "runs-on: [self-hosted, Linux, X64, nvidia-smi, data-prob4d-deform360-source-v1, prob4d-cut3r]" in text
+    assert CUT3R_RUNNER_SELECTOR in text
     assert "ref: ${{ needs.authorize.outputs.head_sha }}" in text
     assert "persist-credentials: false" in text
     assert "contents: write" not in text
@@ -170,7 +174,7 @@ def test_auto_v2_source_freeze_supports_exact_retry_and_bounded_queue() -> None:
     assert '--execution-revision "$EXECUTION_SHA"' in text
     assert '--expected-request-id "$EXPECTED_REQUEST_ID"' in text
     assert "ref: ${{ needs.authorize.outputs.head_sha }}" in text
-    assert "runs-on: [self-hosted, Linux, X64, nvidia-smi, data-prob4d-deform360-source-v1, prob4d-cut3r]" in text
+    assert CUT3R_RUNNER_SELECTOR in text
     assert "check-variables" in text
     assert "missing repository-variable names" in text
     assert "Bound self-hosted runner acceptance wait" in text
