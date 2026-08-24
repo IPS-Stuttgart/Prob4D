@@ -185,5 +185,6 @@ The current highest-priority execution is the
 - [Provider API v2](provider-v2.md)
 - [Unfused observation-factor bundle](observation-factor-bundle.md)
 - [Structured observation covariance queries](observation-covariance-queries.md)
+- [Executable joint-dependence invariants](joint-dependence-invariants.md)
 - [Analytic gauge propagation](analytic-gauge-propagation.md)
 - [Provider readiness localization](provider-readiness-localization.md)

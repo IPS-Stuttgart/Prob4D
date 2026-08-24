@@ -1,0 +1,1 @@
+Add executable scientific invariants for explicit-versus-collapsed Gaussian equivalence, the failure of rowwise marginal scoring under shared gauge dependence, physical-query cancellation/amplification, and structured-factor storage scaling. No estimator, provider, protocol, fallback, or retained result changes.
