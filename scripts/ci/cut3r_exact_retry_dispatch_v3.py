@@ -15,9 +15,7 @@ ISSUE_NUMBER = 49
 TARGET_WORKFLOW = "cut3r-source-freeze-auto-v2.yml"
 TARGET_REF = "main"
 HISTORICAL_EXECUTION_SHA = "8b923e8cd67ca65f09312cffe305e36852f36fbb"
-RETAINED_REQUEST_ID = (
-    "8f3c9fba12f8a16895edce89d7a92e4806a43cb2f34b5a05faff71945809b63e"
-)
+RETAINED_REQUEST_ID = "8f3c9fba12f8a16895edce89d7a92e4806a43cb2f34b5a05faff71945809b63e"
 SUPERSEDED_RUN_ID = 32621813949
 SUPERSEDED_EXECUTE_JOB_ID = 97376973894
 RETRY_WINDOW_START_UTC = "2026-08-24T18:12:05Z"
@@ -25,9 +23,7 @@ FAILURE_ARTIFACT = {
     "id": 9532584642,
     "name": "cut3r-source-freeze-v2-failed-32621813949-2",
     "size_in_bytes": 3106,
-    "digest": (
-        "sha256:a7805e079ccb367d56634c62bb91a79fdac71babaa69c233e485135b9243a0a0"
-    ),
+    "digest": ("sha256:a7805e079ccb367d56634c62bb91a79fdac71babaa69c233e485135b9243a0a0"),
     "expired": False,
 }
 
@@ -63,10 +59,7 @@ def _require_exact_fields(
     for key, expected_value in expected.items():
         actual_value = actual.get(key)
         if actual_value != expected_value:
-            _fail(
-                f"{label} {key} mismatch: "
-                f"{actual_value!r} != {expected_value!r}"
-            )
+            _fail(f"{label} {key} mismatch: {actual_value!r} != {expected_value!r}")
 
 
 def validate_superseded_run(
@@ -98,8 +91,7 @@ def validate_superseded_run(
         row
         for row in job_rows
         if isinstance(row, dict)
-        and row.get("name")
-        == "Freeze retained source inputs from trusted merged main"
+        and row.get("name") == "Freeze retained source inputs from trusted merged main"
     ]
     if len(execute_jobs) != 1:
         _fail("expected exactly one superseded retained source-freeze job")
@@ -192,9 +184,7 @@ def select_relevant_runs(payload: Any) -> list[JsonObject]:
         response.get("workflow_runs"),
         label="target workflow runs.workflow_runs",
     )
-    window_start = datetime.fromisoformat(
-        RETRY_WINDOW_START_UTC.replace("Z", "+00:00")
-    )
+    window_start = datetime.fromisoformat(RETRY_WINDOW_START_UTC.replace("Z", "+00:00"))
     selected: list[JsonObject] = []
     for value in rows:
         if not isinstance(value, dict):
@@ -219,9 +209,7 @@ def select_relevant_runs(payload: Any) -> list[JsonObject]:
 class GitHubClient:
     def __init__(self, *, api_url: str, repository: str, token: str) -> None:
         if repository != EXPECTED_REPOSITORY:
-            _fail(
-                f"repository mismatch: {repository!r} != {EXPECTED_REPOSITORY!r}"
-            )
+            _fail(f"repository mismatch: {repository!r} != {EXPECTED_REPOSITORY!r}")
         if not token:
             _fail("GITHUB_TOKEN is empty")
         self.api_url = api_url.rstrip("/")
@@ -252,10 +240,7 @@ class GitHubClient:
                 body = response.read()
         except urllib.error.HTTPError as error:
             detail = error.read().decode("utf-8", errors="replace")
-            _fail(
-                f"GitHub API {method} {path} failed with "
-                f"{error.code}: {detail}"
-            )
+            _fail(f"GitHub API {method} {path} failed with {error.code}: {detail}")
         return None if not body else json.loads(body)
 
     def post_comment(self, body: str) -> None:
@@ -350,9 +335,7 @@ def resolve_or_dispatch() -> None:
     )
 
     before_ids = {
-        int(row["id"])
-        for row in client.relevant_runs()
-        if isinstance(row.get("id"), int)
+        int(row["id"]) for row in client.relevant_runs() if isinstance(row.get("id"), int)
     }
     client.request_json(
         "POST",
