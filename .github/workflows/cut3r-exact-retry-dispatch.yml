@@ -1,0 +1,359 @@
+name: Dispatch exact retained CUT3R source-freeze retry
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/cut3r-exact-retry-dispatch.yml"
+      - "CHANGELOG.d/cut3r-exact-retry-dispatch.md"
+      - "docs/cut3r-exact-retry-dispatch.md"
+      - "protocols/dispatch_requests/cut3r_deform360_source_freeze_exact_retry_v1.json"
+      - "tests/test_cut3r_exact_retry_dispatch.py"
+  push:
+    branches: [main]
+    paths:
+      - "protocols/dispatch_requests/cut3r_deform360_source_freeze_exact_retry_v1.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cut3r-exact-retry-dispatch-v1
+  cancel-in-progress: false
+
+env:
+  DISPATCH_REQUEST_PATH: protocols/dispatch_requests/cut3r_deform360_source_freeze_exact_retry_v1.json
+  RETAINED_REQUEST_PATH: protocols/execution_requests/cut3r_deform360_source_freeze_v2.json
+  TARGET_WORKFLOW: cut3r-source-freeze-auto-v2.yml
+  HISTORICAL_EXECUTION_SHA: 8b923e8cd67ca65f09312cffe305e36852f36fbb
+  RETAINED_REQUEST_ID: 8f3c9fba12f8a16895edce89d7a92e4806a43cb2f34b5a05faff71945809b63e
+  SUPERSEDED_RUN_ID: "32621813949"
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+
+jobs:
+  contract:
+    name: Exact-retry dispatch contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out exact reviewed revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: >-
+            ${{ github.event_name == 'pull_request' &&
+                github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Validate the one-shot dispatch surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -e ".[dev]"
+          python -m pip check
+          python -m ruff check tests/test_cut3r_exact_retry_dispatch.py
+          python -m ruff format --check tests/test_cut3r_exact_retry_dispatch.py
+          python -m pytest -q \
+            tests/test_cut3r_exact_retry_dispatch.py \
+            tests/test_github_action_pins.py \
+            tests/test_trusted_self_hosted_validation_policy.py
+          python scripts/ci/cut3r_execution_preflight.py authorize-retry \
+            --repository . \
+            --request "$RETAINED_REQUEST_PATH" \
+            --current-revision "$(git rev-parse HEAD)" \
+            --execution-revision "$HISTORICAL_EXECUTION_SHA" \
+            --expected-request-id "$RETAINED_REQUEST_ID" \
+            > /tmp/cut3r-exact-retry-contract.json
+
+  dispatch:
+    name: Cancel stale queue and dispatch exact retry
+    if: github.event_name == 'push'
+    needs: contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      actions: write
+      contents: read
+      issues: write
+    steps:
+      - name: Require an ordinary merged-main request push
+        shell: bash
+        env:
+          EVENT_REF: ${{ github.ref }}
+          EVENT_BEFORE: ${{ github.event.before }}
+          EVENT_AFTER: ${{ github.event.after }}
+          EVENT_FORCED: ${{ github.event.forced }}
+          EVENT_DELETED: ${{ github.event.deleted }}
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_REF" = "refs/heads/main"
+          test "$EVENT_AFTER" = "$EXPECTED_SHA"
+          test "$EVENT_FORCED" = "false"
+          test "$EVENT_DELETED" = "false"
+          test "$EVENT_BEFORE" != "0000000000000000000000000000000000000000"
+
+      - name: Check out exact merged main with complete ancestry
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Verify exact request and routed target workflow
+        id: verify
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.before }}
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          git diff-tree --no-commit-id --name-only -r "$BASE_SHA" "$EXPECTED_SHA" \
+            | grep -Fx "$DISPATCH_REQUEST_PATH" >/dev/null
+          grep -F \
+            "runs-on: [self-hosted, Linux, X64, nvidia-smi, data-prob4d-deform360-source-v1, prob4d-cut3r]" \
+            ".github/workflows/$TARGET_WORKFLOW" >/dev/null
+          python scripts/ci/cut3r_execution_preflight.py authorize-retry \
+            --repository . \
+            --request "$RETAINED_REQUEST_PATH" \
+            --current-revision "$EXPECTED_SHA" \
+            --execution-revision "$HISTORICAL_EXECUTION_SHA" \
+            --expected-request-id "$RETAINED_REQUEST_ID" \
+            --github-output "$RUNNER_TEMP/cut3r-retry-authorization.outputs" \
+            > "$RUNNER_TEMP/cut3r-retry-authorization.json"
+          python - <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path(os.environ["DISPATCH_REQUEST_PATH"])
+          raw = path.read_bytes()
+          request = json.loads(raw)
+          expected = {
+              "claim_boundary": (
+                  "This operational request cancels only the stale zero-evidence "
+                  "workflow run and dispatches the already registered exact "
+                  "historical retry from current main. It changes no scientific "
+                  "input and does not authorize CUT3R inference, source residual or "
+                  "truth access, confirmation or target access, BayesianPhysTwin "
+                  "use, Causal4D use, deployment, or a scientific benefit claim."
+              ),
+              "historical_execution_sha": os.environ["HISTORICAL_EXECUTION_SHA"],
+              "issue_number": 49,
+              "required_runner_labels": [
+                  "self-hosted",
+                  "Linux",
+                  "X64",
+                  "nvidia-smi",
+                  "data-prob4d-deform360-source-v1",
+                  "prob4d-cut3r",
+              ],
+              "repository": os.environ["GITHUB_REPOSITORY"],
+              "retained_request_id": os.environ["RETAINED_REQUEST_ID"],
+              "retained_request_path": os.environ["RETAINED_REQUEST_PATH"],
+              "schema": "prob4d.cut3r-source-freeze-exact-retry-dispatch-request",
+              "schema_version": 1,
+              "scientific_inputs_changed": False,
+              "source_outcomes_opened": False,
+              "superseded_execute_job_name": (
+                  "Freeze retained source inputs from trusted merged main"
+              ),
+              "superseded_run_expected_event": "push",
+              "superseded_run_expected_head_sha": os.environ[
+                  "HISTORICAL_EXECUTION_SHA"
+              ],
+              "superseded_workflow_run_id": int(os.environ["SUPERSEDED_RUN_ID"]),
+              "target_outcomes_opened": False,
+              "target_ref": "main",
+              "target_workflow": os.environ["TARGET_WORKFLOW"],
+          }
+          if request != expected:
+              raise SystemExit("exact retry dispatch request does not match registration")
+          digest = hashlib.sha256(raw).hexdigest()
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"dispatch_request_sha256={digest}\n")
+          PY
+
+      - name: Cancel stale zero-evidence queue and dispatch the exact retry
+        shell: bash
+        env:
+          API_URL: ${{ github.api_url }}
+          SERVER_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+          CURRENT_MAIN_SHA: ${{ github.sha }}
+          DISPATCH_REQUEST_SHA256: ${{ steps.verify.outputs.dispatch_request_sha256 }}
+          HELPER_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          import time
+          import urllib.error
+          import urllib.request
+          from typing import Any
+
+          api_url = os.environ["API_URL"].rstrip("/")
+          repository = os.environ["REPOSITORY"]
+          token = os.environ["GITHUB_TOKEN"]
+          stale_run_id = int(os.environ["SUPERSEDED_RUN_ID"])
+          expected_head = os.environ["HISTORICAL_EXECUTION_SHA"]
+          expected_job_name = "Freeze retained source inputs from trusted merged main"
+          target_workflow = os.environ["TARGET_WORKFLOW"]
+
+          def request_json(
+              method: str,
+              path: str,
+              payload: dict[str, Any] | None = None,
+          ) -> Any:
+              data = None if payload is None else json.dumps(payload).encode("utf-8")
+              request = urllib.request.Request(
+                  f"{api_url}{path}",
+                  data=data,
+                  method=method,
+                  headers={
+                      "Accept": "application/vnd.github+json",
+                      "Authorization": f"Bearer {token}",
+                      "Content-Type": "application/json",
+                      "User-Agent": "prob4d-cut3r-exact-retry-dispatch",
+                      "X-GitHub-Api-Version": "2022-11-28",
+                  },
+              )
+              try:
+                  with urllib.request.urlopen(request, timeout=30) as response:
+                      body = response.read()
+              except urllib.error.HTTPError as error:
+                  detail = error.read().decode("utf-8", errors="replace")
+                  raise RuntimeError(
+                      f"GitHub API {method} {path} failed with {error.code}: {detail}"
+                  ) from error
+              return None if not body else json.loads(body)
+
+          run_path = f"/repos/{repository}/actions/runs/{stale_run_id}"
+          run = request_json("GET", run_path)
+          if not isinstance(run, dict):
+              raise SystemExit("superseded workflow run response is not an object")
+          expected_run = {
+              "id": stale_run_id,
+              "name": "Execute retained CUT3R source freeze automatically v2",
+              "path": ".github/workflows/cut3r-source-freeze-auto-v2.yml",
+              "head_sha": expected_head,
+              "event": "push",
+          }
+          for field, expected in expected_run.items():
+              if run.get(field) != expected:
+                  raise SystemExit(
+                      f"superseded run {field} mismatch: {run.get(field)!r} != {expected!r}"
+                  )
+
+          jobs = request_json(
+              "GET",
+              f"/repos/{repository}/actions/runs/{stale_run_id}/jobs?per_page=100",
+          )
+          job_rows = jobs.get("jobs") if isinstance(jobs, dict) else None
+          if not isinstance(job_rows, list):
+              raise SystemExit("superseded workflow jobs are unavailable")
+          execute_jobs = [
+              job for job in job_rows
+              if isinstance(job, dict) and job.get("name") == expected_job_name
+          ]
+          if len(execute_jobs) != 1:
+              raise SystemExit("expected exactly one superseded source-freeze job")
+          execute_job = execute_jobs[0]
+          if execute_job.get("conclusion") == "success":
+              raise SystemExit(
+                  "superseded source-freeze job already succeeded; refusing duplicate dispatch"
+              )
+
+          artifacts = request_json(
+              "GET",
+              f"/repos/{repository}/actions/runs/{stale_run_id}/artifacts?per_page=100",
+          )
+          artifact_count = artifacts.get("total_count") if isinstance(artifacts, dict) else None
+          if artifact_count != 0:
+              raise SystemExit(
+                  "superseded run has retained artifacts; refusing to classify it as zero-evidence"
+              )
+
+          status = run.get("status")
+          conclusion = run.get("conclusion")
+          active_states = {"queued", "in_progress", "pending", "requested", "waiting"}
+          if status in active_states:
+              request_json("POST", f"{run_path}/cancel")
+              for _ in range(30):
+                  time.sleep(3)
+                  run = request_json("GET", run_path)
+                  status = run.get("status") if isinstance(run, dict) else None
+                  conclusion = run.get("conclusion") if isinstance(run, dict) else None
+                  if status == "completed":
+                      break
+              else:
+                  raise SystemExit(
+                      "superseded run did not reach a terminal state; exact retry not dispatched"
+                  )
+
+          if status != "completed" or conclusion not in {"cancelled", "failure"}:
+              raise SystemExit(
+                  f"superseded run terminal state is not zero-evidence: {status}/{conclusion}"
+              )
+
+          request_json(
+              "POST",
+              f"/repos/{repository}/actions/workflows/{target_workflow}/dispatches",
+              {
+                  "ref": "main",
+                  "inputs": {
+                      "execution_sha": expected_head,
+                      "request_id": os.environ["RETAINED_REQUEST_ID"],
+                  },
+              },
+          )
+
+          comment = "\n".join(
+              (
+                  "## Exact retained CUT3R source-freeze retry dispatched",
+                  "",
+                  f"- superseded zero-evidence run: `{stale_run_id}`",
+                  f"- superseded terminal state: `{status}/{conclusion}`",
+                  f"- historical execution revision: `{expected_head}`",
+                  f"- retained request ID: `{os.environ['RETAINED_REQUEST_ID']}`",
+                  f"- current control-plane revision: `{os.environ['CURRENT_MAIN_SHA']}`",
+                  f"- dispatch-request SHA-256: `{os.environ['DISPATCH_REQUEST_SHA256']}`",
+                  f"- helper workflow: {os.environ['HELPER_RUN_URL']}",
+                  "",
+                  "The dispatched workflow independently reauthorizes the exact historical "
+                  "request, uses the routed retained-data/CUT3R runner labels, and cancels "
+                  "itself if no runner accepts within the bounded queue interval. This "
+                  "operation opens no source outcome, confirmation payload, target payload, "
+                  "BayesianPhysTwin result, or Causal4D result.",
+              )
+          )
+          request_json(
+              "POST",
+              f"/repos/{repository}/issues/49/comments",
+              {"body": comment},
+          )
+          PY
