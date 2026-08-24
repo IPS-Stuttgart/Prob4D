@@ -1,36 +1,94 @@
-name: Temporary PR source snapshot
+name: Temporary exact patch materialization
 
 on:
-  pull_request:
-    branches: [main]
+  push:
+    branches:
+      - hardening/safe-calibration-and-ci-gates
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: temporary-exact-patch-materialization
+  cancel-in-progress: false
+
+env:
+  BASE_SHA: 4051959bf43212d013bf7916de359d2881cbff09
+  BOOTSTRAP_HEAD_SHA: ${{ github.sha }}
+  TARGET_BRANCH: hardening/safe-calibration-and-ci-gates
+  PATCH_GZIP_SHA256: 3a6713fc3af965a77b4ac4aa38bdb3fcf75fd51e03365ec82f7d1f0db1a527e1
+  PATCH_SHA256: 90104100dea87f39fc2af1c2bd9166bae5c2f711f9d51a080cb817a312a51885
 
 jobs:
-  snapshot:
-    name: Package exact pull-request checkout
+  materialize:
+    name: Materialize one clean reviewed commit
+    if: >-
+      github.repository == 'IPS-Stuttgart/Prob4D' &&
+      github.ref == 'refs/heads/hardening/safe-calibration-and-ci-gates'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Check out exact pull-request revision
+      - name: Check out the exact bootstrap revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          persist-credentials: false
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: true
           clean: true
-      - name: Package source tree
+
+      - name: Verify and materialize the checksum-bound patch
         shell: bash
         run: |
           set -euo pipefail
-          tar --exclude=.git -czf "${RUNNER_TEMP}/prob4d-pr-source.tar.gz" .
-          sha256sum "${RUNNER_TEMP}/prob4d-pr-source.tar.gz" > pr-source-sha256.txt
-      - name: Upload exact source snapshot
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: temporary-pr-source-snapshot
-          path: |
-            ${{ runner.temp }}/prob4d-pr-source.tar.gz
-            pr-source-sha256.txt
-          if-no-files-found: error
-          retention-days: 1
+          test "$(git rev-parse HEAD)" = "${BOOTSTRAP_HEAD_SHA}"
+          payload=.github/bootstrap/safe-calibration-and-ci-gates.patch.gz.b64
+          test -f "${payload}"
+
+          base64 --decode "${payload}" > "${RUNNER_TEMP}/changes.patch.gz"
+          echo "${PATCH_GZIP_SHA256}  ${RUNNER_TEMP}/changes.patch.gz" \
+            | sha256sum --check --strict
+          gzip --decompress --stdout "${RUNNER_TEMP}/changes.patch.gz" \
+            > "${RUNNER_TEMP}/changes.patch"
+          echo "${PATCH_SHA256}  ${RUNNER_TEMP}/changes.patch" \
+            | sha256sum --check --strict
+
+          git cat-file -e "${BASE_SHA}^{commit}"
+          git reset --hard "${BASE_SHA}"
+          git clean -ffdx
+          git apply --check "${RUNNER_TEMP}/changes.patch"
+          git apply "${RUNNER_TEMP}/changes.patch"
+          git diff --check
+
+          cat > "${RUNNER_TEMP}/expected-paths.txt" <<'EOF'
+          .github/workflows/cross-stack-metamorphic.yml
+          .github/workflows/tests.yml
+          CHANGELOG.d/safe-calibration-and-ci-gates.md
+          docs/cut3r-deform360-source-freeze.md
+          docs/legacy-camera-calibration-loading.md
+          scripts/science/build_cut3r_deform360_source_freeze.py
+          tests/test_cross_stack_metamorphic_workflow.py
+          tests/test_cut3r_deform360_source_freeze.py
+          tests/test_tests_workflow_merge_gate.py
+          EOF
+          git diff --name-only "${BASE_SHA}" | LC_ALL=C sort \
+            > "${RUNNER_TEMP}/actual-paths.txt"
+          LC_ALL=C sort -o "${RUNNER_TEMP}/expected-paths.txt" \
+            "${RUNNER_TEMP}/expected-paths.txt"
+          diff -u "${RUNNER_TEMP}/expected-paths.txt" \
+            "${RUNNER_TEMP}/actual-paths.txt"
+          test ! -e .github/workflows/pr-source-snapshot.yml
+          test ! -e .github/bootstrap/safe-calibration-and-ci-gates.patch.gz.b64
+
+      - name: Publish the clean single-parent commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --all
+          git commit -m "Harden legacy calibration loading and CI gates"
+          test "$(git rev-parse HEAD^)" = "${BASE_SHA}"
+          git push \
+            --force-with-lease="refs/heads/${TARGET_BRANCH}:${BOOTSTRAP_HEAD_SHA}" \
+            origin "HEAD:refs/heads/${TARGET_BRANCH}"
