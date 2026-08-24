@@ -1,46 +1,44 @@
-name: Temporary exact patch materialization
+name: Temporary exact patch extraction
 
 on:
-  push:
-    branches:
-      - hardening/safe-calibration-and-ci-gates
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: temporary-exact-patch-materialization
-  cancel-in-progress: false
+  group: temporary-exact-patch-extraction-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 env:
   BASE_SHA: 4051959bf43212d013bf7916de359d2881cbff09
-  BOOTSTRAP_HEAD_SHA: ${{ github.sha }}
-  TARGET_BRANCH: hardening/safe-calibration-and-ci-gates
   PATCH_GZIP_SHA256: 3a6713fc3af965a77b4ac4aa38bdb3fcf75fd51e03365ec82f7d1f0db1a527e1
   PATCH_SHA256: 90104100dea87f39fc2af1c2bd9166bae5c2f711f9d51a080cb817a312a51885
 
 jobs:
-  materialize:
-    name: Materialize one clean reviewed commit
+  extract:
+    name: Verify and export the clean patch
     if: >-
       github.repository == 'IPS-Stuttgart/Prob4D' &&
-      github.ref == 'refs/heads/hardening/safe-calibration-and-ci-gates'
+      github.event.pull_request.head.ref == 'hardening/safe-calibration-and-ci-gates'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Check out the exact bootstrap revision
+      - name: Check out the exact pull-request head
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
-          persist-credentials: true
+          persist-credentials: false
           clean: true
 
-      - name: Verify and materialize the checksum-bound patch
+      - name: Verify, apply, and package the checksum-bound patch
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "${BOOTSTRAP_HEAD_SHA}"
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
           payload=.github/bootstrap/safe-calibration-and-ci-gates.patch.gz.b64
           test -f "${payload}"
 
@@ -76,19 +74,21 @@ jobs:
             "${RUNNER_TEMP}/expected-paths.txt"
           diff -u "${RUNNER_TEMP}/expected-paths.txt" \
             "${RUNNER_TEMP}/actual-paths.txt"
-          test ! -e .github/workflows/pr-source-snapshot.yml
-          test ! -e .github/bootstrap/safe-calibration-and-ci-gates.patch.gz.b64
 
-      - name: Publish the clean single-parent commit
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email \
-            "41898282+github-actions[bot]@users.noreply.github.com"
-          git add --all
-          git commit -m "Harden legacy calibration loading and CI gates"
-          test "$(git rev-parse HEAD^)" = "${BASE_SHA}"
-          git push \
-            --force-with-lease="refs/heads/${TARGET_BRANCH}:${BOOTSTRAP_HEAD_SHA}" \
-            origin "HEAD:refs/heads/${TARGET_BRANCH}"
+          tar --create --gzip \
+            --file "${RUNNER_TEMP}/materialized-files.tar.gz" \
+            --files-from "${RUNNER_TEMP}/expected-paths.txt"
+          sha256sum "${RUNNER_TEMP}/changes.patch" \
+            "${RUNNER_TEMP}/materialized-files.tar.gz" \
+            > "${RUNNER_TEMP}/SHA256SUMS"
+
+      - name: Upload the verified materialization
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: safe-calibration-materialized-${{ github.event.pull_request.head.sha }}
+          path: |
+            ${{ runner.temp }}/changes.patch
+            ${{ runner.temp }}/materialized-files.tar.gz
+            ${{ runner.temp }}/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 1
