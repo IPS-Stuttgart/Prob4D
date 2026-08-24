@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import pickle
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -14,7 +13,12 @@ from numpy.typing import NDArray
 
 from .data import PredictionWindow
 from .lineage import audit_motioncrafter_product_frame
-from .phystwin import CoverResizeCrop, PhysTwinCase, nearest_neighbor_indices
+from .phystwin import (
+    CoverResizeCrop,
+    PhysTwinCase,
+    _load_trusted_legacy_pickle,
+    nearest_neighbor_indices,
+)
 from .phystwin_experiment import (
     ErrorSummary,
     fit_metric_gauge,
@@ -412,8 +416,13 @@ def run_state_experiment(
         camera=input_camera,
         occlusion_tolerance_m=0.03,
     )
-    with Path(manual_tracks_path).open("rb") as handle:
-        manual_truth = np.asarray(pickle.load(handle), dtype=np.float64)
+    manual_truth = np.asarray(
+        _load_trusted_legacy_pickle(
+            Path(manual_tracks_path),
+            description="manual tracks",
+        ),
+        dtype=np.float64,
+    )
     physics = load_physics_trajectory(physics_trajectory_path, final_data_path)
     corrected = load_physics_trajectory(corrected_trajectory_path, final_data_path)
     maximum_frame = int(np.max(prediction.frame_indices))

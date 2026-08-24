@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import pickle
 import subprocess
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -18,6 +17,7 @@ from .data import PredictionWindow
 from .phystwin import (
     CoverResizeCrop,
     PhysTwinCase,
+    _load_trusted_legacy_pickle,
     deterministic_subsample,
     directed_nearest_distances,
     nearest_neighbor_indices,
@@ -183,8 +183,13 @@ def load_manual_flow_samples(
 ) -> ManualFlowSamples:
     if prediction.scene_flow is None or prediction.deform_mask is None:
         raise ValueError("MotionCrafter prediction does not contain scene flow")
-    with Path(manual_tracks_path).open("rb") as handle:
-        manual_tracks = np.asarray(pickle.load(handle), dtype=np.float64)
+    manual_tracks = np.asarray(
+        _load_trusted_legacy_pickle(
+            Path(manual_tracks_path),
+            description="manual tracks",
+        ),
+        dtype=np.float64,
+    )
     if manual_tracks.ndim != 3 or manual_tracks.shape[-1] != 3:
         raise ValueError("manual tracks must have shape (T, N, 3)")
     masks = case.load_processed_masks()
@@ -280,10 +285,19 @@ def load_physics_trajectory(
         return None
     if final_data_path is None:
         raise ValueError("physics trajectories require final_data_path")
-    with Path(trajectory_path).open("rb") as handle:
-        trajectory = np.asarray(pickle.load(handle), dtype=np.float64)
-    with Path(final_data_path).open("rb") as handle:
-        final_data = pickle.load(handle)
+    trajectory = np.asarray(
+        _load_trusted_legacy_pickle(
+            Path(trajectory_path),
+            description="physics trajectory",
+        ),
+        dtype=np.float64,
+    )
+    final_data = _load_trusted_legacy_pickle(
+        Path(final_data_path),
+        description="PhysTwin final data",
+    )
+    if not isinstance(final_data, dict):
+        raise ValueError("PhysTwin final data must be a dictionary")
     surface_count = int(
         np.asarray(final_data["object_points"]).shape[1]
         + np.asarray(final_data["surface_points"]).shape[0]
