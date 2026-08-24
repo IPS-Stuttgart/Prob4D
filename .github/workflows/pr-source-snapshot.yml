@@ -1,0 +1,36 @@
+name: Temporary PR source snapshot
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    name: Package exact pull-request checkout
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact pull-request revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          clean: true
+      - name: Package source tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar --exclude=.git -czf "${RUNNER_TEMP}/prob4d-pr-source.tar.gz" .
+          sha256sum "${RUNNER_TEMP}/prob4d-pr-source.tar.gz" > pr-source-sha256.txt
+      - name: Upload exact source snapshot
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: temporary-pr-source-snapshot
+          path: |
+            ${{ runner.temp }}/prob4d-pr-source.tar.gz
+            pr-source-sha256.txt
+          if-no-files-found: error
+          retention-days: 1
