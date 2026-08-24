@@ -218,7 +218,7 @@ jobs:
     permissions:
       contents: read
     environment: trusted-self-hosted-validation
-    runs-on: [self-hosted, Linux, X64, nvidia-smi]
+    runs-on: [self-hosted, Linux, X64, nvidia-smi, data-prob4d-deform360-source-v1, prob4d-cut3r]
     timeout-minutes: 180
     outputs:
       artifact_name: ${{ steps.freeze.outputs.artifact_name }}
