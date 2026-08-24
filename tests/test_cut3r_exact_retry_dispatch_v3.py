@@ -98,6 +98,58 @@ def _valid_artifacts() -> dict[str, object]:
     }
 
 
+def _valid_registered_timeout_run() -> dict[str, object]:
+    return {
+        "id": 32764290533,
+        "name": "Execute retained CUT3R source freeze automatically v2",
+        "path": ".github/workflows/cut3r-source-freeze-auto-v2.yml",
+        "head_sha": "78a209c2b217c264ab8b7bebfcc42fe7cd7d2ebf",
+        "head_branch": "main",
+        "event": "workflow_dispatch",
+        "status": "completed",
+        "conclusion": "cancelled",
+        "run_attempt": 1,
+        "created_at": "2026-08-24T18:46:15Z",
+    }
+
+
+def _valid_registered_timeout_jobs() -> dict[str, object]:
+    rows = (
+        (97550105116, "Authorize exact merged-main v2 request", "success"),
+        (97550105469, "Hosted automatic-execution contract", "success"),
+        (97550286850, "Check retained execution configuration", "success"),
+        (97550323593, "Publish queued run pointer", "success"),
+        (
+            97550358844,
+            "Freeze retained source inputs from trusted merged main",
+            "cancelled",
+        ),
+        (
+            97550358906,
+            "Bound self-hosted runner acceptance wait",
+            "cancelled",
+        ),
+        (97556521290, "Publish terminal v2 source-freeze receipt", "success"),
+    )
+    return {
+        "jobs": [
+            {
+                "id": job_id,
+                "name": name,
+                "run_id": 32764290533,
+                "status": "completed",
+                "conclusion": conclusion,
+                "steps": None if job_id == 97550358844 else [],
+            }
+            for job_id, name, conclusion in rows
+        ]
+    }
+
+
+def _valid_registered_timeout_artifacts() -> dict[str, object]:
+    return {"total_count": 0, "artifacts": []}
+
+
 def test_exact_failure_diagnostic_is_admitted() -> None:
     module = _load_module()
 
@@ -171,6 +223,68 @@ def test_successful_scientific_job_is_rejected() -> None:
             jobs,
             _valid_artifacts(),
         )
+
+
+def test_exact_registered_runner_timeout_is_admitted() -> None:
+    module = _load_module()
+
+    admitted = module.validate_registered_runner_timeout(
+        _valid_registered_timeout_run(),
+        _valid_registered_timeout_jobs(),
+        _valid_registered_timeout_artifacts(),
+    )
+
+    assert admitted["id"] == 32764290533
+
+
+def test_registered_timeout_with_retained_steps_is_rejected() -> None:
+    module = _load_module()
+    jobs = _valid_registered_timeout_jobs()
+    rows = jobs["jobs"]
+    assert isinstance(rows, list)
+    execute_job = rows[4]
+    assert isinstance(execute_job, dict)
+    execute_job["steps"] = [
+        {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+        }
+    ]
+
+    with pytest.raises(module.DispatchError, match="unexpectedly has steps"):
+        module.validate_registered_runner_timeout(
+            _valid_registered_timeout_run(),
+            jobs,
+            _valid_registered_timeout_artifacts(),
+        )
+
+
+def test_registered_timeout_with_any_artifact_is_rejected() -> None:
+    module = _load_module()
+    artifacts = {
+        "total_count": 1,
+        "artifacts": [{"id": 1, "name": "unexpected"}],
+    }
+
+    with pytest.raises(module.DispatchError, match="unexpectedly has artifacts"):
+        module.validate_registered_runner_timeout(
+            _valid_registered_timeout_run(),
+            _valid_registered_timeout_jobs(),
+            artifacts,
+        )
+
+
+def test_only_single_registered_timeout_bypasses_deduplication() -> None:
+    module = _load_module()
+    registered = {"id": 32764290533}
+
+    assert module.is_only_registered_timeout([registered])
+    assert not module.is_only_registered_timeout([])
+    assert not module.is_only_registered_timeout([{"id": 32764290534}])
+    assert not module.is_only_registered_timeout(
+        [registered, {"id": 32764290534}]
+    )
 
 
 def test_relevant_run_selection_is_target_workflow_dispatch_only() -> None:
@@ -251,3 +365,15 @@ def test_validation_does_not_mutate_inputs() -> None:
     module.validate_superseded_run(run, jobs, artifacts)
 
     assert (run, jobs, artifacts) == before
+
+def test_registered_timeout_validation_does_not_mutate_inputs() -> None:
+    module = _load_module()
+    run = _valid_registered_timeout_run()
+    jobs = _valid_registered_timeout_jobs()
+    artifacts = _valid_registered_timeout_artifacts()
+    before = deepcopy((run, jobs, artifacts))
+
+    module.validate_registered_runner_timeout(run, jobs, artifacts)
+
+    assert (run, jobs, artifacts) == before
+

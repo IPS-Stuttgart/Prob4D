@@ -18,6 +18,9 @@ HISTORICAL_EXECUTION_SHA = "8b923e8cd67ca65f09312cffe305e36852f36fbb"
 RETAINED_REQUEST_ID = "8f3c9fba12f8a16895edce89d7a92e4806a43cb2f34b5a05faff71945809b63e"
 SUPERSEDED_RUN_ID = 32621813949
 SUPERSEDED_EXECUTE_JOB_ID = 97376973894
+REGISTERED_TIMEOUT_RUN_ID = 32764290533
+REGISTERED_TIMEOUT_EXECUTE_JOB_ID = 97550358844
+REGISTERED_TIMEOUT_HEAD_SHA = "78a209c2b217c264ab8b7bebfcc42fe7cd7d2ebf"
 RETRY_WINDOW_START_UTC = "2026-08-24T18:12:05Z"
 FAILURE_ARTIFACT = {
     "id": 9532584642,
@@ -178,6 +181,99 @@ def validate_superseded_run(
     return artifact
 
 
+def validate_registered_runner_timeout(
+    run_payload: Any,
+    jobs_payload: Any,
+    artifacts_payload: Any,
+) -> JsonObject:
+    """Validate the one target run cancelled before retained execution."""
+
+    run = _require_object(run_payload, label="registered timeout run")
+    _require_exact_fields(
+        run,
+        {
+            "id": REGISTERED_TIMEOUT_RUN_ID,
+            "name": "Execute retained CUT3R source freeze automatically v2",
+            "path": ".github/workflows/cut3r-source-freeze-auto-v2.yml",
+            "head_sha": REGISTERED_TIMEOUT_HEAD_SHA,
+            "head_branch": "main",
+            "event": "workflow_dispatch",
+            "status": "completed",
+            "conclusion": "cancelled",
+            "run_attempt": 1,
+            "created_at": "2026-08-24T18:46:15Z",
+        },
+        label="registered timeout run",
+    )
+
+    jobs = _require_object(jobs_payload, label="registered timeout jobs")
+    job_rows = _require_list(
+        jobs.get("jobs"),
+        label="registered timeout jobs.jobs",
+    )
+    expected_jobs = {
+        "Authorize exact merged-main v2 request": (97550105116, "success"),
+        "Hosted automatic-execution contract": (97550105469, "success"),
+        "Check retained execution configuration": (97550286850, "success"),
+        "Publish queued run pointer": (97550323593, "success"),
+        "Freeze retained source inputs from trusted merged main": (
+            REGISTERED_TIMEOUT_EXECUTE_JOB_ID,
+            "cancelled",
+        ),
+        "Bound self-hosted runner acceptance wait": (97550358906, "cancelled"),
+        "Publish terminal v2 source-freeze receipt": (97556521290, "success"),
+    }
+    if len(job_rows) != len(expected_jobs):
+        _fail("registered timeout run has an unexpected job count")
+    jobs_by_name = {
+        str(row.get("name")): row
+        for row in job_rows
+        if isinstance(row, dict) and isinstance(row.get("name"), str)
+    }
+    if set(jobs_by_name) != set(expected_jobs):
+        _fail("registered timeout run job names do not match")
+    for job_name, (job_id, conclusion) in expected_jobs.items():
+        job = _require_object(
+            jobs_by_name.get(job_name),
+            label=f"registered timeout job {job_name!r}",
+        )
+        _require_exact_fields(
+            job,
+            {
+                "id": job_id,
+                "run_id": REGISTERED_TIMEOUT_RUN_ID,
+                "status": "completed",
+                "conclusion": conclusion,
+            },
+            label=f"registered timeout job {job_name!r}",
+        )
+
+    execute_job = _require_object(
+        jobs_by_name["Freeze retained source inputs from trusted merged main"],
+        label="registered timeout execute job",
+    )
+    if execute_job.get("steps") not in (None, []):
+        _fail("registered timeout retained job unexpectedly has steps")
+
+    artifacts = _require_object(
+        artifacts_payload,
+        label="registered timeout artifacts",
+    )
+    artifact_rows = _require_list(
+        artifacts.get("artifacts"),
+        label="registered timeout artifacts.artifacts",
+    )
+    if artifacts.get("total_count") != 0 or artifact_rows:
+        _fail("registered timeout run unexpectedly has artifacts")
+    return run
+
+
+def is_only_registered_timeout(runs: list[JsonObject]) -> bool:
+    """Return whether the exact no-execution timeout is the sole target retry."""
+
+    return len(runs) == 1 and runs[0].get("id") == REGISTERED_TIMEOUT_RUN_ID
+
+
 def select_relevant_runs(payload: Any) -> list[JsonObject]:
     response = _require_object(payload, label="target workflow runs")
     rows = _require_list(
@@ -297,7 +393,8 @@ def publish_accepted_receipt() -> None:
 def resolve_or_dispatch() -> None:
     client = _client_from_environment()
     existing = client.relevant_runs()
-    if existing:
+    admitted_timeout_run: JsonObject | None = None
+    if existing and not is_only_registered_timeout(existing):
         run = existing[0]
         client.post_comment(
             "\n".join(
@@ -317,6 +414,15 @@ def resolve_or_dispatch() -> None:
             )
         )
         return
+    if existing:
+        timeout_path = (
+            f"/repos/{client.repository}/actions/runs/{REGISTERED_TIMEOUT_RUN_ID}"
+        )
+        admitted_timeout_run = validate_registered_runner_timeout(
+            client.request_json("GET", timeout_path),
+            client.request_json("GET", f"{timeout_path}/jobs?per_page=100"),
+            client.request_json("GET", f"{timeout_path}/artifacts?per_page=100"),
+        )
 
     run_path = f"/repos/{client.repository}/actions/runs/{SUPERSEDED_RUN_ID}"
     run_payload = client.request_json("GET", run_path)
@@ -334,6 +440,11 @@ def resolve_or_dispatch() -> None:
         artifacts_payload,
     )
 
+    timeout_run_id = (
+        str(admitted_timeout_run["id"])
+        if admitted_timeout_run is not None
+        else "not-applicable"
+    )
     before_ids = {
         int(row["id"]) for row in client.relevant_runs() if isinstance(row.get("id"), int)
     }
@@ -372,6 +483,7 @@ def resolve_or_dispatch() -> None:
                     f"- historical execution revision: `{HISTORICAL_EXECUTION_SHA}`",
                     f"- retained request ID: `{RETAINED_REQUEST_ID}`",
                     f"- admitted diagnostic artifact ID: `{admitted_artifact['id']}`",
+                    f"- admitted runner-timeout run ID: `{timeout_run_id}`",
                     f"- helper workflow: {os.environ['HELPER_RUN_URL']}",
                     "",
                     "GitHub accepted the workflow dispatch, but the target run did "
@@ -394,6 +506,7 @@ def resolve_or_dispatch() -> None:
                 f"- retained request ID: `{RETAINED_REQUEST_ID}`",
                 f"- admitted diagnostic artifact ID: `{admitted_artifact['id']}`",
                 f"- admitted artifact digest: `{admitted_artifact['digest']}`",
+                f"- admitted runner-timeout run ID: `{timeout_run_id}`",
                 f"- command comment: {os.environ['COMMAND_COMMENT_URL']}",
                 f"- dispatcher workflow: {os.environ['HELPER_RUN_URL']}",
                 "",

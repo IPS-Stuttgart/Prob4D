@@ -46,7 +46,20 @@ After the workflow is merged to `main`, only this exact comment by
 The GitHub-hosted dispatcher checks out the exact default-branch event revision,
 replays the existing historical retry authorization, verifies the routed
 retained-data/CUT3R runner labels, and resolves any already-created target retry
-before dispatching. Repeated commands cannot create duplicate target executions.
+before dispatching.
+
+The first v3 target execution, run `32764290533` at control-plane revision
+`78a209c2b217c264ab8b7bebfcc42fe7cd7d2ebf`, was cancelled by its bounded
+runner-acceptance watchdog before the retained job began. Retained job
+`97550358844` has no steps and the run has zero artifacts. The dispatcher may
+treat only this exact immutable state as a non-execution and issue one fresh
+current-`main` dispatch of the same historical request. It re-reads and binds
+the exact run, all seven job identities and outcomes, the empty retained-job
+step list, and the zero-artifact inventory before doing so.
+
+Any drift fails closed. Any other existing target run, or any second run created
+after this exception is consumed, remains deduplicated. No new scientific
+request, provider choice, data selection, or outcome access is authorized.
 
 ## Next operational gate
 
