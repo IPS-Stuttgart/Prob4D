@@ -1,1 +1,0 @@
-- Permit the exact CUT3R retry controller to advance past the reviewed configuration-failure artifact from the superseded run while continuing to reject every other artifact set, and make failure-receipt hashing use the absolute system Python interpreter after the workflow resets `PATH`.
