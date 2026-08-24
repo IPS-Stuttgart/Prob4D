@@ -18,6 +18,10 @@ HISTORICAL_EXECUTION_SHA = "8b923e8cd67ca65f09312cffe305e36852f36fbb"
 RETAINED_REQUEST_ID = "8f3c9fba12f8a16895edce89d7a92e4806a43cb2f34b5a05faff71945809b63e"
 SUPERSEDED_RUN_ID = 32621813949
 SUPERSEDED_EXECUTE_JOB_ID = 97376973894
+TIMED_OUT_RETRY_RUN_ID = 32764290533
+TIMED_OUT_RETRY_HEAD_SHA = "78a209c2b217c264ab8b7bebfcc42fe7cd7d2ebf"
+TIMED_OUT_RETRY_EXECUTE_JOB_ID = 97550358844
+TIMED_OUT_RETRY_WATCHDOG_JOB_ID = 97550358906
 RETRY_WINDOW_START_UTC = "2026-08-24T18:12:05Z"
 FAILURE_ARTIFACT = {
     "id": 9532584642,
@@ -178,6 +182,107 @@ def validate_superseded_run(
     return artifact
 
 
+def validate_zero_execution_timeout_retry(
+    run_payload: Any,
+    jobs_payload: Any,
+    artifacts_payload: Any,
+) -> None:
+    """Admit only the exact routed retry that timed out before runner execution."""
+
+    run = _require_object(run_payload, label="timed-out retry run")
+    _require_exact_fields(
+        run,
+        {
+            "id": TIMED_OUT_RETRY_RUN_ID,
+            "name": "Execute retained CUT3R source freeze automatically v2",
+            "path": ".github/workflows/cut3r-source-freeze-auto-v2.yml",
+            "head_sha": TIMED_OUT_RETRY_HEAD_SHA,
+            "head_branch": "main",
+            "event": "workflow_dispatch",
+            "status": "completed",
+            "conclusion": "cancelled",
+        },
+        label="timed-out retry run",
+    )
+
+    jobs = _require_object(jobs_payload, label="timed-out retry jobs")
+    rows = _require_list(jobs.get("jobs"), label="timed-out retry jobs.jobs")
+    jobs_by_name = {
+        str(row.get("name")): row
+        for row in rows
+        if isinstance(row, dict) and isinstance(row.get("name"), str)
+    }
+    expected_jobs = {
+        "Authorize exact merged-main v2 request": (97550105116, "success"),
+        "Hosted automatic-execution contract": (97550105469, "success"),
+        "Check retained execution configuration": (97550286850, "success"),
+        "Publish queued run pointer": (97550323593, "success"),
+        "Freeze retained source inputs from trusted merged main": (
+            TIMED_OUT_RETRY_EXECUTE_JOB_ID,
+            "cancelled",
+        ),
+        "Bound self-hosted runner acceptance wait": (
+            TIMED_OUT_RETRY_WATCHDOG_JOB_ID,
+            "cancelled",
+        ),
+        "Publish terminal v2 source-freeze receipt": (97556521290, "success"),
+    }
+    if set(jobs_by_name) != set(expected_jobs):
+        _fail("timed-out retry job roster mismatch")
+    for job_name, (job_id, conclusion) in expected_jobs.items():
+        job = _require_object(jobs_by_name[job_name], label=f"timed-out retry job {job_name!r}")
+        _require_exact_fields(
+            job,
+            {
+                "id": job_id,
+                "run_id": TIMED_OUT_RETRY_RUN_ID,
+                "status": "completed",
+                "conclusion": conclusion,
+            },
+            label=f"timed-out retry job {job_name!r}",
+        )
+
+    execute_job = _require_object(
+        jobs_by_name["Freeze retained source inputs from trusted merged main"],
+        label="timed-out retry execute job",
+    )
+    execute_steps = execute_job.get("steps")
+    if execute_steps not in (None, []):
+        _fail("timed-out retry execute job unexpectedly contains executed steps")
+
+    watchdog = _require_object(
+        jobs_by_name["Bound self-hosted runner acceptance wait"],
+        label="timed-out retry watchdog job",
+    )
+    watchdog_steps = _require_list(
+        watchdog.get("steps"),
+        label="timed-out retry watchdog job.steps",
+    )
+    timeout_steps = [
+        row
+        for row in watchdog_steps
+        if isinstance(row, dict)
+        and row.get("name")
+        == "Cancel a run that no matching runner accepts within twenty minutes"
+    ]
+    if len(timeout_steps) != 1:
+        _fail("timed-out retry watchdog timeout step mismatch")
+    _require_exact_fields(
+        _require_object(timeout_steps[0], label="timed-out retry watchdog timeout step"),
+        {"status": "completed", "conclusion": "success"},
+        label="timed-out retry watchdog timeout step",
+    )
+
+    artifacts = _require_object(artifacts_payload, label="timed-out retry artifacts")
+    artifact_rows = _require_list(
+        artifacts.get("artifacts"),
+        label="timed-out retry artifacts.artifacts",
+    )
+    total_count = artifacts.get("total_count", len(artifact_rows))
+    if total_count != 0 or artifact_rows:
+        _fail("timed-out retry unexpectedly produced an Actions artifact")
+
+
 def select_relevant_runs(payload: Any) -> list[JsonObject]:
     response = _require_object(payload, label="target workflow runs")
     rows = _require_list(
@@ -294,29 +399,46 @@ def publish_accepted_receipt() -> None:
     )
 
 
+def _validate_exact_timeout_replacement(client: GitHubClient, run: JsonObject) -> None:
+    run_id = run.get("id")
+    if run_id != TIMED_OUT_RETRY_RUN_ID:
+        _fail("existing retry is not the exact registered zero-execution timeout")
+    run_path = f"/repos/{client.repository}/actions/runs/{TIMED_OUT_RETRY_RUN_ID}"
+    validate_zero_execution_timeout_retry(
+        client.request_json("GET", run_path),
+        client.request_json("GET", f"{run_path}/jobs?per_page=100"),
+        client.request_json("GET", f"{run_path}/artifacts?per_page=100"),
+    )
+
+
 def resolve_or_dispatch() -> None:
     client = _client_from_environment()
     existing = client.relevant_runs()
+    replaced_timeout: JsonObject | None = None
     if existing:
         run = existing[0]
-        client.post_comment(
-            "\n".join(
-                (
-                    "## Existing CUT3R retry resolved by v3 dispatcher",
-                    "",
-                    f"- workflow run: {run.get('html_url')}",
-                    f"- run ID: `{run.get('id')}`",
-                    f"- status: `{run.get('status')}`",
-                    f"- conclusion: `{run.get('conclusion')}`",
-                    f"- created at: `{run.get('created_at')}`",
-                    f"- command comment: {os.environ['COMMAND_COMMENT_URL']}",
-                    f"- resolver workflow: {os.environ['HELPER_RUN_URL']}",
-                    "",
-                    "No duplicate target retry was dispatched and no outcome was opened.",
+        if run.get("id") == TIMED_OUT_RETRY_RUN_ID:
+            _validate_exact_timeout_replacement(client, run)
+            replaced_timeout = run
+        else:
+            client.post_comment(
+                "\n".join(
+                    (
+                        "## Existing CUT3R retry resolved by v3 dispatcher",
+                        "",
+                        f"- workflow run: {run.get('html_url')}",
+                        f"- run ID: `{run.get('id')}`",
+                        f"- status: `{run.get('status')}`",
+                        f"- conclusion: `{run.get('conclusion')}`",
+                        f"- created at: `{run.get('created_at')}`",
+                        f"- command comment: {os.environ['COMMAND_COMMENT_URL']}",
+                        f"- resolver workflow: {os.environ['HELPER_RUN_URL']}",
+                        "",
+                        "No duplicate target retry was dispatched and no outcome was opened.",
+                    )
                 )
             )
-        )
-        return
+            return
 
     run_path = f"/repos/{client.repository}/actions/runs/{SUPERSEDED_RUN_ID}"
     run_payload = client.request_json("GET", run_path)
@@ -333,6 +455,28 @@ def resolve_or_dispatch() -> None:
         jobs_payload,
         artifacts_payload,
     )
+
+    if replaced_timeout is not None:
+        client.post_comment(
+            "\n".join(
+                (
+                    "## Exact zero-execution CUT3R queue timeout admitted for replacement",
+                    "",
+                    f"- timed-out workflow run: {replaced_timeout.get('html_url')}",
+                    f"- run ID: `{TIMED_OUT_RETRY_RUN_ID}`",
+                    f"- conclusion: `{replaced_timeout.get('conclusion')}`",
+                    f"- retained execute job ID: `{TIMED_OUT_RETRY_EXECUTE_JOB_ID}`",
+                    f"- watchdog job ID: `{TIMED_OUT_RETRY_WATCHDOG_JOB_ID}`",
+                    "- retained execute steps: `0`",
+                    "- Actions artifacts: `0`",
+                    f"- command comment: {os.environ['COMMAND_COMMENT_URL']}",
+                    "",
+                    "This exact prior retry never reached retained execution. It may be "
+                    "replaced once under the newly reviewed runner routing; any newer "
+                    "retry remains duplicate-protected.",
+                )
+            )
+        )
 
     before_ids = {
         int(row["id"]) for row in client.relevant_runs() if isinstance(row.get("id"), int)
@@ -398,8 +542,9 @@ def resolve_or_dispatch() -> None:
                 f"- dispatcher workflow: {os.environ['HELPER_RUN_URL']}",
                 "",
                 "The target workflow independently repeats exact authorization, "
-                "checks retained-variable presence before queueing, uses the routed "
-                "retained-data/CUT3R labels, and remains target-closed.",
+                "checks retained-variable presence before queueing, binds the exact "
+                "retained workstation2 runner with Linux/X64/GPU checks, and remains "
+                "target-closed.",
             )
         )
     )
