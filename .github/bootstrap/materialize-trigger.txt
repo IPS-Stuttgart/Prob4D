@@ -1,1 +1,1 @@
-Trigger the already-present checksum-bound materialization workflow.
+Retrigger the checksum-bound materialization workflow after PR triage.
