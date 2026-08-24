@@ -55,10 +55,7 @@ def test_comment_dispatch_discovers_before_dispatch_and_fails_closed() -> None:
     assert "superseded run is not a terminal zero-evidence failure" in text
     assert "superseded source-freeze job succeeded; duplicate forbidden" in text
     assert 'SUPERSEDED_FAILURE_ARTIFACT_ID: "9532584642"' in text
-    assert (
-        "SUPERSEDED_FAILURE_ARTIFACT_NAME: "
-        "cut3r-source-freeze-v2-failed-32621813949-2"
-    ) in text
+    assert ("SUPERSEDED_FAILURE_ARTIFACT_NAME: cut3r-source-freeze-v2-failed-32621813949-2") in text
     assert 'SUPERSEDED_FAILURE_ARTIFACT_SIZE: "3106"' in text
     assert 'artifacts.get("total_count") != 1' in text
     assert '"expired": False' in text
