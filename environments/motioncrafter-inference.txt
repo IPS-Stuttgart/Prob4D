@@ -11,5 +11,5 @@ mediapy==1.2.7
 opencv-python-headless==5.0.0.93
 pytest==9.1.1
 scipy==1.18.0
-transformers==5.15.0
+transformers==5.15.1
 
