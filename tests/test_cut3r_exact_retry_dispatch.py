@@ -49,6 +49,11 @@ def test_dispatch_request_is_exact_and_target_closed() -> None:
 
 def test_dispatch_workflow_is_hosted_main_bound_and_one_shot() -> None:
     text = WORKFLOW.read_text(encoding="utf-8")
+    runs_on = [
+        line.strip()
+        for line in text.splitlines()
+        if line.lstrip().startswith("runs-on:")
+    ]
 
     assert "\n  pull_request:" in text
     assert "\n  push:" in text
@@ -60,8 +65,7 @@ def test_dispatch_workflow_is_hosted_main_bound_and_one_shot() -> None:
     assert 'test "$EVENT_AFTER" = "$EXPECTED_SHA"' in text
     assert 'test "$EVENT_FORCED" = "false"' in text
     assert 'test "$EVENT_DELETED" = "false"' in text
-    assert "runs-on: ubuntu-latest" in text
-    assert "runs-on: [self-hosted" not in text
+    assert runs_on == ["runs-on: ubuntu-latest", "runs-on: ubuntu-latest"]
     assert "persist-credentials: false" in text
 
 
