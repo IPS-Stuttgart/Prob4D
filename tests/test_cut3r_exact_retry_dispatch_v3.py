@@ -9,19 +9,11 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "ci" / "cut3r_exact_retry_dispatch_v3.py"
-WORKFLOW = (
-    ROOT
-    / ".github"
-    / "workflows"
-    / "cut3r-exact-retry-v3-comment-dispatch.yml"
-)
+WORKFLOW = ROOT / ".github" / "workflows" / "cut3r-exact-retry-v3-comment-dispatch.yml"
 HISTORICAL_EXECUTION_SHA = "8b923e8cd67ca65f09312cffe305e36852f36fbb"
-RETAINED_REQUEST_ID = (
-    "8f3c9fba12f8a16895edce89d7a92e4806a43cb2f34b5a05faff71945809b63e"
-)
+RETAINED_REQUEST_ID = "8f3c9fba12f8a16895edce89d7a92e4806a43cb2f34b5a05faff71945809b63e"
 COMMAND = (
-    "/prob4d-dispatch-cut3r-source-freeze-v3 "
-    f"{HISTORICAL_EXECUTION_SHA} {RETAINED_REQUEST_ID}"
+    f"/prob4d-dispatch-cut3r-source-freeze-v3 {HISTORICAL_EXECUTION_SHA} {RETAINED_REQUEST_ID}"
 )
 
 
@@ -91,8 +83,7 @@ def _valid_artifacts() -> dict[str, object]:
                 "name": "cut3r-source-freeze-v2-failed-32621813949-2",
                 "size_in_bytes": 3106,
                 "digest": (
-                    "sha256:a7805e079ccb367d56634c62bb91a79f"
-                    "dac71babaa69c233e485135b9243a0a0"
+                    "sha256:a7805e079ccb367d56634c62bb91a79fdac71babaa69c233e485135b9243a0a0"
                 ),
                 "expired": False,
                 "workflow_run": {
@@ -214,11 +205,7 @@ def test_relevant_run_selection_is_target_workflow_dispatch_only() -> None:
 
 def test_workflow_is_exact_actor_issue_and_default_branch_bound() -> None:
     text = WORKFLOW.read_text(encoding="utf-8")
-    runs_on = [
-        line.strip()
-        for line in text.splitlines()
-        if line.lstrip().startswith("runs-on:")
-    ]
+    runs_on = [line.strip() for line in text.splitlines() if line.lstrip().startswith("runs-on:")]
 
     assert "\n  issue_comment:\n    types: [created]" in text
     assert "pull_request_target:" not in text
