@@ -1,7 +1,7 @@
 # Direct inference dependencies tested with Python 3.12 and PyTorch 2.11/cu128.
 accelerate==1.14.0
 decord==0.6.0
-diffusers==0.39.0
+diffusers==0.40.0
 fire==0.7.1
 h5py==3.16.0
 imageio==2.37.4
