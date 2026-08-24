@@ -9,7 +9,7 @@ SOURCE_FREEZE_EXECUTION_WORKFLOW = WORKFLOW_ROOT / "cut3r-source-freeze-executio
 SOURCE_FREEZE_AUTO_V2_WORKFLOW = WORKFLOW_ROOT / "cut3r-source-freeze-auto-v2.yml"
 CUT3R_RUNNER_SELECTOR = (
     "runs-on: [self-hosted, Linux, X64, nvidia-smi, "
-    "data-prob4d-deform360-source-v1, prob4d-cut3r]"
+    + "data-prob4d-deform360-source-v1, prob4d-cut3r]"
 )
 TRUSTED_SELF_HOSTED_WORKFLOWS = (
     TRUSTED_WORKFLOW,
