@@ -1,0 +1,1 @@
+- Add a one-shot, merged-main hosted dispatcher for the retained CUT3R source-freeze exact retry. It verifies the historical request, cancels only the stale zero-evidence queue, refuses duplicate or artifact-bearing execution, and dispatches through the routed retained-data/CUT3R runner labels without changing scientific inputs or opening outcomes.
