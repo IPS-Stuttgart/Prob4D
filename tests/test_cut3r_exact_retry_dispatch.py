@@ -83,10 +83,7 @@ def test_dispatch_workflow_fails_closed_before_exact_retry() -> None:
     assert 'f"{run_path}/cancel"' in text
     assert "already succeeded; refusing duplicate dispatch" in text
     assert 'SUPERSEDED_FAILURE_ARTIFACT_ID: "9532584642"' in text
-    assert (
-        "SUPERSEDED_FAILURE_ARTIFACT_NAME: "
-        "cut3r-source-freeze-v2-failed-32621813949-2"
-    ) in text
+    assert ("SUPERSEDED_FAILURE_ARTIFACT_NAME: cut3r-source-freeze-v2-failed-32621813949-2") in text
     assert 'SUPERSEDED_FAILURE_ARTIFACT_SIZE: "3106"' in text
     assert 'artifacts.get("total_count") != 1' in text
     assert '"expired": False' in text
