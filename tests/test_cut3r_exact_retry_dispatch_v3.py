@@ -209,12 +209,15 @@ def test_workflow_is_exact_actor_issue_and_default_branch_bound() -> None:
 
     assert "\n  issue_comment:\n    types: [created]" in text
     assert "pull_request_target:" not in text
+    assert "github.event.pull_request.head.sha" not in text
+    assert "allow-unsafe-pr-checkout" not in text
+    assert "Check out reviewed merge candidate" in text
     assert "github.event.issue.number == 49" in text
     assert "github.actor == 'FlorianPfaff'" in text
     assert "github.event.comment.user.login == 'FlorianPfaff'" in text
     assert f"github.event.comment.body == '{COMMAND}'" in text
     assert f"DISPATCH_COMMAND: {COMMAND}" in text
-    assert "ref: ${{ github.sha }}" in text
+    assert text.count("ref: ${{ github.sha }}") == 1
     assert "fetch-depth: 0" in text
     assert "persist-credentials: false" in text
     assert runs_on == ["runs-on: ubuntu-latest", "runs-on: ubuntu-latest"]
