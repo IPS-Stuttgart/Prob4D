@@ -1,0 +1,1 @@
+Harden ablation gauge-consistency reporting by replacing silent pseudoinverse-only NEES evaluation with explicit covariance rank, nullspace-error, support-consistency, and rank-normalized diagnostics. Provider estimation, exports, frozen protocols, and scientific results are unchanged.

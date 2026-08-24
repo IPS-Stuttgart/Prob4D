@@ -12,6 +12,7 @@ from typing import Any
 import numpy as np
 
 from .alignment import WindowAlignment, align_windows, estimate_sim3_robust
+from .diagnostics.covariance_support import covariance_support_diagnostic
 from .fusion import FusedSequence, fuse_windows
 from .gauge import (
     FixedLagGaugeSmoother,
@@ -38,6 +39,12 @@ class GaugeMetrics:
     rotation_rmse: float
     translation_rmse: float
     mean_normalized_squared_error: float
+    mean_rank_normalized_squared_error: float
+    mean_covariance_rank: float
+    minimum_covariance_rank: int
+    support_violation_count: int
+    maximum_nullspace_error_norm: float
+    all_errors_in_covariance_support: bool
 
 
 @dataclass(frozen=True)
@@ -122,19 +129,40 @@ def _gauge_metrics(
     truth: dict[str, Sim3],
 ) -> GaugeMetrics:
     errors: list[np.ndarray] = []
-    normalized_squared_errors: list[float] = []
+    diagnostics = []
     for window_id, estimate in estimates.items():
         error = truth[window_id].inverse().compose(estimate.global_from_local).as_vector()
         errors.append(error)
-        covariance = 0.5 * (estimate.covariance + estimate.covariance.T)
-        inverse = np.linalg.pinv(covariance, rcond=1e-10)
-        normalized_squared_errors.append(float(error @ inverse @ error))
+        diagnostics.append(covariance_support_diagnostic(error, estimate.covariance))
+
     stacked = np.stack(errors)
+    normalized_squared_errors = [
+        diagnostic.observable_normalized_squared_error for diagnostic in diagnostics
+    ]
+    rank_normalized_errors = [
+        diagnostic.rank_normalized_observable_squared_error
+        for diagnostic in diagnostics
+        if diagnostic.rank > 0
+    ]
+    ranks = [diagnostic.rank for diagnostic in diagnostics]
+    support_violation_count = sum(
+        not diagnostic.support_consistent for diagnostic in diagnostics
+    )
     return GaugeMetrics(
         log_scale_rmse=float(np.sqrt(np.mean(stacked[:, 0] ** 2))),
         rotation_rmse=float(np.sqrt(np.mean(np.sum(stacked[:, 1:4] ** 2, axis=1)))),
         translation_rmse=float(np.sqrt(np.mean(np.sum(stacked[:, 4:7] ** 2, axis=1)))),
         mean_normalized_squared_error=float(np.mean(normalized_squared_errors)),
+        mean_rank_normalized_squared_error=(
+            float(np.mean(rank_normalized_errors)) if rank_normalized_errors else 0.0
+        ),
+        mean_covariance_rank=float(np.mean(ranks)),
+        minimum_covariance_rank=min(ranks),
+        support_violation_count=int(support_violation_count),
+        maximum_nullspace_error_norm=max(
+            diagnostic.nullspace_error_norm for diagnostic in diagnostics
+        ),
+        all_errors_in_covariance_support=support_violation_count == 0,
     )
 
 
@@ -663,6 +691,8 @@ def _write_results(
         "endpoint_point_rmse",
         "coverage_95",
         "mean_mahalanobis_squared",
+        "gauge_mean_rank_normalized_squared_error",
+        "gauge_support_violation_count",
     ]
     header = "| " + " | ".join(columns) + " |"
     divider = "| " + " | ".join("---" for _ in columns) + " |"

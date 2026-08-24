@@ -1,6 +1,12 @@
+from __future__ import annotations
+
+import numpy as np
+import pytest
 from test_io import write_problem_bundle
 
-from prob4d.experiments import run_manifest_ablation, run_synthetic_ablation
+from prob4d.experiments import _gauge_metrics, run_manifest_ablation, run_synthetic_ablation
+from prob4d.gauge import GaugeEstimate
+from prob4d.sim3 import Sim3
 from prob4d.synthetic import make_synthetic_problem
 
 
@@ -24,6 +30,26 @@ def test_synthetic_ablation_covers_all_requested_variants() -> None:
     assert calibration.count > 0
     assert rows[3].sequence_metrics.coverage_95 <= rows[4].sequence_metrics.coverage_95
     assert rows[-1].gauge_metrics is not None
+
+
+def test_gauge_metrics_do_not_hide_error_in_covariance_nullspace() -> None:
+    covariance = np.diag([1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.0])
+    estimates = {
+        "window-a": GaugeEstimate(
+            window_id="window-a",
+            global_from_local=Sim3(translation=np.array([0.0, 0.0, 0.25])),
+            covariance=covariance,
+        )
+    }
+    truth = {"window-a": Sim3.identity()}
+
+    metrics = _gauge_metrics(estimates, truth)
+
+    assert metrics.mean_normalized_squared_error == pytest.approx(0.0)
+    assert metrics.minimum_covariance_rank == 6
+    assert metrics.support_violation_count == 1
+    assert metrics.maximum_nullspace_error_norm == pytest.approx(0.25)
+    assert not metrics.all_errors_in_covariance_support
 
 
 def test_manifest_ablation_uses_held_out_calibration_and_exact_baselines(tmp_path) -> None:

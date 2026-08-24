@@ -101,6 +101,7 @@ module = [
     "prob4d._observation_gaussian_woodbury",
     "prob4d._provider_portfolio_model",
     "prob4d.api.v2",
+    "prob4d.diagnostics.covariance_support",
     "prob4d.observation_gaussian_operator",
     "prob4d.provider_portfolio",
     "prob4d.public_api_manifest",
