@@ -1,5 +1,5 @@
 {
-  "artifact_id": "c6577587b2b5f9dc92d408bb199fffbf710fa7b74bf271853e55a66c0edc81c9",
+  "artifact_id": "9813ca923af4742947a908d73b9cfaae7757b55f6c35b09f14d5a52bd9ff669b",
   "attempt": {
     "attempt_number": 1,
     "ledger_file_sha256": "c315f73396b0d5557696e2326f10b9e4a5f1aee9d63c25479176a61b355e122c",
@@ -8,9 +8,9 @@
   },
   "claim_boundary": "One registered development smoke only. This is provider-runtime and custody evidence, not source competence, accuracy, uncertainty, target transfer, BayesianPhysTwin, Causal4D, safety, or state-of-the-art evidence.",
   "custody": {
+    "decision": "failed-decoded-source-frames-retained",
     "decoded_byte_count": 44036214,
     "decoded_member_count": 58,
-    "decision": "failed-decoded-source-frames-retained",
     "official_custody_receipt_written": false,
     "publication_authorized": false,
     "quarantined_source_tree_modified": false,
@@ -18,7 +18,8 @@
   },
   "execution": {
     "case_id_sha256": "8ddd8b05edcd78515fc7c5647e2736060630e0932a59702495b2853a68f02fa7",
-    "cut3r_inference_executed": false,
+    "cut3r_inference_completed": false,
+    "cut3r_inference_started": true,
     "elapsed_seconds": 2.1263942389923614,
     "failure_class": "RuntimeError",
     "failure_summary": "CUDA error: device-side assert triggered",
@@ -45,6 +46,8 @@
   "raw_evidence": {
     "case_artifact_id": "72244d724c21f942c1c0808b8e1beedda22bcce006c80cd20eff5cd1bb877986",
     "case_manifest_file_sha256": "231b8c0eef6fd7911b7c20d7abe805509422673ca2b7f9f8ddc41204714c5d6c",
+    "legacy_case_manifest_cut3r_inference_executed": false,
+    "legacy_case_manifest_field_interpretation": "The legacy flag is set true only after the provider forward call returns; false denotes non-completion, not non-entry.",
     "quarantined_member_count": 59,
     "shard_report_artifact_id": "920a3a92079dadf814e1f993413d93c3cfc56fb5a4971c609edcc1fdd31a82cd",
     "shard_report_file_sha256": "c372a9da97bf78dcd4023340e9c90fb456c550c95eab1792f4966d6b021383c7"
