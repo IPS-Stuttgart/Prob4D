@@ -1,0 +1,392 @@
+# workflow-lifecycle: temporary-content-addressed-repair-launcher
+# workflow-owner: IPS-Stuttgart maintainers
+name: Repair retained CUT3R checkout trust with runner-global scope once
+
+on:
+  push:
+    branches:
+      - fix/cut3r-checkout-trust-global-v2
+    paths:
+      - .github/workflows/cut3r-checkout-trust-global-once.yml
+
+permissions:
+  actions: write
+  contents: read
+  issues: write
+
+concurrency:
+  group: cut3r-checkout-trust-global-once
+  cancel-in-progress: false
+
+env:
+  FAILED_RUN_ID: "32771242880"
+  FAILED_RUN_ATTEMPT: "2"
+  FAILED_HEAD_SHA: 30f85ecd6c2395b333f723db47a18f6677d7c58f
+  FAILED_EXECUTE_JOB_ID: "97702294765"
+  FAILURE_ARTIFACT_ID: "9551181122"
+  FAILURE_ARTIFACT_NAME: cut3r-source-freeze-v2-failed-32771242880-2
+  FAILURE_ARTIFACT_DIGEST: sha256:d1eff3af637eb297e72334693b1c51723f4eb9487a6cf6a8957d130bc34b9721
+  EXPECTED_CUT3R_REVISION: 8bc15dc92a6d7fd92920b4ec81540d3dec7d3ecf
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+
+jobs:
+  prepare:
+    name: Add one exact runner-global trust entry
+    runs-on: [self-hosted, host-workstation2]
+    timeout-minutes: 10
+    env:
+      CUT3R_CHECKOUT: ${{ vars.CUT3R_CHECKOUT }}
+    outputs:
+      trust_added: ${{ steps.prepare.outputs.trust_added }}
+    steps:
+      - name: Bind runner and exact frozen checkout
+        id: prepare
+        shell: bash
+        env:
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+          test "$RUNNER_NAME_VALUE" = "workstation2"
+          test "$RUNNER_OS_VALUE" = "Linux"
+          test "$RUNNER_ARCH_VALUE" = "X64"
+          command -v nvidia-smi >/dev/null
+          test -n "$CUT3R_CHECKOUT"
+          test -d "$CUT3R_CHECKOUT/.git"
+
+          set +e
+          raw_head="$(/usr/bin/git -C "$CUT3R_CHECKOUT" rev-parse HEAD 2>/dev/null)"
+          raw_status=$?
+          set -e
+          if [[ $raw_status -eq 0 ]]; then
+            test "$raw_head" = "$EXPECTED_CUT3R_REVISION"
+          else
+            scoped_head="$(
+              /usr/bin/git \
+                -c safe.directory="$CUT3R_CHECKOUT" \
+                -C "$CUT3R_CHECKOUT" \
+                rev-parse HEAD
+            )"
+            test "$scoped_head" = "$EXPECTED_CUT3R_REVISION"
+          fi
+
+          mapfile -t entries < <(
+            /usr/bin/git config --global --get-all safe.directory 2>/dev/null || true
+          )
+          exact_count=0
+          for entry in "${entries[@]}"; do
+            if [[ "$entry" == "$CUT3R_CHECKOUT" ]]; then
+              exact_count=$((exact_count + 1))
+            fi
+          done
+          test "$exact_count" -le 1
+
+          trust_added=false
+          if [[ $exact_count -eq 0 ]]; then
+            /usr/bin/git config --global --add safe.directory "$CUT3R_CHECKOUT"
+            trust_added=true
+          fi
+          verified_head="$(/usr/bin/git -C "$CUT3R_CHECKOUT" rev-parse HEAD)"
+          test "$verified_head" = "$EXPECTED_CUT3R_REVISION"
+          test -z "$(
+            /usr/bin/git \
+              -C "$CUT3R_CHECKOUT" \
+              status --porcelain=v1 --untracked-files=all
+          )"
+          echo "trust_added=$trust_added" >> "$GITHUB_OUTPUT"
+
+  dispatch:
+    name: Rerun only the exact failed retained job
+    needs: [prepare]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      dispatch_time: ${{ steps.dispatch.outputs.dispatch_time }}
+    steps:
+      - name: Verify the exact failure capsule and dispatch attempt three
+        id: dispatch
+        shell: bash
+        env:
+          API_URL: ${{ github.api_url }}
+          REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+          TRUST_ADDED: ${{ needs.prepare.outputs.trust_added }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          import urllib.error
+          import urllib.request
+
+          api = os.environ["API_URL"].rstrip("/")
+          repository = os.environ["REPOSITORY"]
+          token = os.environ["GITHUB_TOKEN"]
+          run_id = int(os.environ["FAILED_RUN_ID"])
+          job_id = int(os.environ["FAILED_EXECUTE_JOB_ID"])
+
+          def request(method: str, path: str, payload: object | None = None) -> object | None:
+              data = None if payload is None else json.dumps(payload).encode("utf-8")
+              call = urllib.request.Request(
+                  f"{api}{path}",
+                  data=data,
+                  method=method,
+                  headers={
+                      "Accept": "application/vnd.github+json",
+                      "Authorization": f"Bearer {token}",
+                      "Content-Type": "application/json",
+                      "User-Agent": "prob4d-cut3r-global-trust-once",
+                      "X-GitHub-Api-Version": "2022-11-28",
+                  },
+              )
+              try:
+                  with urllib.request.urlopen(call, timeout=30) as response:
+                      body = response.read()
+              except urllib.error.HTTPError as error:
+                  detail = error.read().decode("utf-8", errors="replace")
+                  raise SystemExit(
+                      f"GitHub API {method} {path} failed with {error.code}: {detail}"
+                  ) from error
+              return None if not body else json.loads(body)
+
+          run_path = f"/repos/{repository}/actions/runs/{run_id}"
+          run = request("GET", run_path)
+          if not isinstance(run, dict):
+              raise SystemExit("failed run response is unavailable")
+          expected = {
+              "id": run_id,
+              "name": "Execute retained CUT3R source freeze automatically v2",
+              "head_sha": os.environ["FAILED_HEAD_SHA"],
+              "event": "workflow_dispatch",
+              "status": "completed",
+              "conclusion": "failure",
+              "run_attempt": int(os.environ["FAILED_RUN_ATTEMPT"]),
+          }
+          for key, value in expected.items():
+              if run.get(key) != value:
+                  raise SystemExit(
+                      f"pre-rerun {key} mismatch: {run.get(key)!r} != {value!r}"
+                  )
+
+          artifacts = request("GET", f"{run_path}/artifacts?per_page=100")
+          if not isinstance(artifacts, dict):
+              raise SystemExit("failed-run artifact response is unavailable")
+          rows = artifacts.get("artifacts")
+          if not isinstance(rows, list) or len(rows) != 1:
+              raise SystemExit("failed-run artifact roster drifted")
+          artifact = rows[0]
+          if not isinstance(artifact, dict):
+              raise SystemExit("failed-run artifact is malformed")
+          artifact_expected = {
+              "id": int(os.environ["FAILURE_ARTIFACT_ID"]),
+              "name": os.environ["FAILURE_ARTIFACT_NAME"],
+              "digest": os.environ["FAILURE_ARTIFACT_DIGEST"],
+              "expired": False,
+          }
+          for key, value in artifact_expected.items():
+              if artifact.get(key) != value:
+                  raise SystemExit(
+                      f"artifact {key} mismatch: {artifact.get(key)!r} != {value!r}"
+                  )
+
+          request(
+              "POST",
+              f"/repos/{repository}/actions/jobs/{job_id}/rerun",
+              {"enable_debug_logging": False},
+          )
+          body = "\n".join(
+              (
+                  "## Exact CUT3R attempt-three dispatch",
+                  "",
+                  f"- historical run: `{run_id}`",
+                  f"- exact failed job: `{job_id}`",
+                  f"- temporary runner-global trust added: `{os.environ['TRUST_ADDED']}`",
+                  f"- launcher revision: `{os.environ['GITHUB_SHA']}`",
+                  "",
+                  "Only the failed retained source job and its dependent terminal receipt "
+                  "were rerun. The provider revision, checkpoint, source units, cameras, "
+                  "prefixes, seeds, thresholds, and target-closed boundary are unchanged.",
+              )
+          )
+          request(
+              "POST",
+              f"/repos/{repository}/issues/49/comments",
+              {"body": body},
+          )
+          PY
+          echo "dispatch_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+  await_terminal:
+    name: Await exact attempt-three terminal state on hosted runner
+    needs: [dispatch]
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    outputs:
+      conclusion: ${{ steps.wait.outputs.conclusion }}
+    steps:
+      - name: Wait without occupying the retained runner
+        id: wait
+        shell: bash
+        env:
+          API_URL: ${{ github.api_url }}
+          REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          import time
+          import urllib.request
+
+          api = os.environ["API_URL"].rstrip("/")
+          repository = os.environ["REPOSITORY"]
+          token = os.environ["GITHUB_TOKEN"]
+          run_id = int(os.environ["FAILED_RUN_ID"])
+          path = f"/repos/{repository}/actions/runs/{run_id}"
+          headers = {
+              "Accept": "application/vnd.github+json",
+              "Authorization": f"Bearer {token}",
+              "User-Agent": "prob4d-cut3r-global-trust-once",
+              "X-GitHub-Api-Version": "2022-11-28",
+          }
+          deadline = time.monotonic() + 5 * 60 * 60
+          last = None
+          while time.monotonic() < deadline:
+              call = urllib.request.Request(f"{api}{path}", headers=headers)
+              with urllib.request.urlopen(call, timeout=30) as response:
+                  run = json.loads(response.read())
+              state = (run.get("run_attempt"), run.get("status"), run.get("conclusion"))
+              if state != last:
+                  print(f"attempt/status/conclusion={state}", flush=True)
+                  last = state
+              attempt = run.get("run_attempt")
+              if isinstance(attempt, int) and attempt > 3:
+                  raise SystemExit("unexpected additional rerun attempt")
+              if attempt == 3 and run.get("status") == "completed":
+                  conclusion = run.get("conclusion")
+                  if not isinstance(conclusion, str):
+                      raise SystemExit("attempt three has no conclusion")
+                  with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+                      output.write(f"conclusion={conclusion}\n")
+                  raise SystemExit(0)
+              time.sleep(15)
+          raise SystemExit("attempt three did not reach a terminal state")
+          PY
+
+  cleanup:
+    name: Remove only the temporary runner-global trust entry
+    if: always() && needs.prepare.result == 'success' && needs.await_terminal.result == 'success'
+    needs: [prepare, dispatch, await_terminal]
+    runs-on: [self-hosted, host-workstation2]
+    timeout-minutes: 10
+    env:
+      CUT3R_CHECKOUT: ${{ vars.CUT3R_CHECKOUT }}
+      TRUST_ADDED: ${{ needs.prepare.outputs.trust_added }}
+      ATTEMPT_THREE_CONCLUSION: ${{ needs.await_terminal.outputs.conclusion }}
+    steps:
+      - name: Verify terminal state and remove exact trust entry
+        shell: bash
+        env:
+          API_URL: ${{ github.api_url }}
+          REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$RUNNER_NAME" = "workstation2"
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          import urllib.request
+
+          path = (
+              f"{os.environ['API_URL'].rstrip('/')}/repos/"
+              f"{os.environ['REPOSITORY']}/actions/runs/{os.environ['FAILED_RUN_ID']}"
+          )
+          call = urllib.request.Request(
+              path,
+              headers={
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
+                  "User-Agent": "prob4d-cut3r-global-trust-once",
+                  "X-GitHub-Api-Version": "2022-11-28",
+              },
+          )
+          with urllib.request.urlopen(call, timeout=30) as response:
+              run = json.loads(response.read())
+          if run.get("run_attempt") != 3 or run.get("status") != "completed":
+              raise SystemExit("attempt three is not terminal at cleanup")
+          if run.get("conclusion") != os.environ["ATTEMPT_THREE_CONCLUSION"]:
+              raise SystemExit("attempt-three conclusion changed")
+          PY
+
+          if [[ "$TRUST_ADDED" == "true" ]]; then
+            /usr/bin/git config \
+              --global \
+              --fixed-value \
+              --unset-all safe.directory "$CUT3R_CHECKOUT"
+          fi
+          remaining="$(
+            /usr/bin/git config --global --get-all safe.directory 2>/dev/null \
+              | grep -Fxc -- "$CUT3R_CHECKOUT" \
+              || true
+          )"
+          if [[ "$TRUST_ADDED" == "true" ]]; then
+            test "$remaining" -eq 0
+          else
+            test "$remaining" -le 1
+          fi
+
+      - name: Publish bounded completion receipt
+        shell: bash
+        env:
+          API_URL: ${{ github.api_url }}
+          REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          import urllib.request
+
+          body = "\n".join(
+              (
+                  "## CUT3R runner-global trust repair completed",
+                  "",
+                  f"- historical run: `{os.environ['FAILED_RUN_ID']}` attempt `3`",
+                  f"- attempt-three conclusion: `{os.environ['ATTEMPT_THREE_CONCLUSION']}`",
+                  f"- temporary trust was added: `{os.environ['TRUST_ADDED']}`",
+                  "- temporary trust removed after terminal state: `true`",
+                  f"- repair launcher revision: `{os.environ['GITHUB_SHA']}`",
+                  "",
+                  "This receipt is an execution/governance result. Scientific provider "
+                  "competence and the BayesianPhysTwin gate depend on the retained "
+                  "attempt-three artifact and terminal source decision.",
+              )
+          )
+          call = urllib.request.Request(
+              f"{os.environ['API_URL'].rstrip('/')}/repos/"
+              f"{os.environ['REPOSITORY']}/issues/49/comments",
+              data=json.dumps({"body": body}).encode("utf-8"),
+              method="POST",
+              headers={
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
+                  "Content-Type": "application/json",
+                  "User-Agent": "prob4d-cut3r-global-trust-once",
+                  "X-GitHub-Api-Version": "2022-11-28",
+              },
+          )
+          with urllib.request.urlopen(call, timeout=30):
+              pass
+          PY
