@@ -8,6 +8,9 @@ TRUSTED_WORKFLOW = WORKFLOW_ROOT / "trusted-self-hosted-validation.yml"
 SOURCE_FREEZE_EXECUTION_WORKFLOW = WORKFLOW_ROOT / "cut3r-source-freeze-execution.yml"
 SOURCE_FREEZE_AUTO_V2_WORKFLOW = WORKFLOW_ROOT / "cut3r-source-freeze-auto-v2.yml"
 CUT3R_CHECKOUT_TRUST_RERUN_WORKFLOW = WORKFLOW_ROOT / "cut3r-checkout-trust-rerun-v1.yml"
+CUT3R_SOURCE_COMPARISON_SMOKE_RETRY_V2_WORKFLOW = (
+    WORKFLOW_ROOT / "cut3r-source-comparison-smoke-retry-v2.yml"
+)
 CUT3R_RUNNER_SELECTOR = (
     "runs-on: [self-hosted, Linux, X64, nvidia-smi, "
     + "data-prob4d-deform360-source-v1, prob4d-cut3r]"
@@ -18,6 +21,7 @@ TRUSTED_SELF_HOSTED_WORKFLOWS = (
     SOURCE_FREEZE_EXECUTION_WORKFLOW,
     SOURCE_FREEZE_AUTO_V2_WORKFLOW,
     CUT3R_CHECKOUT_TRUST_RERUN_WORKFLOW,
+    CUT3R_SOURCE_COMPARISON_SMOKE_RETRY_V2_WORKFLOW,
 )
 REMOVED_TEMPORARY_WORKFLOWS = (
     WORKFLOW_ROOT / "issue-49-protected-cohort-inventory.yml",
