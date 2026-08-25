@@ -31,12 +31,19 @@ The hosted authorization job proves that the historical revision is an ancestor
 of current `main`, that its request blob is byte-identical to the current retained
 request, that the request remains content-addressed and target-closed, that the
 historical source-protocol blob still matches the request, and that the reviewed
-execution driver exists at that revision. The self-hosted job then checks out and
-executes that historical revision rather than current development code.
+execution driver exists at that revision. The self-hosted job keeps the current
+merged-main checkout as a read-only control plane and materializes the authorized
+historical revision in an isolated detached worktree. It builds the scientific
+wheel from that historical worktree and validates the historical request and
+protocol there. Only the current control-plane driver performs custody and
+publication orchestration; it receives no permission to change scientific input
+bytes.
 
-This retry therefore does not create a new request, silently advance the
-scientific implementation, or change the cohort, provider, checkpoint, prefix,
-support rule, or information order.
+This separation permits a reviewed post-execution custody repair without
+silently advancing the scientific implementation. The retry does not create a
+new request or change the cohort, provider, checkpoint, prefix, support rule,
+package wheel, or information order. Both the control-plane and historical
+execution SHAs are recorded in retained evidence.
 
 ## Hosted configuration preflight
 
@@ -74,18 +81,19 @@ historical execution SHA must be supplied.
 The self-hosted job has `contents: read` only. It receives no pull-request fields,
 no writable repository token, and no secret-valued command input. The workflow:
 
-1. builds one wheel from the exact authorized revision;
-2. installs that wheel in an isolated environment;
-3. verifies the retained CUT3R checkout, checkpoint, Deform360 processed source
+1. materializes the exact authorized revision in an isolated detached worktree;
+2. builds one wheel from that historical scientific revision;
+3. installs that wheel in an isolated environment;
+4. verifies the retained CUT3R checkout, checkpoint, Deform360 processed source
    root, BayesianPhysTwin selection lock, protocol, wheel, and input sidecars;
-4. executes `build_cut3r_deform360_source_freeze.py`;
-5. retains either `source-support-freeze-ready` or the registered
+5. executes `build_cut3r_deform360_source_freeze.py`;
+6. retains either `source-support-freeze-ready` or the registered
    `insufficient-common-camera-support` negative;
-6. creates and verifies the immutable CUT3R comparison lock only after a support
+7. creates and verifies the immutable CUT3R comparison lock only after a support
    pass;
-7. sanitizes protected filesystem paths before publication;
-8. uploads checksummed evidence; and
-9. posts authorization, blocker, timeout, and terminal receipts to issue 49 from
+8. sanitizes protected filesystem paths before publication;
+9. uploads checksummed evidence; and
+10. posts authorization, blocker, timeout, and terminal receipts to issue 49 from
    hosted jobs.
 
 The v2 request supersedes the earlier request only because that run produced no

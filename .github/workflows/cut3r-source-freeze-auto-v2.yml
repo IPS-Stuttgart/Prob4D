@@ -6,6 +6,7 @@ on:
     paths:
       - ".github/workflows/cut3r-source-freeze-auto-v2.yml"
       - "CHANGELOG.d/cut3r-source-freeze-auto-v2.md"
+      - "CHANGELOG.d/cut3r-current-control-plane-retry.md"
       - "docs/cut3r-source-freeze-auto-v2.md"
       - "protocols/execution_requests/cut3r_deform360_source_freeze_v2.json"
       - "scripts/ci/cut3r_execution_preflight.py"
@@ -408,26 +409,35 @@ jobs:
             echo "TMPDIR=$root/tmp"
           } >> "$GITHUB_ENV"
 
-      - name: Check out only the authorized merged revision
+      - name: Check out current control-plane revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.authorize.outputs.head_sha }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
           clean: true
 
-      - name: Verify exact clean checkout
+      - name: Materialize and verify the authorized execution checkout
         shell: bash
         env:
+          CURRENT_CONTROL_PLANE_SHA: ${{ github.sha }}
           EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
           EXPECTED_REQUEST_ID: ${{ needs.authorize.outputs.request_id }}
         run: |
           set -euo pipefail
-          test "$(/usr/bin/git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test "$(/usr/bin/git rev-parse HEAD)" = "$CURRENT_CONTROL_PLANE_SHA"
           test -z "$(/usr/bin/git status --porcelain=v1 --untracked-files=all)"
+          root="${{ steps.workspace.outputs.root }}"
+          execution_repository="$root/execution-repository"
+          test ! -e "$execution_repository"
+          /usr/bin/git worktree add --detach "$execution_repository" "$EXPECTED_HEAD_SHA"
+          test "$(/usr/bin/git -C "$execution_repository" rev-parse HEAD)" = \
+            "$EXPECTED_HEAD_SHA"
+          test -z "$(/usr/bin/git -C "$execution_repository" status \
+            --porcelain=v1 --untracked-files=all)"
           /usr/bin/python3 scripts/science/run_cut3r_source_freeze_execution.py verify-request \
-            --repository . \
-            --request "$REQUEST_PATH" \
+            --repository "$execution_repository" \
+            --request "$execution_repository/$REQUEST_PATH" \
             --expected-revision "$EXPECTED_HEAD_SHA" \
             > "${{ steps.workspace.outputs.root }}/evidence/request-verification.json"
           grep -F "$EXPECTED_REQUEST_ID" \
@@ -453,7 +463,12 @@ jobs:
             "build==1.3.0"
           wheel_dir="$root/wheelhouse"
           /usr/bin/mkdir -p "$wheel_dir"
-          "$build_python" -m build --wheel --outdir "$wheel_dir"
+          execution_repository="$root/execution-repository"
+          test -f "$execution_repository/.git"
+          "$build_python" -m build \
+            --wheel \
+            --outdir "$wheel_dir" \
+            "$execution_repository"
           mapfile -t wheels < <(find "$wheel_dir" -maxdepth 1 -type f -name '*.whl' | sort)
           test "${#wheels[@]}" -eq 1
           python -m venv "$root/run-venv"
@@ -494,6 +509,7 @@ jobs:
           test -f "$WHEEL_PATH"
 
           root="${{ steps.workspace.outputs.root }}"
+          execution_repository="$root/execution-repository"
           output="$root/evidence/cut3r-deform360-source-freeze"
           selection="$BPT_CHECKOUT/protocols/locks/deform360_official_hub_visuotactile_v1_selection.json"
           test -f "$selection"
@@ -504,8 +520,8 @@ jobs:
           GIT_CONFIG_VALUE_0="$cut3r_checkout" \
           "$root/run-venv/bin/python" \
             scripts/science/run_cut3r_source_freeze_execution.py execute \
-            --repository . \
-            --request "$REQUEST_PATH" \
+            --repository "$execution_repository" \
+            --request "$execution_repository/$REQUEST_PATH" \
             --expected-revision "$EXPECTED_HEAD_SHA" \
             --selection "$selection" \
             --processed-root "$DEFORM360_PROCESSED_ROOT" \
@@ -516,14 +532,17 @@ jobs:
             --workflow-run-id "$GITHUB_RUN_ID" \
             --workflow-run-attempt "$GITHUB_RUN_ATTEMPT"
 
-          /usr/bin/git restore --worktree -- src/prob4d.egg-info
-          /usr/bin/git diff --exit-code
-          test -z "$(/usr/bin/git status --porcelain=v1 --untracked-files=no)"
+          /usr/bin/git -C "$execution_repository" restore \
+            --worktree -- src/prob4d.egg-info
+          /usr/bin/git -C "$execution_repository" diff --exit-code
+          test -z "$(/usr/bin/git -C "$execution_repository" status \
+            --porcelain=v1 --untracked-files=no)"
 
       - name: Record exact automatic-execution environment
         if: ${{ always() && steps.workspace.outcome == 'success' }}
         shell: bash
         env:
+          CURRENT_CONTROL_PLANE_SHA: ${{ github.sha }}
           EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
           REQUEST_ID: ${{ needs.authorize.outputs.request_id }}
           EXECUTION_STATUS: ${{ job.status }}
@@ -531,10 +550,13 @@ jobs:
           set -euo pipefail
           export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
           root="${{ steps.workspace.outputs.root }}"
+          execution_repository="$root/execution-repository"
           {
             echo "repository=${GITHUB_REPOSITORY}"
+            echo "control_plane_sha=$CURRENT_CONTROL_PLANE_SHA"
             echo "head_sha=$EXPECTED_HEAD_SHA"
-            echo "checked_out_sha=$(/usr/bin/git rev-parse HEAD)"
+            echo "checked_out_sha=$(/usr/bin/git -C \
+              "$execution_repository" rev-parse HEAD)"
             echo "request_id=$REQUEST_ID"
             echo "authorization_mode=merged-main-read-only-self-hosted-v1"
             echo "repository_write_token_on_self_hosted=false"
@@ -588,6 +610,12 @@ jobs:
           root="${{ steps.workspace.outputs.root }}"
           expected="${RUNNER_TEMP}/prob4d-cut3r-source-freeze-v2-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           test "$root" = "$expected"
+          execution_repository="$root/execution-repository"
+          test "$execution_repository" = "$root/execution-repository"
+          if [[ -e "$execution_repository" ]]; then
+            /usr/bin/git worktree remove --force "$execution_repository"
+          fi
+          /usr/bin/git worktree prune
           /usr/bin/rm -rf -- "$root"
           /usr/bin/git reset --hard HEAD
           /usr/bin/git clean -ffdx

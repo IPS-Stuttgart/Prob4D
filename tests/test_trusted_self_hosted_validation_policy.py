@@ -191,7 +191,16 @@ def test_auto_v2_source_freeze_supports_exact_retry_and_bounded_queue() -> None:
     assert "authorize-retry" in text
     assert '--execution-revision "$EXECUTION_SHA"' in text
     assert '--expected-request-id "$EXPECTED_REQUEST_ID"' in text
-    assert "ref: ${{ needs.authorize.outputs.head_sha }}" in text
+    assert "ref: ${{ github.sha }}" in text
+    assert ('git worktree add --detach "$execution_repository" "$EXPECTED_HEAD_SHA"') in text
+    assert '--repository "$execution_repository"' in text
+    assert '--request "$execution_repository/$REQUEST_PATH"' in text
+    assert '"$build_python" -m build \\' in text
+    assert '"$execution_repository"' in text
+    assert "scripts/science/run_cut3r_source_freeze_execution.py execute \\" in text
+    assert '"$execution_repository/scripts/science' not in text
+    assert "control_plane_sha=$CURRENT_CONTROL_PLANE_SHA" in text
+    assert '/usr/bin/git worktree remove --force "$execution_repository"' in text
     assert CUT3R_AUTO_V2_RUNNER_SELECTOR in text
     assert 'test "$RUNNER_NAME" = "workstation2"' in text
     assert 'test "$RUNNER_OS" = "Linux"' in text
