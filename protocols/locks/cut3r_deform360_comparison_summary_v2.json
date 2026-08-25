@@ -1,0 +1,23 @@
+{
+  "case_count": 40,
+  "claim_eligible_contrasts": [
+    "prob4d-fusion-value",
+    "provider-recurrence-value"
+  ],
+  "enabled_arms": [
+    "native-continuous",
+    "restarted-newest",
+    "restarted-prob4d-fused"
+  ],
+  "group_role_counts": {
+    "calibration": 4,
+    "development": 2,
+    "source_evaluation": 4
+  },
+  "group_unit": "physical-object-or-acquisition-session",
+  "independent_group_count": 10,
+  "lock_id": "e4608e1e7efd0f860c70c93027195c8bde9da6e349f35eb56e75f199f9b95565",
+  "protocol_name": "cut3r-deform360-source-v1",
+  "source_access": "source-only",
+  "target_access": "forbidden"
+}
