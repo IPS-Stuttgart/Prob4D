@@ -8,9 +8,11 @@ from pathlib import Path
 import pytest
 
 from prob4d.cut3r_source_comparison_plan import (
+    AMENDMENT_IMPLEMENTATION_FILES,
     IMPLEMENTATION_FILES,
     PROVIDER_FILES,
     _content_id,
+    build_amended_execution_plan,
     build_execution_plan,
     validate_execution_plan,
 )
@@ -52,7 +54,7 @@ def _implementation_repository(tmp_path: Path) -> Path:
     _git(repository, "init", "-q")
     _git(repository, "config", "user.email", "tests@example.invalid")
     _git(repository, "config", "user.name", "Prob4D tests")
-    for relative in IMPLEMENTATION_FILES:
+    for relative in (*IMPLEMENTATION_FILES, *AMENDMENT_IMPLEMENTATION_FILES):
         source = ROOT / relative
         destination = repository / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -108,6 +110,54 @@ def _preflight(path: Path, *, revision: str, checkpoint_sha256: str) -> dict[str
     return report
 
 
+def _parent_plan_and_failure(
+    tmp_path: Path,
+    *,
+    repository: Path,
+    preflight_path: Path,
+    checkout: Path,
+    checkpoint: Path,
+) -> tuple[Path, Path, dict[str, object]]:
+    parent_plan = build_execution_plan(
+        repository=repository,
+        preflight_path=preflight_path,
+        cut3r_checkout=checkout,
+        checkpoint=checkpoint,
+    )
+    parent_plan["provider"]["callable"] = "src.dust3r.inference.inference"
+    unsigned_plan = dict(parent_plan)
+    unsigned_plan.pop("plan_id")
+    parent_plan["plan_id"] = _content_id(unsigned_plan)
+    parent_path = tmp_path / "parent-plan.json"
+    parent_path.write_text(json.dumps(parent_plan), encoding="utf-8")
+    result: dict[str, object] = {
+        "schema": "prob4d.cut3r-source-comparison-smoke-result",
+        "schema_version": 1,
+        "decision": "pre-science-technical-failure-no-retry",
+        "execution_plan_id": parent_plan["plan_id"],
+        "case_id_sha256": hashlib.sha256(b"case-00").hexdigest(),
+        "attempt_count": 1,
+        "ordinary_success_count": 0,
+        "retained_technical_failure_count": 1,
+        "output_file_count_after_failure": 0,
+        "retry_authorized": False,
+        "retry_performed": False,
+        "failure": {"terminal_stage": "initialize-cut3r-runtime"},
+        "information_boundary": {
+            "source_rgb_frames_decoded": False,
+            "cut3r_inference_executed": False,
+            "source_predictions_written": False,
+            "source_residuals_or_truth_opened": False,
+            "target_payloads_opened": False,
+            "target_outcomes_opened": False,
+        },
+    }
+    result["artifact_id"] = _content_id(result)
+    result_path = tmp_path / "parent-result.json"
+    result_path.write_text(json.dumps(result), encoding="utf-8")
+    return parent_path, result_path, parent_plan
+
+
 def test_plan_binds_source_bytes_and_frozen_execution_semantics(tmp_path: Path) -> None:
     repository = _implementation_repository(tmp_path)
     checkout, checkpoint, revision, checkpoint_sha = _provider(tmp_path)
@@ -159,4 +209,69 @@ def test_plan_rejects_boundary_mutation(tmp_path: Path) -> None:
     plan["plan_id"] = _content_id(unsigned)
 
     with pytest.raises(ValueError, match="target_outcomes_opened"):
+        validate_execution_plan(plan)
+
+
+def test_amended_plan_registers_one_different_smoke_without_method_change(
+    tmp_path: Path,
+) -> None:
+    repository = _implementation_repository(tmp_path)
+    checkout, checkpoint, revision, checkpoint_sha = _provider(tmp_path)
+    preflight_path = tmp_path / "preflight.json"
+    _preflight(preflight_path, revision=revision, checkpoint_sha256=checkpoint_sha)
+    parent_path, result_path, parent_plan = _parent_plan_and_failure(
+        tmp_path,
+        repository=repository,
+        preflight_path=preflight_path,
+        checkout=checkout,
+        checkpoint=checkpoint,
+    )
+
+    plan = build_amended_execution_plan(
+        repository=repository,
+        preflight_path=preflight_path,
+        cut3r_checkout=checkout,
+        checkpoint=checkpoint,
+        parent_plan_path=parent_path,
+        parent_smoke_result_path=result_path,
+    )
+    validated = validate_execution_plan(plan)
+
+    assert validated["schema_version"] == 2
+    assert validated["method"] == parent_plan["method"]
+    assert validated["cases"] == parent_plan["cases"]
+    assert validated["execution"]["smoke_policy"]["registered_case_id"] == "case-01"
+    assert validated["execution"]["smoke_policy"]["attempt_limit"] == 1
+    assert validated["amendment"]["prior_retry_authorized"] is False
+    assert validated["amendment"]["method_changed"] is False
+
+
+def test_amended_plan_rejects_reuse_of_failed_case(tmp_path: Path) -> None:
+    repository = _implementation_repository(tmp_path)
+    checkout, checkpoint, revision, checkpoint_sha = _provider(tmp_path)
+    preflight_path = tmp_path / "preflight.json"
+    _preflight(preflight_path, revision=revision, checkpoint_sha256=checkpoint_sha)
+    parent_path, result_path, _ = _parent_plan_and_failure(
+        tmp_path,
+        repository=repository,
+        preflight_path=preflight_path,
+        checkout=checkout,
+        checkpoint=checkpoint,
+    )
+    plan = build_amended_execution_plan(
+        repository=repository,
+        preflight_path=preflight_path,
+        cut3r_checkout=checkout,
+        checkpoint=checkpoint,
+        parent_plan_path=parent_path,
+        parent_smoke_result_path=result_path,
+    )
+    plan["execution"]["smoke_policy"]["registered_case_id_sha256"] = plan["amendment"][
+        "prior_case_id_sha256"
+    ]
+    unsigned = dict(plan)
+    unsigned.pop("plan_id")
+    plan["plan_id"] = _content_id(unsigned)
+
+    with pytest.raises(ValueError, match="reuse the failed case|hash is invalid"):
         validate_execution_plan(plan)

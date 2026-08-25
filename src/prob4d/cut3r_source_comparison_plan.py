@@ -26,7 +26,10 @@ from .cut3r_source_comparison_execution import (
 
 EXECUTION_PLAN_SCHEMA: Final = "prob4d.cut3r-source-comparison-execution-plan"
 EXECUTION_PLAN_VERSION: Final = 1
+AMENDED_EXECUTION_PLAN_VERSION: Final = 2
 EXECUTION_DECISION: Final = "source-comparison-execution-authorized"
+RUNTIME_AMENDMENT_SCHEMA: Final = "prob4d.cut3r-source-comparison-runtime-amendment"
+RUNTIME_AMENDMENT_VERSION: Final = 1
 PREFLIGHT_SCHEMA: Final = "prob4d.cut3r-deform360-source-comparison-preflight"
 PREFLIGHT_VERSION: Final = 1
 PREFLIGHT_DECISION: Final = "source-comparison-preflight-ready"
@@ -35,6 +38,11 @@ IMPLEMENTATION_FILES: Final = (
     "scripts/science/run_cut3r_source_comparison.py",
     "src/prob4d/cut3r_source_comparison_execution.py",
     "src/prob4d/cut3r_source_comparison_plan.py",
+)
+AMENDMENT_IMPLEMENTATION_FILES: Final = (
+    "scripts/science/build_cut3r_source_comparison_execution_amendment.py",
+    "scripts/science/verify_cut3r_source_comparison_artifacts.py",
+    "src/prob4d/cut3r_source_comparison_verifier.py",
 )
 PROVIDER_FILES: Final = (
     "add_ckpt_path.py",
@@ -203,6 +211,50 @@ def _validate_preflight(value: Mapping[str, Any]) -> None:
         raise ValueError("preflight no longer contains the frozen 40-case/10-group source roster")
 
 
+def _case_id_sha256(case_id: str) -> str:
+    return hashlib.sha256(case_id.encode("utf-8")).hexdigest()
+
+
+def _validate_parent_smoke_result(
+    value: Mapping[str, Any], *, parent_plan_id: str
+) -> dict[str, Any]:
+    if value.get("schema") != "prob4d.cut3r-source-comparison-smoke-result":
+        raise ValueError("unsupported parent smoke result")
+    if value.get("schema_version") != 1:
+        raise ValueError("unsupported parent smoke result version")
+    recorded = _sha256(value.get("artifact_id"), name="parent smoke artifact_id")
+    unsigned = dict(value)
+    unsigned.pop("artifact_id")
+    if recorded != _content_id(unsigned):
+        raise ValueError("parent smoke artifact identity is invalid")
+    if value.get("execution_plan_id") != parent_plan_id:
+        raise ValueError("parent smoke result belongs to a different execution plan")
+    expected = {
+        "decision": "pre-science-technical-failure-no-retry",
+        "attempt_count": 1,
+        "ordinary_success_count": 0,
+        "retained_technical_failure_count": 1,
+        "output_file_count_after_failure": 0,
+        "retry_authorized": False,
+        "retry_performed": False,
+    }
+    for name, expected_value in expected.items():
+        if value.get(name) != expected_value or type(value.get(name)) is not type(expected_value):
+            raise ValueError(f"parent smoke result changed: {name}")
+    failure = value.get("failure")
+    if type(failure) is not dict or failure.get("terminal_stage") != "initialize-cut3r-runtime":
+        raise ValueError("parent smoke was not the registered pre-science runtime failure")
+    boundary = value.get("information_boundary")
+    if (
+        type(boundary) is not dict
+        or not boundary
+        or any(item is not False for item in boundary.values())
+    ):
+        raise ValueError("parent smoke exceeded its information boundary")
+    _sha256(value.get("case_id_sha256"), name="parent case_id_sha256")
+    return cast(dict[str, Any], value)
+
+
 def build_execution_plan(
     *,
     repository: Path,
@@ -279,7 +331,7 @@ def build_execution_plan(
             "checkpoint_filename": checkpoint.name,
             "checkpoint_sha256": _file_sha256(checkpoint),
             "source_file_sha256": provider_files,
-            "callable": "src.dust3r.inference.inference",
+            "callable": "dust3r.inference.inference",
             "input_size": 512,
             "raw_inference_seed": 42,
             "revisit_count": 1,
@@ -349,6 +401,118 @@ def build_execution_plan(
     return plan
 
 
+def build_amended_execution_plan(
+    *,
+    repository: Path,
+    preflight_path: Path,
+    cut3r_checkout: Path,
+    checkpoint: Path,
+    parent_plan_path: Path,
+    parent_smoke_result_path: Path,
+) -> dict[str, Any]:
+    """Build the one-attempt replacement smoke after a zero-progress runtime failure."""
+
+    parent_plan = validate_execution_plan(
+        _load_json(parent_plan_path.resolve(strict=True), name="parent execution plan")
+    )
+    if parent_plan["schema_version"] != EXECUTION_PLAN_VERSION:
+        raise ValueError("runtime amendment requires the original v1 execution plan")
+    parent_result = _validate_parent_smoke_result(
+        _load_json(parent_smoke_result_path.resolve(strict=True), name="parent smoke result"),
+        parent_plan_id=cast(str, parent_plan["plan_id"]),
+    )
+    plan = build_execution_plan(
+        repository=repository,
+        preflight_path=preflight_path,
+        cut3r_checkout=cut3r_checkout,
+        checkpoint=checkpoint,
+    )
+    for field in ("preflight_artifact_id", "source_freeze_id", "comparison_lock_id"):
+        if plan[field] != parent_plan[field]:
+            raise ValueError(f"runtime amendment changed {field}")
+    if plan["method"] != parent_plan["method"] or plan["cases"] != parent_plan["cases"]:
+        raise ValueError("runtime amendment changed the frozen method or source roster")
+    parent_provider = cast(Mapping[str, Any], parent_plan["provider"])
+    provider = cast(Mapping[str, Any], plan["provider"])
+    for field in (
+        "revision",
+        "checkpoint_filename",
+        "checkpoint_sha256",
+        "source_file_sha256",
+        "input_size",
+        "raw_inference_seed",
+        "revisit_count",
+        "global_alignment",
+        "second_pass_allowed",
+    ):
+        if provider[field] != parent_provider[field]:
+            raise ValueError(f"runtime amendment changed provider field {field}")
+    if parent_provider["callable"] != "src.dust3r.inference.inference":
+        raise ValueError("parent plan no longer has the registered import spelling")
+    if provider["callable"] != "dust3r.inference.inference":
+        raise ValueError("amended plan does not bind the repaired import spelling")
+
+    repository_root = repository.resolve(strict=True)
+    implementation = cast(dict[str, Any], plan["implementation"])
+    source_hashes = cast(dict[str, str], implementation["source_file_sha256"])
+    for relative in AMENDMENT_IMPLEMENTATION_FILES:
+        source_hashes[relative] = _file_sha256(
+            _regular_file(repository_root, relative, name=relative)
+        )
+
+    prior_case_sha256 = cast(str, parent_result["case_id_sha256"])
+    development_cases = [
+        cast(Mapping[str, Any], case)
+        for case in cast(list[Mapping[str, Any]], plan["cases"])
+        if case["role"] == "development"
+    ]
+    replacements = [
+        case
+        for case in development_cases
+        if _case_id_sha256(cast(str, case["case_id"])) != prior_case_sha256
+    ]
+    if not replacements:
+        raise ValueError("no distinct frozen development case remains for the amendment")
+    replacement_case_id = cast(str, replacements[0]["case_id"])
+    replacement_case_sha256 = _case_id_sha256(replacement_case_id)
+
+    plan["schema_version"] = AMENDED_EXECUTION_PLAN_VERSION
+    execution = cast(dict[str, Any], plan["execution"])
+    execution["smoke_policy"] = {
+        "registered_case_id": replacement_case_id,
+        "registered_case_id_sha256": replacement_case_sha256,
+        "attempt_limit": 1,
+        "prior_case_retry_authorized": False,
+        "source_shards_require_ordinary_success_custody": True,
+    }
+    plan["amendment"] = {
+        "schema": RUNTIME_AMENDMENT_SCHEMA,
+        "schema_version": RUNTIME_AMENDMENT_VERSION,
+        "reason": "pre-science-runtime-import-repair-v1",
+        "parent_plan_id": parent_plan["plan_id"],
+        "parent_smoke_result_id": parent_result["artifact_id"],
+        "prior_case_id_sha256": prior_case_sha256,
+        "prior_failure_terminal_stage": "initialize-cut3r-runtime",
+        "prior_attempt_count": 1,
+        "prior_retry_authorized": False,
+        "method_changed": False,
+        "provider_weights_or_sources_changed": False,
+        "source_outcomes_opened": False,
+        "target_payloads_opened": False,
+        "target_outcomes_opened": False,
+    }
+    plan["claim_boundary"] = (
+        "This amendment authorizes exactly one different frozen development smoke "
+        "after the retained zero-progress runtime import failure. It changes only "
+        "the import/bootstrap implementation and custody binding, keeps the frozen "
+        "method and provider bytes unchanged, forbids retry of the prior case, and "
+        "does not authorize source shards until an ordinary-success custody receipt."
+    )
+    plan.pop("plan_id")
+    plan["plan_id"] = _content_id(plan)
+    return plan
+
+
 def validate_execution_plan(
     value: Mapping[str, Any],
     *,
@@ -358,7 +522,10 @@ def validate_execution_plan(
 ) -> dict[str, Any]:
     """Strictly validate plan identity and optionally all executable bytes."""
 
-    if value.get("schema") != EXECUTION_PLAN_SCHEMA or value.get("schema_version") != 1:
+    if value.get("schema") != EXECUTION_PLAN_SCHEMA or value.get("schema_version") not in {
+        EXECUTION_PLAN_VERSION,
+        AMENDED_EXECUTION_PLAN_VERSION,
+    }:
         raise ValueError("unsupported CUT3R source-comparison execution plan")
     if value.get("decision") != EXECUTION_DECISION:
         raise ValueError("CUT3R source-comparison execution is not authorized")
@@ -387,6 +554,80 @@ def validate_execution_plan(
         case_ids.append(cast(str, item["case_id"]))
     if case_ids != sorted(case_ids) or len(set(case_ids)) != 40:
         raise ValueError("execution cases must have unique lexicographically sorted IDs")
+
+    if value["schema_version"] == AMENDED_EXECUTION_PLAN_VERSION:
+        amendment = value.get("amendment")
+        if type(amendment) is not dict or set(amendment) != {
+            "schema",
+            "schema_version",
+            "reason",
+            "parent_plan_id",
+            "parent_smoke_result_id",
+            "prior_case_id_sha256",
+            "prior_failure_terminal_stage",
+            "prior_attempt_count",
+            "prior_retry_authorized",
+            "method_changed",
+            "provider_weights_or_sources_changed",
+            "source_outcomes_opened",
+            "target_payloads_opened",
+            "target_outcomes_opened",
+        }:
+            raise ValueError("amended execution plan has an invalid amendment record")
+        if amendment["schema"] != RUNTIME_AMENDMENT_SCHEMA:
+            raise ValueError("amended execution plan has an unknown amendment schema")
+        if amendment["schema_version"] != RUNTIME_AMENDMENT_VERSION:
+            raise ValueError("amended execution plan has an unknown amendment version")
+        for name in ("parent_plan_id", "parent_smoke_result_id", "prior_case_id_sha256"):
+            _sha256(amendment[name], name=f"amendment {name}")
+        expected_amendment = {
+            "reason": "pre-science-runtime-import-repair-v1",
+            "prior_failure_terminal_stage": "initialize-cut3r-runtime",
+            "prior_attempt_count": 1,
+            "prior_retry_authorized": False,
+            "method_changed": False,
+            "provider_weights_or_sources_changed": False,
+            "source_outcomes_opened": False,
+            "target_payloads_opened": False,
+            "target_outcomes_opened": False,
+        }
+        for name, expected_value in expected_amendment.items():
+            if amendment[name] != expected_value or type(amendment[name]) is not type(
+                expected_value
+            ):
+                raise ValueError(f"amended execution plan changed {name}")
+        execution = value.get("execution")
+        smoke_policy = execution.get("smoke_policy") if type(execution) is dict else None
+        if type(smoke_policy) is not dict or set(smoke_policy) != {
+            "registered_case_id",
+            "registered_case_id_sha256",
+            "attempt_limit",
+            "prior_case_retry_authorized",
+            "source_shards_require_ordinary_success_custody",
+        }:
+            raise ValueError("amended execution plan has an invalid smoke policy")
+        registered_case_id = smoke_policy["registered_case_id"]
+        if type(registered_case_id) is not str or registered_case_id not in case_ids:
+            raise ValueError("amended smoke case is not in the frozen source roster")
+        registered_case = cast(Mapping[str, Any], cases[case_ids.index(registered_case_id)])
+        if registered_case["role"] != "development":
+            raise ValueError("amended smoke case is not a development case")
+        if _sha256(
+            smoke_policy["registered_case_id_sha256"],
+            name="registered_case_id_sha256",
+        ) != _case_id_sha256(registered_case_id):
+            raise ValueError("amended smoke case hash is invalid")
+        if smoke_policy["registered_case_id_sha256"] == amendment["prior_case_id_sha256"]:
+            raise ValueError("amended smoke attempts to reuse the failed case")
+        if smoke_policy["attempt_limit"] != 1:
+            raise ValueError("amended smoke attempt limit changed")
+        if smoke_policy["prior_case_retry_authorized"] is not False:
+            raise ValueError("amended smoke authorizes retry of the failed case")
+        if smoke_policy["source_shards_require_ordinary_success_custody"] is not True:
+            raise ValueError("amended source shards no longer require smoke custody")
+        provider = value.get("provider")
+        if type(provider) is not dict or provider.get("callable") != "dust3r.inference.inference":
+            raise ValueError("amended plan does not use the repaired CUT3R import surface")
 
     if repository is not None:
         root = repository.resolve(strict=True)
@@ -449,11 +690,16 @@ def save_execution_plan(path: Path, plan: Mapping[str, Any]) -> None:
 
 
 __all__ = [
+    "AMENDED_EXECUTION_PLAN_VERSION",
+    "AMENDMENT_IMPLEMENTATION_FILES",
     "EXECUTION_DECISION",
     "EXECUTION_PLAN_SCHEMA",
     "EXECUTION_PLAN_VERSION",
     "IMPLEMENTATION_FILES",
     "PROVIDER_FILES",
+    "RUNTIME_AMENDMENT_SCHEMA",
+    "RUNTIME_AMENDMENT_VERSION",
+    "build_amended_execution_plan",
     "build_execution_plan",
     "load_execution_plan",
     "save_execution_plan",
