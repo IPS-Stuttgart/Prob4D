@@ -532,8 +532,12 @@ jobs:
             --workflow-run-id "$GITHUB_RUN_ID" \
             --workflow-run-attempt "$GITHUB_RUN_ATTEMPT"
 
-          /usr/bin/git -C "$execution_repository" restore \
-            --worktree -- src/prob4d.egg-info
+          if /usr/bin/git -C "$execution_repository" ls-files \
+            --error-unmatch -- src/prob4d.egg-info >/dev/null 2>&1
+          then
+            /usr/bin/git -C "$execution_repository" restore \
+              --worktree -- src/prob4d.egg-info
+          fi
           /usr/bin/git -C "$execution_repository" diff --exit-code
           test -z "$(/usr/bin/git -C "$execution_repository" status \
             --porcelain=v1 --untracked-files=no)"
