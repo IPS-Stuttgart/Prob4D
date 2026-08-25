@@ -103,9 +103,7 @@ jobs:
       github.event.issue.number == 49 &&
       github.actor == 'FlorianPfaff' &&
       github.event.comment.user.login == 'FlorianPfaff' &&
-      github.event.comment.body ==
-        '/prob4d-run-cut3r-source-comparison-smoke-retry-v2
-        efa8ef5040f268c41c02a9ea7789272d565e36dd655beccb04cfc2b3d588477a'
+      github.event.comment.body == '/prob4d-run-cut3r-source-comparison-smoke-retry-v2 efa8ef5040f268c41c02a9ea7789272d565e36dd655beccb04cfc2b3d588477a'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
