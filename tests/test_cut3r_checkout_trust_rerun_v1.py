@@ -66,7 +66,7 @@ def test_prepare_uses_scoped_probe_and_temporary_system_trust_only() -> None:
     assert 'test "$RUNNER_NAME_VALUE" = "workstation2"' in prepare
     assert 'test "$RUNNER_OS_VALUE" = "Linux"' in prepare
     assert 'test "$RUNNER_ARCH_VALUE" = "X64"' in prepare
-    assert "-c safe.directory=\"$CUT3R_CHECKOUT\"" in prepare
+    assert '-c safe.directory="$CUT3R_CHECKOUT"' in prepare
     assert "git config --system --add safe.directory" in prepare
     assert "8bc15dc92a6d7fd92920b4ec81540d3dec7d3ecf" in text
     assert "status --porcelain=v1 --untracked-files=all" in prepare
