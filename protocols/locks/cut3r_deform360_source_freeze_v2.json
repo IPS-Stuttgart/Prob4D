@@ -1,0 +1,4581 @@
+{
+  "camera_calibration_inputs": [
+    {
+      "episode_id": 7,
+      "extrinsics": {
+        "byte_count": 6937,
+        "relative_path": "026-sock-cloth/episode_0007/extrinsics.npy",
+        "sha256": "c40c21bc3b108ea60a029a21378866e09f15803e1b3f679eaff76529308035c0"
+      },
+      "group_id": "026-sock-cloth-episode-0007",
+      "intrinsics": {
+        "byte_count": 4921,
+        "relative_path": "026-sock-cloth/episode_0007/undistorted_intrinsics.npy",
+        "sha256": "7bb1f7e83ae59a5ef3b2facc68111a2a00cc2f5ca294dfb75894ad513dc7386c"
+      },
+      "object_id": "026-sock-cloth"
+    },
+    {
+      "episode_id": 0,
+      "extrinsics": {
+        "byte_count": 6201,
+        "relative_path": "031-cotton-cloth/episode_0000/extrinsics.npy",
+        "sha256": "9e1d1ff18c92128ea4b946172f44bc635c657eea5ce46337c135deacdce07a2c"
+      },
+      "group_id": "031-cotton-cloth-episode-0000",
+      "intrinsics": {
+        "byte_count": 4409,
+        "relative_path": "031-cotton-cloth/episode_0000/undistorted_intrinsics.npy",
+        "sha256": "e1578e2842f60fe8619e5ae85604d08155056069dc10aa51039dd5dc545b995d"
+      },
+      "object_id": "031-cotton-cloth"
+    },
+    {
+      "episode_id": 9,
+      "extrinsics": {
+        "byte_count": 6201,
+        "relative_path": "036-napkin-cloth/episode_0009/extrinsics.npy",
+        "sha256": "9e1d1ff18c92128ea4b946172f44bc635c657eea5ce46337c135deacdce07a2c"
+      },
+      "group_id": "036-napkin-cloth-episode-0009",
+      "intrinsics": {
+        "byte_count": 4409,
+        "relative_path": "036-napkin-cloth/episode_0009/undistorted_intrinsics.npy",
+        "sha256": "e1578e2842f60fe8619e5ae85604d08155056069dc10aa51039dd5dc545b995d"
+      },
+      "object_id": "036-napkin-cloth"
+    },
+    {
+      "episode_id": 1,
+      "extrinsics": {
+        "byte_count": 6201,
+        "relative_path": "058-roll-napkin/episode_0001/extrinsics.npy",
+        "sha256": "9e1d1ff18c92128ea4b946172f44bc635c657eea5ce46337c135deacdce07a2c"
+      },
+      "group_id": "058-roll-napkin-episode-0001",
+      "intrinsics": {
+        "byte_count": 4409,
+        "relative_path": "058-roll-napkin/episode_0001/undistorted_intrinsics.npy",
+        "sha256": "e1578e2842f60fe8619e5ae85604d08155056069dc10aa51039dd5dc545b995d"
+      },
+      "object_id": "058-roll-napkin"
+    },
+    {
+      "episode_id": 8,
+      "extrinsics": {
+        "byte_count": 6201,
+        "relative_path": "152-slime/episode_0008/extrinsics.npy",
+        "sha256": "9e1d1ff18c92128ea4b946172f44bc635c657eea5ce46337c135deacdce07a2c"
+      },
+      "group_id": "152-slime-episode-0008",
+      "intrinsics": {
+        "byte_count": 4409,
+        "relative_path": "152-slime/episode_0008/undistorted_intrinsics.npy",
+        "sha256": "e1578e2842f60fe8619e5ae85604d08155056069dc10aa51039dd5dc545b995d"
+      },
+      "object_id": "152-slime"
+    },
+    {
+      "episode_id": 5,
+      "extrinsics": {
+        "byte_count": 6201,
+        "relative_path": "153-cake/episode_0005/extrinsics.npy",
+        "sha256": "9e1d1ff18c92128ea4b946172f44bc635c657eea5ce46337c135deacdce07a2c"
+      },
+      "group_id": "153-cake-episode-0005",
+      "intrinsics": {
+        "byte_count": 4409,
+        "relative_path": "153-cake/episode_0005/undistorted_intrinsics.npy",
+        "sha256": "e1578e2842f60fe8619e5ae85604d08155056069dc10aa51039dd5dc545b995d"
+      },
+      "object_id": "153-cake"
+    },
+    {
+      "episode_id": 0,
+      "extrinsics": {
+        "byte_count": 6201,
+        "relative_path": "167-glove-gray-cloth/episode_0000/extrinsics.npy",
+        "sha256": "9e1d1ff18c92128ea4b946172f44bc635c657eea5ce46337c135deacdce07a2c"
+      },
+      "group_id": "167-glove-gray-cloth-episode-0000",
+      "intrinsics": {
+        "byte_count": 4409,
+        "relative_path": "167-glove-gray-cloth/episode_0000/undistorted_intrinsics.npy",
+        "sha256": "e1578e2842f60fe8619e5ae85604d08155056069dc10aa51039dd5dc545b995d"
+      },
+      "object_id": "167-glove-gray-cloth"
+    },
+    {
+      "episode_id": 6,
+      "extrinsics": {
+        "byte_count": 6201,
+        "relative_path": "186-monster/episode_0006/extrinsics.npy",
+        "sha256": "9e1d1ff18c92128ea4b946172f44bc635c657eea5ce46337c135deacdce07a2c"
+      },
+      "group_id": "186-monster-episode-0006",
+      "intrinsics": {
+        "byte_count": 4409,
+        "relative_path": "186-monster/episode_0006/undistorted_intrinsics.npy",
+        "sha256": "e1578e2842f60fe8619e5ae85604d08155056069dc10aa51039dd5dc545b995d"
+      },
+      "object_id": "186-monster"
+    },
+    {
+      "episode_id": 7,
+      "extrinsics": {
+        "byte_count": 6201,
+        "relative_path": "193-frog/episode_0007/extrinsics.npy",
+        "sha256": "9e1d1ff18c92128ea4b946172f44bc635c657eea5ce46337c135deacdce07a2c"
+      },
+      "group_id": "193-frog-episode-0007",
+      "intrinsics": {
+        "byte_count": 4409,
+        "relative_path": "193-frog/episode_0007/undistorted_intrinsics.npy",
+        "sha256": "e1578e2842f60fe8619e5ae85604d08155056069dc10aa51039dd5dc545b995d"
+      },
+      "object_id": "193-frog"
+    },
+    {
+      "episode_id": 2,
+      "extrinsics": {
+        "byte_count": 6201,
+        "relative_path": "198-kneepad-cloth/episode_0002/extrinsics.npy",
+        "sha256": "9e1d1ff18c92128ea4b946172f44bc635c657eea5ce46337c135deacdce07a2c"
+      },
+      "group_id": "198-kneepad-cloth-episode-0002",
+      "intrinsics": {
+        "byte_count": 4409,
+        "relative_path": "198-kneepad-cloth/episode_0002/undistorted_intrinsics.npy",
+        "sha256": "e1578e2842f60fe8619e5ae85604d08155056069dc10aa51039dd5dc545b995d"
+      },
+      "object_id": "198-kneepad-cloth"
+    }
+  ],
+  "camera_panel": {
+    "camera_center_maximum_deviation_m": {
+      "brics-odroid-010_cam0": 3.1031676915590914e-17,
+      "brics-odroid-015_cam0": 1.1775693440128312e-16,
+      "brics-odroid-017_cam1": 1.2719202621569003e-16,
+      "brics-odroid-022_cam0": 1.3877787807814457e-17
+    },
+    "camera_direction": {
+      "brics-odroid-010_cam0": [
+        -0.8757987994532604,
+        -0.391860244727049,
+        -0.28181911127296677
+      ],
+      "brics-odroid-015_cam0": [
+        0.006638141896831399,
+        -0.3951410371703836,
+        0.9185964814955864
+      ],
+      "brics-odroid-017_cam1": [
+        0.9630631850918664,
+        0.26912206279654793,
+        0.009089380443156386
+      ],
+      "brics-odroid-022_cam0": [
+        -0.641897799448699,
+        0.612003713740883,
+        0.46197258515012013
+      ]
+    },
+    "first_camera_rule": "maximum dot product with the positive world x-axis, then lexicographic camera name",
+    "panel_size": 4,
+    "selected_cameras": [
+      "brics-odroid-017_cam1",
+      "brics-odroid-010_cam0",
+      "brics-odroid-015_cam0",
+      "brics-odroid-022_cam0"
+    ],
+    "selection_rule": "deterministic geometry-balanced farthest-point selection on calibrated camera-center directions after centering the common source-only camera constellation"
+  },
+  "claim_boundary": "This protocol freezes a source-only CUT3R-versus-Prob4D comparison on ten already opened Deform360 object sessions. It does not establish held-out provider competence, uncertainty calibration, BayesianPhysTwin benefit, Causal4D benefit, deployment safety, benchmark parity, or state of the art. The twelve confirmation object sessions remain unopened and forbidden.",
+  "comparison_spec_sha256": "d98f46022edce0934fc43ce5c9cc514af9652bfbbf2bc4a395273337993332dc",
+  "decision": "source-support-freeze-ready",
+  "deform360_selection": {
+    "byte_count": 10611,
+    "selection_artifact_sha256": "dc1c2d192fbb841d2f0e290d77f21d697983b3f8bfbcae476e71fe902309cd82",
+    "selection_sha256": "b28daf8477e214cb74a4d250ef5eea8f9f1a014aec10487699ac0ce063961222",
+    "sha256": "4dd12af9889d64976095eb9e237eeb655f9675ff7d5940aa5dfc1d4ee11f295c"
+  },
+  "forbidden_target_group_count": 12,
+  "forbidden_target_groups": [
+    {
+      "episode_id": 1,
+      "object_id": "030-bandage-cloth",
+      "stratum": "sheet"
+    },
+    {
+      "episode_id": 4,
+      "object_id": "057-kitchen-sponge",
+      "stratum": "volumetric"
+    },
+    {
+      "episode_id": 3,
+      "object_id": "095-watermelon",
+      "stratum": "volumetric"
+    },
+    {
+      "episode_id": 1,
+      "object_id": "102-stress-ball",
+      "stratum": "volumetric"
+    },
+    {
+      "episode_id": 6,
+      "object_id": "105-clay-cloth",
+      "stratum": "sheet"
+    },
+    {
+      "episode_id": 3,
+      "object_id": "107-mitt-cloth",
+      "stratum": "sheet"
+    },
+    {
+      "episode_id": 9,
+      "object_id": "115-cotton-gauze-cloth",
+      "stratum": "sheet"
+    },
+    {
+      "episode_id": 4,
+      "object_id": "155-crystal-slime",
+      "stratum": "volumetric"
+    },
+    {
+      "episode_id": 4,
+      "object_id": "156-mesh-produce-bag-cloth",
+      "stratum": "sheet"
+    },
+    {
+      "episode_id": 1,
+      "object_id": "166-glove-green-cloth",
+      "stratum": "sheet"
+    },
+    {
+      "episode_id": 2,
+      "object_id": "187-white-bear",
+      "stratum": "volumetric"
+    },
+    {
+      "episode_id": 1,
+      "object_id": "190-monkey",
+      "stratum": "volumetric"
+    }
+  ],
+  "information_boundary": {
+    "camera_panel_change_after_freeze_allowed": false,
+    "downstream_physical_innovations_opened": false,
+    "replacement_after_freeze_allowed": false,
+    "source_future_geometry_opened": false,
+    "source_prediction_payloads_opened": false,
+    "source_residuals_or_truth_opened": false,
+    "source_rgb_frames_decoded": false,
+    "source_rgb_video_bytes_hashed": true,
+    "target_outcomes_opened": false,
+    "target_payloads_opened": false
+  },
+  "prob4d": {
+    "distribution_byte_count": 1069457,
+    "distribution_filename": "prob4d-0.5.0-py3-none-any.whl",
+    "distribution_sha256": "e882717c059e1ced7a508b036b815b2b2fd00cb3aaddac7357e5da4d8491f48e",
+    "revision": "8b923e8cd67ca65f09312cffe305e36852f36fbb"
+  },
+  "protocol_name": "cut3r-deform360-source-v1",
+  "provider": {
+    "checkpoint_byte_count": 3173761006,
+    "checkpoint_filename": "cut3r_512_dpt_4_64.pth",
+    "checkpoint_sha256": "45f7e98a0a64dbeb54901ae2b878cd8cd125f20a4497316483f0bd6f109f8103",
+    "execution_mode": "recurrent-online",
+    "global_alignment": false,
+    "repository": "CUT3R/CUT3R",
+    "revision": "8bc15dc92a6d7fd92920b4ec81540d3dec7d3ecf",
+    "revisit_count": 1,
+    "second_pass_allowed": false
+  },
+  "schema": "prob4d.cut3r-deform360-source-freeze",
+  "schema_version": 1,
+  "source_cases": [
+    {
+      "aligned_timestamp_count": 429,
+      "camera": "brics-odroid-010_cam0",
+      "case_id": "026-sock-cloth-episode-0007-brics-odroid-010_cam0",
+      "episode_id": 7,
+      "group_id": "026-sock-cloth-episode-0007",
+      "input_video_byte_count": 7721276,
+      "input_video_sha256": "f520fae74f0763d2024334067d1e27634a51ba83b162c701eed7a38916762d59",
+      "object_id": "026-sock-cloth",
+      "relative_camera_path": "026-sock-cloth/episode_0007/brics-odroid-010_cam0",
+      "relative_episode_path": "026-sock-cloth/episode_0007",
+      "sidecar_byte_count": {
+        "aligned_timestamps.txt": 15444,
+        "alignment.json": 134671,
+        "metadata.json": 1942
+      },
+      "sidecar_sha256": {
+        "aligned_timestamps.txt": "bfe47c37980dfd337765490ed8944dff5e313b899e4ad2fadd3527ec6b0c5d81",
+        "alignment.json": "6e3ed62882819efa9851d504283f686b61e01702d21a389ebabc6fad9fd04601",
+        "metadata.json": "22042edf34166d7f5a85798d9899dac0a2bc0f5cdeb8e83f451517fdeceaff93"
+      },
+      "source_case_id": "593f3c1e40c928c7241980ec41803ee653dc6b9c1799ba651008cc870f358571"
+    },
+    {
+      "aligned_timestamp_count": 429,
+      "camera": "brics-odroid-015_cam0",
+      "case_id": "026-sock-cloth-episode-0007-brics-odroid-015_cam0",
+      "episode_id": 7,
+      "group_id": "026-sock-cloth-episode-0007",
+      "input_video_byte_count": 7716804,
+      "input_video_sha256": "a99752ea3369aef3f8664c0da43bd5e4d3833f5d1f2d1622053be6464e9034d1",
+      "object_id": "026-sock-cloth",
+      "relative_camera_path": "026-sock-cloth/episode_0007/brics-odroid-015_cam0",
+      "relative_episode_path": "026-sock-cloth/episode_0007",
+      "sidecar_byte_count": {
+        "aligned_timestamps.txt": 15444,
+        "alignment.json": 134307,
+        "metadata.json": 1942
+      },
+      "sidecar_sha256": {
+        "aligned_timestamps.txt": "bfe47c37980dfd337765490ed8944dff5e313b899e4ad2fadd3527ec6b0c5d81",
+        "alignment.json": "f8a356aca7af2d22f1e732196212ca185e3b1b609b2a3c093b0b5dbda6d474af",
+        "metadata.json": "854ab8399973ecd1adbae3cc37f15eb3892fd1ea19c761cf3885d0d4a6f55ea5"
+      },
+      "source_case_id": "a12c3e041cb07a4653c5a7707474aea103a4d02d9f8b64f33bde9f474e31518f"
+    },
+    {
+      "aligned_timestamp_count": 429,
+      "camera": "brics-odroid-017_cam1",
+      "case_id": "026-sock-cloth-episode-0007-brics-odroid-017_cam1",
+      "episode_id": 7,
+      "group_id": "026-sock-cloth-episode-0007",
+      "input_video_byte_count": 6839795,
+      "input_video_sha256": "40d9278db2cd97577ed83b7788984b11c8adafb217d24ce2ce0e541d748aaff2",
+      "object_id": "026-sock-cloth",
+      "relative_camera_path": "026-sock-cloth/episode_0007/brics-odroid-017_cam1",
+      "relative_episode_path": "026-sock-cloth/episode_0007",
+      "sidecar_byte_count": {
+        "aligned_timestamps.txt": 15444,
+        "alignment.json": 135156,
+        "metadata.json": 1942
+      },
+      "sidecar_sha256": {
+        "aligned_timestamps.txt": "bfe47c37980dfd337765490ed8944dff5e313b899e4ad2fadd3527ec6b0c5d81",
+        "alignment.json": "268237716bd16b18b754ffb743ed884fb260d530099dfdfced3b734ea66528d2",
+        "metadata.json": "e7087a3dc2af6aeef176b2d90a68ebc1fd5b4e5540ca9a189e67223088cd05a7"
+      },
+      "source_case_id": "b7916435f2752b87d9f7efc83cd598510b673c6a31692b7b81746f74078de02c"
+    },
+    {
+      "aligned_timestamp_count": 429,
+      "camera": "brics-odroid-022_cam0",
+      "case_id": "026-sock-cloth-episode-0007-brics-odroid-022_cam0",
+      "episode_id": 7,
+      "group_id": "026-sock-cloth-episode-0007",
+      "input_video_byte_count": 6088668,
+      "input_video_sha256": "64b58692118d300fbf8003ea2b736e42c28e433db2bd9fb29d4b7a04de5a5e65",
+      "object_id": "026-sock-cloth",
+      "relative_camera_path": "026-sock-cloth/episode_0007/brics-odroid-022_cam0",
+      "relative_episode_path": "026-sock-cloth/episode_0007",
+      "sidecar_byte_count": {
+        "aligned_timestamps.txt": 15444,
+        "alignment.json": 134742,
+        "metadata.json": 1942
+      },
+      "sidecar_sha256": {
+        "aligned_timestamps.txt": "bfe47c37980dfd337765490ed8944dff5e313b899e4ad2fadd3527ec6b0c5d81",
+        "alignment.json": "e09b7d2e96bb0aa66b8465e0320c3155296b3ddfc80b2ee8edb9a838b6c26dae",
+        "metadata.json": "fe0841a431645a7429a868bf57b348174260fad4674514986d25313f5e1f2377"
+      },
+      "source_case_id": "a3c57094b2e5e10f8a2ac4455f6887029907f25fe225c92e3acf86eaee296349"
+    },
+    {
+      "aligned_timestamp_count": 258,
+      "camera": "brics-odroid-010_cam0",
+      "case_id": "031-cotton-cloth-episode-0000-brics-odroid-010_cam0",
+      "episode_id": 0,
+      "group_id": "031-cotton-cloth-episode-0000",
+      "input_video_byte_count": 3841892,
+      "input_video_sha256": "af44d0cb3d84e9fcab7a0d85933bc81306675afcb91e5d8fc80d1c2bdd2e2d03",
+      "object_id": "031-cotton-cloth",
+      "relative_camera_path": "031-cotton-cloth/episode_0000/brics-odroid-010_cam0",
+      "relative_episode_path": "031-cotton-cloth/episode_0000",
+      "sidecar_byte_count": {
+        "aligned_timestamps.txt": 9288,
+        "alignment.json": 81061,
+        "metadata.json": 1942
+      },
+      "sidecar_sha256": {
+        "aligned_timestamps.txt": "dd44a8c56d21d0fec9563a0d5738fdcbebe1845f81da386bfddb6a0c92dda2c2",
+        "alignment.json": "eb1854bd010a052e5dfa85a2541c17598e7deb911480fb42570cd1509893d6f4",
+        "metadata.json": "7fe829fa8f310859576ad649cdd521b5641ca7f2a727ba06813d47ecfe631a9a"
+      },
+      "source_case_id": "794ba0e5c342de4597bf92c95edb68948e8ba408b0b8a45a1da0dff764aa0cd9"
+    },
+    {
+      "aligned_timestamp_count": 258,
+      "camera": "brics-odroid-015_cam0",
+      "case_id": "031-cotton-cloth-episode-0000-brics-odroid-015_cam0",
+      "episode_id": 0,
+      "group_id": "031-cotton-cloth-episode-0000",
+      "input_video_byte_count": 4142524,
+      "input_video_sha256": "7055ee819e554d0d64d2d962e5bd34a41dbe4e0d289aada78e4f5035402dcf43",
+      "object_id": "031-cotton-cloth",
+      "relative_camera_path": "031-cotton-cloth/episode_0000/brics-odroid-015_cam0",
+      "relative_episode_path": "031-cotton-cloth/episode_0000",
+      "sidecar_byte_count": {
+        "aligned_timestamps.txt": 9288,
+        "alignment.json": 80980,
+        "metadata.json": 1942
+      },
+      "sidecar_sha256": {
+        "aligned_timestamps.txt": "dd44a8c56d21d0fec9563a0d5738fdcbebe1845f81da386bfddb6a0c92dda2c2",
+        "alignment.json": "cbc8863cfe4b783963aca17cbe8e0604d897a5c30a3d5f02557d5c410d4fe825",
+        "metadata.json": "5b0c1e2befb9bfc5c52efdac91a27d463eb7c4e8df65cebf26df1d3f160989dc"
+      },
+      "source_case_id": "a86f1b2c8cd5844a3f6ea7116499991a45b459dd93afad3b1cd85fd43efd0b35"
+    },
+    {
+      "aligned_timestamp_count": 258,
+      "camera": "brics-odroid-017_cam1",
+      "case_id": "031-cotton-cloth-episode-0000-brics-odroid-017_cam1",
+      "episode_id": 0,
+      "group_id": "031-cotton-cloth-episode-0000",
+      "input_video_byte_count": 4004054,
+      "input_video_sha256": "abf5af66c4c3da546e3d779977b0846d3f147a54ce21a5806d9bd755ac9cd5d5",
+      "object_id": "031-cotton-cloth",
+      "relative_camera_path": "031-cotton-cloth/episode_0000/brics-odroid-017_cam1",
+      "relative_episode_path": "031-cotton-cloth/episode_0000",
+      "sidecar_byte_count": {
+        "aligned_timestamps.txt": 9288,
+        "alignment.json": 81307,
+        "metadata.json": 1942
+      },
+      "sidecar_sha256": {
+        "aligned_timestamps.txt": "dd44a8c56d21d0fec9563a0d5738fdcbebe1845f81da386bfddb6a0c92dda2c2",
+        "alignment.json": "9ceb0b803a8b8118c6f7dd5eb9c1bffb95c78bca0507e7db0fb47711ae0974e1",
+        "metadata.json": "187444bc9396ed7c335068c6adca7a2aa50b063d2e2a57ea94ced406ee3d35dc"
+      },
+      "source_case_id": "eb965a11ee5193ab07d6f4f0b12731789dad5668d2617ee9e5b83cec0150179e"
+    },
+    {
+      "aligned_timestamp_count": 258,
+      "camera": "brics-odroid-022_cam0",
+      "case_id": "031-cotton-cloth-episode-0000-brics-odroid-022_cam0",
+      "episode_id": 0,
+      "group_id": "031-cotton-cloth-episode-0000",
+      "input_video_byte_count": 3284975,
+      "input_video_sha256": "21ba02ce3f627df96ec2e1210218cda008a49defdd7f1debd4594a3fb54d7c49",
+      "object_id": "031-cotton-cloth",
+      "relative_camera_path": "031-cotton-cloth/episode_0000/brics-odroid-022_cam0",
+      "relative_episode_path": "031-cotton-cloth/episode_0000",
+      "sidecar_byte_count": {
+        "aligned_timestamps.txt": 9288,
+        "alignment.json": 81045,
+        "metadata.json": 1942
+      },
+      "sidecar_sha256": {
+        "aligned_timestamps.txt": "dd44a8c56d21d0fec9563a0d5738fdcbebe1845f81da386bfddb6a0c92dda2c2",
+        "alignment.json": "339feeaa2839fb2e99d17252e930eb49ff8e6574e40d2bae3f987d1f685e4173",
+        "metadata.json": "34e25a8c52a408c5ba0ff03e4754bfe19d151ef54a7e73f162f475949e446a26"
+      },
+      "source_case_id": "7f9e755039423121714ff52d9d99c734ccfec716b1e7c8170a0adb2fee5e9c0a"
+    },
+    {
+      "aligned_timestamp_count": 450,
+      "camera": "brics-odroid-010_cam0",
+      "case_id": "036-napkin-cloth-episode-0009-brics-odroid-010_cam0",
+      "episode_id": 9,
+      "group_id": "036-napkin-cloth-episode-0009",
+      "input_video_byte_count": 7450912,
+      "input_video_sha256": "7247d5ae6635d9d1c9ec2bf63f63a75c98384b5a051e8983dad0631a27393548",
+      "object_id": "036-napkin-cloth",
+      "relative_camera_path": "036-napkin-cloth/episode_0009/brics-odroid-010_cam0",
+      "relative_episode_path": "036-napkin-cloth/episode_0009",
+      "sidecar_byte_count": {
+        "aligned_timestamps.txt": 16200,
+        "alignment.json": 141031,
+        "metadata.json": 1942
+      },
+      "sidecar_sha256": {
+        "aligned_timestamps.txt": "3c076a8cfad5e4b3136b3f229becab61c2e0b5f519b1c7a1a966571c97947ea0",
+        "alignment.json": "5e673619611f2559887f40597b0a13e0320f42f530136e69ba2c840ff7c9f25e",
+        "metadata.json": "e47bfc72d8fc33ed74b996ae1c3b188c1f1cd2b43b4af3a7bbf8d8463ef5dd4d"
+      },
+      "source_case_id": "65f695b3ea109c21f612486f68384dbebdb9d5e9aa2f7dd3722b24f68c57a96b"
+    },
+    {
+      "aligned_timestamp_count": 450,
+      "camera": "brics-odroid-015_cam0",
+      "case_id": "036-napkin-cloth-episode-0009-brics-odroid-015_cam0",
+      "episode_id": 9,
+      "group_id": "036-napkin-cloth-episode-0009",
+      "input_video_byte_count": 8268545,
+      "input_video_sha256": "5063139db660c50f56c20cb0c656dbef1fc9e3386645d1373a28db5b9b6ffee7",
+      "object_id": "036-napkin-cloth",
+      "relative_camera_path": "036-napkin-cloth/episode_0009/brics-odroid-015_cam0",
+      "relative_episode_path": "036-napkin-cloth/episode_0009",
+      "sidecar_byte_count": {
+        "aligned_timestamps.txt": 16200,
+        "alignment.json": 141531,
+        "metadata.json": 1942
+      },
+      "sidecar_sha256": {
+        "aligned_timestamps.txt": "3c076a8cfad5e4b3136b3f229becab61c2e0b5f519b1c7a1a966571c97947ea0",
+        "alignment.json": "14d0d53eeffd0b7341f4660f4fc907407b2c5b7569cf75be936c7f3b25486b0e",
+        "metadata.json": "0728684d4b261995df005ac3dc5fd1f640899cc0ab173b400e93afec03e74473"
+      },
+      "source_case_id": "dba19c2ac99294fd478343764d71ac44d02eee22be760a23817c98f8727f5aed"
+    },
+    {
+      "aligned_timestamp_count": 450,
+      "camera": "brics-odroid-017_cam1",
+      "case_id": "036-napkin-cloth-episode-0009-brics-odroid-017_cam1",
+      "episode_id": 9,
+      "group_id": "036-napkin-cloth-episode-0009",
+      "input_video_byte_count": 8641513,
+      "input_video_sha256": "ffd94a562aa29230ed2febc3601885d1899c07e570c9d15a470fcf39d64b9b8e",
+      "object_id": "036-napkin-cloth",
+      "relative_camera_path": "036-napkin-cloth/episode_0009/brics-odroid-017_cam1",
+      "relative_episode_path": "036-napkin-cloth/episode_0009",
+      "sidecar_byte_count": {
+        "aligned_timestamps.txt": 16200,
+        "alignment.json": 140871,
+        "metadata.json": 1942
+      },
+      "sidecar_sha256": {
+        "aligned_timestamps.txt": "3c076a8cfad5e4b3136b3f229becab61c2e0b5f519b1c7a1a966571c97947ea0",
+        "alignment.json": "434051cf505b30e5ef5a1513e0ec65bab011aed098b2b0b9fa703190cbeccf08",
+        "metadata.json": "78e02c6375ca72d34a2a9c8e49cfeb2a512ecea14cd7a5fd9fe7d48b09728762"
+      },
+      "source_case_id": "ee46bad01d68de28df55ab9a8ee36829a925dbcd1d517f825fcf40306e1bdcd7"
+    },
+    {
+      "aligned_timestamp_count": 450,
+      "camera": "brics-odroid-022_cam0",
+      "case_id": "036-napkin-cloth-episode-0009-brics-odroid-022_cam0",
+      "episode_id": 9,
+      "group_id": "036-napkin-cloth-episode-0009",
+      "input_video_byte_count": 7507659,
+      "input_video_sha256": "d62582fbbd24ebc2dc7eeee31b0a20c10ebe0836812e2ba19aa133a0f5e4f693",
+      "object_id": "036-napkin-cloth",
+      "relative_camera_path": "036-napkin-cloth/episode_0009/brics-odroid-022_cam0",
+      "relative_episode_path": "036-napkin-cloth/episode_0009",
+      "sidecar_byte_count": {
+        "aligned_timestamps.txt": 16200,
+        "alignment.json": 140889,
+        "metadata.json": 1942
+      },
+      "sidecar_sha256": {
+        "aligned_timestamps.txt": "3c076a8cfad5e4b3136b3f229becab61c2e0b5f519b1c7a1a966571c97947ea0",
+        "alignment.json": "7b2aee4a71ca802121208e51938cf6723b2c3116d3cf573f72c2cdbde4ca25f9",
+        "metadata.json": "5fb51c4d1e2560c20c488b6658469806ed6a513a9737f549ae415a7b89969f85"
+      },
+      "source_case_id": "623988dde6d31f0cb9f7dd7b84832c2ffda5ace0769450cf849ea19294c99d1e"
+    },
+    {
+      "aligned_timestamp_count": 282,
+      "camera": "brics-odroid-010_cam0",
+      "case_id": "058-roll-napkin-episode-0001-brics-odroid-010_cam0",
+      "episode_id": 1,
+      "group_id": "058-roll-napkin-episode-0001",
+      "input_video_byte_count": 4805846,
+      "input_video_sha256": "b274896fb6e36ee23a012b917587b19d6539deebd00ef51fd966f213c350daa0",
+      "object_id": "058-roll-napkin",
+      "relative_camera_path": "058-roll-napkin/episode_0001/brics-odroid-010_cam0",
+      "relative_episode_path": "058-roll-napkin/episode_0001",
+      "sidecar_byte_count": {
+        "aligned_timestamps.txt": 10152,
+        "alignment.json": 88583,
+        "metadata.json": 1942
+      },
+      "sidecar_sha256": {
+        "aligned_timestamps.txt": "ef1033378bce34bb234b7730e758cdb3b2c3c2cc4669a6978eaca5f56ed7694b",
+        "alignment.json": "04e9e178dfb7b94dfe50f9ec03e4fd4bb34f10e2cfe87ec78dce924a19545a2e",
+        "metadata.json": "8e5d3e963b6cbcbcfc53c47ae86bf9f23ec5d06e21bb6ad9a1486514a3830d3a"
+      },
+      "source_case_id": "4c2c98a3a75ca117489f55cc5bb330170726122055b8fc4d5acc8aee9cb170a9"
+    },
+    {
+      "aligned_timestamp_count": 282,
+      "camera": "brics-odroid-015_cam0",
+      "case_id": "058-roll-napkin-episode-0001-brics-odroid-015_cam0",
+      "episode_id": 1,
+      "group_id": "058-roll-napkin-episode-0001",
+      "input_video_byte_count": 4341533,
+      "input_video_sha256": "70428f2d9714aca392035065061f0ec496fb2b6a6302785fd9388c1694e893b9",
+      "object_id": "058-roll-napkin",
+      "relative_camera_path": "058-roll-napkin/episode_0001/brics-odroid-015_cam0",
+      "relative_episode_path": "058-roll-napkin/episode_0001",
+      "sidecar_byte_count": {
+        "aligned_timestamps.txt": 10152,
+        "alignment.json": 88806,
+        "metadata.json": 1942
+      },
+      "sidecar_sha256": {
+        "aligned_timestamps.txt": "ef1033378bce34bb234b7730e758cdb3b2c3c2cc4669a6978eaca5f56ed7694b",
+        "alignment.json": "3ef2374e6fb48ffe81b11785d701e84d4649264bb1c47a6f82201ac713737fcd",
+        "metadata.json": "d6c6a1de0b09590503d7e75c5612e410f5f22df20db9e0a74cf80181ed642592"
+      },
+      "source_case_id": "5d26a6c032d5e1a6282ea6133c74931a6fcf2dffc6fda01594e09a011da84e02"
+    },
+    {
+      "aligned_timestamp_count": 282,
+      "camera": "brics-odroid-017_cam1",
+      "case_id": "058-roll-napkin-episode-0001-brics-odroid-017_cam1",
+      "episode_id": 1,
+      "group_id": "058-roll-napkin-episode-0001",
+      "input_video_byte_count": 3574661,
+      "input_video_sha256": "26bb2179cf6f162ddd52a14894cec4faacfb9e50107b84f1674c7eead160fd55",
+      "object_id": "058-roll-napkin",
+      "relative_camera_path": "058-roll-napkin/episode_0001/brics-odroid-017_cam1",
+      "relative_episode_path": "058-roll-napkin/episode_0001",
+      "sidecar_byte_count": {
+        "aligned_timestamps.txt": 10152,
+        "alignment.json": 88815,
+        "metadata.json": 1942
+      },
+      "sidecar_sha256": {
+        "aligned_timestamps.txt": "ef1033378bce34bb234b7730e758cdb3b2c3c2cc4669a6978eaca5f56ed7694b",
+        "alignment.json": "5fab21d245a2d4935ca4fcdc7610e5205048d8a05b1cf5913d5f9b04b82853f4",
+        "metadata.json": "8c77e192fd8190bb5142edd294a9bfec64e4037ae60a8bb8161f18b9f9bcdfc8"
+      },
+      "source_case_id": "309c89a64311746a5e50a054dff6254124b553bca79de7964704905e328bb2f4"
+    },
+    {
+      "aligned_timestamp_count": 282,
+      "camera": "brics-odroid-022_cam0",
+      "case_id": "058-roll-napkin-episode-0001-brics-odroid-022_cam0",
+      "episode_id": 1,
+      "group_id": "058-roll-napkin-episode-0001",
+      "input_video_byte_count": 3662434,
+      "input_video_sha256": "8805759ce27372047e36e4e1bc75086f8d995ad4fedb17f0af1edcd4da6e6dfa",
+      "object_id": "058-roll-napkin",
+      "relative_camera_path": "058-roll-napkin/episode_0001/brics-odroid-022_cam0",
+      "relative_episode_path": "058-roll-napkin/episode_0001",
+      "sidecar_byte_count": {
+        "aligned_timestamps.txt": 10152,
+        "alignment.json": 88864,
+        "metadata.json": 1942
+      },
+      "sidecar_sha256": {
+        "aligned_timestamps.txt": "ef1033378bce34bb234b7730e758cdb3b2c3c2cc4669a6978eaca5f56ed7694b",
+        "alignment.json": "9638a37fbd5c85c5cfd32c797b7780a18024aef6ef048ad568eb9a6d5252857d",
+        "metadata.json": "b517ddb7ac59a05bfe1aec09b85e01111a6f2957d8fa17352be7ac9f2f22f5a6"
+      },
+      "source_case_id": "a91f0507564c56ad74e30ef1af67fac771d0c1d48fe7dfcb6b4d518c699c18ae"
+    },
+    {
+      "aligned_timestamp_count": 231,
+      "camera": "brics-odroid-010_cam0",
+      "case_id": "152-slime-episode-0008-brics-odroid-010_cam0",
+      "episode_id": 8,
+      "group_id": "152-slime-episode-0008",
+      "input_video_byte_count": 5106187,
+      "input_video_sha256": "4464e01e65d43337dc67f36c2bb762647db63590f567ea8010af1a6794d11919",
+      "object_id": "152-slime",
+      "relative_camera_path": "152-slime/episode_0008/brics-odroid-010_cam0",
+      "relative_episode_path": "152-slime/episode_0008",
+      "sidecar_byte_count": {
+        "aligned_timestamps.txt": 8316,
+        "alignment.json": 72343,
+        "metadata.json": 1942
+      },
+      "sidecar_sha256": {
+        "aligned_timestamps.txt": "bba47d0b8c731a09f5aecc27dd7643957d998abefdce5b25934ff8c5a0a7d3ad",
+        "alignment.json": "217da1a2cf780fb05c96ac455e74a4d756fa13888151a38e59d1ff60fb6272e6",
+        "metadata.json": "704410d2d98eea2f47f092b36cba7456652ef19947457f9a8b57b12892390f8c"
+      },
+      "source_case_id": "3279f3d095af446221790188e782951d84877204220739afb36c8f3c0e7417de"
+    },
+    {
+      "aligned_timestamp_count": 231,
+      "camera": "brics-odroid-015_cam0",
+      "case_id": "152-slime-episode-0008-brics-odroid-015_cam0",
+      "episode_id": 8,
+      "group_id": "152-slime-episode-0008",
+      "input_video_byte_count": 5544051,
+      "input_video_sha256": "6cf8151b7c60df7e6c8fc75775e78c54333f6023177ae5060b14699a0ccd6e91",
+      "object_id": "152-slime",
+      "relative_camera_path": "152-slime/episode_0008/brics-odroid-015_cam0",
+      "relative_episode_path": "152-slime/episode_0008",
+      "sidecar_byte_count": {
+        "aligned_timestamps.txt": 8316,
+        "alignment.json": 72557,
+        "metadata.json": 1942
+      },
+      "sidecar_sha256": {
+        "aligned_timestamps.txt": "bba47d0b8c731a09f5aecc27dd7643957d998abefdce5b25934ff8c5a0a7d3ad",
+        "alignment.json": "c2dab3b5ad993562f31a72cb0bfbf48d8d16ff11f6d12118601270faefb84396",
+        "metadata.json": "5f77e6c4fb24c1fbbe3fb1f2899a6d9ddc5e38f69402efe8b6ac8934c14c0716"
+      },
+      "source_case_id": "fa9bb0cab9aeb5d1baa1047e72a6da3240ac237db19939a360e39718bee8838c"
+    },
+    {
+      "aligned_timestamp_count": 231,
+      "camera": "brics-odroid-017_cam1",
+      "case_id": "152-slime-episode-0008-brics-odroid-017_cam1",
+      "episode_id": 8,
+      "group_id": "152-slime-episode-0008",
+      "input_video_byte_count": 4697426,
+      "input_video_sha256": "df31759dc45246814cc078a08b8f11620e8500660115f9d4ec6f4ce7585b0880",
+      "object_id": "152-slime",
+      "relative_camera_path": "152-slime/episode_0008/brics-odroid-017_cam1",
+      "relative_episode_path": "152-slime/episode_0008",
+      "sidecar_byte_count": {
+        "aligned_timestamps.txt": 8316,
+        "alignment.json": 72784,
+        "metadata.json": 1942
+      },
+      "sidecar_sha256": {
+        "aligned_timestamps.txt": "bba47d0b8c731a09f5aecc27dd7643957d998abefdce5b25934ff8c5a0a7d3ad",
+        "alignment.json": "07c90550bc9b0bf57b3cfc39461b8e000fba4ce9137cea283052049c7c7d2ae9",
+        "metadata.json": "e78c62e8550b9cba80bf95cbc834456909baf0da73d2201a5620d504bada3b78"
+      },
+      "source_case_id": "33d6591b6016a14c3432780abd8143fa4a9ac400c6f52fdf55ffe12eab19fc95"
+    },
+    {
+      "aligned_timestamp_count": 231,
+      "camera": "brics-odroid-022_cam0",
+      "case_id": "152-slime-episode-0008-brics-odroid-022_cam0",
+      "episode_id": 8,
+      "group_id": "152-slime-episode-0008",
+      "input_video_byte_count": 4141721,
+      "input_video_sha256": "30dc9dece2b7de61d4b42f48faacf3e6f37c9a451c6e4b2464f3a43b02085c04",
+      "object_id": "152-slime",
+      "relative_camera_path": "152-slime/episode_0008/brics-odroid-022_cam0",
+      "relative_episode_path": "152-slime/episode_0008",
+      "sidecar_byte_count": {
+        "aligned_timestamps.txt": 8316,
+        "alignment.json": 72577,
+        "metadata.json": 1942
+      },
+      "sidecar_sha256": {
+        "aligned_timestamps.txt": "bba47d0b8c731a09f5aecc27dd7643957d998abefdce5b25934ff8c5a0a7d3ad",
+        "alignment.json": "e85a022e0bf6259d5278353d9eef36066f34c3dc772c8f4919fdf21b3187a1c7",
+        "metadata.json": "902166a759e6ca6356cc7c600fe24bc7843e7af2ec59ab216391387db9986e24"
+      },
+      "source_case_id": "74aa150d7f6b9baf7e8905a38f2e15dcd97ea71ea9520cb7a51be15ad46ee30b"
+    },
+    {
+      "aligned_timestamp_count": 178,
+      "camera": "brics-odroid-010_cam0",
+      "case_id": "153-cake-episode-0005-brics-odroid-010_cam0",
+      "episode_id": 5,
+      "group_id": "153-cake-episode-0005",
+      "input_video_byte_count": 4242616,
+      "input_video_sha256": "3670a913bbceab49bc4700cc86216b353fb02f7a22667f02302356329ac5bd1d",
+      "object_id": "153-cake",
+      "relative_camera_path": "153-cake/episode_0005/brics-odroid-010_cam0",
+      "relative_episode_path": "153-cake/episode_0005",
+      "sidecar_byte_count": {
+        "aligned_timestamps.txt": 6408,
+        "alignment.json": 55752,
+        "metadata.json": 1942
+      },
+      "sidecar_sha256": {
+        "aligned_timestamps.txt": "fb8595d644963a90ad4a2bfe71b32ccc51b8a3b01e6e9669eb77ae08d1c4efae",
+        "alignment.json": "a5ef123fe80469fc902b5ee3bf6b48e90317e94aa9ed4f69b71fc1d51393a0a9",
+        "metadata.json": "3d350c030db719a2924a73455df27793d6855f26e4d6add715b18245825b3f7a"
+      },
+      "source_case_id": "55bb604a8f3e8c425a07303392bab67e749c4bdf8a75d3bd0087ef8959f77a40"
+    },
+    {
+      "aligned_timestamp_count": 178,
+      "camera": "brics-odroid-015_cam0",
+      "case_id": "153-cake-episode-0005-brics-odroid-015_cam0",
+      "episode_id": 5,
+      "group_id": "153-cake-episode-0005",
+      "input_video_byte_count": 4556050,
+      "input_video_sha256": "3ad1f5cb9058c542da5fa6629719f6ec4ccfaf44bbdc4af944b36853b219a131",
+      "object_id": "153-cake",
+      "relative_camera_path": "153-cake/episode_0005/brics-odroid-015_cam0",
+      "relative_episode_path": "153-cake/episode_0005",
+      "sidecar_byte_count": {
+        "aligned_timestamps.txt": 6408,
+        "alignment.json": 56046,
+        "metadata.json": 1942
+      },
+      "sidecar_sha256": {
+        "aligned_timestamps.txt": "fb8595d644963a90ad4a2bfe71b32ccc51b8a3b01e6e9669eb77ae08d1c4efae",
+        "alignment.json": "1921da252d15ef9af25c717139a44763332a151e9cab0c812aef47ad9f2e7fed",
+        "metadata.json": "be792df60b462b597e47d5b10137f7f5d4992d544d5fb3663bdd92b89e6ce896"
+      },
+      "source_case_id": "bc33f6ea751ae3f7bdec2fb8acc3fde62229a1aa7ab7d48245d121ab3406dbd8"
+    },
+    {
+      "aligned_timestamp_count": 178,
+      "camera": "brics-odroid-017_cam1",
+      "case_id": "153-cake-episode-0005-brics-odroid-017_cam1",
+      "episode_id": 5,
+      "group_id": "153-cake-episode-0005",
+      "input_video_byte_count": 3277103,
+      "input_video_sha256": "c9f81f9726dd4cdd5dafd2773dd42efa25cdc211060635031c42da6883fe65e1",
+      "object_id": "153-cake",
+      "relative_camera_path": "153-cake/episode_0005/brics-odroid-017_cam1",
+      "relative_episode_path": "153-cake/episode_0005",
+      "sidecar_byte_count": {
+        "aligned_timestamps.txt": 6408,
+        "alignment.json": 55194,
+        "metadata.json": 1942
+      },
+      "sidecar_sha256": {
+        "aligned_timestamps.txt": "fb8595d644963a90ad4a2bfe71b32ccc51b8a3b01e6e9669eb77ae08d1c4efae",
+        "alignment.json": "863fef411e738f7d2754fca8c1db73dbde1bd3e4b441257323911ffd02c93727",
+        "metadata.json": "61708e47def093aa3f710aef7fc73dd554eb00c69f1fbfed1fb362e4c231952b"
+      },
+      "source_case_id": "a6320fac2e3b9e1334a6de13f6cd0d1b0250e84e05cc2ccd04d95531c9be25db"
+    },
+    {
+      "aligned_timestamp_count": 178,
+      "camera": "brics-odroid-022_cam0",
+      "case_id": "153-cake-episode-0005-brics-odroid-022_cam0",
+      "episode_id": 5,
+      "group_id": "153-cake-episode-0005",
+      "input_video_byte_count": 2852119,
+      "input_video_sha256": "a3dd8600454291a7b009305f358e28039c2a826f249036a18bf71f2417a93e4f",
+      "object_id": "153-cake",
+      "relative_camera_path": "153-cake/episode_0005/brics-odroid-022_cam0",
+      "relative_episode_path": "153-cake/episode_0005",
+      "sidecar_byte_count": {
+        "aligned_timestamps.txt": 6408,
+        "alignment.json": 56028,
+        "metadata.json": 1942
+      },
+      "sidecar_sha256": {
+        "aligned_timestamps.txt": "fb8595d644963a90ad4a2bfe71b32ccc51b8a3b01e6e9669eb77ae08d1c4efae",
+        "alignment.json": "24ebbf874c2d6ce840152a6f53e58607488cc43d4b9a26372746715e327d581e",
+        "metadata.json": "41b50f944351eca09dfedc333a4abd2077893f7e5092830f44b7205fbd06b625"
+      },
+      "source_case_id": "2ea9521ebf0d68faed19d7fee0aec06bbefcb95879bf8a74782c50b295f32922"
+    },
+    {
+      "aligned_timestamp_count": 308,
+      "camera": "brics-odroid-010_cam0",
+      "case_id": "167-glove-gray-cloth-episode-0000-brics-odroid-010_cam0",
+      "episode_id": 0,
+      "group_id": "167-glove-gray-cloth-episode-0000",
+      "input_video_byte_count": 3948253,
+      "input_video_sha256": "bab19c824443308286f998949b2fc03657c8c882e591de286eb639289eb8586f",
+      "object_id": "167-glove-gray-cloth",
+      "relative_camera_path": "167-glove-gray-cloth/episode_0000/brics-odroid-010_cam0",
+      "relative_episode_path": "167-glove-gray-cloth/episode_0000",
+      "sidecar_byte_count": {
+        "aligned_timestamps.txt": 11088,
+        "alignment.json": 96926,
+        "metadata.json": 1942
+      },
+      "sidecar_sha256": {
+        "aligned_timestamps.txt": "dfe0e7b2b27f5b5d4b126dd822916fd6b2309bba9db9711c6973c7db7a6e5395",
+        "alignment.json": "2b4138041b94527b1688b843c2ea0e68217c5ce9d91cd4075013b9934c6acc7b",
+        "metadata.json": "903f35291dbd95f65693e31b89a68b71ad55f4e5870dc859d9df118aeec6cef1"
+      },
+      "source_case_id": "078886340440a000fa7f9185dff173885028317dbebc6e3d518e3444927d7713"
+    },
+    {
+      "aligned_timestamp_count": 308,
+      "camera": "brics-odroid-015_cam0",
+      "case_id": "167-glove-gray-cloth-episode-0000-brics-odroid-015_cam0",
+      "episode_id": 0,
+      "group_id": "167-glove-gray-cloth-episode-0000",
+      "input_video_byte_count": 4787326,
+      "input_video_sha256": "8b8672ca8ada21ee2923f874a31d35c3b29d56c729b2c1c78d69c0fb9c61135f",
+      "object_id": "167-glove-gray-cloth",
+      "relative_camera_path": "167-glove-gray-cloth/episode_0000/brics-odroid-015_cam0",
+      "relative_episode_path": "167-glove-gray-cloth/episode_0000",
+      "sidecar_byte_count": {
+        "aligned_timestamps.txt": 11088,
+        "alignment.json": 96846,
+        "metadata.json": 1942
+      },
+      "sidecar_sha256": {
+        "aligned_timestamps.txt": "dfe0e7b2b27f5b5d4b126dd822916fd6b2309bba9db9711c6973c7db7a6e5395",
+        "alignment.json": "3beaaeb5977dd5537c3b2bf60ba0ef88c7eb28579580ade8b0a0c8ebe74394fa",
+        "metadata.json": "f52304aef38a574b3fa7df2d2eb27bb7bbb8db81cee33cdb4ee840cb1dee35c9"
+      },
+      "source_case_id": "0d181e18ab02b3f8c4d2d0101ef5783651c6c0ad63cc96339b22a382f1170a2e"
+    },
+    {
+      "aligned_timestamp_count": 308,
+      "camera": "brics-odroid-017_cam1",
+      "case_id": "167-glove-gray-cloth-episode-0000-brics-odroid-017_cam1",
+      "episode_id": 0,
+      "group_id": "167-glove-gray-cloth-episode-0000",
+      "input_video_byte_count": 4368667,
+      "input_video_sha256": "23454adb8a28c83fe73372c5b0f4f76df66d6569b292d90045a339cb6d1fe14f",
+      "object_id": "167-glove-gray-cloth",
+      "relative_camera_path": "167-glove-gray-cloth/episode_0000/brics-odroid-017_cam1",
+      "relative_episode_path": "167-glove-gray-cloth/episode_0000",
+      "sidecar_byte_count": {
+        "aligned_timestamps.txt": 11088,
+        "alignment.json": 96794,
+        "metadata.json": 1942
+      },
+      "sidecar_sha256": {
+        "aligned_timestamps.txt": "dfe0e7b2b27f5b5d4b126dd822916fd6b2309bba9db9711c6973c7db7a6e5395",
+        "alignment.json": "9244da93244643f2d8c0b400f98cbb594cf0a781256de80931875011e175324c",
+        "metadata.json": "1dfa49b55a993405de0da81c137a5a33121be4203af265b83b5e445087160471"
+      },
+      "source_case_id": "397a3be5f852db059831b4643735b550f39d8b01edeed02013f3301212f0b3e3"
+    },
+    {
+      "aligned_timestamp_count": 308,
+      "camera": "brics-odroid-022_cam0",
+      "case_id": "167-glove-gray-cloth-episode-0000-brics-odroid-022_cam0",
+      "episode_id": 0,
+      "group_id": "167-glove-gray-cloth-episode-0000",
+      "input_video_byte_count": 3909235,
+      "input_video_sha256": "9125f17c053baf5ce01fb9ae593d4c1776a294edd7ea0427320beb89a7bff62f",
+      "object_id": "167-glove-gray-cloth",
+      "relative_camera_path": "167-glove-gray-cloth/episode_0000/brics-odroid-022_cam0",
+      "relative_episode_path": "167-glove-gray-cloth/episode_0000",
+      "sidecar_byte_count": {
+        "aligned_timestamps.txt": 11088,
+        "alignment.json": 96742,
+        "metadata.json": 1942
+      },
+      "sidecar_sha256": {
+        "aligned_timestamps.txt": "dfe0e7b2b27f5b5d4b126dd822916fd6b2309bba9db9711c6973c7db7a6e5395",
+        "alignment.json": "cff965e11caf86d0f67846acc09d389799db5d4932d411ea25d59519e06bbd41",
+        "metadata.json": "31f2e8e7cf528de20cc12b46aade4f99ffabddfcf12c12f9d6d1b74163c38c6c"
+      },
+      "source_case_id": "bcfb4b7539046da4f8d897e63814d4e33704d787dc0b784400ff1949139499bd"
+    },
+    {
+      "aligned_timestamp_count": 327,
+      "camera": "brics-odroid-010_cam0",
+      "case_id": "186-monster-episode-0006-brics-odroid-010_cam0",
+      "episode_id": 6,
+      "group_id": "186-monster-episode-0006",
+      "input_video_byte_count": 5813365,
+      "input_video_sha256": "71199957aecdb61134b9d2f927de2e0a6aa92df9228b025db528b61e5bd45b03",
+      "object_id": "186-monster",
+      "relative_camera_path": "186-monster/episode_0006/brics-odroid-010_cam0",
+      "relative_episode_path": "186-monster/episode_0006",
+      "sidecar_byte_count": {
+        "aligned_timestamps.txt": 11772,
+        "alignment.json": 102715,
+        "metadata.json": 1942
+      },
+      "sidecar_sha256": {
+        "aligned_timestamps.txt": "970ddf675006e570eff0c4b49e2e41a5c0cba35ce25d0028e7a76d037ac971e5",
+        "alignment.json": "4d5c346262739b6443ae61e2549c18a8cf0a1abf953e21bddf3b7db3ad78b751",
+        "metadata.json": "f63c3b633c3fb7dd7bd0bdca3a57e1ea0c15fc62629c5ba0397cafb092fb8851"
+      },
+      "source_case_id": "1aba9b4ee7425b1c436800bbc6869d33c0283941b18756629ac627b7cd7d3a32"
+    },
+    {
+      "aligned_timestamp_count": 327,
+      "camera": "brics-odroid-015_cam0",
+      "case_id": "186-monster-episode-0006-brics-odroid-015_cam0",
+      "episode_id": 6,
+      "group_id": "186-monster-episode-0006",
+      "input_video_byte_count": 5587851,
+      "input_video_sha256": "93ce1bc567228010d86b1b51fbc746834229972edf1334fbcb516682b622c108",
+      "object_id": "186-monster",
+      "relative_camera_path": "186-monster/episode_0006/brics-odroid-015_cam0",
+      "relative_episode_path": "186-monster/episode_0006",
+      "sidecar_byte_count": {
+        "aligned_timestamps.txt": 11772,
+        "alignment.json": 103020,
+        "metadata.json": 1942
+      },
+      "sidecar_sha256": {
+        "aligned_timestamps.txt": "970ddf675006e570eff0c4b49e2e41a5c0cba35ce25d0028e7a76d037ac971e5",
+        "alignment.json": "4cc7526a441733bbb6d9950c4b76861a4d14331b2841af9d17f226d7c6062473",
+        "metadata.json": "4394744e54dfa3461d2a653139da0f1466fa0be19f27481326a32d81d926f9fb"
+      },
+      "source_case_id": "55d3779639f09cf28752be272c81cc8222369febcac3ff7053818e9212d98e97"
+    },
+    {
+      "aligned_timestamp_count": 327,
+      "camera": "brics-odroid-017_cam1",
+      "case_id": "186-monster-episode-0006-brics-odroid-017_cam1",
+      "episode_id": 6,
+      "group_id": "186-monster-episode-0006",
+      "input_video_byte_count": 7171598,
+      "input_video_sha256": "d36eb062fac6cc6f5bb5c75c7512c1b4fa147770a357b418191e179fb21ed333",
+      "object_id": "186-monster",
+      "relative_camera_path": "186-monster/episode_0006/brics-odroid-017_cam1",
+      "relative_episode_path": "186-monster/episode_0006",
+      "sidecar_byte_count": {
+        "aligned_timestamps.txt": 11772,
+        "alignment.json": 102388,
+        "metadata.json": 1942
+      },
+      "sidecar_sha256": {
+        "aligned_timestamps.txt": "970ddf675006e570eff0c4b49e2e41a5c0cba35ce25d0028e7a76d037ac971e5",
+        "alignment.json": "38573173751b96468c472756760a14a91db35a52325a5523a9a61bc912f148d5",
+        "metadata.json": "d66dc84eb0ab4fe25ce3583b4c4597fb899c4ad18306113167534d4f2408cb24"
+      },
+      "source_case_id": "2e84d4387cc6b71cea8268994fa7e2627c71141f597dfd5b9c1765d2319afbf7"
+    },
+    {
+      "aligned_timestamp_count": 327,
+      "camera": "brics-odroid-022_cam0",
+      "case_id": "186-monster-episode-0006-brics-odroid-022_cam0",
+      "episode_id": 6,
+      "group_id": "186-monster-episode-0006",
+      "input_video_byte_count": 5413706,
+      "input_video_sha256": "46551c6788c16dfce02893cb3e0c62d1feab6e125af31652deaf95db6a72f08f",
+      "object_id": "186-monster",
+      "relative_camera_path": "186-monster/episode_0006/brics-odroid-022_cam0",
+      "relative_episode_path": "186-monster/episode_0006",
+      "sidecar_byte_count": {
+        "aligned_timestamps.txt": 11772,
+        "alignment.json": 102994,
+        "metadata.json": 1942
+      },
+      "sidecar_sha256": {
+        "aligned_timestamps.txt": "970ddf675006e570eff0c4b49e2e41a5c0cba35ce25d0028e7a76d037ac971e5",
+        "alignment.json": "cbe257c256ebc2495004534bd304e0c3bf1ae9d4c57514f696a07910d521bbd8",
+        "metadata.json": "617734f0f1d58195230ca44def053c2e296cb58f11e42efea5d6ce48f01d7e29"
+      },
+      "source_case_id": "59ee96e09f39d3ef050d81a25656c2e68b7039530a20552ab4d9610cb78b77b4"
+    },
+    {
+      "aligned_timestamp_count": 307,
+      "camera": "brics-odroid-010_cam0",
+      "case_id": "193-frog-episode-0007-brics-odroid-010_cam0",
+      "episode_id": 7,
+      "group_id": "193-frog-episode-0007",
+      "input_video_byte_count": 5129556,
+      "input_video_sha256": "27851e2a6fc64cec70487711400803eec1dc31ed52736b0b4fa072af3ac83d37",
+      "object_id": "193-frog",
+      "relative_camera_path": "193-frog/episode_0007/brics-odroid-010_cam0",
+      "relative_episode_path": "193-frog/episode_0007",
+      "sidecar_byte_count": {
+        "aligned_timestamps.txt": 11052,
+        "alignment.json": 96122,
+        "metadata.json": 1942
+      },
+      "sidecar_sha256": {
+        "aligned_timestamps.txt": "0cdcd2face34ae3763c6fe9a27bfdd0a6da4220c5640eaa048e04feb644ff1f5",
+        "alignment.json": "e40757df22b54abd5e036048260730e71f89065127726f832af4e813406d87e6",
+        "metadata.json": "68231a5477c08347aa789d02496d3fbf514a0c34eee86f7ad455e61b411620a1"
+      },
+      "source_case_id": "e4227011b5b389b2b9e1d6348c7075487c97cd9fe9e1b67fd92ac36303ae801b"
+    },
+    {
+      "aligned_timestamp_count": 307,
+      "camera": "brics-odroid-015_cam0",
+      "case_id": "193-frog-episode-0007-brics-odroid-015_cam0",
+      "episode_id": 7,
+      "group_id": "193-frog-episode-0007",
+      "input_video_byte_count": 6224979,
+      "input_video_sha256": "6fa79441191290fab90913e2fe79e729c8c2926fd0979f32dd0171b40b7316dd",
+      "object_id": "193-frog",
+      "relative_camera_path": "193-frog/episode_0007/brics-odroid-015_cam0",
+      "relative_episode_path": "193-frog/episode_0007",
+      "sidecar_byte_count": {
+        "aligned_timestamps.txt": 11052,
+        "alignment.json": 96439,
+        "metadata.json": 1942
+      },
+      "sidecar_sha256": {
+        "aligned_timestamps.txt": "0cdcd2face34ae3763c6fe9a27bfdd0a6da4220c5640eaa048e04feb644ff1f5",
+        "alignment.json": "f010d7c576b4227b112e9c2e973e04053c7b7132d2ffb6fb828b072173c33af0",
+        "metadata.json": "e153157a4a5818be9e43620d423db491e3d36e5a1e7fb8bb872d97e7ad9b975d"
+      },
+      "source_case_id": "1b134e43b1329c91db7674101bbc971874f96821b34dfc8ba048cb829d8b9f17"
+    },
+    {
+      "aligned_timestamp_count": 307,
+      "camera": "brics-odroid-017_cam1",
+      "case_id": "193-frog-episode-0007-brics-odroid-017_cam1",
+      "episode_id": 7,
+      "group_id": "193-frog-episode-0007",
+      "input_video_byte_count": 6466755,
+      "input_video_sha256": "3ceb1ca11dfe2c22fa15d015b454d49dd335cdc77d128e08dd9c48ea33628659",
+      "object_id": "193-frog",
+      "relative_camera_path": "193-frog/episode_0007/brics-odroid-017_cam1",
+      "relative_episode_path": "193-frog/episode_0007",
+      "sidecar_byte_count": {
+        "aligned_timestamps.txt": 11052,
+        "alignment.json": 96138,
+        "metadata.json": 1942
+      },
+      "sidecar_sha256": {
+        "aligned_timestamps.txt": "0cdcd2face34ae3763c6fe9a27bfdd0a6da4220c5640eaa048e04feb644ff1f5",
+        "alignment.json": "0034dd113da83abe1dff389bddee1577daf882de2ebc688aef0a682fff6b704a",
+        "metadata.json": "e5af30cd90da174ec138e4f5968f93fb105ffc19f3ffeda8c524b16fb0fb77ff"
+      },
+      "source_case_id": "36bccacf60fc721fb99f8675b078ee2d39c409296ddfda657c7e56d31417ba99"
+    },
+    {
+      "aligned_timestamp_count": 307,
+      "camera": "brics-odroid-022_cam0",
+      "case_id": "193-frog-episode-0007-brics-odroid-022_cam0",
+      "episode_id": 7,
+      "group_id": "193-frog-episode-0007",
+      "input_video_byte_count": 5165360,
+      "input_video_sha256": "39348ea0ab8c669a76ac99870e165e9a714988f9db0e0c4c5f3639014731dd6e",
+      "object_id": "193-frog",
+      "relative_camera_path": "193-frog/episode_0007/brics-odroid-022_cam0",
+      "relative_episode_path": "193-frog/episode_0007",
+      "sidecar_byte_count": {
+        "aligned_timestamps.txt": 11052,
+        "alignment.json": 96418,
+        "metadata.json": 1942
+      },
+      "sidecar_sha256": {
+        "aligned_timestamps.txt": "0cdcd2face34ae3763c6fe9a27bfdd0a6da4220c5640eaa048e04feb644ff1f5",
+        "alignment.json": "bac671aea62e604bda6edcfc1d52048b8fb0b12ba2d35bd21381ee868de16515",
+        "metadata.json": "6afe78cc847f1934726e25dbb2d0930e84bee2cde2984d0dc0a9425fe5aa4a96"
+      },
+      "source_case_id": "9a796b3e7401c60a2a0b09f1864960ef1aaab3ba3e41f468cfdd517339e5eeb1"
+    },
+    {
+      "aligned_timestamp_count": 254,
+      "camera": "brics-odroid-010_cam0",
+      "case_id": "198-kneepad-cloth-episode-0002-brics-odroid-010_cam0",
+      "episode_id": 2,
+      "group_id": "198-kneepad-cloth-episode-0002",
+      "input_video_byte_count": 5054801,
+      "input_video_sha256": "b2c124110b8031c9e88f156f27dbfa43ffa1c006143a5fa95660f324ff51bc9e",
+      "object_id": "198-kneepad-cloth",
+      "relative_camera_path": "198-kneepad-cloth/episode_0002/brics-odroid-010_cam0",
+      "relative_episode_path": "198-kneepad-cloth/episode_0002",
+      "sidecar_byte_count": {
+        "aligned_timestamps.txt": 9144,
+        "alignment.json": 79540,
+        "metadata.json": 1942
+      },
+      "sidecar_sha256": {
+        "aligned_timestamps.txt": "c1731adb1a11c261d055062b0781e87a51d14c31625650535f2ed9652bc4fe82",
+        "alignment.json": "0ce7192559241b67b28476f4e80216a451bb5e7e8492eef68729cbcc588a917a",
+        "metadata.json": "7fd858731dc421d207d887f4e5974ccdb2af912b7a449377542fd36a257e39be"
+      },
+      "source_case_id": "8841ec3458e4659c9dcabae1fbe1ac8c869398c2ce09fa4d22e3ca653ac51273"
+    },
+    {
+      "aligned_timestamp_count": 254,
+      "camera": "brics-odroid-015_cam0",
+      "case_id": "198-kneepad-cloth-episode-0002-brics-odroid-015_cam0",
+      "episode_id": 2,
+      "group_id": "198-kneepad-cloth-episode-0002",
+      "input_video_byte_count": 4757656,
+      "input_video_sha256": "3f3ee65b8761f4aa552e403b6984905641816dd89dd64a4255d2bfa424b19cec",
+      "object_id": "198-kneepad-cloth",
+      "relative_camera_path": "198-kneepad-cloth/episode_0002/brics-odroid-015_cam0",
+      "relative_episode_path": "198-kneepad-cloth/episode_0002",
+      "sidecar_byte_count": {
+        "aligned_timestamps.txt": 9144,
+        "alignment.json": 79536,
+        "metadata.json": 1942
+      },
+      "sidecar_sha256": {
+        "aligned_timestamps.txt": "c1731adb1a11c261d055062b0781e87a51d14c31625650535f2ed9652bc4fe82",
+        "alignment.json": "f36790fc950a8341ce23a1c22053d549a375288319826599a0d6bfb0e38bd45c",
+        "metadata.json": "3ddaacb102727aa7f3523548e7ef8704a9d52a3d421096a9f70b1e7736b4475c"
+      },
+      "source_case_id": "9e50d78853742f2759fe0066494cabefe1d2046838bcb95f41922cb7907168f0"
+    },
+    {
+      "aligned_timestamp_count": 254,
+      "camera": "brics-odroid-017_cam1",
+      "case_id": "198-kneepad-cloth-episode-0002-brics-odroid-017_cam1",
+      "episode_id": 2,
+      "group_id": "198-kneepad-cloth-episode-0002",
+      "input_video_byte_count": 3435588,
+      "input_video_sha256": "47477a9d0adb27d100f9d489a68fd9c19a06e0e85a8596b0857eea87f2df9465",
+      "object_id": "198-kneepad-cloth",
+      "relative_camera_path": "198-kneepad-cloth/episode_0002/brics-odroid-017_cam1",
+      "relative_episode_path": "198-kneepad-cloth/episode_0002",
+      "sidecar_byte_count": {
+        "aligned_timestamps.txt": 9144,
+        "alignment.json": 79971,
+        "metadata.json": 1942
+      },
+      "sidecar_sha256": {
+        "aligned_timestamps.txt": "c1731adb1a11c261d055062b0781e87a51d14c31625650535f2ed9652bc4fe82",
+        "alignment.json": "df5416bec1d2682f918f353ddee9de62926d462fbd6ee230ab48ae5856a533ce",
+        "metadata.json": "f5a14fe347e339c82b68a05a49e27103df38aec16b4bbf93db7e359f949e9386"
+      },
+      "source_case_id": "8fbc6a377e0941a4c47589e52e45ce3473c7b970f5fa3113fe80c59c4c512f24"
+    },
+    {
+      "aligned_timestamp_count": 254,
+      "camera": "brics-odroid-022_cam0",
+      "case_id": "198-kneepad-cloth-episode-0002-brics-odroid-022_cam0",
+      "episode_id": 2,
+      "group_id": "198-kneepad-cloth-episode-0002",
+      "input_video_byte_count": 3650718,
+      "input_video_sha256": "58f11e0a334e039d3cbde188a7507216246cb3ab8d69c90d4441ca42ff573cc8",
+      "object_id": "198-kneepad-cloth",
+      "relative_camera_path": "198-kneepad-cloth/episode_0002/brics-odroid-022_cam0",
+      "relative_episode_path": "198-kneepad-cloth/episode_0002",
+      "sidecar_byte_count": {
+        "aligned_timestamps.txt": 9144,
+        "alignment.json": 79536,
+        "metadata.json": 1942
+      },
+      "sidecar_sha256": {
+        "aligned_timestamps.txt": "c1731adb1a11c261d055062b0781e87a51d14c31625650535f2ed9652bc4fe82",
+        "alignment.json": "b3afb359f5ad7729f650853e95d3d7e85526dda7b1c840df466e9b4633907f4d",
+        "metadata.json": "6723f06b616be297cd5f48fd66dff6821262c41bd75a59e185f8144e74f9bfbd"
+      },
+      "source_case_id": "bf58c144735b68f97864557ea7a6800631d3ce9d582876082fa92cc7f0a0cef1"
+    }
+  ],
+  "source_freeze_id": "5e739b92c2628c61fa99ae68da61d5814ca94d4b6de5720b75c4552de82d1b2c",
+  "source_group_count": 10,
+  "source_groups": [
+    {
+      "episode_id": 7,
+      "group_id": "026-sock-cloth-episode-0007",
+      "object_id": "026-sock-cloth",
+      "role": "calibration",
+      "stratum": "sheet"
+    },
+    {
+      "episode_id": 0,
+      "group_id": "031-cotton-cloth-episode-0000",
+      "object_id": "031-cotton-cloth",
+      "role": "development",
+      "stratum": "sheet"
+    },
+    {
+      "episode_id": 9,
+      "group_id": "036-napkin-cloth-episode-0009",
+      "object_id": "036-napkin-cloth",
+      "role": "source_evaluation",
+      "stratum": "sheet"
+    },
+    {
+      "episode_id": 1,
+      "group_id": "058-roll-napkin-episode-0001",
+      "object_id": "058-roll-napkin",
+      "role": "source_evaluation",
+      "stratum": "volumetric"
+    },
+    {
+      "episode_id": 8,
+      "group_id": "152-slime-episode-0008",
+      "object_id": "152-slime",
+      "role": "source_evaluation",
+      "stratum": "volumetric"
+    },
+    {
+      "episode_id": 5,
+      "group_id": "153-cake-episode-0005",
+      "object_id": "153-cake",
+      "role": "calibration",
+      "stratum": "volumetric"
+    },
+    {
+      "episode_id": 0,
+      "group_id": "167-glove-gray-cloth-episode-0000",
+      "object_id": "167-glove-gray-cloth",
+      "role": "calibration",
+      "stratum": "sheet"
+    },
+    {
+      "episode_id": 6,
+      "group_id": "186-monster-episode-0006",
+      "object_id": "186-monster",
+      "role": "calibration",
+      "stratum": "volumetric"
+    },
+    {
+      "episode_id": 7,
+      "group_id": "193-frog-episode-0007",
+      "object_id": "193-frog",
+      "role": "development",
+      "stratum": "volumetric"
+    },
+    {
+      "episode_id": 2,
+      "group_id": "198-kneepad-cloth-episode-0002",
+      "object_id": "198-kneepad-cloth",
+      "role": "source_evaluation",
+      "stratum": "sheet"
+    }
+  ],
+  "source_protocol": {
+    "byte_count": 7806,
+    "sha256": "3bb1b59291f32d23bfc9c5afe3ae27816421bdb2b5886312a126ffae1209ac33"
+  },
+  "support": {
+    "common_supported_camera_count": 32,
+    "common_supported_cameras": [
+      "brics-odroid-001_cam0",
+      "brics-odroid-002_cam0",
+      "brics-odroid-006_cam0",
+      "brics-odroid-007_cam0",
+      "brics-odroid-007_cam1",
+      "brics-odroid-008_cam0",
+      "brics-odroid-008_cam1",
+      "brics-odroid-010_cam0",
+      "brics-odroid-010_cam1",
+      "brics-odroid-011_cam0",
+      "brics-odroid-012_cam0",
+      "brics-odroid-012_cam1",
+      "brics-odroid-013_cam0",
+      "brics-odroid-014_cam1",
+      "brics-odroid-015_cam0",
+      "brics-odroid-015_cam1",
+      "brics-odroid-016_cam0",
+      "brics-odroid-017_cam0",
+      "brics-odroid-017_cam1",
+      "brics-odroid-019_cam1",
+      "brics-odroid-021_cam0",
+      "brics-odroid-021_cam1",
+      "brics-odroid-022_cam0",
+      "brics-odroid-022_cam1",
+      "brics-odroid-023_cam0",
+      "brics-odroid-024_cam0",
+      "brics-odroid-024_cam1",
+      "brics-odroid-025_cam0",
+      "brics-odroid-025_cam1",
+      "brics-odroid-027_cam0",
+      "brics-odroid-027_cam1",
+      "brics-odroid-028_cam0"
+    ],
+    "minimum_common_supported_cameras": 4,
+    "required_frame_interval": [
+      0,
+      58
+    ],
+    "stream_rows": [
+      {
+        "aligned_timestamp_count": 429,
+        "camera": "brics-odroid-001_cam0",
+        "episode_id": 7,
+        "group_id": "026-sock-cloth-episode-0007",
+        "missing_required_members": [],
+        "object_id": "026-sock-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 429,
+        "camera": "brics-odroid-001_cam1",
+        "episode_id": 7,
+        "group_id": "026-sock-cloth-episode-0007",
+        "missing_required_members": [],
+        "object_id": "026-sock-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 429,
+        "camera": "brics-odroid-002_cam0",
+        "episode_id": 7,
+        "group_id": "026-sock-cloth-episode-0007",
+        "missing_required_members": [],
+        "object_id": "026-sock-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 429,
+        "camera": "brics-odroid-006_cam0",
+        "episode_id": 7,
+        "group_id": "026-sock-cloth-episode-0007",
+        "missing_required_members": [],
+        "object_id": "026-sock-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 429,
+        "camera": "brics-odroid-007_cam0",
+        "episode_id": 7,
+        "group_id": "026-sock-cloth-episode-0007",
+        "missing_required_members": [],
+        "object_id": "026-sock-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 429,
+        "camera": "brics-odroid-007_cam1",
+        "episode_id": 7,
+        "group_id": "026-sock-cloth-episode-0007",
+        "missing_required_members": [],
+        "object_id": "026-sock-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 429,
+        "camera": "brics-odroid-008_cam0",
+        "episode_id": 7,
+        "group_id": "026-sock-cloth-episode-0007",
+        "missing_required_members": [],
+        "object_id": "026-sock-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 429,
+        "camera": "brics-odroid-008_cam1",
+        "episode_id": 7,
+        "group_id": "026-sock-cloth-episode-0007",
+        "missing_required_members": [],
+        "object_id": "026-sock-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 429,
+        "camera": "brics-odroid-009_cam0",
+        "episode_id": 7,
+        "group_id": "026-sock-cloth-episode-0007",
+        "missing_required_members": [],
+        "object_id": "026-sock-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 429,
+        "camera": "brics-odroid-009_cam1",
+        "episode_id": 7,
+        "group_id": "026-sock-cloth-episode-0007",
+        "missing_required_members": [],
+        "object_id": "026-sock-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 429,
+        "camera": "brics-odroid-010_cam0",
+        "episode_id": 7,
+        "group_id": "026-sock-cloth-episode-0007",
+        "missing_required_members": [],
+        "object_id": "026-sock-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 429,
+        "camera": "brics-odroid-010_cam1",
+        "episode_id": 7,
+        "group_id": "026-sock-cloth-episode-0007",
+        "missing_required_members": [],
+        "object_id": "026-sock-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 429,
+        "camera": "brics-odroid-011_cam0",
+        "episode_id": 7,
+        "group_id": "026-sock-cloth-episode-0007",
+        "missing_required_members": [],
+        "object_id": "026-sock-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 429,
+        "camera": "brics-odroid-012_cam0",
+        "episode_id": 7,
+        "group_id": "026-sock-cloth-episode-0007",
+        "missing_required_members": [],
+        "object_id": "026-sock-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 429,
+        "camera": "brics-odroid-012_cam1",
+        "episode_id": 7,
+        "group_id": "026-sock-cloth-episode-0007",
+        "missing_required_members": [],
+        "object_id": "026-sock-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 429,
+        "camera": "brics-odroid-013_cam0",
+        "episode_id": 7,
+        "group_id": "026-sock-cloth-episode-0007",
+        "missing_required_members": [],
+        "object_id": "026-sock-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 429,
+        "camera": "brics-odroid-013_cam1",
+        "episode_id": 7,
+        "group_id": "026-sock-cloth-episode-0007",
+        "missing_required_members": [],
+        "object_id": "026-sock-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 429,
+        "camera": "brics-odroid-014_cam1",
+        "episode_id": 7,
+        "group_id": "026-sock-cloth-episode-0007",
+        "missing_required_members": [],
+        "object_id": "026-sock-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 429,
+        "camera": "brics-odroid-015_cam0",
+        "episode_id": 7,
+        "group_id": "026-sock-cloth-episode-0007",
+        "missing_required_members": [],
+        "object_id": "026-sock-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 429,
+        "camera": "brics-odroid-015_cam1",
+        "episode_id": 7,
+        "group_id": "026-sock-cloth-episode-0007",
+        "missing_required_members": [],
+        "object_id": "026-sock-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 429,
+        "camera": "brics-odroid-016_cam0",
+        "episode_id": 7,
+        "group_id": "026-sock-cloth-episode-0007",
+        "missing_required_members": [],
+        "object_id": "026-sock-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 429,
+        "camera": "brics-odroid-017_cam0",
+        "episode_id": 7,
+        "group_id": "026-sock-cloth-episode-0007",
+        "missing_required_members": [],
+        "object_id": "026-sock-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 429,
+        "camera": "brics-odroid-017_cam1",
+        "episode_id": 7,
+        "group_id": "026-sock-cloth-episode-0007",
+        "missing_required_members": [],
+        "object_id": "026-sock-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 429,
+        "camera": "brics-odroid-019_cam1",
+        "episode_id": 7,
+        "group_id": "026-sock-cloth-episode-0007",
+        "missing_required_members": [],
+        "object_id": "026-sock-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 429,
+        "camera": "brics-odroid-021_cam0",
+        "episode_id": 7,
+        "group_id": "026-sock-cloth-episode-0007",
+        "missing_required_members": [],
+        "object_id": "026-sock-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 429,
+        "camera": "brics-odroid-021_cam1",
+        "episode_id": 7,
+        "group_id": "026-sock-cloth-episode-0007",
+        "missing_required_members": [],
+        "object_id": "026-sock-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 429,
+        "camera": "brics-odroid-022_cam0",
+        "episode_id": 7,
+        "group_id": "026-sock-cloth-episode-0007",
+        "missing_required_members": [],
+        "object_id": "026-sock-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 429,
+        "camera": "brics-odroid-022_cam1",
+        "episode_id": 7,
+        "group_id": "026-sock-cloth-episode-0007",
+        "missing_required_members": [],
+        "object_id": "026-sock-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 429,
+        "camera": "brics-odroid-023_cam0",
+        "episode_id": 7,
+        "group_id": "026-sock-cloth-episode-0007",
+        "missing_required_members": [],
+        "object_id": "026-sock-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 429,
+        "camera": "brics-odroid-024_cam0",
+        "episode_id": 7,
+        "group_id": "026-sock-cloth-episode-0007",
+        "missing_required_members": [],
+        "object_id": "026-sock-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 429,
+        "camera": "brics-odroid-024_cam1",
+        "episode_id": 7,
+        "group_id": "026-sock-cloth-episode-0007",
+        "missing_required_members": [],
+        "object_id": "026-sock-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 429,
+        "camera": "brics-odroid-025_cam0",
+        "episode_id": 7,
+        "group_id": "026-sock-cloth-episode-0007",
+        "missing_required_members": [],
+        "object_id": "026-sock-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 429,
+        "camera": "brics-odroid-025_cam1",
+        "episode_id": 7,
+        "group_id": "026-sock-cloth-episode-0007",
+        "missing_required_members": [],
+        "object_id": "026-sock-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 429,
+        "camera": "brics-odroid-027_cam0",
+        "episode_id": 7,
+        "group_id": "026-sock-cloth-episode-0007",
+        "missing_required_members": [],
+        "object_id": "026-sock-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 429,
+        "camera": "brics-odroid-027_cam1",
+        "episode_id": 7,
+        "group_id": "026-sock-cloth-episode-0007",
+        "missing_required_members": [],
+        "object_id": "026-sock-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 429,
+        "camera": "brics-odroid-028_cam0",
+        "episode_id": 7,
+        "group_id": "026-sock-cloth-episode-0007",
+        "missing_required_members": [],
+        "object_id": "026-sock-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 258,
+        "camera": "brics-odroid-001_cam0",
+        "episode_id": 0,
+        "group_id": "031-cotton-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "031-cotton-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 258,
+        "camera": "brics-odroid-002_cam0",
+        "episode_id": 0,
+        "group_id": "031-cotton-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "031-cotton-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 258,
+        "camera": "brics-odroid-006_cam0",
+        "episode_id": 0,
+        "group_id": "031-cotton-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "031-cotton-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 258,
+        "camera": "brics-odroid-007_cam0",
+        "episode_id": 0,
+        "group_id": "031-cotton-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "031-cotton-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 258,
+        "camera": "brics-odroid-007_cam1",
+        "episode_id": 0,
+        "group_id": "031-cotton-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "031-cotton-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 258,
+        "camera": "brics-odroid-008_cam0",
+        "episode_id": 0,
+        "group_id": "031-cotton-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "031-cotton-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 258,
+        "camera": "brics-odroid-008_cam1",
+        "episode_id": 0,
+        "group_id": "031-cotton-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "031-cotton-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 258,
+        "camera": "brics-odroid-010_cam0",
+        "episode_id": 0,
+        "group_id": "031-cotton-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "031-cotton-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 258,
+        "camera": "brics-odroid-010_cam1",
+        "episode_id": 0,
+        "group_id": "031-cotton-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "031-cotton-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 258,
+        "camera": "brics-odroid-011_cam0",
+        "episode_id": 0,
+        "group_id": "031-cotton-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "031-cotton-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 258,
+        "camera": "brics-odroid-012_cam0",
+        "episode_id": 0,
+        "group_id": "031-cotton-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "031-cotton-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 258,
+        "camera": "brics-odroid-012_cam1",
+        "episode_id": 0,
+        "group_id": "031-cotton-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "031-cotton-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 258,
+        "camera": "brics-odroid-013_cam0",
+        "episode_id": 0,
+        "group_id": "031-cotton-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "031-cotton-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 258,
+        "camera": "brics-odroid-014_cam1",
+        "episode_id": 0,
+        "group_id": "031-cotton-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "031-cotton-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 258,
+        "camera": "brics-odroid-015_cam0",
+        "episode_id": 0,
+        "group_id": "031-cotton-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "031-cotton-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 258,
+        "camera": "brics-odroid-015_cam1",
+        "episode_id": 0,
+        "group_id": "031-cotton-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "031-cotton-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 258,
+        "camera": "brics-odroid-016_cam0",
+        "episode_id": 0,
+        "group_id": "031-cotton-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "031-cotton-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 258,
+        "camera": "brics-odroid-017_cam0",
+        "episode_id": 0,
+        "group_id": "031-cotton-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "031-cotton-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 258,
+        "camera": "brics-odroid-017_cam1",
+        "episode_id": 0,
+        "group_id": "031-cotton-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "031-cotton-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 258,
+        "camera": "brics-odroid-019_cam1",
+        "episode_id": 0,
+        "group_id": "031-cotton-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "031-cotton-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 258,
+        "camera": "brics-odroid-021_cam0",
+        "episode_id": 0,
+        "group_id": "031-cotton-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "031-cotton-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 258,
+        "camera": "brics-odroid-021_cam1",
+        "episode_id": 0,
+        "group_id": "031-cotton-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "031-cotton-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 258,
+        "camera": "brics-odroid-022_cam0",
+        "episode_id": 0,
+        "group_id": "031-cotton-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "031-cotton-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 258,
+        "camera": "brics-odroid-022_cam1",
+        "episode_id": 0,
+        "group_id": "031-cotton-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "031-cotton-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 258,
+        "camera": "brics-odroid-023_cam0",
+        "episode_id": 0,
+        "group_id": "031-cotton-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "031-cotton-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 258,
+        "camera": "brics-odroid-024_cam0",
+        "episode_id": 0,
+        "group_id": "031-cotton-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "031-cotton-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 258,
+        "camera": "brics-odroid-024_cam1",
+        "episode_id": 0,
+        "group_id": "031-cotton-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "031-cotton-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 258,
+        "camera": "brics-odroid-025_cam0",
+        "episode_id": 0,
+        "group_id": "031-cotton-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "031-cotton-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 258,
+        "camera": "brics-odroid-025_cam1",
+        "episode_id": 0,
+        "group_id": "031-cotton-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "031-cotton-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 258,
+        "camera": "brics-odroid-027_cam0",
+        "episode_id": 0,
+        "group_id": "031-cotton-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "031-cotton-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 258,
+        "camera": "brics-odroid-027_cam1",
+        "episode_id": 0,
+        "group_id": "031-cotton-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "031-cotton-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 258,
+        "camera": "brics-odroid-028_cam0",
+        "episode_id": 0,
+        "group_id": "031-cotton-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "031-cotton-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 450,
+        "camera": "brics-odroid-001_cam0",
+        "episode_id": 9,
+        "group_id": "036-napkin-cloth-episode-0009",
+        "missing_required_members": [],
+        "object_id": "036-napkin-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 450,
+        "camera": "brics-odroid-002_cam0",
+        "episode_id": 9,
+        "group_id": "036-napkin-cloth-episode-0009",
+        "missing_required_members": [],
+        "object_id": "036-napkin-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 450,
+        "camera": "brics-odroid-006_cam0",
+        "episode_id": 9,
+        "group_id": "036-napkin-cloth-episode-0009",
+        "missing_required_members": [],
+        "object_id": "036-napkin-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 450,
+        "camera": "brics-odroid-007_cam0",
+        "episode_id": 9,
+        "group_id": "036-napkin-cloth-episode-0009",
+        "missing_required_members": [],
+        "object_id": "036-napkin-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 450,
+        "camera": "brics-odroid-007_cam1",
+        "episode_id": 9,
+        "group_id": "036-napkin-cloth-episode-0009",
+        "missing_required_members": [],
+        "object_id": "036-napkin-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 450,
+        "camera": "brics-odroid-008_cam0",
+        "episode_id": 9,
+        "group_id": "036-napkin-cloth-episode-0009",
+        "missing_required_members": [],
+        "object_id": "036-napkin-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 450,
+        "camera": "brics-odroid-008_cam1",
+        "episode_id": 9,
+        "group_id": "036-napkin-cloth-episode-0009",
+        "missing_required_members": [],
+        "object_id": "036-napkin-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 450,
+        "camera": "brics-odroid-010_cam0",
+        "episode_id": 9,
+        "group_id": "036-napkin-cloth-episode-0009",
+        "missing_required_members": [],
+        "object_id": "036-napkin-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 450,
+        "camera": "brics-odroid-010_cam1",
+        "episode_id": 9,
+        "group_id": "036-napkin-cloth-episode-0009",
+        "missing_required_members": [],
+        "object_id": "036-napkin-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 450,
+        "camera": "brics-odroid-011_cam0",
+        "episode_id": 9,
+        "group_id": "036-napkin-cloth-episode-0009",
+        "missing_required_members": [],
+        "object_id": "036-napkin-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 450,
+        "camera": "brics-odroid-012_cam0",
+        "episode_id": 9,
+        "group_id": "036-napkin-cloth-episode-0009",
+        "missing_required_members": [],
+        "object_id": "036-napkin-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 450,
+        "camera": "brics-odroid-012_cam1",
+        "episode_id": 9,
+        "group_id": "036-napkin-cloth-episode-0009",
+        "missing_required_members": [],
+        "object_id": "036-napkin-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 450,
+        "camera": "brics-odroid-013_cam0",
+        "episode_id": 9,
+        "group_id": "036-napkin-cloth-episode-0009",
+        "missing_required_members": [],
+        "object_id": "036-napkin-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 450,
+        "camera": "brics-odroid-014_cam1",
+        "episode_id": 9,
+        "group_id": "036-napkin-cloth-episode-0009",
+        "missing_required_members": [],
+        "object_id": "036-napkin-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 450,
+        "camera": "brics-odroid-015_cam0",
+        "episode_id": 9,
+        "group_id": "036-napkin-cloth-episode-0009",
+        "missing_required_members": [],
+        "object_id": "036-napkin-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 450,
+        "camera": "brics-odroid-015_cam1",
+        "episode_id": 9,
+        "group_id": "036-napkin-cloth-episode-0009",
+        "missing_required_members": [],
+        "object_id": "036-napkin-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 450,
+        "camera": "brics-odroid-016_cam0",
+        "episode_id": 9,
+        "group_id": "036-napkin-cloth-episode-0009",
+        "missing_required_members": [],
+        "object_id": "036-napkin-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 450,
+        "camera": "brics-odroid-017_cam0",
+        "episode_id": 9,
+        "group_id": "036-napkin-cloth-episode-0009",
+        "missing_required_members": [],
+        "object_id": "036-napkin-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 450,
+        "camera": "brics-odroid-017_cam1",
+        "episode_id": 9,
+        "group_id": "036-napkin-cloth-episode-0009",
+        "missing_required_members": [],
+        "object_id": "036-napkin-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 450,
+        "camera": "brics-odroid-019_cam1",
+        "episode_id": 9,
+        "group_id": "036-napkin-cloth-episode-0009",
+        "missing_required_members": [],
+        "object_id": "036-napkin-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 450,
+        "camera": "brics-odroid-021_cam0",
+        "episode_id": 9,
+        "group_id": "036-napkin-cloth-episode-0009",
+        "missing_required_members": [],
+        "object_id": "036-napkin-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 450,
+        "camera": "brics-odroid-021_cam1",
+        "episode_id": 9,
+        "group_id": "036-napkin-cloth-episode-0009",
+        "missing_required_members": [],
+        "object_id": "036-napkin-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 450,
+        "camera": "brics-odroid-022_cam0",
+        "episode_id": 9,
+        "group_id": "036-napkin-cloth-episode-0009",
+        "missing_required_members": [],
+        "object_id": "036-napkin-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 450,
+        "camera": "brics-odroid-022_cam1",
+        "episode_id": 9,
+        "group_id": "036-napkin-cloth-episode-0009",
+        "missing_required_members": [],
+        "object_id": "036-napkin-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 450,
+        "camera": "brics-odroid-023_cam0",
+        "episode_id": 9,
+        "group_id": "036-napkin-cloth-episode-0009",
+        "missing_required_members": [],
+        "object_id": "036-napkin-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 450,
+        "camera": "brics-odroid-024_cam0",
+        "episode_id": 9,
+        "group_id": "036-napkin-cloth-episode-0009",
+        "missing_required_members": [],
+        "object_id": "036-napkin-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 450,
+        "camera": "brics-odroid-024_cam1",
+        "episode_id": 9,
+        "group_id": "036-napkin-cloth-episode-0009",
+        "missing_required_members": [],
+        "object_id": "036-napkin-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 450,
+        "camera": "brics-odroid-025_cam0",
+        "episode_id": 9,
+        "group_id": "036-napkin-cloth-episode-0009",
+        "missing_required_members": [],
+        "object_id": "036-napkin-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 450,
+        "camera": "brics-odroid-025_cam1",
+        "episode_id": 9,
+        "group_id": "036-napkin-cloth-episode-0009",
+        "missing_required_members": [],
+        "object_id": "036-napkin-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 450,
+        "camera": "brics-odroid-027_cam0",
+        "episode_id": 9,
+        "group_id": "036-napkin-cloth-episode-0009",
+        "missing_required_members": [],
+        "object_id": "036-napkin-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 450,
+        "camera": "brics-odroid-027_cam1",
+        "episode_id": 9,
+        "group_id": "036-napkin-cloth-episode-0009",
+        "missing_required_members": [],
+        "object_id": "036-napkin-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 450,
+        "camera": "brics-odroid-028_cam0",
+        "episode_id": 9,
+        "group_id": "036-napkin-cloth-episode-0009",
+        "missing_required_members": [],
+        "object_id": "036-napkin-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 282,
+        "camera": "brics-odroid-001_cam0",
+        "episode_id": 1,
+        "group_id": "058-roll-napkin-episode-0001",
+        "missing_required_members": [],
+        "object_id": "058-roll-napkin",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 282,
+        "camera": "brics-odroid-002_cam0",
+        "episode_id": 1,
+        "group_id": "058-roll-napkin-episode-0001",
+        "missing_required_members": [],
+        "object_id": "058-roll-napkin",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 282,
+        "camera": "brics-odroid-006_cam0",
+        "episode_id": 1,
+        "group_id": "058-roll-napkin-episode-0001",
+        "missing_required_members": [],
+        "object_id": "058-roll-napkin",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 282,
+        "camera": "brics-odroid-007_cam0",
+        "episode_id": 1,
+        "group_id": "058-roll-napkin-episode-0001",
+        "missing_required_members": [],
+        "object_id": "058-roll-napkin",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 282,
+        "camera": "brics-odroid-007_cam1",
+        "episode_id": 1,
+        "group_id": "058-roll-napkin-episode-0001",
+        "missing_required_members": [],
+        "object_id": "058-roll-napkin",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 282,
+        "camera": "brics-odroid-008_cam0",
+        "episode_id": 1,
+        "group_id": "058-roll-napkin-episode-0001",
+        "missing_required_members": [],
+        "object_id": "058-roll-napkin",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 282,
+        "camera": "brics-odroid-008_cam1",
+        "episode_id": 1,
+        "group_id": "058-roll-napkin-episode-0001",
+        "missing_required_members": [],
+        "object_id": "058-roll-napkin",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 282,
+        "camera": "brics-odroid-010_cam0",
+        "episode_id": 1,
+        "group_id": "058-roll-napkin-episode-0001",
+        "missing_required_members": [],
+        "object_id": "058-roll-napkin",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 282,
+        "camera": "brics-odroid-010_cam1",
+        "episode_id": 1,
+        "group_id": "058-roll-napkin-episode-0001",
+        "missing_required_members": [],
+        "object_id": "058-roll-napkin",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 282,
+        "camera": "brics-odroid-011_cam0",
+        "episode_id": 1,
+        "group_id": "058-roll-napkin-episode-0001",
+        "missing_required_members": [],
+        "object_id": "058-roll-napkin",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 282,
+        "camera": "brics-odroid-012_cam0",
+        "episode_id": 1,
+        "group_id": "058-roll-napkin-episode-0001",
+        "missing_required_members": [],
+        "object_id": "058-roll-napkin",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 282,
+        "camera": "brics-odroid-012_cam1",
+        "episode_id": 1,
+        "group_id": "058-roll-napkin-episode-0001",
+        "missing_required_members": [],
+        "object_id": "058-roll-napkin",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 282,
+        "camera": "brics-odroid-013_cam0",
+        "episode_id": 1,
+        "group_id": "058-roll-napkin-episode-0001",
+        "missing_required_members": [],
+        "object_id": "058-roll-napkin",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 282,
+        "camera": "brics-odroid-014_cam1",
+        "episode_id": 1,
+        "group_id": "058-roll-napkin-episode-0001",
+        "missing_required_members": [],
+        "object_id": "058-roll-napkin",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 282,
+        "camera": "brics-odroid-015_cam0",
+        "episode_id": 1,
+        "group_id": "058-roll-napkin-episode-0001",
+        "missing_required_members": [],
+        "object_id": "058-roll-napkin",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 282,
+        "camera": "brics-odroid-015_cam1",
+        "episode_id": 1,
+        "group_id": "058-roll-napkin-episode-0001",
+        "missing_required_members": [],
+        "object_id": "058-roll-napkin",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 282,
+        "camera": "brics-odroid-016_cam0",
+        "episode_id": 1,
+        "group_id": "058-roll-napkin-episode-0001",
+        "missing_required_members": [],
+        "object_id": "058-roll-napkin",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 282,
+        "camera": "brics-odroid-017_cam0",
+        "episode_id": 1,
+        "group_id": "058-roll-napkin-episode-0001",
+        "missing_required_members": [],
+        "object_id": "058-roll-napkin",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 282,
+        "camera": "brics-odroid-017_cam1",
+        "episode_id": 1,
+        "group_id": "058-roll-napkin-episode-0001",
+        "missing_required_members": [],
+        "object_id": "058-roll-napkin",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 282,
+        "camera": "brics-odroid-019_cam1",
+        "episode_id": 1,
+        "group_id": "058-roll-napkin-episode-0001",
+        "missing_required_members": [],
+        "object_id": "058-roll-napkin",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 282,
+        "camera": "brics-odroid-021_cam0",
+        "episode_id": 1,
+        "group_id": "058-roll-napkin-episode-0001",
+        "missing_required_members": [],
+        "object_id": "058-roll-napkin",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 282,
+        "camera": "brics-odroid-021_cam1",
+        "episode_id": 1,
+        "group_id": "058-roll-napkin-episode-0001",
+        "missing_required_members": [],
+        "object_id": "058-roll-napkin",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 282,
+        "camera": "brics-odroid-022_cam0",
+        "episode_id": 1,
+        "group_id": "058-roll-napkin-episode-0001",
+        "missing_required_members": [],
+        "object_id": "058-roll-napkin",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 282,
+        "camera": "brics-odroid-022_cam1",
+        "episode_id": 1,
+        "group_id": "058-roll-napkin-episode-0001",
+        "missing_required_members": [],
+        "object_id": "058-roll-napkin",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 282,
+        "camera": "brics-odroid-023_cam0",
+        "episode_id": 1,
+        "group_id": "058-roll-napkin-episode-0001",
+        "missing_required_members": [],
+        "object_id": "058-roll-napkin",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 282,
+        "camera": "brics-odroid-024_cam0",
+        "episode_id": 1,
+        "group_id": "058-roll-napkin-episode-0001",
+        "missing_required_members": [],
+        "object_id": "058-roll-napkin",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 282,
+        "camera": "brics-odroid-024_cam1",
+        "episode_id": 1,
+        "group_id": "058-roll-napkin-episode-0001",
+        "missing_required_members": [],
+        "object_id": "058-roll-napkin",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 282,
+        "camera": "brics-odroid-025_cam0",
+        "episode_id": 1,
+        "group_id": "058-roll-napkin-episode-0001",
+        "missing_required_members": [],
+        "object_id": "058-roll-napkin",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 282,
+        "camera": "brics-odroid-025_cam1",
+        "episode_id": 1,
+        "group_id": "058-roll-napkin-episode-0001",
+        "missing_required_members": [],
+        "object_id": "058-roll-napkin",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 282,
+        "camera": "brics-odroid-027_cam0",
+        "episode_id": 1,
+        "group_id": "058-roll-napkin-episode-0001",
+        "missing_required_members": [],
+        "object_id": "058-roll-napkin",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 282,
+        "camera": "brics-odroid-027_cam1",
+        "episode_id": 1,
+        "group_id": "058-roll-napkin-episode-0001",
+        "missing_required_members": [],
+        "object_id": "058-roll-napkin",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 282,
+        "camera": "brics-odroid-028_cam0",
+        "episode_id": 1,
+        "group_id": "058-roll-napkin-episode-0001",
+        "missing_required_members": [],
+        "object_id": "058-roll-napkin",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 231,
+        "camera": "brics-odroid-001_cam0",
+        "episode_id": 8,
+        "group_id": "152-slime-episode-0008",
+        "missing_required_members": [],
+        "object_id": "152-slime",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 231,
+        "camera": "brics-odroid-002_cam0",
+        "episode_id": 8,
+        "group_id": "152-slime-episode-0008",
+        "missing_required_members": [],
+        "object_id": "152-slime",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 231,
+        "camera": "brics-odroid-006_cam0",
+        "episode_id": 8,
+        "group_id": "152-slime-episode-0008",
+        "missing_required_members": [],
+        "object_id": "152-slime",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 231,
+        "camera": "brics-odroid-007_cam0",
+        "episode_id": 8,
+        "group_id": "152-slime-episode-0008",
+        "missing_required_members": [],
+        "object_id": "152-slime",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 231,
+        "camera": "brics-odroid-007_cam1",
+        "episode_id": 8,
+        "group_id": "152-slime-episode-0008",
+        "missing_required_members": [],
+        "object_id": "152-slime",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 231,
+        "camera": "brics-odroid-008_cam0",
+        "episode_id": 8,
+        "group_id": "152-slime-episode-0008",
+        "missing_required_members": [],
+        "object_id": "152-slime",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 231,
+        "camera": "brics-odroid-008_cam1",
+        "episode_id": 8,
+        "group_id": "152-slime-episode-0008",
+        "missing_required_members": [],
+        "object_id": "152-slime",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 231,
+        "camera": "brics-odroid-010_cam0",
+        "episode_id": 8,
+        "group_id": "152-slime-episode-0008",
+        "missing_required_members": [],
+        "object_id": "152-slime",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 231,
+        "camera": "brics-odroid-010_cam1",
+        "episode_id": 8,
+        "group_id": "152-slime-episode-0008",
+        "missing_required_members": [],
+        "object_id": "152-slime",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 231,
+        "camera": "brics-odroid-011_cam0",
+        "episode_id": 8,
+        "group_id": "152-slime-episode-0008",
+        "missing_required_members": [],
+        "object_id": "152-slime",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 231,
+        "camera": "brics-odroid-012_cam0",
+        "episode_id": 8,
+        "group_id": "152-slime-episode-0008",
+        "missing_required_members": [],
+        "object_id": "152-slime",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 231,
+        "camera": "brics-odroid-012_cam1",
+        "episode_id": 8,
+        "group_id": "152-slime-episode-0008",
+        "missing_required_members": [],
+        "object_id": "152-slime",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 231,
+        "camera": "brics-odroid-013_cam0",
+        "episode_id": 8,
+        "group_id": "152-slime-episode-0008",
+        "missing_required_members": [],
+        "object_id": "152-slime",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 231,
+        "camera": "brics-odroid-014_cam1",
+        "episode_id": 8,
+        "group_id": "152-slime-episode-0008",
+        "missing_required_members": [],
+        "object_id": "152-slime",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 231,
+        "camera": "brics-odroid-015_cam0",
+        "episode_id": 8,
+        "group_id": "152-slime-episode-0008",
+        "missing_required_members": [],
+        "object_id": "152-slime",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 231,
+        "camera": "brics-odroid-015_cam1",
+        "episode_id": 8,
+        "group_id": "152-slime-episode-0008",
+        "missing_required_members": [],
+        "object_id": "152-slime",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 231,
+        "camera": "brics-odroid-016_cam0",
+        "episode_id": 8,
+        "group_id": "152-slime-episode-0008",
+        "missing_required_members": [],
+        "object_id": "152-slime",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 231,
+        "camera": "brics-odroid-017_cam0",
+        "episode_id": 8,
+        "group_id": "152-slime-episode-0008",
+        "missing_required_members": [],
+        "object_id": "152-slime",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 231,
+        "camera": "brics-odroid-017_cam1",
+        "episode_id": 8,
+        "group_id": "152-slime-episode-0008",
+        "missing_required_members": [],
+        "object_id": "152-slime",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 231,
+        "camera": "brics-odroid-019_cam1",
+        "episode_id": 8,
+        "group_id": "152-slime-episode-0008",
+        "missing_required_members": [],
+        "object_id": "152-slime",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 231,
+        "camera": "brics-odroid-021_cam0",
+        "episode_id": 8,
+        "group_id": "152-slime-episode-0008",
+        "missing_required_members": [],
+        "object_id": "152-slime",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 231,
+        "camera": "brics-odroid-021_cam1",
+        "episode_id": 8,
+        "group_id": "152-slime-episode-0008",
+        "missing_required_members": [],
+        "object_id": "152-slime",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 231,
+        "camera": "brics-odroid-022_cam0",
+        "episode_id": 8,
+        "group_id": "152-slime-episode-0008",
+        "missing_required_members": [],
+        "object_id": "152-slime",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 231,
+        "camera": "brics-odroid-022_cam1",
+        "episode_id": 8,
+        "group_id": "152-slime-episode-0008",
+        "missing_required_members": [],
+        "object_id": "152-slime",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 231,
+        "camera": "brics-odroid-023_cam0",
+        "episode_id": 8,
+        "group_id": "152-slime-episode-0008",
+        "missing_required_members": [],
+        "object_id": "152-slime",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 231,
+        "camera": "brics-odroid-024_cam0",
+        "episode_id": 8,
+        "group_id": "152-slime-episode-0008",
+        "missing_required_members": [],
+        "object_id": "152-slime",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 231,
+        "camera": "brics-odroid-024_cam1",
+        "episode_id": 8,
+        "group_id": "152-slime-episode-0008",
+        "missing_required_members": [],
+        "object_id": "152-slime",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 231,
+        "camera": "brics-odroid-025_cam0",
+        "episode_id": 8,
+        "group_id": "152-slime-episode-0008",
+        "missing_required_members": [],
+        "object_id": "152-slime",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 231,
+        "camera": "brics-odroid-025_cam1",
+        "episode_id": 8,
+        "group_id": "152-slime-episode-0008",
+        "missing_required_members": [],
+        "object_id": "152-slime",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 231,
+        "camera": "brics-odroid-027_cam0",
+        "episode_id": 8,
+        "group_id": "152-slime-episode-0008",
+        "missing_required_members": [],
+        "object_id": "152-slime",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 231,
+        "camera": "brics-odroid-027_cam1",
+        "episode_id": 8,
+        "group_id": "152-slime-episode-0008",
+        "missing_required_members": [],
+        "object_id": "152-slime",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 231,
+        "camera": "brics-odroid-028_cam0",
+        "episode_id": 8,
+        "group_id": "152-slime-episode-0008",
+        "missing_required_members": [],
+        "object_id": "152-slime",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 178,
+        "camera": "brics-odroid-001_cam0",
+        "episode_id": 5,
+        "group_id": "153-cake-episode-0005",
+        "missing_required_members": [],
+        "object_id": "153-cake",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 178,
+        "camera": "brics-odroid-002_cam0",
+        "episode_id": 5,
+        "group_id": "153-cake-episode-0005",
+        "missing_required_members": [],
+        "object_id": "153-cake",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 178,
+        "camera": "brics-odroid-006_cam0",
+        "episode_id": 5,
+        "group_id": "153-cake-episode-0005",
+        "missing_required_members": [],
+        "object_id": "153-cake",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 178,
+        "camera": "brics-odroid-007_cam0",
+        "episode_id": 5,
+        "group_id": "153-cake-episode-0005",
+        "missing_required_members": [],
+        "object_id": "153-cake",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 178,
+        "camera": "brics-odroid-007_cam1",
+        "episode_id": 5,
+        "group_id": "153-cake-episode-0005",
+        "missing_required_members": [],
+        "object_id": "153-cake",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 178,
+        "camera": "brics-odroid-008_cam0",
+        "episode_id": 5,
+        "group_id": "153-cake-episode-0005",
+        "missing_required_members": [],
+        "object_id": "153-cake",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 178,
+        "camera": "brics-odroid-008_cam1",
+        "episode_id": 5,
+        "group_id": "153-cake-episode-0005",
+        "missing_required_members": [],
+        "object_id": "153-cake",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 178,
+        "camera": "brics-odroid-010_cam0",
+        "episode_id": 5,
+        "group_id": "153-cake-episode-0005",
+        "missing_required_members": [],
+        "object_id": "153-cake",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 178,
+        "camera": "brics-odroid-010_cam1",
+        "episode_id": 5,
+        "group_id": "153-cake-episode-0005",
+        "missing_required_members": [],
+        "object_id": "153-cake",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 178,
+        "camera": "brics-odroid-011_cam0",
+        "episode_id": 5,
+        "group_id": "153-cake-episode-0005",
+        "missing_required_members": [],
+        "object_id": "153-cake",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 178,
+        "camera": "brics-odroid-012_cam0",
+        "episode_id": 5,
+        "group_id": "153-cake-episode-0005",
+        "missing_required_members": [],
+        "object_id": "153-cake",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 178,
+        "camera": "brics-odroid-012_cam1",
+        "episode_id": 5,
+        "group_id": "153-cake-episode-0005",
+        "missing_required_members": [],
+        "object_id": "153-cake",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 178,
+        "camera": "brics-odroid-013_cam0",
+        "episode_id": 5,
+        "group_id": "153-cake-episode-0005",
+        "missing_required_members": [],
+        "object_id": "153-cake",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 178,
+        "camera": "brics-odroid-014_cam1",
+        "episode_id": 5,
+        "group_id": "153-cake-episode-0005",
+        "missing_required_members": [],
+        "object_id": "153-cake",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 178,
+        "camera": "brics-odroid-015_cam0",
+        "episode_id": 5,
+        "group_id": "153-cake-episode-0005",
+        "missing_required_members": [],
+        "object_id": "153-cake",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 178,
+        "camera": "brics-odroid-015_cam1",
+        "episode_id": 5,
+        "group_id": "153-cake-episode-0005",
+        "missing_required_members": [],
+        "object_id": "153-cake",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 178,
+        "camera": "brics-odroid-016_cam0",
+        "episode_id": 5,
+        "group_id": "153-cake-episode-0005",
+        "missing_required_members": [],
+        "object_id": "153-cake",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 178,
+        "camera": "brics-odroid-017_cam0",
+        "episode_id": 5,
+        "group_id": "153-cake-episode-0005",
+        "missing_required_members": [],
+        "object_id": "153-cake",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 178,
+        "camera": "brics-odroid-017_cam1",
+        "episode_id": 5,
+        "group_id": "153-cake-episode-0005",
+        "missing_required_members": [],
+        "object_id": "153-cake",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 178,
+        "camera": "brics-odroid-019_cam1",
+        "episode_id": 5,
+        "group_id": "153-cake-episode-0005",
+        "missing_required_members": [],
+        "object_id": "153-cake",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 178,
+        "camera": "brics-odroid-021_cam0",
+        "episode_id": 5,
+        "group_id": "153-cake-episode-0005",
+        "missing_required_members": [],
+        "object_id": "153-cake",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 178,
+        "camera": "brics-odroid-021_cam1",
+        "episode_id": 5,
+        "group_id": "153-cake-episode-0005",
+        "missing_required_members": [],
+        "object_id": "153-cake",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 178,
+        "camera": "brics-odroid-022_cam0",
+        "episode_id": 5,
+        "group_id": "153-cake-episode-0005",
+        "missing_required_members": [],
+        "object_id": "153-cake",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 178,
+        "camera": "brics-odroid-022_cam1",
+        "episode_id": 5,
+        "group_id": "153-cake-episode-0005",
+        "missing_required_members": [],
+        "object_id": "153-cake",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 178,
+        "camera": "brics-odroid-023_cam0",
+        "episode_id": 5,
+        "group_id": "153-cake-episode-0005",
+        "missing_required_members": [],
+        "object_id": "153-cake",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 178,
+        "camera": "brics-odroid-024_cam0",
+        "episode_id": 5,
+        "group_id": "153-cake-episode-0005",
+        "missing_required_members": [],
+        "object_id": "153-cake",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 178,
+        "camera": "brics-odroid-024_cam1",
+        "episode_id": 5,
+        "group_id": "153-cake-episode-0005",
+        "missing_required_members": [],
+        "object_id": "153-cake",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 178,
+        "camera": "brics-odroid-025_cam0",
+        "episode_id": 5,
+        "group_id": "153-cake-episode-0005",
+        "missing_required_members": [],
+        "object_id": "153-cake",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 178,
+        "camera": "brics-odroid-025_cam1",
+        "episode_id": 5,
+        "group_id": "153-cake-episode-0005",
+        "missing_required_members": [],
+        "object_id": "153-cake",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 178,
+        "camera": "brics-odroid-027_cam0",
+        "episode_id": 5,
+        "group_id": "153-cake-episode-0005",
+        "missing_required_members": [],
+        "object_id": "153-cake",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 178,
+        "camera": "brics-odroid-027_cam1",
+        "episode_id": 5,
+        "group_id": "153-cake-episode-0005",
+        "missing_required_members": [],
+        "object_id": "153-cake",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 178,
+        "camera": "brics-odroid-028_cam0",
+        "episode_id": 5,
+        "group_id": "153-cake-episode-0005",
+        "missing_required_members": [],
+        "object_id": "153-cake",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 308,
+        "camera": "brics-odroid-001_cam0",
+        "episode_id": 0,
+        "group_id": "167-glove-gray-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "167-glove-gray-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 308,
+        "camera": "brics-odroid-002_cam0",
+        "episode_id": 0,
+        "group_id": "167-glove-gray-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "167-glove-gray-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 308,
+        "camera": "brics-odroid-006_cam0",
+        "episode_id": 0,
+        "group_id": "167-glove-gray-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "167-glove-gray-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 308,
+        "camera": "brics-odroid-007_cam0",
+        "episode_id": 0,
+        "group_id": "167-glove-gray-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "167-glove-gray-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 308,
+        "camera": "brics-odroid-007_cam1",
+        "episode_id": 0,
+        "group_id": "167-glove-gray-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "167-glove-gray-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 308,
+        "camera": "brics-odroid-008_cam0",
+        "episode_id": 0,
+        "group_id": "167-glove-gray-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "167-glove-gray-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 308,
+        "camera": "brics-odroid-008_cam1",
+        "episode_id": 0,
+        "group_id": "167-glove-gray-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "167-glove-gray-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 308,
+        "camera": "brics-odroid-010_cam0",
+        "episode_id": 0,
+        "group_id": "167-glove-gray-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "167-glove-gray-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 308,
+        "camera": "brics-odroid-010_cam1",
+        "episode_id": 0,
+        "group_id": "167-glove-gray-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "167-glove-gray-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 308,
+        "camera": "brics-odroid-011_cam0",
+        "episode_id": 0,
+        "group_id": "167-glove-gray-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "167-glove-gray-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 308,
+        "camera": "brics-odroid-012_cam0",
+        "episode_id": 0,
+        "group_id": "167-glove-gray-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "167-glove-gray-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 308,
+        "camera": "brics-odroid-012_cam1",
+        "episode_id": 0,
+        "group_id": "167-glove-gray-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "167-glove-gray-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 308,
+        "camera": "brics-odroid-013_cam0",
+        "episode_id": 0,
+        "group_id": "167-glove-gray-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "167-glove-gray-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 308,
+        "camera": "brics-odroid-014_cam1",
+        "episode_id": 0,
+        "group_id": "167-glove-gray-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "167-glove-gray-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 308,
+        "camera": "brics-odroid-015_cam0",
+        "episode_id": 0,
+        "group_id": "167-glove-gray-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "167-glove-gray-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 308,
+        "camera": "brics-odroid-015_cam1",
+        "episode_id": 0,
+        "group_id": "167-glove-gray-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "167-glove-gray-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 308,
+        "camera": "brics-odroid-016_cam0",
+        "episode_id": 0,
+        "group_id": "167-glove-gray-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "167-glove-gray-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 308,
+        "camera": "brics-odroid-017_cam0",
+        "episode_id": 0,
+        "group_id": "167-glove-gray-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "167-glove-gray-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 308,
+        "camera": "brics-odroid-017_cam1",
+        "episode_id": 0,
+        "group_id": "167-glove-gray-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "167-glove-gray-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 308,
+        "camera": "brics-odroid-019_cam1",
+        "episode_id": 0,
+        "group_id": "167-glove-gray-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "167-glove-gray-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 308,
+        "camera": "brics-odroid-021_cam0",
+        "episode_id": 0,
+        "group_id": "167-glove-gray-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "167-glove-gray-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 308,
+        "camera": "brics-odroid-021_cam1",
+        "episode_id": 0,
+        "group_id": "167-glove-gray-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "167-glove-gray-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 308,
+        "camera": "brics-odroid-022_cam0",
+        "episode_id": 0,
+        "group_id": "167-glove-gray-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "167-glove-gray-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 308,
+        "camera": "brics-odroid-022_cam1",
+        "episode_id": 0,
+        "group_id": "167-glove-gray-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "167-glove-gray-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 308,
+        "camera": "brics-odroid-023_cam0",
+        "episode_id": 0,
+        "group_id": "167-glove-gray-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "167-glove-gray-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 308,
+        "camera": "brics-odroid-024_cam0",
+        "episode_id": 0,
+        "group_id": "167-glove-gray-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "167-glove-gray-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 308,
+        "camera": "brics-odroid-024_cam1",
+        "episode_id": 0,
+        "group_id": "167-glove-gray-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "167-glove-gray-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 308,
+        "camera": "brics-odroid-025_cam0",
+        "episode_id": 0,
+        "group_id": "167-glove-gray-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "167-glove-gray-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 308,
+        "camera": "brics-odroid-025_cam1",
+        "episode_id": 0,
+        "group_id": "167-glove-gray-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "167-glove-gray-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 308,
+        "camera": "brics-odroid-027_cam0",
+        "episode_id": 0,
+        "group_id": "167-glove-gray-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "167-glove-gray-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 308,
+        "camera": "brics-odroid-027_cam1",
+        "episode_id": 0,
+        "group_id": "167-glove-gray-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "167-glove-gray-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 308,
+        "camera": "brics-odroid-028_cam0",
+        "episode_id": 0,
+        "group_id": "167-glove-gray-cloth-episode-0000",
+        "missing_required_members": [],
+        "object_id": "167-glove-gray-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 327,
+        "camera": "brics-odroid-001_cam0",
+        "episode_id": 6,
+        "group_id": "186-monster-episode-0006",
+        "missing_required_members": [],
+        "object_id": "186-monster",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 327,
+        "camera": "brics-odroid-002_cam0",
+        "episode_id": 6,
+        "group_id": "186-monster-episode-0006",
+        "missing_required_members": [],
+        "object_id": "186-monster",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 327,
+        "camera": "brics-odroid-006_cam0",
+        "episode_id": 6,
+        "group_id": "186-monster-episode-0006",
+        "missing_required_members": [],
+        "object_id": "186-monster",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 327,
+        "camera": "brics-odroid-007_cam0",
+        "episode_id": 6,
+        "group_id": "186-monster-episode-0006",
+        "missing_required_members": [],
+        "object_id": "186-monster",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 327,
+        "camera": "brics-odroid-007_cam1",
+        "episode_id": 6,
+        "group_id": "186-monster-episode-0006",
+        "missing_required_members": [],
+        "object_id": "186-monster",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 327,
+        "camera": "brics-odroid-008_cam0",
+        "episode_id": 6,
+        "group_id": "186-monster-episode-0006",
+        "missing_required_members": [],
+        "object_id": "186-monster",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 327,
+        "camera": "brics-odroid-008_cam1",
+        "episode_id": 6,
+        "group_id": "186-monster-episode-0006",
+        "missing_required_members": [],
+        "object_id": "186-monster",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 327,
+        "camera": "brics-odroid-010_cam0",
+        "episode_id": 6,
+        "group_id": "186-monster-episode-0006",
+        "missing_required_members": [],
+        "object_id": "186-monster",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 327,
+        "camera": "brics-odroid-010_cam1",
+        "episode_id": 6,
+        "group_id": "186-monster-episode-0006",
+        "missing_required_members": [],
+        "object_id": "186-monster",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 327,
+        "camera": "brics-odroid-011_cam0",
+        "episode_id": 6,
+        "group_id": "186-monster-episode-0006",
+        "missing_required_members": [],
+        "object_id": "186-monster",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 327,
+        "camera": "brics-odroid-012_cam0",
+        "episode_id": 6,
+        "group_id": "186-monster-episode-0006",
+        "missing_required_members": [],
+        "object_id": "186-monster",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 327,
+        "camera": "brics-odroid-012_cam1",
+        "episode_id": 6,
+        "group_id": "186-monster-episode-0006",
+        "missing_required_members": [],
+        "object_id": "186-monster",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 327,
+        "camera": "brics-odroid-013_cam0",
+        "episode_id": 6,
+        "group_id": "186-monster-episode-0006",
+        "missing_required_members": [],
+        "object_id": "186-monster",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 327,
+        "camera": "brics-odroid-014_cam1",
+        "episode_id": 6,
+        "group_id": "186-monster-episode-0006",
+        "missing_required_members": [],
+        "object_id": "186-monster",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 327,
+        "camera": "brics-odroid-015_cam0",
+        "episode_id": 6,
+        "group_id": "186-monster-episode-0006",
+        "missing_required_members": [],
+        "object_id": "186-monster",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 327,
+        "camera": "brics-odroid-015_cam1",
+        "episode_id": 6,
+        "group_id": "186-monster-episode-0006",
+        "missing_required_members": [],
+        "object_id": "186-monster",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 327,
+        "camera": "brics-odroid-016_cam0",
+        "episode_id": 6,
+        "group_id": "186-monster-episode-0006",
+        "missing_required_members": [],
+        "object_id": "186-monster",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 327,
+        "camera": "brics-odroid-017_cam0",
+        "episode_id": 6,
+        "group_id": "186-monster-episode-0006",
+        "missing_required_members": [],
+        "object_id": "186-monster",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 327,
+        "camera": "brics-odroid-017_cam1",
+        "episode_id": 6,
+        "group_id": "186-monster-episode-0006",
+        "missing_required_members": [],
+        "object_id": "186-monster",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 327,
+        "camera": "brics-odroid-019_cam1",
+        "episode_id": 6,
+        "group_id": "186-monster-episode-0006",
+        "missing_required_members": [],
+        "object_id": "186-monster",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 327,
+        "camera": "brics-odroid-021_cam0",
+        "episode_id": 6,
+        "group_id": "186-monster-episode-0006",
+        "missing_required_members": [],
+        "object_id": "186-monster",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 327,
+        "camera": "brics-odroid-021_cam1",
+        "episode_id": 6,
+        "group_id": "186-monster-episode-0006",
+        "missing_required_members": [],
+        "object_id": "186-monster",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 327,
+        "camera": "brics-odroid-022_cam0",
+        "episode_id": 6,
+        "group_id": "186-monster-episode-0006",
+        "missing_required_members": [],
+        "object_id": "186-monster",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 327,
+        "camera": "brics-odroid-022_cam1",
+        "episode_id": 6,
+        "group_id": "186-monster-episode-0006",
+        "missing_required_members": [],
+        "object_id": "186-monster",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 327,
+        "camera": "brics-odroid-023_cam0",
+        "episode_id": 6,
+        "group_id": "186-monster-episode-0006",
+        "missing_required_members": [],
+        "object_id": "186-monster",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 327,
+        "camera": "brics-odroid-024_cam0",
+        "episode_id": 6,
+        "group_id": "186-monster-episode-0006",
+        "missing_required_members": [],
+        "object_id": "186-monster",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 327,
+        "camera": "brics-odroid-024_cam1",
+        "episode_id": 6,
+        "group_id": "186-monster-episode-0006",
+        "missing_required_members": [],
+        "object_id": "186-monster",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 327,
+        "camera": "brics-odroid-025_cam0",
+        "episode_id": 6,
+        "group_id": "186-monster-episode-0006",
+        "missing_required_members": [],
+        "object_id": "186-monster",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 327,
+        "camera": "brics-odroid-025_cam1",
+        "episode_id": 6,
+        "group_id": "186-monster-episode-0006",
+        "missing_required_members": [],
+        "object_id": "186-monster",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 327,
+        "camera": "brics-odroid-027_cam0",
+        "episode_id": 6,
+        "group_id": "186-monster-episode-0006",
+        "missing_required_members": [],
+        "object_id": "186-monster",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 327,
+        "camera": "brics-odroid-027_cam1",
+        "episode_id": 6,
+        "group_id": "186-monster-episode-0006",
+        "missing_required_members": [],
+        "object_id": "186-monster",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 327,
+        "camera": "brics-odroid-028_cam0",
+        "episode_id": 6,
+        "group_id": "186-monster-episode-0006",
+        "missing_required_members": [],
+        "object_id": "186-monster",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 307,
+        "camera": "brics-odroid-001_cam0",
+        "episode_id": 7,
+        "group_id": "193-frog-episode-0007",
+        "missing_required_members": [],
+        "object_id": "193-frog",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 307,
+        "camera": "brics-odroid-002_cam0",
+        "episode_id": 7,
+        "group_id": "193-frog-episode-0007",
+        "missing_required_members": [],
+        "object_id": "193-frog",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 307,
+        "camera": "brics-odroid-006_cam0",
+        "episode_id": 7,
+        "group_id": "193-frog-episode-0007",
+        "missing_required_members": [],
+        "object_id": "193-frog",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 307,
+        "camera": "brics-odroid-007_cam0",
+        "episode_id": 7,
+        "group_id": "193-frog-episode-0007",
+        "missing_required_members": [],
+        "object_id": "193-frog",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 307,
+        "camera": "brics-odroid-007_cam1",
+        "episode_id": 7,
+        "group_id": "193-frog-episode-0007",
+        "missing_required_members": [],
+        "object_id": "193-frog",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 307,
+        "camera": "brics-odroid-008_cam0",
+        "episode_id": 7,
+        "group_id": "193-frog-episode-0007",
+        "missing_required_members": [],
+        "object_id": "193-frog",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 307,
+        "camera": "brics-odroid-008_cam1",
+        "episode_id": 7,
+        "group_id": "193-frog-episode-0007",
+        "missing_required_members": [],
+        "object_id": "193-frog",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 307,
+        "camera": "brics-odroid-010_cam0",
+        "episode_id": 7,
+        "group_id": "193-frog-episode-0007",
+        "missing_required_members": [],
+        "object_id": "193-frog",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 307,
+        "camera": "brics-odroid-010_cam1",
+        "episode_id": 7,
+        "group_id": "193-frog-episode-0007",
+        "missing_required_members": [],
+        "object_id": "193-frog",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 307,
+        "camera": "brics-odroid-011_cam0",
+        "episode_id": 7,
+        "group_id": "193-frog-episode-0007",
+        "missing_required_members": [],
+        "object_id": "193-frog",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 307,
+        "camera": "brics-odroid-012_cam0",
+        "episode_id": 7,
+        "group_id": "193-frog-episode-0007",
+        "missing_required_members": [],
+        "object_id": "193-frog",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 307,
+        "camera": "brics-odroid-012_cam1",
+        "episode_id": 7,
+        "group_id": "193-frog-episode-0007",
+        "missing_required_members": [],
+        "object_id": "193-frog",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 307,
+        "camera": "brics-odroid-013_cam0",
+        "episode_id": 7,
+        "group_id": "193-frog-episode-0007",
+        "missing_required_members": [],
+        "object_id": "193-frog",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 307,
+        "camera": "brics-odroid-014_cam1",
+        "episode_id": 7,
+        "group_id": "193-frog-episode-0007",
+        "missing_required_members": [],
+        "object_id": "193-frog",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 307,
+        "camera": "brics-odroid-015_cam0",
+        "episode_id": 7,
+        "group_id": "193-frog-episode-0007",
+        "missing_required_members": [],
+        "object_id": "193-frog",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 307,
+        "camera": "brics-odroid-015_cam1",
+        "episode_id": 7,
+        "group_id": "193-frog-episode-0007",
+        "missing_required_members": [],
+        "object_id": "193-frog",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 307,
+        "camera": "brics-odroid-016_cam0",
+        "episode_id": 7,
+        "group_id": "193-frog-episode-0007",
+        "missing_required_members": [],
+        "object_id": "193-frog",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 307,
+        "camera": "brics-odroid-017_cam0",
+        "episode_id": 7,
+        "group_id": "193-frog-episode-0007",
+        "missing_required_members": [],
+        "object_id": "193-frog",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 307,
+        "camera": "brics-odroid-017_cam1",
+        "episode_id": 7,
+        "group_id": "193-frog-episode-0007",
+        "missing_required_members": [],
+        "object_id": "193-frog",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 307,
+        "camera": "brics-odroid-019_cam1",
+        "episode_id": 7,
+        "group_id": "193-frog-episode-0007",
+        "missing_required_members": [],
+        "object_id": "193-frog",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 307,
+        "camera": "brics-odroid-021_cam0",
+        "episode_id": 7,
+        "group_id": "193-frog-episode-0007",
+        "missing_required_members": [],
+        "object_id": "193-frog",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 307,
+        "camera": "brics-odroid-021_cam1",
+        "episode_id": 7,
+        "group_id": "193-frog-episode-0007",
+        "missing_required_members": [],
+        "object_id": "193-frog",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 307,
+        "camera": "brics-odroid-022_cam0",
+        "episode_id": 7,
+        "group_id": "193-frog-episode-0007",
+        "missing_required_members": [],
+        "object_id": "193-frog",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 307,
+        "camera": "brics-odroid-022_cam1",
+        "episode_id": 7,
+        "group_id": "193-frog-episode-0007",
+        "missing_required_members": [],
+        "object_id": "193-frog",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 307,
+        "camera": "brics-odroid-023_cam0",
+        "episode_id": 7,
+        "group_id": "193-frog-episode-0007",
+        "missing_required_members": [],
+        "object_id": "193-frog",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 307,
+        "camera": "brics-odroid-024_cam0",
+        "episode_id": 7,
+        "group_id": "193-frog-episode-0007",
+        "missing_required_members": [],
+        "object_id": "193-frog",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 307,
+        "camera": "brics-odroid-024_cam1",
+        "episode_id": 7,
+        "group_id": "193-frog-episode-0007",
+        "missing_required_members": [],
+        "object_id": "193-frog",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 307,
+        "camera": "brics-odroid-025_cam0",
+        "episode_id": 7,
+        "group_id": "193-frog-episode-0007",
+        "missing_required_members": [],
+        "object_id": "193-frog",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 307,
+        "camera": "brics-odroid-025_cam1",
+        "episode_id": 7,
+        "group_id": "193-frog-episode-0007",
+        "missing_required_members": [],
+        "object_id": "193-frog",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 307,
+        "camera": "brics-odroid-027_cam0",
+        "episode_id": 7,
+        "group_id": "193-frog-episode-0007",
+        "missing_required_members": [],
+        "object_id": "193-frog",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 307,
+        "camera": "brics-odroid-027_cam1",
+        "episode_id": 7,
+        "group_id": "193-frog-episode-0007",
+        "missing_required_members": [],
+        "object_id": "193-frog",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 307,
+        "camera": "brics-odroid-028_cam0",
+        "episode_id": 7,
+        "group_id": "193-frog-episode-0007",
+        "missing_required_members": [],
+        "object_id": "193-frog",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 254,
+        "camera": "brics-odroid-001_cam0",
+        "episode_id": 2,
+        "group_id": "198-kneepad-cloth-episode-0002",
+        "missing_required_members": [],
+        "object_id": "198-kneepad-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 254,
+        "camera": "brics-odroid-002_cam0",
+        "episode_id": 2,
+        "group_id": "198-kneepad-cloth-episode-0002",
+        "missing_required_members": [],
+        "object_id": "198-kneepad-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 254,
+        "camera": "brics-odroid-006_cam0",
+        "episode_id": 2,
+        "group_id": "198-kneepad-cloth-episode-0002",
+        "missing_required_members": [],
+        "object_id": "198-kneepad-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 254,
+        "camera": "brics-odroid-007_cam0",
+        "episode_id": 2,
+        "group_id": "198-kneepad-cloth-episode-0002",
+        "missing_required_members": [],
+        "object_id": "198-kneepad-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 254,
+        "camera": "brics-odroid-007_cam1",
+        "episode_id": 2,
+        "group_id": "198-kneepad-cloth-episode-0002",
+        "missing_required_members": [],
+        "object_id": "198-kneepad-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 254,
+        "camera": "brics-odroid-008_cam0",
+        "episode_id": 2,
+        "group_id": "198-kneepad-cloth-episode-0002",
+        "missing_required_members": [],
+        "object_id": "198-kneepad-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 254,
+        "camera": "brics-odroid-008_cam1",
+        "episode_id": 2,
+        "group_id": "198-kneepad-cloth-episode-0002",
+        "missing_required_members": [],
+        "object_id": "198-kneepad-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 254,
+        "camera": "brics-odroid-010_cam0",
+        "episode_id": 2,
+        "group_id": "198-kneepad-cloth-episode-0002",
+        "missing_required_members": [],
+        "object_id": "198-kneepad-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 254,
+        "camera": "brics-odroid-010_cam1",
+        "episode_id": 2,
+        "group_id": "198-kneepad-cloth-episode-0002",
+        "missing_required_members": [],
+        "object_id": "198-kneepad-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 254,
+        "camera": "brics-odroid-011_cam0",
+        "episode_id": 2,
+        "group_id": "198-kneepad-cloth-episode-0002",
+        "missing_required_members": [],
+        "object_id": "198-kneepad-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 254,
+        "camera": "brics-odroid-012_cam0",
+        "episode_id": 2,
+        "group_id": "198-kneepad-cloth-episode-0002",
+        "missing_required_members": [],
+        "object_id": "198-kneepad-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 254,
+        "camera": "brics-odroid-012_cam1",
+        "episode_id": 2,
+        "group_id": "198-kneepad-cloth-episode-0002",
+        "missing_required_members": [],
+        "object_id": "198-kneepad-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 254,
+        "camera": "brics-odroid-013_cam0",
+        "episode_id": 2,
+        "group_id": "198-kneepad-cloth-episode-0002",
+        "missing_required_members": [],
+        "object_id": "198-kneepad-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 254,
+        "camera": "brics-odroid-014_cam1",
+        "episode_id": 2,
+        "group_id": "198-kneepad-cloth-episode-0002",
+        "missing_required_members": [],
+        "object_id": "198-kneepad-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 254,
+        "camera": "brics-odroid-015_cam0",
+        "episode_id": 2,
+        "group_id": "198-kneepad-cloth-episode-0002",
+        "missing_required_members": [],
+        "object_id": "198-kneepad-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 254,
+        "camera": "brics-odroid-015_cam1",
+        "episode_id": 2,
+        "group_id": "198-kneepad-cloth-episode-0002",
+        "missing_required_members": [],
+        "object_id": "198-kneepad-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 254,
+        "camera": "brics-odroid-016_cam0",
+        "episode_id": 2,
+        "group_id": "198-kneepad-cloth-episode-0002",
+        "missing_required_members": [],
+        "object_id": "198-kneepad-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 254,
+        "camera": "brics-odroid-017_cam0",
+        "episode_id": 2,
+        "group_id": "198-kneepad-cloth-episode-0002",
+        "missing_required_members": [],
+        "object_id": "198-kneepad-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 254,
+        "camera": "brics-odroid-017_cam1",
+        "episode_id": 2,
+        "group_id": "198-kneepad-cloth-episode-0002",
+        "missing_required_members": [],
+        "object_id": "198-kneepad-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 254,
+        "camera": "brics-odroid-019_cam1",
+        "episode_id": 2,
+        "group_id": "198-kneepad-cloth-episode-0002",
+        "missing_required_members": [],
+        "object_id": "198-kneepad-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 254,
+        "camera": "brics-odroid-021_cam0",
+        "episode_id": 2,
+        "group_id": "198-kneepad-cloth-episode-0002",
+        "missing_required_members": [],
+        "object_id": "198-kneepad-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 254,
+        "camera": "brics-odroid-021_cam1",
+        "episode_id": 2,
+        "group_id": "198-kneepad-cloth-episode-0002",
+        "missing_required_members": [],
+        "object_id": "198-kneepad-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 254,
+        "camera": "brics-odroid-022_cam0",
+        "episode_id": 2,
+        "group_id": "198-kneepad-cloth-episode-0002",
+        "missing_required_members": [],
+        "object_id": "198-kneepad-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 254,
+        "camera": "brics-odroid-022_cam1",
+        "episode_id": 2,
+        "group_id": "198-kneepad-cloth-episode-0002",
+        "missing_required_members": [],
+        "object_id": "198-kneepad-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 254,
+        "camera": "brics-odroid-023_cam0",
+        "episode_id": 2,
+        "group_id": "198-kneepad-cloth-episode-0002",
+        "missing_required_members": [],
+        "object_id": "198-kneepad-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 254,
+        "camera": "brics-odroid-024_cam0",
+        "episode_id": 2,
+        "group_id": "198-kneepad-cloth-episode-0002",
+        "missing_required_members": [],
+        "object_id": "198-kneepad-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 254,
+        "camera": "brics-odroid-024_cam1",
+        "episode_id": 2,
+        "group_id": "198-kneepad-cloth-episode-0002",
+        "missing_required_members": [],
+        "object_id": "198-kneepad-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 254,
+        "camera": "brics-odroid-025_cam0",
+        "episode_id": 2,
+        "group_id": "198-kneepad-cloth-episode-0002",
+        "missing_required_members": [],
+        "object_id": "198-kneepad-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 254,
+        "camera": "brics-odroid-025_cam1",
+        "episode_id": 2,
+        "group_id": "198-kneepad-cloth-episode-0002",
+        "missing_required_members": [],
+        "object_id": "198-kneepad-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 254,
+        "camera": "brics-odroid-027_cam0",
+        "episode_id": 2,
+        "group_id": "198-kneepad-cloth-episode-0002",
+        "missing_required_members": [],
+        "object_id": "198-kneepad-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 254,
+        "camera": "brics-odroid-027_cam1",
+        "episode_id": 2,
+        "group_id": "198-kneepad-cloth-episode-0002",
+        "missing_required_members": [],
+        "object_id": "198-kneepad-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      },
+      {
+        "aligned_timestamp_count": 254,
+        "camera": "brics-odroid-028_cam0",
+        "episode_id": 2,
+        "group_id": "198-kneepad-cloth-episode-0002",
+        "missing_required_members": [],
+        "object_id": "198-kneepad-cloth",
+        "required_frame_count": 58,
+        "supported": true
+      }
+    ]
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "artifact_name": "cut3r-source-freeze-v2-8f3c9fba12f8-32828946794-1",
+  "authorization_mode": "merged-main-read-only-self-hosted-v1",
+  "builder_exit_status": 0,
+  "comparison_execution_authorized": false,
+  "decision": "source-support-freeze-ready",
+  "forbidden_target_group_count": 12,
+  "freeze_artifact_id": "5e739b92c2628c61fa99ae68da61d5814ca94d4b6de5720b75c4552de82d1b2c",
+  "repository_revision": "8b923e8cd67ca65f09312cffe305e36852f36fbb",
+  "request_id": "8f3c9fba12f8a16895edce89d7a92e4806a43cb2f34b5a05faff71945809b63e",
+  "schema": "prob4d.cut3r-source-freeze-execution-summary",
+  "schema_version": 2,
+  "source_group_count": 10,
+  "source_prediction_payloads_opened": false,
+  "source_residuals_or_truth_opened": false,
+  "source_rgb_frames_decoded": false,
+  "supersedes_request_id": "c5036516bdf226f6975caabac88cbf4d1b55e359989b658c1c36f82ea78eea95",
+  "target_outcomes_opened": false,
+  "target_payloads_opened": false,
+  "workflow_run_attempt": 1,
+  "workflow_run_id": 32828946794
+}

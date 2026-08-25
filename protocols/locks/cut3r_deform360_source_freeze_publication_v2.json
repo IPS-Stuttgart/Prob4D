@@ -1,0 +1,45 @@
+{
+  "claim_boundary": "This request publishes only the exact target-closed source-freeze and comparison-lock bytes produced by the retained CUT3R source-support workflow. It does not execute CUT3R, open source residuals or truth, open confirmation or target payloads, authorize BayesianPhysTwin or Causal4D, or establish provider competence.",
+  "forbidden_target_group_count": 12,
+  "publication_request_id": "8f3c9fba12f8a16895edce89d7a92e4806a43cb2f34b5a05faff71945809b63e",
+  "published": {
+    "comparison_lock": {
+      "byte_count": 15194,
+      "path": "protocols/locks/cut3r_deform360_comparison_lock_v2.json",
+      "sha256": "e637666b6e6b8009dbec982acd02841daf435bb1a5eb8a235c4a8b927cc45cd0"
+    },
+    "comparison_spec": {
+      "byte_count": 17640,
+      "path": "protocols/locks/cut3r_deform360_comparison_spec_v2.json",
+      "sha256": "a4d65fc53f5fbb744251e18157591a7d1475f7c250e7a03a5d484de369ee704f"
+    },
+    "comparison_summary": {
+      "byte_count": 609,
+      "path": "protocols/locks/cut3r_deform360_comparison_summary_v2.json",
+      "sha256": "bdb749f54ace6aaeaff853a901bbed549a849a5ca4b2ecd321225442a13d03a3"
+    },
+    "execution_summary": {
+      "byte_count": 1007,
+      "path": "protocols/locks/cut3r_deform360_source_freeze_execution_v2.json",
+      "sha256": "4f558e8f09be3ea3775dfe8cf14e2f5bee1afa8b11ed5be865fa0e8da37e79e3"
+    },
+    "source_freeze": {
+      "byte_count": 160352,
+      "path": "protocols/locks/cut3r_deform360_source_freeze_v2.json",
+      "sha256": "b532cfe05d9c73aa11b62d3ac8d88c813a40a35408d7c3b048a1f4a0fcd3ca03"
+    }
+  },
+  "schema": "prob4d.cut3r-source-freeze-publication-receipt",
+  "schema_version": 1,
+  "source_decision": "source-support-freeze-ready",
+  "source_freeze_artifact_id": "5e739b92c2628c61fa99ae68da61d5814ca94d4b6de5720b75c4552de82d1b2c",
+  "source_group_count": 10,
+  "source_request_id": "8f3c9fba12f8a16895edce89d7a92e4806a43cb2f34b5a05faff71945809b63e",
+  "source_residuals_or_truth_opened": false,
+  "source_rgb_frames_decoded": false,
+  "source_workflow_artifact_id": 9556012095,
+  "source_workflow_artifact_name": "cut3r-source-freeze-v2-8f3c9fba12f8-32828946794-1",
+  "source_workflow_run_id": 32828946794,
+  "target_outcomes_opened": false,
+  "target_payloads_opened": false
+}
