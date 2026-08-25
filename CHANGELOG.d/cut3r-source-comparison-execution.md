@@ -6,3 +6,5 @@
   bootstrap failures before any source frame is decoded.
 - Add a hash-bound one-attempt runtime amendment that registers a different
   development smoke while preserving the frozen method and no-retry decision.
+- Enforce that attempt with a path-bound write-once ledger and require the
+  runner to recompute successful-smoke custody before any full source shard.
