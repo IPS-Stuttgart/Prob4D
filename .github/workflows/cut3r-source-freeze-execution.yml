@@ -413,8 +413,10 @@ jobs:
             "$run_venv/bin/python" - <<'PY'
           from __future__ import annotations
 
+          import hashlib
           import json
           import os
+          import re
           from pathlib import Path
 
           output = Path(os.environ["OUTPUT_DIR"])
@@ -437,6 +439,24 @@ jobs:
               raise SystemExit("source freeze does not contain exactly ten groups")
           if freeze["forbidden_target_group_count"] != 12:
               raise SystemExit("source freeze does not retain all forbidden targets")
+
+          source_freeze_id = freeze["source_freeze_id"]
+          if not isinstance(source_freeze_id, str) or re.fullmatch(
+              r"[0-9a-f]{64}", source_freeze_id
+          ) is None:
+              raise SystemExit("source_freeze_id must be an exact lowercase SHA-256 digest")
+          identity = dict(freeze)
+          identity.pop("source_freeze_id")
+          canonical = json.dumps(
+              identity,
+              sort_keys=True,
+              separators=(",", ":"),
+              ensure_ascii=False,
+              allow_nan=False,
+          ).encode("utf-8")
+          expected_source_freeze_id = hashlib.sha256(canonical).hexdigest()
+          if source_freeze_id != expected_source_freeze_id:
+              raise SystemExit("source_freeze_id does not bind the canonical freeze record")
 
           specification = output / "cut3r-comparison-spec.json"
           lock = output / "cut3r-comparison-lock.json"
@@ -462,7 +482,7 @@ jobs:
               "workflow_run_attempt": int(os.environ["RUN_ATTEMPT"]),
               "exit_status": status,
               "decision": decision,
-              "freeze_artifact_id": freeze["artifact_id"],
+              "freeze_artifact_id": source_freeze_id,
               "source_group_count": freeze["source_group_count"],
               "forbidden_target_group_count": freeze["forbidden_target_group_count"],
               "target_payloads_opened": False,
@@ -481,7 +501,7 @@ jobs:
               stream.write(f"artifact_name={artifact_name}\n")
               stream.write(f"decision={decision}\n")
               stream.write(f"exit_status={status}\n")
-              stream.write(f"freeze_artifact_id={freeze['artifact_id']}\n")
+              stream.write(f"freeze_artifact_id={source_freeze_id}\n")
           PY
 
           /usr/bin/git restore --worktree -- src/prob4d.egg-info

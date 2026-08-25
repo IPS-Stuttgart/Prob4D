@@ -160,6 +160,21 @@ def test_source_freeze_execution_keeps_write_permission_off_self_hosted_job() ->
     assert "runs-on: ubuntu-latest" in report
 
 
+def test_source_freeze_execution_binds_the_builders_canonical_identity() -> None:
+    text = SOURCE_FREEZE_EXECUTION_WORKFLOW.read_text(encoding="utf-8")
+    execute_start = text.index("\n  execute:")
+    report_start = text.index("\n  report:")
+    execute = text[execute_start:report_start]
+
+    assert 'freeze["artifact_id"]' not in execute
+    assert "freeze['artifact_id']" not in execute
+    assert 'freeze["source_freeze_id"]' in execute
+    assert 'identity.pop("source_freeze_id")' in execute
+    assert "hashlib.sha256(canonical).hexdigest()" in execute
+    assert '"freeze_artifact_id": source_freeze_id' in execute
+    assert "freeze_artifact_id={source_freeze_id}" in execute
+
+
 def test_auto_v2_source_freeze_supports_exact_retry_and_bounded_queue() -> None:
     text = SOURCE_FREEZE_AUTO_V2_WORKFLOW.read_text(encoding="utf-8")
 
