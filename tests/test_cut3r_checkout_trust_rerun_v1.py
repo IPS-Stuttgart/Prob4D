@@ -19,9 +19,7 @@ def _job(text: str, name: str, next_name: str | None) -> str:
 
 
 def _active_lines(text: str) -> str:
-    return "\n".join(
-        line for line in text.splitlines() if not line.lstrip().startswith("#")
-    )
+    return "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("#"))
 
 
 def test_repair_is_exact_issue_bound_and_not_pull_request_privileged() -> None:
@@ -81,7 +79,7 @@ def test_prepare_uses_scoped_probe_and_attempt_specific_home_only() -> None:
     assert "8bc15dc92a6d7fd92920b4ec81540d3dec7d3ecf" in text
     assert "status --porcelain=v1 --untracked-files=all" in prepare
     assert "prob4d-cut3r-source-freeze-v2-${FAILED_RUN_ID}-${TARGET_RERUN_ATTEMPT}" in prepare
-    assert "target_home / \".gitconfig\"" in prepare
+    assert 'target_home / ".gitconfig"' in prepare
     assert "refused-existing-config" in prepare
     assert "RUNNER_TRACKING_ID" in prepare
     assert "/usr/bin/setsid" in prepare
@@ -117,7 +115,7 @@ def test_cleanup_is_bound_to_same_run_and_removes_only_helper_residue() -> None:
         assert "github.event.workflow_run.status == 'completed'" in segment
     assert "runs-on: [self-hosted, host-workstation2]" in cleanup
     assert "marker_status" in cleanup
-    assert "/usr/bin/rm -rf -- \"$target_root\"" in cleanup
+    assert '/usr/bin/rm -rf -- "$target_root"' in cleanup
     assert "git config --system" not in active
     assert "sudo " not in active
     assert "actions: write" not in cleanup
