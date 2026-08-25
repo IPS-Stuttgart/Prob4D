@@ -7,6 +7,7 @@ WORKFLOW_ROOT = ROOT / ".github" / "workflows"
 TRUSTED_WORKFLOW = WORKFLOW_ROOT / "trusted-self-hosted-validation.yml"
 SOURCE_FREEZE_EXECUTION_WORKFLOW = WORKFLOW_ROOT / "cut3r-source-freeze-execution.yml"
 SOURCE_FREEZE_AUTO_V2_WORKFLOW = WORKFLOW_ROOT / "cut3r-source-freeze-auto-v2.yml"
+CUT3R_CHECKOUT_TRUST_RERUN_WORKFLOW = WORKFLOW_ROOT / "cut3r-checkout-trust-rerun-v1.yml"
 CUT3R_RUNNER_SELECTOR = (
     "runs-on: [self-hosted, Linux, X64, nvidia-smi, "
     + "data-prob4d-deform360-source-v1, prob4d-cut3r]"
@@ -16,6 +17,7 @@ TRUSTED_SELF_HOSTED_WORKFLOWS = (
     TRUSTED_WORKFLOW,
     SOURCE_FREEZE_EXECUTION_WORKFLOW,
     SOURCE_FREEZE_AUTO_V2_WORKFLOW,
+    CUT3R_CHECKOUT_TRUST_RERUN_WORKFLOW,
 )
 REMOVED_TEMPORARY_WORKFLOWS = (
     WORKFLOW_ROOT / "issue-49-protected-cohort-inventory.yml",
@@ -219,6 +221,47 @@ def test_auto_v2_source_freeze_supports_exact_retry_and_bounded_queue() -> None:
     assert "github.event_name == 'workflow_dispatch'" in report
     assert "runs-on: ubuntu-latest" in report
     assert "issues: write" in report
+
+
+def test_checkout_trust_rerun_is_exact_temporary_and_hosted_dispatched() -> None:
+    text = CUT3R_CHECKOUT_TRUST_RERUN_WORKFLOW.read_text(encoding="utf-8")
+
+    assert "\n  issue_comment:" in text
+    assert "\n  workflow_run:" in text
+    assert "pull_request_target:" not in text
+    assert CUT3R_AUTO_V2_RUNNER_SELECTOR in text
+    assert 'test "$RUNNER_NAME_VALUE" = "workstation2"' in text
+    assert '-c safe.directory="$CUT3R_CHECKOUT"' in text
+    assert "git config --system --add safe.directory" in text
+    assert "--fixed-value" in text
+    assert "--unset-all safe.directory" in text
+    assert 'FAILED_RUN_ID: "32771242880"' in text
+    assert 'FAILED_EXECUTE_JOB_ID: "97702294765"' in text
+    assert 'FAILURE_ARTIFACT_ID: "9551181122"' in text
+    assert "actions/jobs/{job_id}/rerun" in text
+    assert "git push" not in text
+    assert "secrets." not in text
+
+    prepare_start = text.index("\n  prepare:")
+    rerun_start = text.index("\n  rerun:")
+    cleanup_start = text.index("\n  cleanup:")
+    cleanup_report_start = text.index("\n  cleanup_report:")
+    prepare = text[prepare_start:rerun_start]
+    rerun = text[rerun_start:cleanup_start]
+    cleanup = text[cleanup_start:cleanup_report_start]
+    cleanup_report = text[cleanup_report_start:]
+
+    assert "permissions:\n      contents: read" in prepare
+    assert "actions: write" not in prepare
+    assert "issues: write" not in prepare
+    assert "runs-on: ubuntu-latest" in rerun
+    assert "actions: write" in rerun
+    assert "issues: write" in rerun
+    assert "permissions:\n      contents: read" in cleanup
+    assert "actions: write" not in cleanup
+    assert "issues: write" not in cleanup
+    assert "runs-on: ubuntu-latest" in cleanup_report
+    assert "issues: write" in cleanup_report
 
 
 def test_full_validation_tracks_the_05_cleanup_surface() -> None:
