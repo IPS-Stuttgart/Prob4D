@@ -1,0 +1,713 @@
+name: Run one exact CUT3R source-comparison smoke replacement v2
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/cut3r-source-comparison-smoke-retry-v2.yml"
+      - "CHANGELOG.d/cut3r-source-comparison-smoke-retry-v2.md"
+      - "docs/cut3r-source-comparison-smoke-retry-v2.md"
+      - "protocols/execution_requests/cut3r_source_comparison_smoke_retry_v2.json"
+      - "scripts/ci/cut3r_source_comparison_smoke_retry_v2.py"
+      - "scripts/science/run_cut3r_source_comparison.py"
+      - "scripts/science/verify_cut3r_source_comparison_artifacts.py"
+      - "src/prob4d/cut3r_source_comparison_plan.py"
+      - "src/prob4d/cut3r_source_comparison_verifier.py"
+      - "tests/test_cut3r_source_comparison_smoke_retry_v2.py"
+      - "tests/test_trusted_self_hosted_validation_policy.py"
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cut3r-source-comparison-smoke-retry-v2
+  cancel-in-progress: false
+
+env:
+  AUTHORIZATION_PATH: protocols/execution_requests/cut3r_source_comparison_smoke_retry_v2.json
+  FIRST_SMOKE_SUMMARY_PATH: evidence/cut3r-source-comparison-smoke-v1/summary.json
+  HISTORICAL_PLAN_PATH: protocols/execution_requests/cut3r_deform360_source_comparison_execution_v1.json
+  PREFLIGHT_PATH: protocols/locks/cut3r_deform360_source_comparison_preflight_v1.json
+  HELPER_PATH: scripts/ci/cut3r_source_comparison_smoke_retry_v2.py
+  AUTHORIZATION_ID: efa8ef5040f268c41c02a9ea7789272d565e36dd655beccb04cfc2b3d588477a
+  FIRST_SMOKE_ARTIFACT_ID: ef4e5bf187570e918df1d7d14434b4ae55f983c347104b9c6f7ad52b42f7a7bf
+  SOURCE_FREEZE_ID: 5e739b92c2628c61fa99ae68da61d5814ca94d4b6de5720b75c4552de82d1b2c
+  SMOKE_CASE_ID: 031-cotton-cloth-episode-0000-brics-odroid-010_cam0
+  EXPECTED_PROVIDER_REVISION: 8bc15dc92a6d7fd92920b4ec81540d3dec7d3ecf
+  EXPECTED_CHECKPOINT_SHA256: 45f7e98a0a64dbeb54901ae2b878cd8cd125f20a4497316483f0bd6f109f8103
+  DISPATCH_COMMAND: >-
+    /prob4d-run-cut3r-source-comparison-smoke-retry-v2
+    efa8ef5040f268c41c02a9ea7789272d565e36dd655beccb04cfc2b3d588477a
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+
+jobs:
+  contract:
+    name: Exact zero-progress smoke replacement contract
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out reviewed pull-request merge candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Validate authorization, policy, formatting, and custody code
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -e ".[dev]"
+          python -m pip check
+          python -m ruff check \
+            "$HELPER_PATH" \
+            tests/test_cut3r_source_comparison_smoke_retry_v2.py \
+            tests/test_trusted_self_hosted_validation_policy.py
+          python -m ruff format --check \
+            "$HELPER_PATH" \
+            tests/test_cut3r_source_comparison_smoke_retry_v2.py \
+            tests/test_trusted_self_hosted_validation_policy.py
+          python -m compileall -q "$HELPER_PATH"
+          python "$HELPER_PATH" validate \
+            --repository . \
+            --authorization "$AUTHORIZATION_PATH" \
+            --first-summary "$FIRST_SMOKE_SUMMARY_PATH"
+          python -m pytest -q \
+            tests/test_cut3r_source_comparison_smoke_retry_v2.py \
+            tests/test_cut3r_source_comparison_execution.py \
+            tests/test_cut3r_source_comparison_verifier.py \
+            tests/test_trusted_self_hosted_validation_policy.py \
+            tests/test_github_action_pins.py
+
+  authorize:
+    name: Authorize one exact replacement from issue 49
+    if: >-
+      github.event_name == 'issue_comment' &&
+      github.event.issue.number == 49 &&
+      github.actor == 'FlorianPfaff' &&
+      github.event.comment.user.login == 'FlorianPfaff' &&
+      github.event.comment.body ==
+        '/prob4d-run-cut3r-source-comparison-smoke-retry-v2
+        efa8ef5040f268c41c02a9ea7789272d565e36dd655beccb04cfc2b3d588477a'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: write
+    outputs:
+      control_plane_sha: ${{ steps.identity.outputs.control_plane_sha }}
+    steps:
+      - name: Check out exact default-branch event revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+
+      - name: Validate exact authorization and merged control plane
+        id: identity
+        shell: bash
+        env:
+          EVENT_REF: ${{ github.ref }}
+          EVENT_SHA: ${{ github.sha }}
+          EVENT_COMMENT_BODY: ${{ github.event.comment.body }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_REF" = "refs/heads/main"
+          test "$(git rev-parse HEAD)" = "$EVENT_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test "$EVENT_COMMENT_BODY" = "$DISPATCH_COMMAND"
+          python "$HELPER_PATH" validate \
+            --repository . \
+            --authorization "$AUTHORIZATION_PATH" \
+            --first-summary "$FIRST_SMOKE_SUMMARY_PATH"
+          echo "control_plane_sha=$EVENT_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Reject a second accepted replacement and publish acceptance
+        shell: bash
+        env:
+          API_URL: ${{ github.api_url }}
+          REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+          COMMAND_COMMENT_ID: ${{ github.event.comment.id }}
+          COMMAND_COMMENT_URL: ${{ github.event.comment.html_url }}
+          CONTROL_PLANE_SHA: ${{ steps.identity.outputs.control_plane_sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          import urllib.request
+
+          marker = "## CUT3R source-comparison smoke replacement accepted"
+          api_url = os.environ["API_URL"]
+          repository = os.environ["REPOSITORY"]
+          token = os.environ["GITHUB_TOKEN"]
+          headers = {
+              "Accept": "application/vnd.github+json",
+              "Authorization": f"Bearer {token}",
+              "X-GitHub-Api-Version": "2022-11-28",
+          }
+          page = 1
+          while True:
+              request = urllib.request.Request(
+                  f"{api_url}/repos/{repository}/issues/49/comments"
+                  f"?per_page=100&page={page}",
+                  headers=headers,
+              )
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  comments = json.load(response)
+              if not isinstance(comments, list):
+                  raise SystemExit("issue-comment response is malformed")
+              for comment in comments:
+                  body = comment.get("body") if isinstance(comment, dict) else None
+                  if (
+                      isinstance(body, str)
+                      and marker in body
+                      and os.environ["AUTHORIZATION_ID"] in body
+                  ):
+                      raise SystemExit("the exact replacement was already accepted")
+              if len(comments) < 100:
+                  break
+              page += 1
+
+          body = "\n".join(
+              (
+                  marker,
+                  "",
+                  f"- authorization ID: `{os.environ['AUTHORIZATION_ID']}`",
+                  f"- first smoke artifact ID: `{os.environ['FIRST_SMOKE_ARTIFACT_ID']}`",
+                  f"- source-freeze ID: `{os.environ['SOURCE_FREEZE_ID']}`",
+                  f"- control-plane SHA: `{os.environ['CONTROL_PLANE_SHA']}`",
+                  f"- command comment ID: `{os.environ['COMMAND_COMMENT_ID']}`",
+                  f"- command comment: {os.environ['COMMAND_COMMENT_URL']}",
+                  f"- workflow run: {os.environ['RUN_URL']}",
+                  "",
+                  "Exactly one replacement development smoke is authorized. "
+                  "The first smoke decoded no source frame, executed no CUT3R "
+                  "inference, and wrote no prediction. Full source shards, source "
+                  "truth or residuals, targets, BayesianPhysTwin, and Causal4D "
+                  "remain unauthorized.",
+              )
+          )
+          request = urllib.request.Request(
+              f"{api_url}/repos/{repository}/issues/49/comments",
+              data=json.dumps({"body": body}).encode("utf-8"),
+              method="POST",
+              headers={**headers, "Content-Type": "application/json"},
+          )
+          with urllib.request.urlopen(request, timeout=30):
+              pass
+          PY
+
+  smoke:
+    name: Execute one retained development smoke on workstation2
+    if: >-
+      github.event_name == 'issue_comment' &&
+      needs.authorize.result == 'success'
+    needs: [authorize]
+    runs-on: [self-hosted, host-workstation2]
+    timeout-minutes: 180
+    permissions:
+      actions: read
+      contents: read
+      issues: read
+    outputs:
+      decision: ${{ steps.summary.outputs.decision }}
+      plan_id: ${{ steps.summary.outputs.plan_id }}
+      case_artifact_id: ${{ steps.summary.outputs.case_artifact_id }}
+      custody_receipt_id: ${{ steps.summary.outputs.custody_receipt_id }}
+      summary_artifact_id: ${{ steps.summary.outputs.summary_artifact_id }}
+      smoke_exit_status: ${{ steps.summary.outputs.smoke_exit_status }}
+    steps:
+      - name: Bind the sole retained GPU runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_NAME" = "workstation2"
+          test "$RUNNER_OS" = "Linux"
+          test "$RUNNER_ARCH" = "X64"
+          command -v nvidia-smi >/dev/null 2>&1
+          nvidia-smi -i 1 --query-gpu=index,uuid --format=csv,noheader
+
+      - name: Initialize isolated read-only execution workspace
+        id: workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${RUNNER_TEMP}/prob4d-cut3r-source-comparison-smoke-retry-v2-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          expected="${RUNNER_TEMP}/prob4d-cut3r-source-comparison-smoke-retry-v2-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          test "$root" = "$expected"
+          /usr/bin/rm -rf -- "$root"
+          /usr/bin/mkdir -p \
+            "$root/home" \
+            "$root/cache" \
+            "$root/tmp" \
+            "$root/evidence" \
+            "$root/output"
+          echo "root=$root" >> "$GITHUB_OUTPUT"
+          {
+            echo "HOME=$root/home"
+            echo "XDG_CACHE_HOME=$root/cache"
+            echo "TMPDIR=$root/tmp"
+          } >> "$GITHUB_ENV"
+
+      - name: Check out only the authorized merged control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.authorize.outputs.control_plane_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+
+      - name: Reject a duplicate retained attempt
+        shell: bash
+        env:
+          API_URL: ${{ github.api_url }}
+          REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+          CONTROL_PLANE_SHA: ${{ needs.authorize.outputs.control_plane_sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$CONTROL_PLANE_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          import urllib.request
+
+          api_url = os.environ["API_URL"]
+          repository = os.environ["REPOSITORY"]
+          token = os.environ["GITHUB_TOKEN"]
+          headers = {
+              "Accept": "application/vnd.github+json",
+              "Authorization": f"Bearer {token}",
+              "X-GitHub-Api-Version": "2022-11-28",
+          }
+          request = urllib.request.Request(
+              f"{api_url}/repos/{repository}/actions/runs/"
+              f"{os.environ['GITHUB_RUN_ID']}/artifacts?per_page=100",
+              headers=headers,
+          )
+          with urllib.request.urlopen(request, timeout=30) as response:
+              payload = json.load(response)
+          artifacts = payload.get("artifacts") if isinstance(payload, dict) else None
+          if not isinstance(artifacts, list):
+              raise SystemExit("workflow artifact response is malformed")
+          if any(
+              isinstance(item, dict)
+              and str(item.get("name", "")).startswith(
+                  "cut3r-source-comparison-smoke-retry-v2-"
+              )
+              for item in artifacts
+          ):
+              raise SystemExit("a retained replacement artifact already exists")
+
+          marker = "## CUT3R source-comparison smoke replacement terminal"
+          page = 1
+          while True:
+              request = urllib.request.Request(
+                  f"{api_url}/repos/{repository}/issues/49/comments"
+                  f"?per_page=100&page={page}",
+                  headers=headers,
+              )
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  comments = json.load(response)
+              if not isinstance(comments, list):
+                  raise SystemExit("issue-comment response is malformed")
+              for comment in comments:
+                  body = comment.get("body") if isinstance(comment, dict) else None
+                  if (
+                      isinstance(body, str)
+                      and marker in body
+                      and os.environ["AUTHORIZATION_ID"] in body
+                  ):
+                      raise SystemExit("a terminal replacement receipt already exists")
+              if len(comments) < 100:
+                  break
+              page += 1
+          PY
+
+      - name: Verify frozen paths, provider bytes, and exact compatible runtime
+        id: runtime
+        shell: bash
+        env:
+          CUT3R_CHECKOUT_VALUE: ${{ vars.CUT3R_CHECKOUT }}
+          CUT3R_CHECKPOINT_VALUE: ${{ vars.CUT3R_CHECKPOINT }}
+          DEFORM360_PROCESSED_ROOT_VALUE: ${{ vars.DEFORM360_PROCESSED_ROOT }}
+          CUT3R_PYTHON_VALUE: ${{ vars.CUT3R_PYTHON }}
+        run: |
+          set -euo pipefail
+          for value in \
+            "$CUT3R_CHECKOUT_VALUE" \
+            "$CUT3R_CHECKPOINT_VALUE" \
+            "$DEFORM360_PROCESSED_ROOT_VALUE"
+          do
+            test -n "$value"
+          done
+          cut3r=$(/usr/bin/realpath -e -- "$CUT3R_CHECKOUT_VALUE")
+          checkpoint=$(/usr/bin/realpath -e -- "$CUT3R_CHECKPOINT_VALUE")
+          processed=$(/usr/bin/realpath -e -- "$DEFORM360_PROCESSED_ROOT_VALUE")
+          test -d "$cut3r/.git"
+          test -f "$checkpoint"
+          test -d "$processed"
+          test "$(/usr/bin/git -c safe.directory="$cut3r" -C "$cut3r" rev-parse HEAD)" = \
+            "$EXPECTED_PROVIDER_REVISION"
+          test -z "$(/usr/bin/git -c safe.directory="$cut3r" -C "$cut3r" status \
+            --porcelain=v1 --untracked-files=all)"
+          test "$(sha256sum "$checkpoint" | cut -d' ' -f1)" = \
+            "$EXPECTED_CHECKPOINT_SHA256"
+
+          mapfile -t candidates < <(
+            {
+              test -n "$CUT3R_PYTHON_VALUE" && printf '%s\n' "$CUT3R_PYTHON_VALUE"
+              printf '%s\n' \
+                "$cut3r/.venv/bin/python" \
+                "$cut3r/venv/bin/python" \
+                "$cut3r/../.venv/bin/python" \
+                "/home/github-runner/miniconda3/envs/cut3r/bin/python" \
+                "/home/github-runner/anaconda3/envs/cut3r/bin/python" \
+                "/opt/conda/envs/cut3r/bin/python"
+              command -v python || true
+              command -v python3 || true
+              if command -v conda >/dev/null 2>&1; then
+                conda env list --json 2>/dev/null \
+                  | /usr/bin/python3 -c \
+                    'import json,sys; [print(p + "/bin/python") for p in json.load(sys.stdin).get("envs", [])]'
+              fi
+            } | awk 'NF && !seen[$0]++'
+          )
+
+          selected=""
+          for candidate in "${candidates[@]}"
+          do
+            test -x "$candidate" || continue
+            if CUDA_VISIBLE_DEVICES=1 "$candidate" - "$cut3r" "$checkpoint" <<'PY'
+          from __future__ import annotations
+
+          import importlib.metadata
+          import os
+          from pathlib import Path
+          import sys
+
+          checkout = Path(sys.argv[1]).resolve(strict=True)
+          checkpoint = Path(sys.argv[2]).resolve(strict=True)
+          expected = {
+              "numpy": "1.26.4",
+              "opencv-python": "4.11.0.86",
+              "pillow": "10.3.0",
+              "torch": "2.5.1+cu121",
+              "torchvision": "0.20.1+cu121",
+          }
+          if ".".join(str(item) for item in sys.version_info[:3]) != "3.11.15":
+              raise SystemExit(1)
+          if Path(sys.executable).name != "python":
+              raise SystemExit(1)
+          for package, version in expected.items():
+              if importlib.metadata.version(package) != version:
+                  raise SystemExit(1)
+          for path in (checkout, checkout / "src"):
+              sys.path.insert(0, os.fspath(path))
+          from add_ckpt_path import add_path_to_dust3r
+
+          add_path_to_dust3r(os.fspath(checkpoint))
+          import cv2  # noqa: F401
+          import demo  # noqa: F401
+          import dust3r.inference  # noqa: F401
+          import dust3r.model  # noqa: F401
+          import PIL  # noqa: F401
+          import torch
+          import torchvision  # noqa: F401
+
+          if not torch.cuda.is_available() or torch.version.cuda != "12.1":
+              raise SystemExit(1)
+          if torch.cuda.device_count() != 1:
+              raise SystemExit(1)
+          PY
+            then
+              selected=$(/usr/bin/realpath -e -- "$candidate")
+              break
+            fi
+          done
+          test -n "$selected" || {
+            echo "no exact frozen CUT3R Python runtime was found" >&2
+            exit 2
+          }
+          {
+            echo "CUT3R_CANONICAL=$cut3r"
+            echo "CHECKPOINT_CANONICAL=$checkpoint"
+            echo "PROCESSED_CANONICAL=$processed"
+            echo "RUNTIME_PYTHON=$selected"
+            echo "PYTHONPATH=$GITHUB_WORKSPACE/src"
+            echo "CUDA_VISIBLE_DEVICES=1"
+            echo "CUDA_DEVICE_ORDER=PCI_BUS_ID"
+            echo "GIT_CONFIG_COUNT=1"
+            echo "GIT_CONFIG_KEY_0=safe.directory"
+            echo "GIT_CONFIG_VALUE_0=$cut3r"
+          } >> "$GITHUB_ENV"
+          echo "python=$selected" >> "$GITHUB_OUTPUT"
+
+      - name: Build and bind the repaired outcome-blind execution plan
+        shell: bash
+        env:
+          CONTROL_PLANE_SHA: ${{ needs.authorize.outputs.control_plane_sha }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          generated="$root/evidence/execution-plan.generated.json"
+          repaired="$root/evidence/execution-plan.repaired.json"
+          "$RUNTIME_PYTHON" \
+            scripts/science/build_cut3r_source_comparison_execution_plan.py \
+            --repository . \
+            --preflight "$PREFLIGHT_PATH" \
+            --cut3r-checkout "$CUT3R_CANONICAL" \
+            --checkpoint "$CHECKPOINT_CANONICAL" \
+            --output "$generated"
+          "$RUNTIME_PYTHON" "$HELPER_PATH" adapt-plan \
+            --repository . \
+            --authorization "$AUTHORIZATION_PATH" \
+            --first-summary "$FIRST_SMOKE_SUMMARY_PATH" \
+            --historical-plan "$HISTORICAL_PLAN_PATH" \
+            --generated-plan "$generated" \
+            --output "$repaired"
+          test "$(git rev-parse HEAD)" = "$CONTROL_PLANE_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Execute one exact replacement smoke
+        id: execute
+        shell: bash
+        continue-on-error: true
+        run: |
+          set +e
+          root="${{ steps.workspace.outputs.root }}"
+          plan="$root/evidence/execution-plan.repaired.json"
+          "$RUNTIME_PYTHON" scripts/science/run_cut3r_source_comparison.py \
+            --repository . \
+            --plan "$plan" \
+            --processed-root "$PROCESSED_CANONICAL" \
+            --cut3r-checkout "$CUT3R_CANONICAL" \
+            --checkpoint "$CHECKPOINT_CANONICAL" \
+            --output-root "$root/output" \
+            --device cuda:0 \
+            --shard-index 0 \
+            --shard-count 2 \
+            --smoke-case-id "$SMOKE_CASE_ID" \
+            > "$root/evidence/smoke-stdout.json" \
+            2> "$root/evidence/smoke-stderr.txt"
+          status=$?
+          set -e
+          echo "exit_status=$status" >> "$GITHUB_OUTPUT"
+          test "$status" -eq 0 || test "$status" -eq 3
+
+      - name: Validate every retained byte and publish custody
+        id: summary
+        if: steps.execute.outputs.exit_status == '0' || steps.execute.outputs.exit_status == '3'
+        shell: bash
+        env:
+          CONTROL_PLANE_SHA: ${{ needs.authorize.outputs.control_plane_sha }}
+          SMOKE_EXIT_STATUS: ${{ steps.execute.outputs.exit_status }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          plan="$root/evidence/execution-plan.repaired.json"
+          report="$root/output/shards/smoke-${SMOKE_CASE_ID}.json"
+          receipt="$root/evidence/custody-receipt.json"
+          case_root="$root/output/cases/$SMOKE_CASE_ID"
+          plan_id=$("$RUNTIME_PYTHON" - "$plan" <<'PY'
+          import json
+          import sys
+
+          print(json.load(open(sys.argv[1], encoding="utf-8"))["plan_id"])
+          PY
+          )
+          "$RUNTIME_PYTHON" \
+            scripts/science/verify_cut3r_source_comparison_artifacts.py shard \
+            --output-root "$root/output" \
+            --report "$report" \
+            --receipt "$receipt" \
+            --expected-plan-id "$plan_id" \
+            --allow-technical-failures
+          "$RUNTIME_PYTHON" "$HELPER_PATH" summarize \
+            --authorization "$AUTHORIZATION_PATH" \
+            --plan "$plan" \
+            --output-root "$root/output" \
+            --shard-report "$report" \
+            --custody-receipt "$receipt" \
+            --case-root "$case_root" \
+            --smoke-exit-status "$SMOKE_EXIT_STATUS" \
+            --workflow-run-id "$GITHUB_RUN_ID" \
+            --workflow-run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --control-plane-sha "$CONTROL_PLANE_SHA" \
+            --output "$root/evidence/replacement-summary.json" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Record bounded execution environment
+        if: always() && steps.workspace.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          {
+            echo "repository=${GITHUB_REPOSITORY}"
+            echo "control_plane_sha=${{ needs.authorize.outputs.control_plane_sha }}"
+            echo "authorization_id=$AUTHORIZATION_ID"
+            echo "source_freeze_id=$SOURCE_FREEZE_ID"
+            echo "runner_name=$RUNNER_NAME"
+            echo "runner_os=$RUNNER_OS"
+            echo "runner_arch=$RUNNER_ARCH"
+            echo "physical_gpu_index=1"
+            test -n "${RUNTIME_PYTHON:-}" && "$RUNTIME_PYTHON" --version || true
+          } > "$root/evidence/environment.txt"
+          {
+            /usr/bin/uname -a
+            nvidia-smi -i 1
+          } > "$root/evidence/host.txt" 2>&1
+          /usr/bin/python3 - "$root/evidence" <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          from pathlib import Path
+          import sys
+
+          root = Path(sys.argv[1])
+          lines = []
+          for path in sorted(root.rglob("*")):
+              if path.is_file() and path.name != "SHA256SUMS":
+                  digest = hashlib.sha256(path.read_bytes()).hexdigest()
+                  lines.append(f"{digest}  {path.relative_to(root).as_posix()}")
+          (root / "SHA256SUMS").write_text(
+              "\n".join(lines) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Upload retained replacement evidence
+        if: always() && steps.workspace.outcome == 'success'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: cut3r-source-comparison-smoke-retry-v2-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ steps.workspace.outputs.root }}/evidence/
+            ${{ steps.workspace.outputs.root }}/output/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 6
+
+      - name: Remove isolated workspace and checkout residue
+        if: always() && steps.workspace.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          expected="${RUNNER_TEMP}/prob4d-cut3r-source-comparison-smoke-retry-v2-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          test "$root" = "$expected"
+          /usr/bin/rm -rf -- "$root"
+          /usr/bin/git reset --hard HEAD
+          /usr/bin/git clean -ffdx
+
+      - name: Fail closed unless the replacement is an ordinary success
+        if: always()
+        shell: bash
+        env:
+          RETAINED_DECISION: ${{ steps.summary.outputs.decision }}
+          SMOKE_EXIT_STATUS: ${{ steps.execute.outputs.exit_status }}
+        run: |
+          set -euo pipefail
+          test "$SMOKE_EXIT_STATUS" = "0"
+          test "$RETAINED_DECISION" = "ordinary-success-development-smoke"
+
+  report:
+    name: Publish terminal replacement receipt
+    if: >-
+      always() &&
+      github.event_name == 'issue_comment' &&
+      needs.authorize.result == 'success'
+    needs: [authorize, smoke]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Comment exact terminal status on issue 49
+        shell: bash
+        env:
+          API_URL: ${{ github.api_url }}
+          REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+          CONTROL_PLANE_SHA: ${{ needs.authorize.outputs.control_plane_sha }}
+          SMOKE_JOB_RESULT: ${{ needs.smoke.result }}
+          DECISION: ${{ needs.smoke.outputs.decision }}
+          PLAN_ID: ${{ needs.smoke.outputs.plan_id }}
+          CASE_ARTIFACT_ID: ${{ needs.smoke.outputs.case_artifact_id }}
+          CUSTODY_RECEIPT_ID: ${{ needs.smoke.outputs.custody_receipt_id }}
+          SUMMARY_ARTIFACT_ID: ${{ needs.smoke.outputs.summary_artifact_id }}
+          SMOKE_EXIT_STATUS: ${{ needs.smoke.outputs.smoke_exit_status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          import urllib.request
+
+          decision = os.environ.get("DECISION") or "workflow-failed-before-retained-decision"
+          body = "\n".join(
+              (
+                  "## CUT3R source-comparison smoke replacement terminal",
+                  "",
+                  f"- authorization ID: `{os.environ['AUTHORIZATION_ID']}`",
+                  f"- control-plane SHA: `{os.environ['CONTROL_PLANE_SHA']}`",
+                  f"- smoke job result: `{os.environ['SMOKE_JOB_RESULT']}`",
+                  f"- retained decision: `{decision}`",
+                  f"- smoke exit status: `{os.environ.get('SMOKE_EXIT_STATUS') or 'not-produced'}`",
+                  f"- plan ID: `{os.environ.get('PLAN_ID') or 'not-produced'}`",
+                  f"- case artifact ID: `{os.environ.get('CASE_ARTIFACT_ID') or 'not-produced'}`",
+                  f"- custody receipt ID: `{os.environ.get('CUSTODY_RECEIPT_ID') or 'not-produced'}`",
+                  f"- summary artifact ID: `{os.environ.get('SUMMARY_ARTIFACT_ID') or 'not-produced'}`",
+                  f"- workflow run: {os.environ['RUN_URL']}",
+                  "",
+                  "This receipt covers one development smoke only. Source truth "
+                  "and residuals, target payloads and outcomes, BayesianPhysTwin, "
+                  "and Causal4D remained closed.",
+              )
+          )
+          request = urllib.request.Request(
+              f"{os.environ['API_URL']}/repos/{os.environ['REPOSITORY']}/issues/49/comments",
+              data=json.dumps({"body": body}).encode("utf-8"),
+              method="POST",
+              headers={
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
+                  "Content-Type": "application/json",
+                  "X-GitHub-Api-Version": "2022-11-28",
+              },
+          )
+          with urllib.request.urlopen(request, timeout=30):
+              pass
+          PY
