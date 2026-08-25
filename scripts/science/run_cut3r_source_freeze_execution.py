@@ -106,6 +106,19 @@ def _lower_hex(value: object, *, name: str, length: int) -> str:
     return value
 
 
+def _source_freeze_id(freeze: Mapping[str, Any]) -> str:
+    source_freeze_id = _lower_hex(
+        freeze.get("source_freeze_id"),
+        name="source-freeze source_freeze_id",
+        length=64,
+    )
+    identity = dict(freeze)
+    identity.pop("source_freeze_id")
+    if _sha256_json(identity) != source_freeze_id:
+        raise ValueError("source-freeze source_freeze_id mismatch")
+    return source_freeze_id
+
+
 def _literal_string(value: object, *, name: str) -> str:
     if type(value) is not str or not value or value != value.strip():
         raise ValueError(f"{name} must be a nonempty exact string")
@@ -429,11 +442,7 @@ def execute(args: argparse.Namespace) -> int:
         f"cut3r-source-freeze-v2-{request_id[:12]}-"
         f"{args.workflow_run_id}-{args.workflow_run_attempt}"
     )
-    freeze_artifact_id = _lower_hex(
-        freeze.get("artifact_id"),
-        name="source-freeze artifact_id",
-        length=64,
-    )
+    freeze_artifact_id = _source_freeze_id(freeze)
     summary = {
         "schema": SUMMARY_SCHEMA,
         "schema_version": SUMMARY_VERSION,
