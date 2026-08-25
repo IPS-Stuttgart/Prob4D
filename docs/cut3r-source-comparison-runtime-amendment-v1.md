@@ -22,3 +22,11 @@ This amendment is not a scientific result and does not authorize source truth,
 target data, BayesianPhysTwin, Causal4D, or scoring. It only creates a guarded
 opportunity to obtain the first valid CUT3R prediction artifact under the frozen
 comparison.
+
+The server-runtime plan has content identity
+`ab460acf8ba85d8e5470126e6e9e2fc445d16ad506612b10f1a926a614c60f98`
+and file SHA-256
+`d4eceb6a44f154901227f1e2ac0e832874869179e55f74ce18f10d6a352d6b00`.
+It binds implementation revision
+`83ce1c546d4c7d0ebca740334a8ad969666a1d0c` and records only the SHA-256
+identity of the registered replacement smoke in public summaries.
