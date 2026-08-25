@@ -1,0 +1,1 @@
+- Preserve the one-shot CUT3R v1.2 smoke as a no-retry provider-inference failure, keep all truth and target boundaries closed, and remove decoded source frames from future technical-failure artifacts before publication.

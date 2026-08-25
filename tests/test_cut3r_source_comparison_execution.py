@@ -18,11 +18,15 @@ from prob4d.cut3r_source_comparison_execution import (
 from prob4d.cut3r_source_comparison_verifier import (
     content_id,
     path_identity_sha256,
+    validate_case_artifact,
     validate_shard_artifact,
     write_custody_receipt,
 )
 from prob4d.data import PredictionWindow
 from prob4d.sim3 import Sim3
+
+ROOT = Path(__file__).resolve().parents[1]
+V1_2_RESULT = ROOT / "evidence" / "cut3r-source-comparison-smoke-v1-2" / "summary.json"
 
 
 def _load_runner_module():
@@ -140,9 +144,23 @@ def test_native_product_preserves_point_mean_and_support() -> None:
     assert np.all(native.contributors[native.valid_mask] == 1)
 
 
-def test_cut3r_runtime_exposes_repository_and_internal_package(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_v1_2_smoke_result_is_content_bound_terminal_and_target_closed() -> None:
+    result = json.loads(V1_2_RESULT.read_text(encoding="utf-8"))
+    unsigned = dict(result)
+    artifact_id = unsigned.pop("artifact_id")
+
+    assert content_id(unsigned) == artifact_id
+    assert result["result"] == "retained-technical-failure-no-retry"
+    assert result["attempt"]["attempt_number"] == 1
+    assert result["attempt"]["retry_authorized"] is False
+    assert result["source_shards_authorized"] is False
+    assert result["execution"]["ordinary_success_count"] == 0
+    assert result["execution"]["source_predictions_written"] is False
+    assert result["custody"]["publication_authorized"] is False
+    assert not any(result["information_boundary"].values())
+
+
+def test_cut3r_runtime_exposes_repository_and_internal_package(tmp_path: Path, monkeypatch) -> None:
     module = _load_runner_module()
     checkout = tmp_path / "CUT3R"
     (checkout / "src").mkdir(parents=True)
@@ -188,6 +206,70 @@ def test_runtime_bootstrap_failure_is_retained_without_progress(tmp_path: Path) 
     assert (output / "cases/development-case/case_manifest.json").is_file()
 
 
+def test_provider_failure_after_decode_removes_source_frames(tmp_path: Path, monkeypatch) -> None:
+    module = _load_runner_module()
+    processed = tmp_path / "processed"
+    output = tmp_path / "output"
+    checkout = tmp_path / "CUT3R"
+    checkpoint = tmp_path / "model.pth"
+    processed.mkdir()
+    checkout.mkdir()
+    checkpoint.write_bytes(b"checkpoint")
+    video = processed / "video.mp4"
+    video.write_bytes(b"video")
+
+    class FailingRuntime:
+        def __init__(self) -> None:
+            self.checkout = checkout
+            self.checkpoint = checkpoint
+
+        def infer_to_direct_tree(self, frames: list[Path], output_root: Path) -> None:
+            assert len(frames) == 1
+            raise RuntimeError("provider inference failed")
+
+    def decode_frames(
+        source: Path,
+        decoded_root: Path,
+        *,
+        frame_start: int,
+        frame_stop_exclusive: int,
+    ) -> list[Path]:
+        assert source == video
+        assert (frame_start, frame_stop_exclusive) == (0, 1)
+        decoded_root.mkdir(parents=True)
+        frame = decoded_root / "000000.png"
+        frame.write_bytes(b"source-rgb")
+        return [frame]
+
+    monkeypatch.setattr(module, "_verify_video", lambda *_args: video)
+    monkeypatch.setattr(module, "_decode_frames", decode_frames)
+    case = {
+        "case_id": "development-case",
+        "group_id": "development-group",
+        "role": "development",
+        "frame_start": 0,
+        "frame_stop_exclusive": 1,
+    }
+
+    manifest = module._execute_case(
+        FailingRuntime(),
+        case=case,
+        plan={"plan_id": "a" * 64},
+        processed_root=processed,
+        output_root=output,
+        shard_index=0,
+    )
+
+    case_root = output / "cases" / "development-case"
+    assert manifest["status"] == "retained-technical-failure"
+    assert manifest["source_rgb_frames_decoded"] is True
+    assert manifest["cut3r_inference_executed"] is False
+    assert not (case_root / "decoded").exists()
+    assert [member["path"] for member in manifest["members"]] == ["failure_traceback.txt"]
+    validated = validate_case_artifact(case_root, expected_plan_id="a" * 64)
+    assert validated["artifact_id"] == manifest["artifact_id"]
+
+
 def test_amended_plan_selects_only_the_registered_replacement_smoke() -> None:
     module = _load_runner_module()
     plan = {
@@ -227,9 +309,7 @@ def _amended_gate_plan(output_root: Path, ledger: Path) -> dict[str, object]:
         "execution": {
             "smoke_policy": {
                 "registered_case_id": case_id,
-                "registered_case_id_sha256": hashlib.sha256(
-                    case_id.encode("utf-8")
-                ).hexdigest(),
+                "registered_case_id_sha256": hashlib.sha256(case_id.encode("utf-8")).hexdigest(),
                 "registered_output_root_path_sha256": path_identity_sha256(output_root),
                 "registered_attempt_ledger_path_sha256": path_identity_sha256(ledger),
             }

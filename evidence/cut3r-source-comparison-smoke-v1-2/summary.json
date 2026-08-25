@@ -1,0 +1,56 @@
+{
+  "artifact_id": "c6577587b2b5f9dc92d408bb199fffbf710fa7b74bf271853e55a66c0edc81c9",
+  "attempt": {
+    "attempt_number": 1,
+    "ledger_file_sha256": "c315f73396b0d5557696e2326f10b9e4a5f1aee9d63c25479176a61b355e122c",
+    "ledger_record_id": "3ab151bf08d20bb460ee91d83b9decd0b22e0ffd7e933db483e429af850c3356",
+    "retry_authorized": false
+  },
+  "claim_boundary": "One registered development smoke only. This is provider-runtime and custody evidence, not source competence, accuracy, uncertainty, target transfer, BayesianPhysTwin, Causal4D, safety, or state-of-the-art evidence.",
+  "custody": {
+    "decoded_byte_count": 44036214,
+    "decoded_member_count": 58,
+    "decision": "failed-decoded-source-frames-retained",
+    "official_custody_receipt_written": false,
+    "publication_authorized": false,
+    "quarantined_source_tree_modified": false,
+    "verifier_error": "decoded source frame retained in case artifact: decoded/000000.png"
+  },
+  "execution": {
+    "case_id_sha256": "8ddd8b05edcd78515fc7c5647e2736060630e0932a59702495b2853a68f02fa7",
+    "cut3r_inference_executed": false,
+    "elapsed_seconds": 2.1263942389923614,
+    "failure_class": "RuntimeError",
+    "failure_summary": "CUDA error: device-side assert triggered",
+    "ordinary_success_count": 0,
+    "source_predictions_written": false,
+    "source_rgb_frames_decoded": true,
+    "terminal_stage": "provider-inference"
+  },
+  "information_boundary": {
+    "bayesian_phystwin_executed": false,
+    "candidate_reference_file_contents_opened": false,
+    "causal4d_executed": false,
+    "source_residuals_or_truth_opened": false,
+    "target_outcomes_opened": false,
+    "target_payloads_opened": false
+  },
+  "inputs": {
+    "checkpoint_sha256": "45f7e98a0a64dbeb54901ae2b878cd8cd125f20a4497316483f0bd6f109f8103",
+    "implementation_revision": "06f7a19c2016b291f85bf17634a515ffc4890ac1",
+    "plan_file_sha256": "172e725e3ecfe12dac7c0e402f01883dd92d6898179e89079f21f2b3c05e680c",
+    "plan_id": "1c74105994cb32885c8ab57af5a2d1feb296ce63c5e9a3fc39665fb2094bad3a",
+    "provider_revision": "8bc15dc92a6d7fd92920b4ec81540d3dec7d3ecf"
+  },
+  "raw_evidence": {
+    "case_artifact_id": "72244d724c21f942c1c0808b8e1beedda22bcce006c80cd20eff5cd1bb877986",
+    "case_manifest_file_sha256": "231b8c0eef6fd7911b7c20d7abe805509422673ca2b7f9f8ddc41204714c5d6c",
+    "quarantined_member_count": 59,
+    "shard_report_artifact_id": "920a3a92079dadf814e1f993413d93c3cfc56fb5a4971c609edcc1fdd31a82cd",
+    "shard_report_file_sha256": "c372a9da97bf78dcd4023340e9c90fb456c550c95eab1792f4966d6b021383c7"
+  },
+  "result": "retained-technical-failure-no-retry",
+  "schema": "prob4d.cut3r-source-comparison-smoke-result",
+  "schema_version": 2,
+  "source_shards_authorized": false
+}
