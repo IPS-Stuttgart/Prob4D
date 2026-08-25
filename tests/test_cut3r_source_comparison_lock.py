@@ -27,6 +27,33 @@ def _git_blob(revision: str, relative: str) -> bytes:
     ).stdout
 
 
+def _is_shallow_checkout() -> bool:
+    result = subprocess.run(
+        ("git", "-C", str(ROOT), "rev-parse", "--is-shallow-repository"),
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout.strip() == "true"
+
+
+def _reviewed_blob(revision: str, relative: str, expected_sha256: str) -> bytes:
+    try:
+        return _git_blob(revision, relative)
+    except subprocess.CalledProcessError:
+        # The ordinary test matrix deliberately uses a depth-one pull-request
+        # checkout, so the reviewed implementation commit may not be present as
+        # a local Git object. In that specific case, retain content-level
+        # verification against the checked-out merge candidate. A full-history
+        # checkout must resolve the pinned revision and may not use this path.
+        if not _is_shallow_checkout():
+            raise
+        current = (ROOT / relative).read_bytes()
+        actual_sha256 = hashlib.sha256(current).hexdigest()
+        assert actual_sha256 == expected_sha256
+        return current
+
+
 def test_checked_in_execution_plan_is_exact_and_target_closed() -> None:
     payload = PLAN.read_bytes()
     assert hashlib.sha256(payload).hexdigest() == PLAN_FILE_SHA256
@@ -56,4 +83,5 @@ def test_execution_plan_binds_reviewed_implementation_blobs() -> None:
     source_hashes = plan["implementation"]["source_file_sha256"]
 
     for relative, expected in source_hashes.items():
-        assert hashlib.sha256(_git_blob(IMPLEMENTATION_REVISION, relative)).hexdigest() == expected
+        blob = _reviewed_blob(IMPLEMENTATION_REVISION, relative, expected)
+        assert hashlib.sha256(blob).hexdigest() == expected
