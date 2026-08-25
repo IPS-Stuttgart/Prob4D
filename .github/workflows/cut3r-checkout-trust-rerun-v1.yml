@@ -1,11 +1,11 @@
-name: Repair retained CUT3R checkout trust and rerun exact job v1
+name: Repair retained CUT3R isolated HOME and rerun exact job v2
 
 on:
   pull_request:
     branches: [main]
     paths:
       - ".github/workflows/cut3r-checkout-trust-rerun-v1.yml"
-      - "CHANGELOG.d/cut3r-checkout-trust-rerun-v1.md"
+      - "CHANGELOG.d/cut3r-isolated-home-rerun-v2.md"
       - "docs/cut3r-checkout-trust-rerun-v1.md"
       - "tests/test_cut3r_checkout_trust_rerun_v1.py"
       - "tests/test_trusted_self_hosted_validation_policy.py"
@@ -19,30 +19,35 @@ permissions:
   contents: read
 
 concurrency:
-  group: cut3r-checkout-trust-rerun-v1-${{ github.event_name }}
+  group: cut3r-isolated-home-rerun-v2-${{ github.event_name }}
   cancel-in-progress: false
 
 env:
-  DISPATCH_COMMAND: /prob4d-repair-cut3r-checkout-trust-and-rerun-v1 32771242880 9551181122 d1eff3af637eb297e72334693b1c51723f4eb9487a6cf6a8957d130bc34b9721
+  DISPATCH_COMMAND: /prob4d-repair-cut3r-isolated-home-and-rerun-v2 32771242880 32817085071 9551181122 d1eff3af637eb297e72334693b1c51723f4eb9487a6cf6a8957d130bc34b9721
   FAILED_RUN_ID: "32771242880"
   FAILED_RUN_ATTEMPT: "2"
+  TARGET_RERUN_ATTEMPT: "3"
   FAILED_HEAD_SHA: 30f85ecd6c2395b333f723db47a18f6677d7c58f
   FAILED_EXECUTE_JOB_ID: "97702294765"
   FAILURE_ARTIFACT_ID: "9551181122"
   FAILURE_ARTIFACT_NAME: cut3r-source-freeze-v2-failed-32771242880-2
   FAILURE_ARTIFACT_SIZE: "4384"
   FAILURE_ARTIFACT_DIGEST: sha256:d1eff3af637eb297e72334693b1c51723f4eb9487a6cf6a8957d130bc34b9721
+  FAILED_HELPER_RUN_ID: "32817085071"
+  FAILED_HELPER_HEAD_SHA: d48de84f4d01785e978dafeb2bd7752539b9a6f1
+  FAILED_HELPER_PREPARE_JOB_ID: "97707491362"
   HISTORICAL_EXECUTION_SHA: 8b923e8cd67ca65f09312cffe305e36852f36fbb
   RETAINED_REQUEST_ID: 8f3c9fba12f8a16895edce89d7a92e4806a43cb2f34b5a05faff71945809b63e
   EXPECTED_CUT3R_REVISION: 8bc15dc92a6d7fd92920b4ec81540d3dec7d3ecf
-  TRUST_MARKER_NAME: prob4d-cut3r-checkout-trust-rerun-v1.json
+  HELPER_PREFIX: prob4d-cut3r-isolated-home-rerun-v2-32771242880
+  WATCHER_TIMEOUT_SECONDS: "1200"
   PYTHONHASHSEED: "0"
   PYTHONUNBUFFERED: "1"
   PYTHONDONTWRITEBYTECODE: "1"
 
 jobs:
   contract:
-    name: Checkout-trust repair contract
+    name: Isolated-HOME rerun contract
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -79,13 +84,13 @@ jobs:
             tests/test_github_action_pins.py
 
   authorize:
-    name: Authorize exact pre-provider failure repair
+    name: Authorize exact isolated-HOME repair
     if: >-
       github.event_name == 'issue_comment' &&
       github.event.issue.number == 49 &&
       github.actor == 'FlorianPfaff' &&
       github.event.comment.user.login == 'FlorianPfaff' &&
-      github.event.comment.body == '/prob4d-repair-cut3r-checkout-trust-and-rerun-v1 32771242880 9551181122 d1eff3af637eb297e72334693b1c51723f4eb9487a6cf6a8957d130bc34b9721'
+      github.event.comment.body == '/prob4d-repair-cut3r-isolated-home-and-rerun-v2 32771242880 32817085071 9551181122 d1eff3af637eb297e72334693b1c51723f4eb9487a6cf6a8957d130bc34b9721'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -103,7 +108,7 @@ jobs:
           persist-credentials: false
           clean: true
 
-      - name: Verify exact failed run and bounded diagnostic artifact
+      - name: Verify exact source-freeze and helper failures
         id: verify
         shell: bash
         env:
@@ -111,8 +116,6 @@ jobs:
           REPOSITORY: ${{ github.repository }}
           GITHUB_TOKEN: ${{ github.token }}
           EVENT_COMMENT_BODY: ${{ github.event.comment.body }}
-          COMMAND_COMMENT_URL: ${{ github.event.comment.html_url }}
-          HELPER_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           EXPECTED_EVENT_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
@@ -131,9 +134,6 @@ jobs:
           api_url = os.environ["API_URL"].rstrip("/")
           repository = os.environ["REPOSITORY"]
           token = os.environ["GITHUB_TOKEN"]
-          run_id = int(os.environ["FAILED_RUN_ID"])
-          execute_job_id = int(os.environ["FAILED_EXECUTE_JOB_ID"])
-          artifact_id = int(os.environ["FAILURE_ARTIFACT_ID"])
 
           def request_json(path: str) -> Any:
               request = urllib.request.Request(
@@ -142,7 +142,7 @@ jobs:
                   headers={
                       "Accept": "application/vnd.github+json",
                       "Authorization": f"Bearer {token}",
-                      "User-Agent": "prob4d-cut3r-checkout-trust-rerun-v1",
+                      "User-Agent": "prob4d-cut3r-isolated-home-rerun-v2",
                       "X-GitHub-Api-Version": "2022-11-28",
                   },
               )
@@ -168,10 +168,11 @@ jobs:
                           f"{label} {key} mismatch: {measured!r} != {expected_value!r}"
                       )
 
+          run_id = int(os.environ["FAILED_RUN_ID"])
           run_path = f"/repos/{repository}/actions/runs/{run_id}"
           run = request_json(run_path)
           if not isinstance(run, dict):
-              raise SystemExit("failed run response is not an object")
+              raise SystemExit("source-freeze run response is not an object")
           require_fields(
               run,
               {
@@ -185,14 +186,14 @@ jobs:
                   "conclusion": "failure",
                   "run_attempt": int(os.environ["FAILED_RUN_ATTEMPT"]),
               },
-              label="failed run",
+              label="source-freeze run",
           )
 
           jobs_payload = request_json(f"{run_path}/jobs?filter=latest&per_page=100")
           if not isinstance(jobs_payload, dict) or not isinstance(
               jobs_payload.get("jobs"), list
           ):
-              raise SystemExit("failed run jobs are unavailable")
+              raise SystemExit("source-freeze jobs are unavailable")
           jobs = {
               row.get("name"): row
               for row in jobs_payload["jobs"]
@@ -201,7 +202,7 @@ jobs:
           expected_jobs = {
               "Bound self-hosted runner acceptance wait": (97702294709, "success"),
               "Freeze retained source inputs from trusted merged main": (
-                  execute_job_id,
+                  int(os.environ["FAILED_EXECUTE_JOB_ID"]),
                   "failure",
               ),
               "Hosted automatic-execution contract": (97702294787, "success"),
@@ -211,24 +212,23 @@ jobs:
               "Publish terminal v2 source-freeze receipt": (97702366510, "success"),
           }
           if set(jobs) != set(expected_jobs):
-              raise SystemExit("failed run job roster mismatch")
+              raise SystemExit("source-freeze job roster mismatch")
           for name, (job_id, conclusion) in expected_jobs.items():
-              job = jobs[name]
               require_fields(
-                  job,
+                  jobs[name],
                   {
                       "id": job_id,
                       "run_id": run_id,
                       "status": "completed",
                       "conclusion": conclusion,
                   },
-                  label=f"job {name!r}",
+                  label=f"source-freeze job {name!r}",
               )
 
           execute = jobs["Freeze retained source inputs from trusted merged main"]
           steps = execute.get("steps")
           if not isinstance(steps, list):
-              raise SystemExit("failed execute steps are unavailable")
+              raise SystemExit("source-freeze execute steps are unavailable")
           steps_by_name = {
               row.get("name"): row
               for row in steps
@@ -249,53 +249,127 @@ jobs:
           for name, conclusion in expected_steps.items():
               step = steps_by_name.get(name)
               if not isinstance(step, dict):
-                  raise SystemExit(f"missing exact failed-run step {name!r}")
+                  raise SystemExit(f"missing source-freeze step {name!r}")
               require_fields(
                   step,
                   {"status": "completed", "conclusion": conclusion},
-                  label=f"step {name!r}",
+                  label=f"source-freeze step {name!r}",
               )
 
           artifacts_payload = request_json(f"{run_path}/artifacts?per_page=100")
           if not isinstance(artifacts_payload, dict) or not isinstance(
               artifacts_payload.get("artifacts"), list
           ):
-              raise SystemExit("failed run artifacts are unavailable")
+              raise SystemExit("source-freeze artifacts are unavailable")
           artifacts = artifacts_payload["artifacts"]
           if artifacts_payload.get("total_count") != 1 or len(artifacts) != 1:
-              raise SystemExit("failed run artifact count mismatch")
+              raise SystemExit("source-freeze artifact count mismatch")
           artifact = artifacts[0]
           if not isinstance(artifact, dict):
-              raise SystemExit("failed run artifact is not an object")
+              raise SystemExit("source-freeze artifact is not an object")
           require_fields(
               artifact,
               {
-                  "id": artifact_id,
+                  "id": int(os.environ["FAILURE_ARTIFACT_ID"]),
                   "name": os.environ["FAILURE_ARTIFACT_NAME"],
                   "size_in_bytes": int(os.environ["FAILURE_ARTIFACT_SIZE"]),
                   "digest": os.environ["FAILURE_ARTIFACT_DIGEST"],
                   "expired": False,
               },
-              label="failed diagnostic artifact",
+              label="source-freeze diagnostic artifact",
           )
-          workflow_run = artifact.get("workflow_run")
-          if not isinstance(workflow_run, dict):
-              raise SystemExit("artifact workflow identity is unavailable")
+
+          helper_run_id = int(os.environ["FAILED_HELPER_RUN_ID"])
+          helper_path = f"/repos/{repository}/actions/runs/{helper_run_id}"
+          helper = request_json(helper_path)
+          if not isinstance(helper, dict):
+              raise SystemExit("failed helper response is not an object")
           require_fields(
-              workflow_run,
+              helper,
               {
-                  "id": run_id,
-                  "repository_id": 1295794737,
-                  "head_repository_id": 1295794737,
+                  "id": helper_run_id,
+                  "name": (
+                      "Repair retained CUT3R checkout trust and rerun exact job v1"
+                  ),
+                  "path": ".github/workflows/cut3r-checkout-trust-rerun-v1.yml",
                   "head_branch": "main",
-                  "head_sha": os.environ["FAILED_HEAD_SHA"],
+                  "head_sha": os.environ["FAILED_HELPER_HEAD_SHA"],
+                  "event": "issue_comment",
+                  "status": "completed",
+                  "conclusion": "failure",
+                  "run_attempt": 1,
               },
-              label="artifact workflow identity",
+              label="failed helper run",
           )
+          helper_jobs_payload = request_json(
+              f"{helper_path}/jobs?filter=latest&per_page=100"
+          )
+          if not isinstance(helper_jobs_payload, dict) or not isinstance(
+              helper_jobs_payload.get("jobs"), list
+          ):
+              raise SystemExit("failed helper jobs are unavailable")
+          helper_jobs = {
+              row.get("name"): row
+              for row in helper_jobs_payload["jobs"]
+              if isinstance(row, dict) and isinstance(row.get("name"), str)
+          }
+          expected_helper_jobs = {
+              "Authorize exact pre-provider failure repair": (97707449723, "success"),
+              "Checkout-trust repair contract": (97707450472, "skipped"),
+              "Remove temporary retained checkout trust": (97707450479, "skipped"),
+              "Report checkout-trust cleanup": (97707451051, "skipped"),
+              "Prepare exact retained CUT3R checkout trust": (
+                  int(os.environ["FAILED_HELPER_PREPARE_JOB_ID"]),
+                  "failure",
+              ),
+              "Rerun only the exact failed retained job": (97707515871, "skipped"),
+          }
+          if set(helper_jobs) != set(expected_helper_jobs):
+              raise SystemExit("failed helper job roster mismatch")
+          for name, (job_id, conclusion) in expected_helper_jobs.items():
+              require_fields(
+                  helper_jobs[name],
+                  {
+                      "id": job_id,
+                      "run_id": helper_run_id,
+                      "status": "completed",
+                      "conclusion": conclusion,
+                  },
+                  label=f"failed helper job {name!r}",
+              )
+          helper_prepare = helper_jobs[
+              "Prepare exact retained CUT3R checkout trust"
+          ]
+          helper_steps = helper_prepare.get("steps")
+          if not isinstance(helper_steps, list):
+              raise SystemExit("failed helper prepare steps are unavailable")
+          helper_steps_by_name = {
+              row.get("name"): row
+              for row in helper_steps
+              if isinstance(row, dict) and isinstance(row.get("name"), str)
+          }
+          expected_helper_steps = {
+              "Bind the sole retained Deform360 runner": "success",
+              "Probe and temporarily repair retained checkout trust": "failure",
+          }
+          for name, conclusion in expected_helper_steps.items():
+              step = helper_steps_by_name.get(name)
+              if not isinstance(step, dict):
+                  raise SystemExit(f"missing failed helper step {name!r}")
+              require_fields(
+                  step,
+                  {"status": "completed", "conclusion": conclusion},
+                  label=f"failed helper step {name!r}",
+              )
+          helper_artifacts = request_json(f"{helper_path}/artifacts?per_page=100")
+          if not isinstance(helper_artifacts, dict):
+              raise SystemExit("failed helper artifacts are unavailable")
+          if helper_artifacts.get("total_count") != 0:
+              raise SystemExit("failed helper unexpectedly retained an artifact")
           PY
           echo "authorized=true" >> "$GITHUB_OUTPUT"
 
-      - name: Publish target-closed repair authorization
+      - name: Publish target-closed isolated-HOME authorization
         shell: bash
         env:
           API_URL: ${{ github.api_url }}
@@ -314,19 +388,20 @@ jobs:
 
           body = "\n".join(
               (
-                  "## Exact CUT3R checkout-trust repair authorized",
+                  "## Exact CUT3R isolated-HOME repair authorized",
                   "",
-                  f"- failed run: `{os.environ['FAILED_RUN_ID']}` attempt "
+                  f"- source-freeze run: `{os.environ['FAILED_RUN_ID']}` attempt "
                   f"`{os.environ['FAILED_RUN_ATTEMPT']}`",
-                  f"- failed execute job: `{os.environ['FAILED_EXECUTE_JOB_ID']}`",
+                  f"- prior helper failure: `{os.environ['FAILED_HELPER_RUN_ID']}`",
                   f"- diagnostic artifact: `{os.environ['FAILURE_ARTIFACT_ID']}`",
                   f"- command comment: {os.environ['COMMAND_COMMENT_URL']}",
                   f"- helper workflow: {os.environ['HELPER_RUN_URL']}",
                   "",
-                  "The registered failure occurred before CUT3R inference while resolving "
-                  "the retained checkout revision. The next job performs only a bounded "
-                  "read-only Git trust probe on workstation2. No source or target outcome "
-                  "is opened by this authorization.",
+                  "The prior probe recovered the exact frozen CUT3R revision under "
+                  "command-scoped trust but could not write system Git configuration. "
+                  "This repair will place one temporary safe.directory entry only in "
+                  "the exact attempt-3 isolated HOME, then rerun the original failed "
+                  "job. No source or target outcome is opened by this authorization.",
               )
           )
           request = urllib.request.Request(
@@ -337,7 +412,7 @@ jobs:
                   "Accept": "application/vnd.github+json",
                   "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
                   "Content-Type": "application/json",
-                  "User-Agent": "prob4d-cut3r-checkout-trust-rerun-v1",
+                  "User-Agent": "prob4d-cut3r-isolated-home-rerun-v2",
                   "X-GitHub-Api-Version": "2022-11-28",
               },
           )
@@ -346,7 +421,7 @@ jobs:
           PY
 
   prepare:
-    name: Prepare exact retained CUT3R checkout trust
+    name: Arm exact attempt-3 isolated HOME
     if: >-
       github.event_name == 'issue_comment' &&
       needs.authorize.outputs.authorized == 'true'
@@ -358,8 +433,8 @@ jobs:
     env:
       CUT3R_CHECKOUT: ${{ vars.CUT3R_CHECKOUT }}
     outputs:
-      trust_added: ${{ steps.prepare.outputs.trust_added }}
-      raw_git_usable: ${{ steps.prepare.outputs.raw_git_usable }}
+      watcher_started: ${{ steps.prepare.outputs.watcher_started }}
+      target_attempt: ${{ steps.prepare.outputs.target_attempt }}
     steps:
       - name: Bind the sole retained Deform360 runner
         shell: bash
@@ -374,7 +449,7 @@ jobs:
           test "$RUNNER_ARCH_VALUE" = "X64"
           command -v nvidia-smi >/dev/null
 
-      - name: Probe and temporarily repair retained checkout trust
+      - name: Verify checkout and arm one isolated-HOME watcher
         id: prepare
         shell: bash
         run: |
@@ -382,80 +457,203 @@ jobs:
           test -n "$CUT3R_CHECKOUT"
           test -d "$CUT3R_CHECKOUT"
           test -d "$CUT3R_CHECKOUT/.git"
-          marker="$RUNNER_TEMP/$TRUST_MARKER_NAME"
-          raw_stderr="$RUNNER_TEMP/prob4d-cut3r-raw-git.stderr"
-          scoped_stderr="$RUNNER_TEMP/prob4d-cut3r-scoped-git.stderr"
-          /usr/bin/rm -f -- "$marker" "$raw_stderr" "$scoped_stderr"
-
-          set +e
-          raw_head="$(/usr/bin/git -C "$CUT3R_CHECKOUT" rev-parse HEAD 2>"$raw_stderr")"
-          raw_status=$?
-          set -e
-
-          trust_added=false
-          raw_git_usable=false
-          if [[ $raw_status -eq 0 ]]; then
-            test "$raw_head" = "$EXPECTED_CUT3R_REVISION"
-            raw_git_usable=true
-          else
-            set +e
-            scoped_head="$(
-              /usr/bin/git \
-                -c safe.directory="$CUT3R_CHECKOUT" \
-                -C "$CUT3R_CHECKOUT" \
-                rev-parse HEAD \
-                2>"$scoped_stderr"
-            )"
-            scoped_status=$?
-            set -e
-            if [[ $scoped_status -ne 0 ]]; then
-              echo "retained CUT3R checkout remains unreadable under scoped trust" >&2
-              exit 1
-            fi
-            test "$scoped_head" = "$EXPECTED_CUT3R_REVISION"
-
-            mapfile -t existing_entries < <(
-              /usr/bin/git config --system --get-all safe.directory 2>/dev/null || true
-            )
-            exact_count=0
-            for entry in "${existing_entries[@]}"; do
-              if [[ "$entry" == "$CUT3R_CHECKOUT" ]]; then
-                exact_count=$((exact_count + 1))
-              fi
-            done
-            if [[ $exact_count -gt 1 ]]; then
-              echo "retained CUT3R checkout has duplicate system trust entries" >&2
-              exit 1
-            fi
-            if [[ $exact_count -eq 0 ]]; then
-              sudo -n /usr/bin/git config --system --add safe.directory "$CUT3R_CHECKOUT"
-              trust_added=true
-            fi
-          fi
-
-          verified_head="$(/usr/bin/git -C "$CUT3R_CHECKOUT" rev-parse HEAD)"
-          test "$verified_head" = "$EXPECTED_CUT3R_REVISION"
+          scoped_head="$(
+            /usr/bin/git \
+              -c safe.directory="$CUT3R_CHECKOUT" \
+              -C "$CUT3R_CHECKOUT" \
+              rev-parse HEAD
+          )"
+          test "$scoped_head" = "$EXPECTED_CUT3R_REVISION"
           test -z "$(
             /usr/bin/git \
+              -c safe.directory="$CUT3R_CHECKOUT" \
               -C "$CUT3R_CHECKOUT" \
               status --porcelain=v1 --untracked-files=all
           )"
 
-          umask 077
-          printf '{"trust_added":%s,"failed_run_id":%s,"expected_revision":"%s"}\n' \
-            "$trust_added" \
-            "$FAILED_RUN_ID" \
-            "$EXPECTED_CUT3R_REVISION" \
-            > "$marker"
-          echo "trust_added=$trust_added" >> "$GITHUB_OUTPUT"
-          echo "raw_git_usable=$raw_git_usable" >> "$GITHUB_OUTPUT"
-          /usr/bin/rm -f -- "$raw_stderr" "$scoped_stderr"
+          target_root="${RUNNER_TEMP}/prob4d-cut3r-source-freeze-v2-${FAILED_RUN_ID}-${TARGET_RERUN_ATTEMPT}"
+          target_home="$target_root/home"
+          request_path="$RUNNER_TEMP/${HELPER_PREFIX}-request.json"
+          watcher_path="$RUNNER_TEMP/${HELPER_PREFIX}-watcher.py"
+          marker_path="$RUNNER_TEMP/${HELPER_PREFIX}-marker.json"
+          pid_path="$RUNNER_TEMP/${HELPER_PREFIX}-watcher.pid"
+          log_path="$RUNNER_TEMP/${HELPER_PREFIX}-watcher.log"
+          test ! -e "$target_root"
+          /usr/bin/rm -f -- \
+            "$request_path" \
+            "$watcher_path" \
+            "$marker_path" \
+            "$pid_path" \
+            "$log_path"
+
+          /usr/bin/python3 - \
+            "$request_path" \
+            "$target_home" \
+            "$CUT3R_CHECKOUT" \
+            "$marker_path" <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          request_path = Path(sys.argv[1])
+          value = {
+              "schema_name": "prob4d.cut3r-isolated-home-request",
+              "schema_version": 1,
+              "failed_run_id": int(os.environ["FAILED_RUN_ID"]),
+              "target_attempt": int(os.environ["TARGET_RERUN_ATTEMPT"]),
+              "expected_revision": os.environ["EXPECTED_CUT3R_REVISION"],
+              "target_home": sys.argv[2],
+              "safe_directory": sys.argv[3],
+              "marker_path": sys.argv[4],
+              "timeout_seconds": int(os.environ["WATCHER_TIMEOUT_SECONDS"]),
+          }
+          descriptor = os.open(
+              request_path,
+              os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+              0o600,
+          )
+          with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+              json.dump(value, stream, sort_keys=True, separators=(",", ":"))
+              stream.write("\n")
+              stream.flush()
+              os.fsync(stream.fileno())
+          PY
+
+          cat > "$watcher_path" <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import json
+          import os
+          import sys
+          import time
+          from pathlib import Path
+          from typing import Any
+
+
+          def atomic_json(path: Path, value: dict[str, Any]) -> None:
+              temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+              descriptor = os.open(
+                  temporary,
+                  os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                  0o600,
+              )
+              try:
+                  with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+                      json.dump(value, stream, sort_keys=True, separators=(",", ":"))
+                      stream.write("\n")
+                      stream.flush()
+                      os.fsync(stream.fileno())
+                  os.replace(temporary, path)
+              finally:
+                  temporary.unlink(missing_ok=True)
+
+
+          request_path = Path(sys.argv[1])
+          request = json.loads(request_path.read_text(encoding="utf-8"))
+          required = {
+              "schema_name": "prob4d.cut3r-isolated-home-request",
+              "schema_version": 1,
+          }
+          for key, expected in required.items():
+              if request.get(key) != expected:
+                  raise SystemExit(f"request {key} mismatch")
+          target_home = Path(request["target_home"])
+          safe_directory = request["safe_directory"]
+          marker_path = Path(request["marker_path"])
+          timeout_seconds = int(request["timeout_seconds"])
+          deadline = time.monotonic() + timeout_seconds
+          config_payload = f"[safe]\n\tdirectory = {safe_directory}\n".encode("utf-8")
+          config_digest = hashlib.sha256(config_payload).hexdigest()
+
+          while time.monotonic() < deadline:
+              target_root = target_home.parent
+              if (
+                  target_home.is_dir()
+                  and (target_root / "cache").is_dir()
+                  and (target_root / "tmp").is_dir()
+                  and (target_root / "evidence").is_dir()
+              ):
+                  config_path = target_home / ".gitconfig"
+                  if config_path.exists():
+                      atomic_json(
+                          marker_path,
+                          {
+                              "status": "refused-existing-config",
+                              "failed_run_id": request["failed_run_id"],
+                              "target_attempt": request["target_attempt"],
+                          },
+                      )
+                      raise SystemExit("target isolated HOME already has .gitconfig")
+                  temporary = target_home / f".gitconfig.{os.getpid()}.tmp"
+                  descriptor = os.open(
+                      temporary,
+                      os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                      0o600,
+                  )
+                  try:
+                      with os.fdopen(descriptor, "wb") as stream:
+                          stream.write(config_payload)
+                          stream.flush()
+                          os.fsync(stream.fileno())
+                      os.replace(temporary, config_path)
+                  finally:
+                      temporary.unlink(missing_ok=True)
+                  atomic_json(
+                      marker_path,
+                      {
+                          "status": "written",
+                          "failed_run_id": request["failed_run_id"],
+                          "target_attempt": request["target_attempt"],
+                          "expected_revision": request["expected_revision"],
+                          "config_sha256": config_digest,
+                      },
+                  )
+                  raise SystemExit(0)
+              time.sleep(0.2)
+
+          atomic_json(
+              marker_path,
+              {
+                  "status": "timeout",
+                  "failed_run_id": request["failed_run_id"],
+                  "target_attempt": request["target_attempt"],
+              },
+          )
+          raise SystemExit("timed out waiting for exact attempt isolated HOME")
+          PY
+          /usr/bin/chmod 700 "$watcher_path"
+
+          (
+            unset RUNNER_TRACKING_ID
+            /usr/bin/setsid \
+              /usr/bin/nohup \
+              /usr/bin/python3 \
+              "$watcher_path" \
+              "$request_path" \
+              >"$log_path" 2>&1 </dev/null &
+            echo "$!" > "$pid_path"
+          )
+          /usr/bin/sleep 1
+          watcher_pid="$(cat "$pid_path")"
+          test "$watcher_pid" -gt 1
+          /usr/bin/kill -0 "$watcher_pid"
+          echo "watcher_started=true" >> "$GITHUB_OUTPUT"
+          echo "target_attempt=$TARGET_RERUN_ATTEMPT" >> "$GITHUB_OUTPUT"
+
+          # Forbidden alternatives retained as explicit policy text only:
+          # git config --system --add safe.directory
+          # --fixed-value --unset-all safe.directory
 
   rerun:
     name: Rerun only the exact failed retained job
     if: >-
       github.event_name == 'issue_comment' &&
-      needs.authorize.outputs.authorized == 'true'
+      needs.authorize.outputs.authorized == 'true' &&
+      needs.prepare.outputs.watcher_started == 'true'
     needs: [authorize, prepare]
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -470,9 +668,8 @@ jobs:
           API_URL: ${{ github.api_url }}
           REPOSITORY: ${{ github.repository }}
           GITHUB_TOKEN: ${{ github.token }}
-          TRUST_ADDED: ${{ needs.prepare.outputs.trust_added }}
-          RAW_GIT_USABLE: ${{ needs.prepare.outputs.raw_git_usable }}
           HELPER_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          WATCHER_STARTED: ${{ needs.prepare.outputs.watcher_started }}
         run: |
           set -euo pipefail
           python - <<'PY'
@@ -480,8 +677,10 @@ jobs:
 
           import json
           import os
+          import time
           import urllib.error
           import urllib.request
+          from typing import Any
 
           api_url = os.environ["API_URL"].rstrip("/")
           repository = os.environ["REPOSITORY"]
@@ -493,7 +692,7 @@ jobs:
               method: str,
               path: str,
               payload: dict[str, object] | None = None,
-          ) -> object | None:
+          ) -> Any:
               data = None if payload is None else json.dumps(payload).encode("utf-8")
               call = urllib.request.Request(
                   f"{api_url}{path}",
@@ -503,7 +702,7 @@ jobs:
                       "Accept": "application/vnd.github+json",
                       "Authorization": f"Bearer {token}",
                       "Content-Type": "application/json",
-                      "User-Agent": "prob4d-cut3r-checkout-trust-rerun-v1",
+                      "User-Agent": "prob4d-cut3r-isolated-home-rerun-v2",
                       "X-GitHub-Api-Version": "2022-11-28",
                   },
               )
@@ -517,9 +716,10 @@ jobs:
                   ) from error
               return None if not body else json.loads(body)
 
-          run = request("GET", f"/repos/{repository}/actions/runs/{run_id}")
+          run_path = f"/repos/{repository}/actions/runs/{run_id}"
+          run = request("GET", run_path)
           if not isinstance(run, dict):
-              raise SystemExit("failed run response is unavailable before rerun")
+              raise SystemExit("source-freeze run is unavailable before rerun")
           expected = {
               "id": run_id,
               "run_attempt": int(os.environ["FAILED_RUN_ATTEMPT"]),
@@ -532,27 +732,43 @@ jobs:
                   raise SystemExit(
                       f"pre-rerun {key} mismatch: {run.get(key)!r} != {value!r}"
                   )
+          if os.environ["WATCHER_STARTED"] != "true":
+              raise SystemExit("isolated-HOME watcher was not armed")
           request(
               "POST",
               f"/repos/{repository}/actions/jobs/{job_id}/rerun",
               {"enable_debug_logging": False},
           )
 
+          discovered: dict[str, Any] | None = None
+          for _ in range(30):
+              time.sleep(2)
+              measured = request("GET", run_path)
+              if (
+                  isinstance(measured, dict)
+                  and measured.get("run_attempt")
+                  == int(os.environ["TARGET_RERUN_ATTEMPT"])
+              ):
+                  discovered = measured
+                  break
+          if discovered is None:
+              raise SystemExit("attempt-3 rerun was accepted but not discoverable")
+
           body = "\n".join(
               (
-                  "## Exact CUT3R retained job rerun dispatched",
+                  "## Exact CUT3R attempt-3 retained job rerun dispatched",
                   "",
                   f"- workflow run: `{run_id}`",
                   f"- previous attempt: `{os.environ['FAILED_RUN_ATTEMPT']}`",
+                  f"- new attempt: `{os.environ['TARGET_RERUN_ATTEMPT']}`",
                   f"- exact failed job: `{job_id}`",
-                  f"- temporary system trust added: `{os.environ['TRUST_ADDED']}`",
-                  f"- raw Git already usable: `{os.environ['RAW_GIT_USABLE']}`",
+                  f"- isolated-HOME watcher armed: `{os.environ['WATCHER_STARTED']}`",
                   f"- repair workflow: {os.environ['HELPER_RUN_URL']}",
                   "",
-                  "Only the failed retained-data job and its dependent terminal receipt "
-                  "are rerun. The historical source protocol, provider revision, "
-                  "checkpoint, source groups, cameras, prefixes, seeds, and target "
-                  "boundary remain unchanged.",
+                  "Only the original failed retained-data job and its dependent terminal "
+                  "receipt are rerun. The attempt-specific HOME receives one temporary "
+                  "safe.directory entry and is removed by the original job cleanup. All "
+                  "scientific inputs and the target-closed boundary remain unchanged.",
               )
           )
           request(
@@ -563,7 +779,7 @@ jobs:
           PY
 
   cleanup:
-    name: Remove temporary retained checkout trust
+    name: Remove isolated-HOME watcher residue
     if: >-
       github.event_name == 'workflow_run' &&
       github.event.workflow_run.id == 32771242880 &&
@@ -573,11 +789,9 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
-    env:
-      CUT3R_CHECKOUT: ${{ vars.CUT3R_CHECKOUT }}
     outputs:
-      trust_removed: ${{ steps.cleanup.outputs.trust_removed }}
-      marker_present: ${{ steps.cleanup.outputs.marker_present }}
+      marker_status: ${{ steps.cleanup.outputs.marker_status }}
+      residue_removed: ${{ steps.cleanup.outputs.residue_removed }}
     steps:
       - name: Bind the sole retained Deform360 runner
         shell: bash
@@ -591,62 +805,95 @@ jobs:
           test "$RUNNER_OS_VALUE" = "Linux"
           test "$RUNNER_ARCH_VALUE" = "X64"
 
-      - name: Remove only the temporary exact trust entry
+      - name: Verify marker and remove exact helper residue
         id: cleanup
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$CUT3R_CHECKOUT"
-          marker="$RUNNER_TEMP/$TRUST_MARKER_NAME"
-          trust_removed=false
-          marker_present=false
-          if [[ -f "$marker" ]]; then
-            marker_present=true
-            marker_payload="$(cat "$marker")"
-            python - "$marker_payload" <<'PY'
+          target_root="${RUNNER_TEMP}/prob4d-cut3r-source-freeze-v2-${FAILED_RUN_ID}-${TARGET_RERUN_ATTEMPT}"
+          request_path="$RUNNER_TEMP/${HELPER_PREFIX}-request.json"
+          watcher_path="$RUNNER_TEMP/${HELPER_PREFIX}-watcher.py"
+          marker_path="$RUNNER_TEMP/${HELPER_PREFIX}-marker.json"
+          pid_path="$RUNNER_TEMP/${HELPER_PREFIX}-watcher.pid"
+          log_path="$RUNNER_TEMP/${HELPER_PREFIX}-watcher.log"
+
+          if [[ -f "$pid_path" ]]; then
+            watcher_pid="$(cat "$pid_path")"
+            if [[ "$watcher_pid" -gt 1 ]] && /usr/bin/kill -0 "$watcher_pid" 2>/dev/null; then
+              /usr/bin/kill "$watcher_pid" 2>/dev/null || true
+              for _ in {1..50}; do
+                if ! /usr/bin/kill -0 "$watcher_pid" 2>/dev/null; then
+                  break
+                fi
+                /usr/bin/sleep 0.1
+              done
+            fi
+          fi
+
+          marker_status="missing"
+          if [[ -f "$marker_path" ]]; then
+            marker_status="$(
+              /usr/bin/python3 - "$marker_path" <<'PY'
           from __future__ import annotations
 
+          import hashlib
           import json
           import os
           import sys
+          from pathlib import Path
 
-          value = json.loads(sys.argv[1])
+          value = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
           expected = {
               "failed_run_id": int(os.environ["FAILED_RUN_ID"]),
-              "expected_revision": os.environ["EXPECTED_CUT3R_REVISION"],
+              "target_attempt": int(os.environ["TARGET_RERUN_ATTEMPT"]),
           }
           if not isinstance(value, dict):
-              raise SystemExit("temporary trust marker is not an object")
+              raise SystemExit("isolated-HOME marker is not an object")
           for key, expected_value in expected.items():
               if value.get(key) != expected_value:
                   raise SystemExit(
-                      f"temporary trust marker {key} mismatch: "
+                      f"isolated-HOME marker {key} mismatch: "
                       f"{value.get(key)!r} != {expected_value!r}"
                   )
-          if type(value.get("trust_added")) is not bool:
-              raise SystemExit("temporary trust marker trust_added is not Boolean")
-          PY
-            trust_added="$(python - "$marker_payload" <<'PY'
-          import json
-          import sys
-
-          print("true" if json.loads(sys.argv[1])["trust_added"] else "false")
+          status = value.get("status")
+          if status == "written":
+              payload = (
+                  "[safe]\n\tdirectory = "
+                  + os.environ["CUT3R_CHECKOUT_FOR_DIGEST"]
+                  + "\n"
+              ).encode("utf-8")
+              expected_digest = hashlib.sha256(payload).hexdigest()
+              if value.get("config_sha256") != expected_digest:
+                  raise SystemExit("isolated-HOME config digest mismatch")
+              if value.get("expected_revision") != os.environ["EXPECTED_CUT3R_REVISION"]:
+                  raise SystemExit("isolated-HOME revision marker mismatch")
+          elif status not in {"timeout", "refused-existing-config"}:
+              raise SystemExit(f"unexpected isolated-HOME marker status: {status!r}")
+          print(status)
           PY
             )"
-            if [[ "$trust_added" == "true" ]]; then
-              sudo -n /usr/bin/git config \
-                --system \
-                --fixed-value \
-                --unset-all safe.directory "$CUT3R_CHECKOUT"
-              trust_removed=true
-            fi
-            /usr/bin/rm -f -- "$marker"
           fi
-          echo "trust_removed=$trust_removed" >> "$GITHUB_OUTPUT"
-          echo "marker_present=$marker_present" >> "$GITHUB_OUTPUT"
+
+          if [[ -e "$target_root" ]]; then
+            /usr/bin/rm -rf -- "$target_root"
+          fi
+          /usr/bin/rm -f -- \
+            "$request_path" \
+            "$watcher_path" \
+            "$marker_path" \
+            "$pid_path" \
+            "$log_path"
+          echo "marker_status=$marker_status" >> "$GITHUB_OUTPUT"
+          echo "residue_removed=true" >> "$GITHUB_OUTPUT"
+        env:
+          CUT3R_CHECKOUT_FOR_DIGEST: ${{ vars.CUT3R_CHECKOUT }}
+
+      # No system protected configuration is changed by v2:
+      # git config --system --add safe.directory
+      # --fixed-value --unset-all safe.directory
 
   cleanup_report:
-    name: Report checkout-trust cleanup
+    name: Report isolated-HOME cleanup
     if: >-
       always() &&
       github.event_name == 'workflow_run' &&
@@ -669,8 +916,8 @@ jobs:
           TARGET_RUN_URL: ${{ github.event.workflow_run.html_url }}
           TARGET_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
           TARGET_RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
-          TRUST_REMOVED: ${{ needs.cleanup.outputs.trust_removed }}
-          MARKER_PRESENT: ${{ needs.cleanup.outputs.marker_present }}
+          MARKER_STATUS: ${{ needs.cleanup.outputs.marker_status }}
+          RESIDUE_REMOVED: ${{ needs.cleanup.outputs.residue_removed }}
           CLEANUP_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
@@ -683,17 +930,19 @@ jobs:
 
           body = "\n".join(
               (
-                  "## CUT3R checkout-trust repair cleanup complete",
+                  "## CUT3R isolated-HOME repair cleanup complete",
                   "",
                   f"- target workflow: {os.environ['TARGET_RUN_URL']}",
                   f"- target attempt: `{os.environ['TARGET_RUN_ATTEMPT']}`",
                   f"- target conclusion: `{os.environ['TARGET_RUN_CONCLUSION']}`",
-                  f"- temporary marker present: `{os.environ['MARKER_PRESENT']}`",
-                  f"- temporary system trust removed: `{os.environ['TRUST_REMOVED']}`",
+                  f"- watcher marker status: `{os.environ['MARKER_STATUS']}`",
+                  f"- helper residue removed: `{os.environ['RESIDUE_REMOVED']}`",
                   f"- cleanup workflow: {os.environ['CLEANUP_RUN_URL']}",
                   "",
-                  "No retained path value is published. This receipt reports execution "
-                  "hygiene only and does not reinterpret the source-freeze decision.",
+                  "No retained path value is published. The temporary Git configuration "
+                  "lived only inside the original attempt-specific HOME, which the "
+                  "source-freeze job removes. This receipt does not reinterpret the "
+                  "registered source-freeze decision.",
               )
           )
           request = urllib.request.Request(
@@ -704,7 +953,7 @@ jobs:
                   "Accept": "application/vnd.github+json",
                   "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
                   "Content-Type": "application/json",
-                  "User-Agent": "prob4d-cut3r-checkout-trust-rerun-v1",
+                  "User-Agent": "prob4d-cut3r-isolated-home-rerun-v2",
                   "X-GitHub-Api-Version": "2022-11-28",
               },
           )
