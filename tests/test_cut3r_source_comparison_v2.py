@@ -58,9 +58,7 @@ def test_predecessor_smoke_rejects_changed_failure_localization() -> None:
 
 def test_v2_runner_contract_requires_internal_dust3r_package_path() -> None:
     module = _module()
-    runner = (ROOT / "scripts/science/run_cut3r_source_comparison.py").read_text(
-        encoding="utf-8"
-    )
+    runner = (ROOT / "scripts/science/run_cut3r_source_comparison.py").read_text(encoding="utf-8")
 
     module.validate_runner_repair(runner)
 
