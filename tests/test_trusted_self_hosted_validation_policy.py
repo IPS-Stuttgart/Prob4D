@@ -200,6 +200,8 @@ def test_auto_v2_source_freeze_supports_exact_retry_and_bounded_queue() -> None:
     assert "scripts/science/run_cut3r_source_freeze_execution.py execute \\" in text
     assert '"$execution_repository/scripts/science' not in text
     assert "control_plane_sha=$CURRENT_CONTROL_PLANE_SHA" in text
+    assert "ls-files \\" in text
+    assert "--error-unmatch -- src/prob4d.egg-info" in text
     assert '/usr/bin/git worktree remove --force "$execution_repository"' in text
     assert CUT3R_AUTO_V2_RUNNER_SELECTOR in text
     assert 'test "$RUNNER_NAME" = "workstation2"' in text
