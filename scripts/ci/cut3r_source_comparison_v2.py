@@ -14,31 +14,17 @@ from typing import Any, NoReturn
 
 REPOSITORY = "IPS-Stuttgart/Prob4D"
 ISSUE_NUMBER = 49
-PREDECESSOR_SMOKE_PATH = Path(
-    "evidence/cut3r-source-comparison-smoke-v1/summary.json"
-)
-PREDECESSOR_SMOKE_FILE_SHA256 = (
-    "550ce0c8858c4730548d08af50589c820ed3023cfbbae3050eea0369bcd7845f"
-)
-PREDECESSOR_SMOKE_ID = (
-    "ef4e5bf187570e918df1d7d14434b4ae55f983c347104b9c6f7ad52b42f7a7bf"
-)
+PREDECESSOR_SMOKE_PATH = Path("evidence/cut3r-source-comparison-smoke-v1/summary.json")
+PREDECESSOR_SMOKE_FILE_SHA256 = "550ce0c8858c4730548d08af50589c820ed3023cfbbae3050eea0369bcd7845f"
+PREDECESSOR_SMOKE_ID = "ef4e5bf187570e918df1d7d14434b4ae55f983c347104b9c6f7ad52b42f7a7bf"
 PREDECESSOR_PLAN_PATH = Path(
     "protocols/execution_requests/cut3r_deform360_source_comparison_execution_v1.json"
 )
-PREDECESSOR_PLAN_FILE_SHA256 = (
-    "3ea10036bdd3d0b516d06ef210204cb7644e8b06cc8c2a3391c4742f3940ef7f"
-)
-PREDECESSOR_PLAN_ID = (
-    "0dbb6b3a46e2c895259fd5f4a4691c1d6d3c43b0e71774171bbfb3a20239953c"
-)
-SOURCE_FREEZE_ID = (
-    "5e739b92c2628c61fa99ae68da61d5814ca94d4b6de5720b75c4552de82d1b2c"
-)
+PREDECESSOR_PLAN_FILE_SHA256 = "3ea10036bdd3d0b516d06ef210204cb7644e8b06cc8c2a3391c4742f3940ef7f"
+PREDECESSOR_PLAN_ID = "0dbb6b3a46e2c895259fd5f4a4691c1d6d3c43b0e71774171bbfb3a20239953c"
+SOURCE_FREEZE_ID = "5e739b92c2628c61fa99ae68da61d5814ca94d4b6de5720b75c4552de82d1b2c"
 SMOKE_CASE_ID = "031-cotton-cloth-episode-0000-brics-odroid-010_cam0"
-SMOKE_CASE_ID_SHA256 = (
-    "f306dc541c5c48e069c2ddc9942d75cdf537e81f65b028cbbcf35aaf410a9654"
-)
+SMOKE_CASE_ID_SHA256 = "f306dc541c5c48e069c2ddc9942d75cdf537e81f65b028cbbcf35aaf410a9654"
 DISPATCH_COMMAND = (
     "/prob4d-run-cut3r-source-comparison-v2 "
     f"{PREDECESSOR_SMOKE_ID} {PREDECESSOR_PLAN_ID} {SOURCE_FREEZE_ID}"
@@ -201,11 +187,7 @@ def validate_predecessor_plan(value: Json) -> None:
     cases = value.get("cases")
     if type(cases) is not list or len(cases) != 40:
         fail("predecessor plan no longer contains 40 cases")
-    matches = [
-        row
-        for row in cases
-        if type(row) is dict and row.get("case_id") == SMOKE_CASE_ID
-    ]
+    matches = [row for row in cases if type(row) is dict and row.get("case_id") == SMOKE_CASE_ID]
     if len(matches) != 1 or matches[0].get("role") != "development":
         fail("the frozen v2 smoke case is not the predecessor development case")
 
