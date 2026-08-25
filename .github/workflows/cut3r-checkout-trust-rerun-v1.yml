@@ -1,0 +1,713 @@
+name: Repair retained CUT3R checkout trust and rerun exact job v1
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/cut3r-checkout-trust-rerun-v1.yml"
+      - "CHANGELOG.d/cut3r-checkout-trust-rerun-v1.md"
+      - "docs/cut3r-checkout-trust-rerun-v1.md"
+      - "tests/test_cut3r_checkout_trust_rerun_v1.py"
+      - "tests/test_trusted_self_hosted_validation_policy.py"
+  issue_comment:
+    types: [created]
+  workflow_run:
+    workflows: ["Execute retained CUT3R source freeze automatically v2"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cut3r-checkout-trust-rerun-v1-${{ github.event_name }}
+  cancel-in-progress: false
+
+env:
+  DISPATCH_COMMAND: /prob4d-repair-cut3r-checkout-trust-and-rerun-v1 32771242880 9551181122 d1eff3af637eb297e72334693b1c51723f4eb9487a6cf6a8957d130bc34b9721
+  FAILED_RUN_ID: "32771242880"
+  FAILED_RUN_ATTEMPT: "2"
+  FAILED_HEAD_SHA: 30f85ecd6c2395b333f723db47a18f6677d7c58f
+  FAILED_EXECUTE_JOB_ID: "97702294765"
+  FAILURE_ARTIFACT_ID: "9551181122"
+  FAILURE_ARTIFACT_NAME: cut3r-source-freeze-v2-failed-32771242880-2
+  FAILURE_ARTIFACT_SIZE: "4384"
+  FAILURE_ARTIFACT_DIGEST: sha256:d1eff3af637eb297e72334693b1c51723f4eb9487a6cf6a8957d130bc34b9721
+  HISTORICAL_EXECUTION_SHA: 8b923e8cd67ca65f09312cffe305e36852f36fbb
+  RETAINED_REQUEST_ID: 8f3c9fba12f8a16895edce89d7a92e4806a43cb2f34b5a05faff71945809b63e
+  EXPECTED_CUT3R_REVISION: 8bc15dc92a6d7fd92920b4ec81540d3dec7d3ecf
+  TRUST_MARKER_NAME: prob4d-cut3r-checkout-trust-rerun-v1.json
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+
+jobs:
+  contract:
+    name: Checkout-trust repair contract
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out reviewed pull-request merge candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Validate exact repair policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -e ".[dev]"
+          python -m pip check
+          python -m ruff check \
+            tests/test_cut3r_checkout_trust_rerun_v1.py \
+            tests/test_trusted_self_hosted_validation_policy.py
+          python -m ruff format --check \
+            tests/test_cut3r_checkout_trust_rerun_v1.py \
+            tests/test_trusted_self_hosted_validation_policy.py
+          python -m pytest -q \
+            tests/test_cut3r_checkout_trust_rerun_v1.py \
+            tests/test_trusted_self_hosted_validation_policy.py \
+            tests/test_github_action_pins.py
+
+  authorize:
+    name: Authorize exact pre-provider failure repair
+    if: >-
+      github.event_name == 'issue_comment' &&
+      github.event.issue.number == 49 &&
+      github.actor == 'FlorianPfaff' &&
+      github.event.comment.user.login == 'FlorianPfaff' &&
+      github.event.comment.body == '/prob4d-repair-cut3r-checkout-trust-and-rerun-v1 32771242880 9551181122 d1eff3af637eb297e72334693b1c51723f4eb9487a6cf6a8957d130bc34b9721'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+    outputs:
+      authorized: ${{ steps.verify.outputs.authorized }}
+    steps:
+      - name: Check out exact default-branch event revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+
+      - name: Verify exact failed run and bounded diagnostic artifact
+        id: verify
+        shell: bash
+        env:
+          API_URL: ${{ github.api_url }}
+          REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+          EVENT_COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMAND_COMMENT_URL: ${{ github.event.comment.html_url }}
+          HELPER_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          EXPECTED_EVENT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_EVENT_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test "$EVENT_COMMENT_BODY" = "$DISPATCH_COMMAND"
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          import urllib.error
+          import urllib.request
+          from typing import Any
+
+          api_url = os.environ["API_URL"].rstrip("/")
+          repository = os.environ["REPOSITORY"]
+          token = os.environ["GITHUB_TOKEN"]
+          run_id = int(os.environ["FAILED_RUN_ID"])
+          execute_job_id = int(os.environ["FAILED_EXECUTE_JOB_ID"])
+          artifact_id = int(os.environ["FAILURE_ARTIFACT_ID"])
+
+          def request_json(path: str) -> Any:
+              request = urllib.request.Request(
+                  f"{api_url}{path}",
+                  method="GET",
+                  headers={
+                      "Accept": "application/vnd.github+json",
+                      "Authorization": f"Bearer {token}",
+                      "User-Agent": "prob4d-cut3r-checkout-trust-rerun-v1",
+                      "X-GitHub-Api-Version": "2022-11-28",
+                  },
+              )
+              try:
+                  with urllib.request.urlopen(request, timeout=30) as response:
+                      return json.loads(response.read())
+              except urllib.error.HTTPError as error:
+                  detail = error.read().decode("utf-8", errors="replace")
+                  raise SystemExit(
+                      f"GitHub API GET {path} failed with {error.code}: {detail}"
+                  ) from error
+
+          def require_fields(
+              value: dict[str, Any],
+              expected: dict[str, Any],
+              *,
+              label: str,
+          ) -> None:
+              for key, expected_value in expected.items():
+                  measured = value.get(key)
+                  if measured != expected_value:
+                      raise SystemExit(
+                          f"{label} {key} mismatch: {measured!r} != {expected_value!r}"
+                      )
+
+          run_path = f"/repos/{repository}/actions/runs/{run_id}"
+          run = request_json(run_path)
+          if not isinstance(run, dict):
+              raise SystemExit("failed run response is not an object")
+          require_fields(
+              run,
+              {
+                  "id": run_id,
+                  "name": "Execute retained CUT3R source freeze automatically v2",
+                  "path": ".github/workflows/cut3r-source-freeze-auto-v2.yml",
+                  "head_branch": "main",
+                  "head_sha": os.environ["FAILED_HEAD_SHA"],
+                  "event": "workflow_dispatch",
+                  "status": "completed",
+                  "conclusion": "failure",
+                  "run_attempt": int(os.environ["FAILED_RUN_ATTEMPT"]),
+              },
+              label="failed run",
+          )
+
+          jobs_payload = request_json(f"{run_path}/jobs?filter=latest&per_page=100")
+          if not isinstance(jobs_payload, dict) or not isinstance(
+              jobs_payload.get("jobs"), list
+          ):
+              raise SystemExit("failed run jobs are unavailable")
+          jobs = {
+              row.get("name"): row
+              for row in jobs_payload["jobs"]
+              if isinstance(row, dict) and isinstance(row.get("name"), str)
+          }
+          expected_jobs = {
+              "Bound self-hosted runner acceptance wait": (97702294709, "success"),
+              "Freeze retained source inputs from trusted merged main": (
+                  execute_job_id,
+                  "failure",
+              ),
+              "Hosted automatic-execution contract": (97702294787, "success"),
+              "Publish queued run pointer": (97702295160, "success"),
+              "Check retained execution configuration": (97702295459, "success"),
+              "Authorize exact merged-main v2 request": (97702314306, "success"),
+              "Publish terminal v2 source-freeze receipt": (97702366510, "success"),
+          }
+          if set(jobs) != set(expected_jobs):
+              raise SystemExit("failed run job roster mismatch")
+          for name, (job_id, conclusion) in expected_jobs.items():
+              job = jobs[name]
+              require_fields(
+                  job,
+                  {
+                      "id": job_id,
+                      "run_id": run_id,
+                      "status": "completed",
+                      "conclusion": conclusion,
+                  },
+                  label=f"job {name!r}",
+              )
+
+          execute = jobs["Freeze retained source inputs from trusted merged main"]
+          steps = execute.get("steps")
+          if not isinstance(steps, list):
+              raise SystemExit("failed execute steps are unavailable")
+          steps_by_name = {
+              row.get("name"): row
+              for row in steps
+              if isinstance(row, dict) and isinstance(row.get("name"), str)
+          }
+          expected_steps = {
+              "Bind the sole retained Deform360 runner": "success",
+              "Initialize isolated read-only execution workspace": "success",
+              "Check out only the authorized merged revision": "success",
+              "Verify exact clean checkout": "success",
+              "Provision Python 3.12": "success",
+              "Build and install the exact reviewed wheel": "success",
+              "Run one target-closed source freeze": "failure",
+              "Record exact automatic-execution environment": "success",
+              "Upload retained automatic source-freeze evidence": "success",
+              "Remove isolated execution workspace and checkout residue": "success",
+          }
+          for name, conclusion in expected_steps.items():
+              step = steps_by_name.get(name)
+              if not isinstance(step, dict):
+                  raise SystemExit(f"missing exact failed-run step {name!r}")
+              require_fields(
+                  step,
+                  {"status": "completed", "conclusion": conclusion},
+                  label=f"step {name!r}",
+              )
+
+          artifacts_payload = request_json(f"{run_path}/artifacts?per_page=100")
+          if not isinstance(artifacts_payload, dict) or not isinstance(
+              artifacts_payload.get("artifacts"), list
+          ):
+              raise SystemExit("failed run artifacts are unavailable")
+          artifacts = artifacts_payload["artifacts"]
+          if artifacts_payload.get("total_count") != 1 or len(artifacts) != 1:
+              raise SystemExit("failed run artifact count mismatch")
+          artifact = artifacts[0]
+          if not isinstance(artifact, dict):
+              raise SystemExit("failed run artifact is not an object")
+          require_fields(
+              artifact,
+              {
+                  "id": artifact_id,
+                  "name": os.environ["FAILURE_ARTIFACT_NAME"],
+                  "size_in_bytes": int(os.environ["FAILURE_ARTIFACT_SIZE"]),
+                  "digest": os.environ["FAILURE_ARTIFACT_DIGEST"],
+                  "expired": False,
+              },
+              label="failed diagnostic artifact",
+          )
+          workflow_run = artifact.get("workflow_run")
+          if not isinstance(workflow_run, dict):
+              raise SystemExit("artifact workflow identity is unavailable")
+          require_fields(
+              workflow_run,
+              {
+                  "id": run_id,
+                  "repository_id": 1295794737,
+                  "head_repository_id": 1295794737,
+                  "head_branch": "main",
+                  "head_sha": os.environ["FAILED_HEAD_SHA"],
+              },
+              label="artifact workflow identity",
+          )
+          PY
+          echo "authorized=true" >> "$GITHUB_OUTPUT"
+
+      - name: Publish target-closed repair authorization
+        shell: bash
+        env:
+          API_URL: ${{ github.api_url }}
+          REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+          COMMAND_COMMENT_URL: ${{ github.event.comment.html_url }}
+          HELPER_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          import urllib.request
+
+          body = "\n".join(
+              (
+                  "## Exact CUT3R checkout-trust repair authorized",
+                  "",
+                  f"- failed run: `{os.environ['FAILED_RUN_ID']}` attempt "
+                  f"`{os.environ['FAILED_RUN_ATTEMPT']}`",
+                  f"- failed execute job: `{os.environ['FAILED_EXECUTE_JOB_ID']}`",
+                  f"- diagnostic artifact: `{os.environ['FAILURE_ARTIFACT_ID']}`",
+                  f"- command comment: {os.environ['COMMAND_COMMENT_URL']}",
+                  f"- helper workflow: {os.environ['HELPER_RUN_URL']}",
+                  "",
+                  "The registered failure occurred before CUT3R inference while resolving "
+                  "the retained checkout revision. The next job performs only a bounded "
+                  "read-only Git trust probe on workstation2. No source or target outcome "
+                  "is opened by this authorization.",
+              )
+          )
+          request = urllib.request.Request(
+              f"{os.environ['API_URL']}/repos/{os.environ['REPOSITORY']}/issues/49/comments",
+              data=json.dumps({"body": body}).encode("utf-8"),
+              method="POST",
+              headers={
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
+                  "Content-Type": "application/json",
+                  "User-Agent": "prob4d-cut3r-checkout-trust-rerun-v1",
+                  "X-GitHub-Api-Version": "2022-11-28",
+              },
+          )
+          with urllib.request.urlopen(request, timeout=30):
+              pass
+          PY
+
+  prepare:
+    name: Prepare exact retained CUT3R checkout trust
+    if: >-
+      github.event_name == 'issue_comment' &&
+      needs.authorize.outputs.authorized == 'true'
+    needs: [authorize]
+    runs-on: [self-hosted, host-workstation2]
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      CUT3R_CHECKOUT: ${{ vars.CUT3R_CHECKOUT }}
+    outputs:
+      trust_added: ${{ steps.prepare.outputs.trust_added }}
+      raw_git_usable: ${{ steps.prepare.outputs.raw_git_usable }}
+    steps:
+      - name: Bind the sole retained Deform360 runner
+        shell: bash
+        env:
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+          test "$RUNNER_NAME_VALUE" = "workstation2"
+          test "$RUNNER_OS_VALUE" = "Linux"
+          test "$RUNNER_ARCH_VALUE" = "X64"
+          command -v nvidia-smi >/dev/null
+
+      - name: Probe and temporarily repair retained checkout trust
+        id: prepare
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CUT3R_CHECKOUT"
+          test -d "$CUT3R_CHECKOUT"
+          test -d "$CUT3R_CHECKOUT/.git"
+          marker="$RUNNER_TEMP/$TRUST_MARKER_NAME"
+          raw_stderr="$RUNNER_TEMP/prob4d-cut3r-raw-git.stderr"
+          scoped_stderr="$RUNNER_TEMP/prob4d-cut3r-scoped-git.stderr"
+          /usr/bin/rm -f -- "$marker" "$raw_stderr" "$scoped_stderr"
+
+          set +e
+          raw_head="$(/usr/bin/git -C "$CUT3R_CHECKOUT" rev-parse HEAD 2>"$raw_stderr")"
+          raw_status=$?
+          set -e
+
+          trust_added=false
+          raw_git_usable=false
+          if [[ $raw_status -eq 0 ]]; then
+            test "$raw_head" = "$EXPECTED_CUT3R_REVISION"
+            raw_git_usable=true
+          else
+            set +e
+            scoped_head="$(
+              /usr/bin/git \
+                -c safe.directory="$CUT3R_CHECKOUT" \
+                -C "$CUT3R_CHECKOUT" \
+                rev-parse HEAD \
+                2>"$scoped_stderr"
+            )"
+            scoped_status=$?
+            set -e
+            if [[ $scoped_status -ne 0 ]]; then
+              echo "retained CUT3R checkout remains unreadable under scoped trust" >&2
+              exit 1
+            fi
+            test "$scoped_head" = "$EXPECTED_CUT3R_REVISION"
+
+            mapfile -t existing_entries < <(
+              /usr/bin/git config --system --get-all safe.directory 2>/dev/null || true
+            )
+            exact_count=0
+            for entry in "${existing_entries[@]}"; do
+              if [[ "$entry" == "$CUT3R_CHECKOUT" ]]; then
+                exact_count=$((exact_count + 1))
+              fi
+            done
+            if [[ $exact_count -gt 1 ]]; then
+              echo "retained CUT3R checkout has duplicate system trust entries" >&2
+              exit 1
+            fi
+            if [[ $exact_count -eq 0 ]]; then
+              sudo -n /usr/bin/git config --system --add safe.directory "$CUT3R_CHECKOUT"
+              trust_added=true
+            fi
+          fi
+
+          verified_head="$(/usr/bin/git -C "$CUT3R_CHECKOUT" rev-parse HEAD)"
+          test "$verified_head" = "$EXPECTED_CUT3R_REVISION"
+          test -z "$(
+            /usr/bin/git \
+              -C "$CUT3R_CHECKOUT" \
+              status --porcelain=v1 --untracked-files=all
+          )"
+
+          umask 077
+          printf '{"trust_added":%s,"failed_run_id":%s,"expected_revision":"%s"}\n' \
+            "$trust_added" \
+            "$FAILED_RUN_ID" \
+            "$EXPECTED_CUT3R_REVISION" \
+            > "$marker"
+          echo "trust_added=$trust_added" >> "$GITHUB_OUTPUT"
+          echo "raw_git_usable=$raw_git_usable" >> "$GITHUB_OUTPUT"
+          /usr/bin/rm -f -- "$raw_stderr" "$scoped_stderr"
+
+  rerun:
+    name: Rerun only the exact failed retained job
+    if: >-
+      github.event_name == 'issue_comment' &&
+      needs.authorize.outputs.authorized == 'true'
+    needs: [authorize, prepare]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: write
+      contents: read
+      issues: write
+    steps:
+      - name: Recheck attempt identity and rerun the exact failed job
+        shell: bash
+        env:
+          API_URL: ${{ github.api_url }}
+          REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+          TRUST_ADDED: ${{ needs.prepare.outputs.trust_added }}
+          RAW_GIT_USABLE: ${{ needs.prepare.outputs.raw_git_usable }}
+          HELPER_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          import urllib.error
+          import urllib.request
+
+          api_url = os.environ["API_URL"].rstrip("/")
+          repository = os.environ["REPOSITORY"]
+          token = os.environ["GITHUB_TOKEN"]
+          run_id = int(os.environ["FAILED_RUN_ID"])
+          job_id = int(os.environ["FAILED_EXECUTE_JOB_ID"])
+
+          def request(
+              method: str,
+              path: str,
+              payload: dict[str, object] | None = None,
+          ) -> object | None:
+              data = None if payload is None else json.dumps(payload).encode("utf-8")
+              call = urllib.request.Request(
+                  f"{api_url}{path}",
+                  data=data,
+                  method=method,
+                  headers={
+                      "Accept": "application/vnd.github+json",
+                      "Authorization": f"Bearer {token}",
+                      "Content-Type": "application/json",
+                      "User-Agent": "prob4d-cut3r-checkout-trust-rerun-v1",
+                      "X-GitHub-Api-Version": "2022-11-28",
+                  },
+              )
+              try:
+                  with urllib.request.urlopen(call, timeout=30) as response:
+                      body = response.read()
+              except urllib.error.HTTPError as error:
+                  detail = error.read().decode("utf-8", errors="replace")
+                  raise SystemExit(
+                      f"GitHub API {method} {path} failed with {error.code}: {detail}"
+                  ) from error
+              return None if not body else json.loads(body)
+
+          run = request("GET", f"/repos/{repository}/actions/runs/{run_id}")
+          if not isinstance(run, dict):
+              raise SystemExit("failed run response is unavailable before rerun")
+          expected = {
+              "id": run_id,
+              "run_attempt": int(os.environ["FAILED_RUN_ATTEMPT"]),
+              "status": "completed",
+              "conclusion": "failure",
+              "head_sha": os.environ["FAILED_HEAD_SHA"],
+          }
+          for key, value in expected.items():
+              if run.get(key) != value:
+                  raise SystemExit(
+                      f"pre-rerun {key} mismatch: {run.get(key)!r} != {value!r}"
+                  )
+          request(
+              "POST",
+              f"/repos/{repository}/actions/jobs/{job_id}/rerun",
+              {"enable_debug_logging": False},
+          )
+
+          body = "\n".join(
+              (
+                  "## Exact CUT3R retained job rerun dispatched",
+                  "",
+                  f"- workflow run: `{run_id}`",
+                  f"- previous attempt: `{os.environ['FAILED_RUN_ATTEMPT']}`",
+                  f"- exact failed job: `{job_id}`",
+                  f"- temporary system trust added: `{os.environ['TRUST_ADDED']}`",
+                  f"- raw Git already usable: `{os.environ['RAW_GIT_USABLE']}`",
+                  f"- repair workflow: {os.environ['HELPER_RUN_URL']}",
+                  "",
+                  "Only the failed retained-data job and its dependent terminal receipt "
+                  "are rerun. The historical source protocol, provider revision, "
+                  "checkpoint, source groups, cameras, prefixes, seeds, and target "
+                  "boundary remain unchanged.",
+              )
+          )
+          request(
+              "POST",
+              f"/repos/{repository}/issues/49/comments",
+              {"body": body},
+          )
+          PY
+
+  cleanup:
+    name: Remove temporary retained checkout trust
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.id == 32771242880 &&
+      github.event.workflow_run.run_attempt >= 3 &&
+      github.event.workflow_run.status == 'completed'
+    runs-on: [self-hosted, host-workstation2]
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      CUT3R_CHECKOUT: ${{ vars.CUT3R_CHECKOUT }}
+    outputs:
+      trust_removed: ${{ steps.cleanup.outputs.trust_removed }}
+      marker_present: ${{ steps.cleanup.outputs.marker_present }}
+    steps:
+      - name: Bind the sole retained Deform360 runner
+        shell: bash
+        env:
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+          test "$RUNNER_NAME_VALUE" = "workstation2"
+          test "$RUNNER_OS_VALUE" = "Linux"
+          test "$RUNNER_ARCH_VALUE" = "X64"
+
+      - name: Remove only the temporary exact trust entry
+        id: cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CUT3R_CHECKOUT"
+          marker="$RUNNER_TEMP/$TRUST_MARKER_NAME"
+          trust_removed=false
+          marker_present=false
+          if [[ -f "$marker" ]]; then
+            marker_present=true
+            marker_payload="$(cat "$marker")"
+            python - "$marker_payload" <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          import sys
+
+          value = json.loads(sys.argv[1])
+          expected = {
+              "failed_run_id": int(os.environ["FAILED_RUN_ID"]),
+              "expected_revision": os.environ["EXPECTED_CUT3R_REVISION"],
+          }
+          if not isinstance(value, dict):
+              raise SystemExit("temporary trust marker is not an object")
+          for key, expected_value in expected.items():
+              if value.get(key) != expected_value:
+                  raise SystemExit(
+                      f"temporary trust marker {key} mismatch: "
+                      f"{value.get(key)!r} != {expected_value!r}"
+                  )
+          if type(value.get("trust_added")) is not bool:
+              raise SystemExit("temporary trust marker trust_added is not Boolean")
+          PY
+            trust_added="$(python - "$marker_payload" <<'PY'
+          import json
+          import sys
+
+          print("true" if json.loads(sys.argv[1])["trust_added"] else "false")
+          PY
+            )"
+            if [[ "$trust_added" == "true" ]]; then
+              sudo -n /usr/bin/git config \
+                --system \
+                --fixed-value \
+                --unset-all safe.directory "$CUT3R_CHECKOUT"
+              trust_removed=true
+            fi
+            /usr/bin/rm -f -- "$marker"
+          fi
+          echo "trust_removed=$trust_removed" >> "$GITHUB_OUTPUT"
+          echo "marker_present=$marker_present" >> "$GITHUB_OUTPUT"
+
+  cleanup_report:
+    name: Report checkout-trust cleanup
+    if: >-
+      always() &&
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.id == 32771242880 &&
+      github.event.workflow_run.run_attempt >= 3 &&
+      github.event.workflow_run.status == 'completed'
+    needs: [cleanup]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Publish bounded cleanup receipt
+        shell: bash
+        env:
+          API_URL: ${{ github.api_url }}
+          REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+          TARGET_RUN_URL: ${{ github.event.workflow_run.html_url }}
+          TARGET_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+          TARGET_RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          TRUST_REMOVED: ${{ needs.cleanup.outputs.trust_removed }}
+          MARKER_PRESENT: ${{ needs.cleanup.outputs.marker_present }}
+          CLEANUP_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          import urllib.request
+
+          body = "\n".join(
+              (
+                  "## CUT3R checkout-trust repair cleanup complete",
+                  "",
+                  f"- target workflow: {os.environ['TARGET_RUN_URL']}",
+                  f"- target attempt: `{os.environ['TARGET_RUN_ATTEMPT']}`",
+                  f"- target conclusion: `{os.environ['TARGET_RUN_CONCLUSION']}`",
+                  f"- temporary marker present: `{os.environ['MARKER_PRESENT']}`",
+                  f"- temporary system trust removed: `{os.environ['TRUST_REMOVED']}`",
+                  f"- cleanup workflow: {os.environ['CLEANUP_RUN_URL']}",
+                  "",
+                  "No retained path value is published. This receipt reports execution "
+                  "hygiene only and does not reinterpret the source-freeze decision.",
+              )
+          )
+          request = urllib.request.Request(
+              f"{os.environ['API_URL']}/repos/{os.environ['REPOSITORY']}/issues/49/comments",
+              data=json.dumps({"body": body}).encode("utf-8"),
+              method="POST",
+              headers={
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
+                  "Content-Type": "application/json",
+                  "User-Agent": "prob4d-cut3r-checkout-trust-rerun-v1",
+                  "X-GitHub-Api-Version": "2022-11-28",
+              },
+          )
+          with urllib.request.urlopen(request, timeout=30):
+              pass
+          PY
