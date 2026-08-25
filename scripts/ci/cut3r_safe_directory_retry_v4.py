@@ -55,18 +55,14 @@ EXPECTED_ARTIFACTS = {
         "id": 9551988484,
         "name": "cut3r-source-freeze-v2-failed-32771242880-3",
         "size_in_bytes": 4326,
-        "digest": (
-            "sha256:68f22308ab86190d68c196b747ffcf6f217e670a07da15377da35b7bbb61b57e"
-        ),
+        "digest": ("sha256:68f22308ab86190d68c196b747ffcf6f217e670a07da15377da35b7bbb61b57e"),
         "expired": False,
     },
     9551181122: {
         "id": 9551181122,
         "name": "cut3r-source-freeze-v2-failed-32771242880-2",
         "size_in_bytes": 4384,
-        "digest": (
-            "sha256:d1eff3af637eb297e72334693b1c51723f4eb9487a6cf6a8957d130bc34b9721"
-        ),
+        "digest": ("sha256:d1eff3af637eb297e72334693b1c51723f4eb9487a6cf6a8957d130bc34b9721"),
         "expired": False,
     },
 }
@@ -98,10 +94,7 @@ def rows(value: Any, label: str) -> list[Any]:
 def exact(actual: Json, expected: Json, label: str) -> None:
     for key, expected_value in expected.items():
         if actual.get(key) != expected_value:
-            fail(
-                f"{label} {key} mismatch: "
-                f"{actual.get(key)!r} != {expected_value!r}"
-            )
+            fail(f"{label} {key} mismatch: {actual.get(key)!r} != {expected_value!r}")
 
 
 def validate_workflow(text: str) -> None:
