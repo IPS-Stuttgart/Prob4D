@@ -1,0 +1,42 @@
+{
+  "admission_comment_id": 5409621193,
+  "command_comment_id": 5409619301,
+  "decision": "terminally-revoked-no-execution",
+  "duplicate_run": {
+    "conclusion": "skipped",
+    "run_id": 32842995278
+  },
+  "empirical_execution": {
+    "decoded_frame_count": 0,
+    "inference_count": 0,
+    "prediction_count": 0,
+    "runner_id": 0,
+    "runner_name": "",
+    "step_count": 0
+  },
+  "information_boundary": {
+    "bayesian_phystwin_executed": false,
+    "causal4d_executed": false,
+    "cut3r_inference_executed": false,
+    "source_predictions_written": false,
+    "source_rgb_frames_decoded": false,
+    "source_truth_opened": false,
+    "target_outcomes_opened": false,
+    "target_payloads_opened": false
+  },
+  "primary_run": {
+    "conclusion": "cancelled",
+    "empirical_job_id": 97782722679,
+    "run_id": 32841781121,
+    "terminal_comment_id": 5409937297
+  },
+  "retry_authorized": false,
+  "schema": "prob4d.cut3r-source-comparison-v2-revocation",
+  "schema_v3_smoke_authorized": false,
+  "schema_version": 1,
+  "workflow": {
+    "github_workflow_id": 342012143,
+    "path": ".github/workflows/cut3r-source-comparison-v2.yml",
+    "state_at_revocation": "disabled_manually"
+  }
+}

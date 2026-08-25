@@ -1,5 +1,13 @@
 # Prospective CUT3R source-comparison v2
 
+> **Terminally revoked.** The issue-triggered v2 route admitted a command that
+> conflicted with the retained v1 no-retry boundary. Its queued empirical job
+> was cancelled before runner acceptance, and the duplicate dispatch was
+> skipped. The workflow is removed and must not be restored or dispatched.
+> No v2 provider output or scientific result exists. The terminal metadata is
+> preserved in
+> `evidence/cut3r-source-comparison-v2-revocation/terminal_receipt.json`.
+
 Version 1 of the frozen recurrent-online CUT3R source comparison terminated while
 initializing Python imports. The exact retained record is
 `evidence/cut3r-source-comparison-smoke-v1/summary.json`. It proves that the
@@ -9,8 +17,9 @@ target access, BayesianPhysTwin, or Causal4D.
 
 The retained failure was therefore informative about execution plumbing but not
 about any source case, provider output, metric, uncertainty, or scientific
-outcome. Its no-retry rule remains binding for the v1 plan. This document defines
-a new prospective execution version rather than reclassifying or retrying v1.
+outcome. Its no-retry rule remains binding for the v1 plan. The remainder of
+this document preserves the withdrawn v2 design for provenance only; it is not
+an executable protocol.
 
 ## Sole implementation change
 

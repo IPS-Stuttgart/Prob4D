@@ -29,6 +29,17 @@ AMENDED_PLAN_FILE_SHA256 = "d4eceb6a44f154901227f1e2ac0e832874869179e55f74ce18f1
 AMENDED_PLAN_ID = "ab460acf8ba85d8e5470126e6e9e2fc445d16ad506612b10f1a926a614c60f98"
 AMENDED_IMPLEMENTATION_REVISION = "83ce1c546d4c7d0ebca740334a8ad969666a1d0c"
 AMENDED_SMOKE_CASE_SHA256 = "8ddd8b05edcd78515fc7c5647e2736060630e0932a59702495b2853a68f02fa7"
+CORRECTED_PLAN = (
+    ROOT
+    / "protocols"
+    / "execution_requests"
+    / "cut3r_deform360_source_comparison_execution_v1_2.json"
+)
+CORRECTED_PLAN_FILE_SHA256 = (
+    "172e725e3ecfe12dac7c0e402f01883dd92d6898179e89079f21f2b3c05e680c"
+)
+CORRECTED_PLAN_ID = "1c74105994cb32885c8ab57af5a2d1feb296ce63c5e9a3fc39665fb2094bad3a"
+CORRECTED_IMPLEMENTATION_REVISION = "06f7a19c2016b291f85bf17634a515ffc4890ac1"
 SMOKE_RESULT = ROOT / "evidence/cut3r-source-comparison-smoke-v1/summary.json"
 SMOKE_RESULT_FILE_SHA256 = "550ce0c8858c4730548d08af50589c820ed3023cfbbae3050eea0369bcd7845f"
 SMOKE_RESULT_ID = "ef4e5bf187570e918df1d7d14434b4ae55f983c347104b9c6f7ad52b42f7a7bf"
@@ -151,4 +162,31 @@ def test_amended_plan_binds_reviewed_implementation_blobs() -> None:
     amended = json.loads(AMENDED_PLAN.read_text(encoding="utf-8"))
     for relative, expected in amended["implementation"]["source_file_sha256"].items():
         blob = _reviewed_blob(AMENDED_IMPLEMENTATION_REVISION, relative, expected)
+        assert hashlib.sha256(blob).hexdigest() == expected
+
+
+def test_corrected_plan_is_exact_and_fail_closed() -> None:
+    payload = CORRECTED_PLAN.read_bytes()
+    assert hashlib.sha256(payload).hexdigest() == CORRECTED_PLAN_FILE_SHA256
+    corrected = validate_execution_plan(json.loads(payload))
+
+    assert corrected["plan_id"] == CORRECTED_PLAN_ID
+    assert corrected["schema_version"] == 3
+    assert corrected["implementation"]["revision"] == CORRECTED_IMPLEMENTATION_REVISION
+    policy = corrected["execution"]["smoke_policy"]
+    assert policy["registered_case_id_sha256"] == AMENDED_SMOKE_CASE_SHA256
+    assert policy["attempt_limit"] == 1
+    assert policy["attempt_ledger_required"] is True
+    assert policy["output_root_must_not_exist_before_attempt"] is True
+    assert policy["source_shards_require_ordinary_success_custody"] is True
+    assert len(policy["registered_output_root_path_sha256"]) == 64
+    assert len(policy["registered_attempt_ledger_path_sha256"]) == 64
+
+
+def test_corrected_plan_binds_reviewed_implementation_blobs() -> None:
+    corrected = json.loads(CORRECTED_PLAN.read_text(encoding="utf-8"))
+    for relative, expected in corrected["implementation"][
+        "source_file_sha256"
+    ].items():
+        blob = _reviewed_blob(CORRECTED_IMPLEMENTATION_REVISION, relative, expected)
         assert hashlib.sha256(blob).hexdigest() == expected

@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from prob4d.cut3r_source_comparison_plan import (
+    AMENDED_EXECUTION_PLAN_VERSION,
     AMENDMENT_IMPLEMENTATION_FILES,
     IMPLEMENTATION_FILES,
     PROVIDER_FILES,
@@ -16,6 +17,7 @@ from prob4d.cut3r_source_comparison_plan import (
     build_execution_plan,
     validate_execution_plan,
 )
+from prob4d.cut3r_source_comparison_verifier import path_identity_sha256
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -226,6 +228,8 @@ def test_amended_plan_registers_one_different_smoke_without_method_change(
         checkout=checkout,
         checkpoint=checkpoint,
     )
+    smoke_output_root = tmp_path / "registered-smoke-output"
+    smoke_attempt_ledger = tmp_path / "attempts" / "smoke-attempt.json"
 
     plan = build_amended_execution_plan(
         repository=repository,
@@ -234,14 +238,22 @@ def test_amended_plan_registers_one_different_smoke_without_method_change(
         checkpoint=checkpoint,
         parent_plan_path=parent_path,
         parent_smoke_result_path=result_path,
+        smoke_output_root=smoke_output_root,
+        smoke_attempt_ledger=smoke_attempt_ledger,
     )
     validated = validate_execution_plan(plan)
 
-    assert validated["schema_version"] == 2
+    assert validated["schema_version"] == AMENDED_EXECUTION_PLAN_VERSION
     assert validated["method"] == parent_plan["method"]
     assert validated["cases"] == parent_plan["cases"]
     assert validated["execution"]["smoke_policy"]["registered_case_id"] == "case-01"
     assert validated["execution"]["smoke_policy"]["attempt_limit"] == 1
+    assert validated["execution"]["smoke_policy"][
+        "registered_output_root_path_sha256"
+    ] == path_identity_sha256(smoke_output_root)
+    assert validated["execution"]["smoke_policy"][
+        "registered_attempt_ledger_path_sha256"
+    ] == path_identity_sha256(smoke_attempt_ledger)
     assert validated["amendment"]["prior_retry_authorized"] is False
     assert validated["amendment"]["method_changed"] is False
 
@@ -265,6 +277,8 @@ def test_amended_plan_rejects_reuse_of_failed_case(tmp_path: Path) -> None:
         checkpoint=checkpoint,
         parent_plan_path=parent_path,
         parent_smoke_result_path=result_path,
+        smoke_output_root=tmp_path / "registered-smoke-output",
+        smoke_attempt_ledger=tmp_path / "attempts" / "smoke-attempt.json",
     )
     plan["execution"]["smoke_policy"]["registered_case_id_sha256"] = plan["amendment"][
         "prior_case_id_sha256"

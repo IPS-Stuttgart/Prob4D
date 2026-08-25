@@ -22,6 +22,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--checkpoint", type=Path, required=True)
     parser.add_argument("--parent-plan", type=Path, required=True)
     parser.add_argument("--parent-smoke-result", type=Path, required=True)
+    parser.add_argument("--smoke-output-root", type=Path, required=True)
+    parser.add_argument("--smoke-attempt-ledger", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     return parser
 
@@ -35,6 +37,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         checkpoint=args.checkpoint,
         parent_plan_path=args.parent_plan,
         parent_smoke_result_path=args.parent_smoke_result,
+        smoke_output_root=args.smoke_output_root,
+        smoke_attempt_ledger=args.smoke_attempt_ledger,
     )
     save_execution_plan(args.output, plan)
     print(

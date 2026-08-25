@@ -27,10 +27,18 @@ from prob4d.cut3r_source_comparison_execution import (
 )
 from prob4d.cut3r_source_comparison_plan import (
     AMENDED_EXECUTION_PLAN_VERSION,
+    REVOKED_AMENDED_EXECUTION_PLAN_VERSION,
     _content_id,
     _file_sha256,
     _runtime_inventory,
     load_execution_plan,
+)
+from prob4d.cut3r_source_comparison_verifier import (
+    claim_smoke_attempt,
+    path_identity_sha256,
+    validate_custody_receipt,
+    validate_shard_artifact,
+    validate_smoke_attempt,
 )
 from prob4d.data import PredictionWindow
 from prob4d.io import save_fused_prediction
@@ -48,6 +56,10 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--shard-index", type=int, default=0)
     parser.add_argument("--shard-count", type=int, default=2)
     parser.add_argument("--smoke-case-id")
+    parser.add_argument("--smoke-attempt-ledger", type=Path)
+    parser.add_argument("--required-smoke-output-root", type=Path)
+    parser.add_argument("--required-smoke-shard-report", type=Path)
+    parser.add_argument("--required-smoke-custody-receipt", type=Path)
     return parser
 
 
@@ -568,6 +580,128 @@ def _selected_cases(
     return [case for index, case in enumerate(cases) if index % shard_count == shard_index]
 
 
+def _amended_smoke_policy(plan: Mapping[str, Any]) -> Mapping[str, Any]:
+    if plan["schema_version"] != AMENDED_EXECUTION_PLAN_VERSION:
+        raise ValueError("execution does not use the fail-closed amended plan")
+    execution = cast(Mapping[str, Any], plan["execution"])
+    return cast(Mapping[str, Any], execution["smoke_policy"])
+
+
+def _validate_registered_path(
+    path: Path,
+    *,
+    expected_sha256: object,
+    name: str,
+) -> None:
+    if path_identity_sha256(path) != expected_sha256:
+        raise ValueError(f"{name} differs from the registered path")
+
+
+def _claim_registered_smoke_attempt(
+    plan: Mapping[str, Any],
+    *,
+    smoke_case_id: str,
+    output_root: Path,
+    attempt_ledger: Path | None,
+) -> dict[str, Any]:
+    policy = _amended_smoke_policy(plan)
+    if attempt_ledger is None:
+        raise ValueError("amended smoke requires its registered attempt ledger")
+    _validate_registered_path(
+        output_root,
+        expected_sha256=policy["registered_output_root_path_sha256"],
+        name="smoke output root",
+    )
+    _validate_registered_path(
+        attempt_ledger,
+        expected_sha256=policy["registered_attempt_ledger_path_sha256"],
+        name="smoke attempt ledger",
+    )
+    if output_root.is_symlink() or output_root.exists():
+        raise FileExistsError("registered smoke output root is no longer fresh")
+    if attempt_ledger.is_symlink() or attempt_ledger.exists():
+        raise FileExistsError("the registered CUT3R smoke attempt is already consumed")
+    if smoke_case_id != policy["registered_case_id"]:
+        raise ValueError("smoke case differs from the amended registered case")
+    record = claim_smoke_attempt(
+        attempt_ledger,
+        plan_id=cast(str, plan["plan_id"]),
+        case_id_sha256=cast(str, policy["registered_case_id_sha256"]),
+        output_root=output_root,
+    )
+    validated = validate_smoke_attempt(
+        attempt_ledger,
+        expected_plan_id=cast(str, plan["plan_id"]),
+        expected_case_id_sha256=cast(str, policy["registered_case_id_sha256"]),
+        expected_output_root=output_root,
+    )
+    if validated != record:
+        raise ValueError("published smoke attempt record changed after atomic creation")
+    return record
+
+
+def _validate_amended_shard_authorization(
+    plan: Mapping[str, Any],
+    *,
+    smoke_output_root: Path | None,
+    smoke_shard_report: Path | None,
+    smoke_custody_receipt: Path | None,
+    smoke_attempt_ledger: Path | None,
+) -> dict[str, Any]:
+    policy = _amended_smoke_policy(plan)
+    if any(
+        path is None
+        for path in (
+            smoke_output_root,
+            smoke_shard_report,
+            smoke_custody_receipt,
+            smoke_attempt_ledger,
+        )
+    ):
+        raise ValueError(
+            "amended source shards require the smoke artifact, report, custody "
+            "receipt, and attempt ledger"
+        )
+    assert smoke_output_root is not None
+    assert smoke_shard_report is not None
+    assert smoke_custody_receipt is not None
+    assert smoke_attempt_ledger is not None
+    _validate_registered_path(
+        smoke_output_root,
+        expected_sha256=policy["registered_output_root_path_sha256"],
+        name="smoke output root",
+    )
+    _validate_registered_path(
+        smoke_attempt_ledger,
+        expected_sha256=policy["registered_attempt_ledger_path_sha256"],
+        name="smoke attempt ledger",
+    )
+    validate_smoke_attempt(
+        smoke_attempt_ledger,
+        expected_plan_id=cast(str, plan["plan_id"]),
+        expected_case_id_sha256=cast(str, policy["registered_case_id_sha256"]),
+        expected_output_root=smoke_output_root,
+    )
+    recomputed = validate_shard_artifact(
+        smoke_output_root,
+        smoke_shard_report,
+        expected_plan_id=cast(str, plan["plan_id"]),
+        require_success=True,
+        forbid_decoded_frames=True,
+    )
+    published = validate_custody_receipt(
+        smoke_custody_receipt,
+        expected_plan_id=cast(str, plan["plan_id"]),
+        expected_scope="development-smoke",
+        require_success=True,
+    )
+    if recomputed != published:
+        raise ValueError("published smoke custody receipt differs from recomputed custody")
+    if published["case_ids"] != [policy["registered_case_id"]]:
+        raise ValueError("smoke custody receipt belongs to a different development case")
+    return published
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     repository = args.repository.resolve(strict=True)
@@ -582,13 +716,40 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     if _runtime_inventory() != plan["runtime"]:
         raise ValueError("runtime inventory changed from the frozen execution plan")
+    if plan["schema_version"] == REVOKED_AMENDED_EXECUTION_PLAN_VERSION:
+        raise ValueError("the declarative v1.1 execution plan was independently revoked")
     selected = _selected_cases(
         plan,
         shard_index=args.shard_index,
         shard_count=args.shard_count,
         smoke_case_id=args.smoke_case_id,
     )
-    output_root = args.output_root.resolve()
+    output_root = args.output_root.resolve(strict=False)
+    if plan["schema_version"] == AMENDED_EXECUTION_PLAN_VERSION:
+        if args.smoke_case_id is not None:
+            if any(
+                value is not None
+                for value in (
+                    args.required_smoke_output_root,
+                    args.required_smoke_shard_report,
+                    args.required_smoke_custody_receipt,
+                )
+            ):
+                raise ValueError("smoke execution must not supply source-shard custody inputs")
+            _claim_registered_smoke_attempt(
+                plan,
+                smoke_case_id=args.smoke_case_id,
+                output_root=output_root,
+                attempt_ledger=args.smoke_attempt_ledger,
+            )
+        else:
+            _validate_amended_shard_authorization(
+                plan,
+                smoke_output_root=args.required_smoke_output_root,
+                smoke_shard_report=args.required_smoke_shard_report,
+                smoke_custody_receipt=args.required_smoke_custody_receipt,
+                smoke_attempt_ledger=args.smoke_attempt_ledger,
+            )
     output_root.mkdir(parents=True, exist_ok=True)
     try:
         runtime = _Cut3RRuntime(cut3r, checkpoint, device=args.device)
