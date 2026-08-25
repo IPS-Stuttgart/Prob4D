@@ -1,0 +1,131 @@
+name: Authorize exact CUT3R safe-directory retry v4 from issue 49
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/cut3r-safe-directory-retry-v4.yml"
+      - ".github/workflows/cut3r-source-freeze-auto-v2.yml"
+      - "CHANGELOG.d/cut3r-safe-directory-retry-v4.md"
+      - "docs/cut3r-safe-directory-retry-v4.md"
+      - "scripts/ci/cut3r_safe_directory_retry_v4.py"
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cut3r-safe-directory-retry-v4
+  cancel-in-progress: false
+
+env:
+  DISPATCH_COMMAND: /prob4d-dispatch-cut3r-safe-directory-retry-v4 8b923e8cd67ca65f09312cffe305e36852f36fbb 8f3c9fba12f8a16895edce89d7a92e4806a43cb2f34b5a05faff71945809b63e 32771242880 sha256:68f22308ab86190d68c196b747ffcf6f217e670a07da15377da35b7bbb61b57e
+  RETAINED_REQUEST_PATH: protocols/execution_requests/cut3r_deform360_source_freeze_v2.json
+  TARGET_WORKFLOW_PATH: .github/workflows/cut3r-source-freeze-auto-v2.yml
+  HISTORICAL_EXECUTION_SHA: 8b923e8cd67ca65f09312cffe305e36852f36fbb
+  RETAINED_REQUEST_ID: 8f3c9fba12f8a16895edce89d7a92e4806a43cb2f34b5a05faff71945809b63e
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+
+jobs:
+  contract:
+    name: Exact safe-directory retry-v4 contract
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out reviewed merge candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Validate exact technical-failure admission and scoped trust
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -e ".[dev]"
+          python -m pip check
+          python -m ruff check scripts/ci/cut3r_safe_directory_retry_v4.py
+          python -m ruff format --check scripts/ci/cut3r_safe_directory_retry_v4.py
+          python -m compileall -q scripts/ci/cut3r_safe_directory_retry_v4.py
+          python scripts/ci/cut3r_safe_directory_retry_v4.py self-test \
+            --workflow "$TARGET_WORKFLOW_PATH"
+          python -m pytest -q \
+            tests/test_github_action_pins.py \
+            tests/test_trusted_self_hosted_validation_policy.py
+          python scripts/ci/cut3r_execution_preflight.py authorize-retry \
+            --repository . \
+            --request "$RETAINED_REQUEST_PATH" \
+            --current-revision "$(git rev-parse HEAD)" \
+            --execution-revision "$HISTORICAL_EXECUTION_SHA" \
+            --expected-request-id "$RETAINED_REQUEST_ID" \
+            > "$RUNNER_TEMP/cut3r-safe-directory-retry-v4-contract.json"
+
+  comment-dispatch:
+    name: Dispatch exact CUT3R safe-directory replacement
+    if: >-
+      github.event_name == 'issue_comment' &&
+      github.event.issue.number == 49 &&
+      github.actor == 'FlorianPfaff' &&
+      github.event.comment.user.login == 'FlorianPfaff' &&
+      github.event.comment.body == '/prob4d-dispatch-cut3r-safe-directory-retry-v4 8b923e8cd67ca65f09312cffe305e36852f36fbb 8f3c9fba12f8a16895edce89d7a92e4806a43cb2f34b5a05faff71945809b63e 32771242880 sha256:68f22308ab86190d68c196b747ffcf6f217e670a07da15377da35b7bbb61b57e'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      actions: write
+      contents: read
+      issues: write
+    steps:
+      - name: Check out the exact default-branch event revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Reauthorize exact historical request and fixed control plane
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+          EVENT_COMMENT_BODY: ${{ github.event.comment.body }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test "$EVENT_COMMENT_BODY" = "$DISPATCH_COMMAND"
+          python scripts/ci/cut3r_execution_preflight.py authorize-retry \
+            --repository . \
+            --request "$RETAINED_REQUEST_PATH" \
+            --current-revision "$EXPECTED_SHA" \
+            --execution-revision "$HISTORICAL_EXECUTION_SHA" \
+            --expected-request-id "$RETAINED_REQUEST_ID" \
+            > "$RUNNER_TEMP/cut3r-safe-directory-retry-v4-authorization.json"
+
+      - name: Validate capsule, reject duplicates, and dispatch one replacement
+        shell: bash
+        env:
+          API_URL: ${{ github.api_url }}
+          REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+          COMMAND_COMMENT_URL: ${{ github.event.comment.html_url }}
+          HELPER_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          python scripts/ci/cut3r_safe_directory_retry_v4.py dispatch

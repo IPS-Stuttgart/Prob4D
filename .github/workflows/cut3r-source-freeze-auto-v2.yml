@@ -497,6 +497,11 @@ jobs:
           output="$root/evidence/cut3r-deform360-source-freeze"
           selection="$BPT_CHECKOUT/protocols/locks/deform360_official_hub_visuotactile_v1_selection.json"
           test -f "$selection"
+          cut3r_checkout=$(/usr/bin/realpath -e -- "$CUT3R_CHECKOUT")
+          test -d "$cut3r_checkout/.git"
+          GIT_CONFIG_COUNT=1 \
+          GIT_CONFIG_KEY_0=safe.directory \
+          GIT_CONFIG_VALUE_0="$cut3r_checkout" \
           "$root/run-venv/bin/python" \
             scripts/science/run_cut3r_source_freeze_execution.py execute \
             --repository . \
@@ -504,7 +509,7 @@ jobs:
             --expected-revision "$EXPECTED_HEAD_SHA" \
             --selection "$selection" \
             --processed-root "$DEFORM360_PROCESSED_ROOT" \
-            --cut3r-checkout "$CUT3R_CHECKOUT" \
+            --cut3r-checkout "$cut3r_checkout" \
             --checkpoint "$CUT3R_CHECKPOINT" \
             --prob4d-wheel "$WHEEL_PATH" \
             --output-dir "$output" \
