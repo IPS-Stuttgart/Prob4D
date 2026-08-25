@@ -26,6 +26,7 @@ from prob4d.cut3r_source_comparison_execution import (
     build_restarted_comparison_products,
 )
 from prob4d.cut3r_source_comparison_plan import (
+    AMENDED_EXECUTION_PLAN_VERSION,
     _content_id,
     _file_sha256,
     _runtime_inventory,
@@ -555,6 +556,11 @@ def _selected_cases(
     if shard_count != expected_shards or not 0 <= shard_index < shard_count:
         raise ValueError("shard selection differs from the frozen execution plan")
     if smoke_case_id is not None:
+        if plan["schema_version"] == AMENDED_EXECUTION_PLAN_VERSION:
+            execution = cast(Mapping[str, Any], plan["execution"])
+            policy = cast(Mapping[str, Any], execution["smoke_policy"])
+            if smoke_case_id != policy["registered_case_id"]:
+                raise ValueError("smoke case differs from the amended registered case")
         selected = [case for case in cases if case["case_id"] == smoke_case_id]
         if len(selected) != 1 or selected[0]["role"] != "development":
             raise ValueError("smoke case must be one frozen development case")

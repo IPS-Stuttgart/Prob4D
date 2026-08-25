@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from prob4d.cut3r_source_comparison_execution import (
     build_native_product,
@@ -177,3 +178,34 @@ def test_runtime_bootstrap_failure_is_retained_without_progress(tmp_path: Path) 
     assert manifest["source_predictions_written"] is False
     assert str(checkout) not in manifest["failure"]
     assert (output / "cases/development-case/case_manifest.json").is_file()
+
+
+def test_amended_plan_selects_only_the_registered_replacement_smoke() -> None:
+    module = _load_runner_module()
+    plan = {
+        "schema_version": 2,
+        "execution": {
+            "shard_count": 2,
+            "smoke_policy": {"registered_case_id": "development-new"},
+        },
+        "cases": [
+            {"case_id": "development-new", "role": "development"},
+            {"case_id": "development-old", "role": "development"},
+        ],
+    }
+
+    selected = module._selected_cases(
+        plan,
+        shard_index=0,
+        shard_count=2,
+        smoke_case_id="development-new",
+    )
+    assert [case["case_id"] for case in selected] == ["development-new"]
+
+    with pytest.raises(ValueError, match="amended registered case"):
+        module._selected_cases(
+            plan,
+            shard_index=0,
+            shard_count=2,
+            smoke_case_id="development-old",
+        )

@@ -4,3 +4,5 @@
   native-versus-newest-versus-decoded-uniform comparison.
 - Expose CUT3R's internal `dust3r` package explicitly and retain shared-runtime
   bootstrap failures before any source frame is decoded.
+- Add a hash-bound one-attempt runtime amendment that registers a different
+  development smoke while preserving the frozen method and no-retry decision.
