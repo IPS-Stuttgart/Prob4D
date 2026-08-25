@@ -1,0 +1,45 @@
+{
+  "artifact_id": "ef4e5bf187570e918df1d7d14434b4ae55f983c347104b9c6f7ad52b42f7a7bf",
+  "attempt_count": 1,
+  "case_id_sha256": "f306dc541c5c48e069c2ddc9942d75cdf537e81f65b028cbbcf35aaf410a9654",
+  "decision": "pre-science-technical-failure-no-retry",
+  "elapsed_seconds": 11.433960649,
+  "execution_plan_file_sha256": "3ea10036bdd3d0b516d06ef210204cb7644e8b06cc8c2a3391c4742f3940ef7f",
+  "execution_plan_id": "0dbb6b3a46e2c895259fd5f4a4691c1d6d3c43b0e71774171bbfb3a20239953c",
+  "failure": {
+    "class": "ModuleNotFoundError",
+    "message": "No module named 'dust3r'",
+    "terminal_stage": "initialize-cut3r-runtime"
+  },
+  "frozen_implementation_revision": "8d0310e93269c0489b53564fd8077763829c4371",
+  "gpu": {
+    "cuda_visible_devices": "1",
+    "device_argument": "cuda:0",
+    "physical_index": 1,
+    "prelaunch_compute_process_count": 0,
+    "prelaunch_memory_mib": 35,
+    "prelaunch_utilization_percent": 0,
+    "uuid": "GPU-09e1e721-c0a4-f629-65b9-764da6dc7b6a"
+  },
+  "information_boundary": {
+    "bayesian_phystwin_executed": false,
+    "candidate_reference_file_contents_opened": false,
+    "causal4d_executed": false,
+    "cut3r_inference_executed": false,
+    "source_predictions_written": false,
+    "source_residuals_or_truth_opened": false,
+    "source_rgb_frames_decoded": false,
+    "target_outcomes_opened": false,
+    "target_payloads_opened": false
+  },
+  "ordinary_success_count": 0,
+  "output_file_count_after_failure": 0,
+  "recorded_at": "2026-08-25T12:25:38+02:00",
+  "retained_technical_failure_count": 1,
+  "retry_authorized": false,
+  "retry_performed": false,
+  "schema": "prob4d.cut3r-source-comparison-smoke-result",
+  "schema_version": 1,
+  "smoke_started_at": "2026-08-25T12:14:54.563522071+02:00",
+  "source_freeze_id": "5e739b92c2628c61fa99ae68da61d5814ca94d4b6de5720b75c4552de82d1b2c"
+}

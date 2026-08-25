@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import importlib.util
+import sys
+from pathlib import Path
+
 import numpy as np
 
 from prob4d.cut3r_source_comparison_execution import (
@@ -10,6 +14,15 @@ from prob4d.cut3r_source_comparison_execution import (
 )
 from prob4d.data import PredictionWindow
 from prob4d.sim3 import Sim3
+
+
+def _load_runner_module():
+    path = Path(__file__).resolve().parents[1] / "scripts/science/run_cut3r_source_comparison.py"
+    spec = importlib.util.spec_from_file_location("cut3r_source_comparison_runner", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def _window(
@@ -116,3 +129,51 @@ def test_native_product_preserves_point_mean_and_support() -> None:
     np.testing.assert_allclose(native.point_map, window.point_map)
     np.testing.assert_array_equal(native.valid_mask, window.valid_mask)
     assert np.all(native.contributors[native.valid_mask] == 1)
+
+
+def test_cut3r_runtime_exposes_repository_and_internal_package(
+    tmp_path: Path, monkeypatch
+) -> None:
+    module = _load_runner_module()
+    checkout = tmp_path / "CUT3R"
+    (checkout / "src").mkdir(parents=True)
+    monkeypatch.setattr(sys, "path", list(sys.path))
+
+    module._prepend_cut3r_import_paths(checkout)
+
+    assert sys.path[:2] == [str(checkout / "src"), str(checkout)]
+
+
+def test_runtime_bootstrap_failure_is_retained_without_progress(tmp_path: Path) -> None:
+    module = _load_runner_module()
+    processed = tmp_path / "processed"
+    output = tmp_path / "output"
+    checkout = tmp_path / "CUT3R"
+    checkpoint = tmp_path / "model.pth"
+    processed.mkdir()
+    checkout.mkdir()
+    checkpoint.write_bytes(b"checkpoint")
+    case = {
+        "case_id": "development-case",
+        "group_id": "development-group",
+        "role": "development",
+    }
+
+    manifest = module._retain_runtime_failure(
+        error=ModuleNotFoundError(f"missing package below {checkout}"),
+        traceback_text=f"trace below {processed}",
+        case=case,
+        plan={"plan_id": "frozen-plan"},
+        processed_root=processed,
+        output_root=output,
+        cut3r_checkout=checkout,
+        checkpoint=checkpoint,
+        shard_index=0,
+    )
+
+    assert manifest["status"] == "retained-technical-failure"
+    assert manifest["source_rgb_frames_decoded"] is False
+    assert manifest["cut3r_inference_executed"] is False
+    assert manifest["source_predictions_written"] is False
+    assert str(checkout) not in manifest["failure"]
+    assert (output / "cases/development-case/case_manifest.json").is_file()

@@ -2,3 +2,5 @@
 
 - Add the hash-bound, sharded source executor for the frozen recurrent CUT3R
   native-versus-newest-versus-decoded-uniform comparison.
+- Expose CUT3R's internal `dust3r` package explicitly and retain shared-runtime
+  bootstrap failures before any source frame is decoded.
