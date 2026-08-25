@@ -1,4 +1,4 @@
-# Exact retained CUT3R checkout-trust repair v1
+# Exact retained CUT3R isolated-HOME repair v2
 
 The exact retained CUT3R source-freeze run `32771242880`, attempt 2, reached the
 sole retained Deform360 runner and completed checkout, Python provisioning, and
@@ -6,7 +6,7 @@ installation of the reviewed Prob4D wheel. It stopped before CUT3R inference
 because the source-freeze builder could not resolve `HEAD` in the retained CUT3R
 checkout.
 
-The bounded failure artifact is fixed as:
+The bounded source-freeze failure capsule is:
 
 ```text
 run: 32771242880
@@ -18,49 +18,68 @@ size: 4384 bytes
 SHA-256: d1eff3af637eb297e72334693b1c51723f4eb9487a6cf6a8957d130bc34b9721
 ```
 
-Its diagnostic log contains no CUT3R prediction, source residual, source truth,
-confirmation payload, target payload, BayesianPhysTwin result, or Causal4D
-result. The first failing operation is the read-only Git revision lookup.
+The first repair helper, run `32817085071`, established two additional facts
+without opening any source outcome:
 
-## Exact repair command
+1. command-scoped `safe.directory` recovered the exact frozen CUT3R revision
+   `8bc15dc92a6d7fd92920b4ec81540d3dec7d3ecf` and a clean worktree;
+2. the runner does not permit a passwordless system Git-config write.
+
+That helper therefore stopped before requesting a rerun. No CUT3R prediction,
+source residual, source truth, confirmation payload, target payload,
+BayesianPhysTwin result, or Causal4D result was produced by either failure.
+
+## Exact v2 command
 
 After this workflow is merged to `main`, only this exact issue-49 comment from
 `FlorianPfaff` is accepted:
 
 ```text
-/prob4d-repair-cut3r-checkout-trust-and-rerun-v1 32771242880 9551181122 d1eff3af637eb297e72334693b1c51723f4eb9487a6cf6a8957d130bc34b9721
+/prob4d-repair-cut3r-isolated-home-and-rerun-v2 32771242880 32817085071 9551181122 d1eff3af637eb297e72334693b1c51723f4eb9487a6cf6a8957d130bc34b9721
 ```
 
-The hosted authorization job binds the exact failed workflow, attempt, seven-job
-roster, failed execution step, successful setup and evidence-retention steps,
-and single diagnostic artifact. It authorizes no changed provider, checkpoint,
-source group, camera, prefix, seed, covariance method, target group, or analysis.
+The hosted authorization binds the exact source-freeze run, attempt, seven-job
+roster, failed execution step, single diagnostic artifact, prior helper run,
+prior helper job roster, and zero helper artifacts. It also requires the source
+workflow to remain at attempt 2, so a previously executed attempt cannot be
+silently repeated.
 
-## Bounded workstation repair
+## Attempt-specific isolated HOME
 
-On `workstation2`, the workflow first tries the unchanged Git revision lookup. If
-that works and the checkout has the frozen CUT3R revision
-`8bc15dc92a6d7fd92920b4ec81540d3dec7d3ecf`, no trust entry is added. If the
-ordinary lookup fails, one command-scoped `safe.directory` probe must recover the
-same exact revision and a completely clean worktree. Only then may the workflow
-add the exact retained checkout path temporarily to Git's system protected
-configuration.
+The historical source-freeze workflow deliberately creates a fresh HOME at:
 
-The path value is never printed or posted. The self-hosted job has read-only
-repository permissions and cannot dispatch Actions or write issue comments.
-A separate GitHub-hosted job rechecks that the failed workflow is still attempt 2
-and reruns only job `97702294765`. GitHub reruns that job and its dependent
-terminal receipt under the original run identity.
+```text
+${RUNNER_TEMP}/prob4d-cut3r-source-freeze-v2-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/home
+```
 
-When run `32771242880` finishes attempt 3 or later, a separate self-hosted cleanup
-job removes only the exact temporary `safe.directory` entry if this workflow
-added it. A GitHub-hosted receipt reports cleanup without publishing the retained
-path.
+For the authorized rerun, a short-lived watcher is armed on `workstation2`
+before GitHub requests attempt 3. The watcher:
+
+- first verifies the retained checkout under command-scoped trust;
+- requires the exact frozen CUT3R revision and a completely clean worktree;
+- refuses any pre-existing attempt-3 workspace or `.gitconfig`;
+- waits only for the exact run-32771242880, attempt-3 isolated HOME;
+- atomically writes one mode-0600 `.gitconfig` containing the exact
+  `safe.directory` entry;
+- writes a bounded marker containing no retained path; and
+- exits.
+
+The process is detached only so that the single self-hosted runner can accept the
+original job. It has a fixed timeout, no repository token with write permission,
+and no ability to dispatch Actions or write issue comments. A GitHub-hosted job
+alone requests rerun of failed job `97702294765`.
+
+The historical source-freeze job then runs unchanged. Its existing cleanup
+removes the complete attempt-specific workspace, including the temporary Git
+configuration. A workflow-run cleanup removes only the watcher request, script,
+PID, log, marker, and any exact leftover attempt-3 workspace.
+
+No system or user-global Git configuration is changed.
 
 ## Scientific boundary
 
 This is an execution-environment repair for a failure before provider execution.
-It does not reinterpret the failed run and cannot turn it into scientific
-evidence. Scientific evidence begins only if the original frozen source-freeze
-job publishes its registered source-support decision. The existing ordered stop
-sequence and target-closed boundary remain authoritative.
+It changes no provider, checkpoint, source object/session roster, camera panel,
+causal prefix, metric anchor, support rule, seed, covariance method, target
+roster, or analysis. Scientific evidence begins only if the original frozen
+source-freeze workflow publishes its registered terminal source-support decision.
