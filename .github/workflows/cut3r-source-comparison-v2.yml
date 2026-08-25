@@ -1,0 +1,783 @@
+name: Execute prospective CUT3R source comparison v2
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/cut3r-source-comparison-v2.yml"
+      - "CHANGELOG.d/cut3r-source-comparison-v2.md"
+      - "docs/cut3r-source-comparison-v2.md"
+      - "scripts/ci/cut3r_source_comparison_v2.py"
+      - "tests/test_cut3r_source_comparison_v2.py"
+      - "tests/test_trusted_self_hosted_validation_policy.py"
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cut3r-source-comparison-v2
+  cancel-in-progress: false
+
+env:
+  DISPATCH_COMMAND: /prob4d-run-cut3r-source-comparison-v2 ef4e5bf187570e918df1d7d14434b4ae55f983c347104b9c6f7ad52b42f7a7bf 0dbb6b3a46e2c895259fd5f4a4691c1d6d3c43b0e71774171bbfb3a20239953c 5e739b92c2628c61fa99ae68da61d5814ca94d4b6de5720b75c4552de82d1b2c
+  PREDECESSOR_PLAN: protocols/execution_requests/cut3r_deform360_source_comparison_execution_v1.json
+  SOURCE_PREFLIGHT: protocols/locks/cut3r_deform360_source_comparison_preflight_v1.json
+  SMOKE_CASE_ID: 031-cotton-cloth-episode-0000-brics-odroid-010_cam0
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+
+jobs:
+  contract:
+    name: Prospective source-comparison v2 contract
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out reviewed merge candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Validate zero-information replacement and protected execution policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -e ".[dev]"
+          python -m pip check
+          python -m ruff check \
+            scripts/ci/cut3r_source_comparison_v2.py \
+            tests/test_cut3r_source_comparison_v2.py \
+            tests/test_trusted_self_hosted_validation_policy.py
+          python -m ruff format --check \
+            scripts/ci/cut3r_source_comparison_v2.py \
+            tests/test_cut3r_source_comparison_v2.py \
+            tests/test_trusted_self_hosted_validation_policy.py
+          python -m compileall -q scripts/ci/cut3r_source_comparison_v2.py
+          python scripts/ci/cut3r_source_comparison_v2.py self-test --repository .
+          python -m pytest -q \
+            tests/test_cut3r_source_comparison_v2.py \
+            tests/test_cut3r_source_comparison_execution.py \
+            tests/test_cut3r_source_comparison_plan.py \
+            tests/test_cut3r_source_comparison_verifier.py \
+            tests/test_trusted_self_hosted_validation_policy.py \
+            tests/test_github_action_pins.py
+
+  authorize:
+    name: Admit exact zero-information v2 execution
+    if: >-
+      github.event_name == 'issue_comment' &&
+      github.event.issue.number == 49 &&
+      github.actor == 'FlorianPfaff' &&
+      github.event.comment.user.login == 'FlorianPfaff' &&
+      github.event.comment.body == '/prob4d-run-cut3r-source-comparison-v2 ef4e5bf187570e918df1d7d14434b4ae55f983c347104b9c6f7ad52b42f7a7bf 0dbb6b3a46e2c895259fd5f4a4691c1d6d3c43b0e71774171bbfb3a20239953c 5e739b92c2628c61fa99ae68da61d5814ca94d4b6de5720b75c4552de82d1b2c'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      issues: write
+    outputs:
+      authorized_sha: ${{ steps.admit.outputs.authorized_sha }}
+    steps:
+      - name: Check out exact default-branch event revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+
+      - name: Revalidate predecessor and admit one prospective execution
+        id: admit
+        shell: bash
+        env:
+          API_URL: ${{ github.api_url }}
+          REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+          EVENT_COMMENT_BODY: ${{ github.event.comment.body }}
+          EVENT_ACTOR: ${{ github.actor }}
+          EXPECTED_SHA: ${{ github.sha }}
+          COMMAND_COMMENT_URL: ${{ github.event.comment.html_url }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_COMMENT_BODY" = "$DISPATCH_COMMAND"
+          python scripts/ci/cut3r_source_comparison_v2.py admit --repository .
+
+  execute:
+    name: Run v2 smoke and custody-gated source shards
+    if: >-
+      github.event_name == 'issue_comment' &&
+      needs.authorize.result == 'success'
+    needs: [authorize]
+    runs-on: [self-hosted, host-workstation2]
+    timeout-minutes: 720
+    permissions:
+      contents: read
+    outputs:
+      decision: ${{ steps.summary.outputs.decision }}
+      plan_id: ${{ steps.summary.outputs.plan_id }}
+      smoke_receipt_id: ${{ steps.summary.outputs.smoke_receipt_id }}
+      shard_zero_receipt_id: ${{ steps.summary.outputs.shard_zero_receipt_id }}
+      shard_one_receipt_id: ${{ steps.summary.outputs.shard_one_receipt_id }}
+    steps:
+      - name: Bind the sole retained Deform360 runner and GPU
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_NAME" = "workstation2"
+          test "$RUNNER_OS" = "Linux"
+          test "$RUNNER_ARCH" = "X64"
+          command -v nvidia-smi >/dev/null 2>&1
+          gpu_count=$(nvidia-smi --query-gpu=index --format=csv,noheader | wc -l)
+          test "$gpu_count" -ge 2
+          gpu_uuid=$(nvidia-smi --query-gpu=index,uuid --format=csv,noheader,nounits \
+            | awk -F, '$1 ~ /^1[[:space:]]*$/ {gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2); print $2}')
+          test -n "$gpu_uuid"
+          if nvidia-smi --query-compute-apps=gpu_uuid --format=csv,noheader,nounits \
+            | grep -Fx "$gpu_uuid" >/dev/null; then
+            echo "frozen physical GPU 1 has an active compute process" >&2
+            exit 1
+          fi
+
+      - name: Initialize isolated execution workspace
+        id: workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${RUNNER_TEMP}/prob4d-cut3r-source-comparison-v2-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          expected="${RUNNER_TEMP}/prob4d-cut3r-source-comparison-v2-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          test "$root" = "$expected"
+          /usr/bin/rm -rf -- "$root"
+          /usr/bin/mkdir -p "$root/evidence" "$root/publish" "$root/tmp"
+          echo "root=$root" >> "$GITHUB_OUTPUT"
+          echo "TMPDIR=$root/tmp" >> "$GITHUB_ENV"
+
+      - name: Check out only the admitted merged revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.authorize.outputs.authorized_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+
+      - name: Verify exact clean execution checkout
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ needs.authorize.outputs.authorized_sha }}
+        run: |
+          set -euo pipefail
+          test "$(/usr/bin/git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(/usr/bin/git status --porcelain=v1 --untracked-files=all)"
+          /usr/bin/python3 scripts/ci/cut3r_source_comparison_v2.py self-test --repository . \
+            > "${{ steps.workspace.outputs.root }}/evidence/v2-contract.json"
+
+      - name: Locate the exact frozen CUT3R Python runtime
+        id: runtime
+        continue-on-error: true
+        shell: bash
+        env:
+          CUT3R_CHECKOUT: ${{ vars.CUT3R_CHECKOUT }}
+          CUT3R_RUNTIME_PYTHON: ${{ vars.CUT3R_RUNTIME_PYTHON }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          test -n "${CUT3R_CHECKOUT:-}"
+          declare -a candidates=()
+          if [[ -n "${CUT3R_RUNTIME_PYTHON:-}" ]]; then
+            candidates+=("$CUT3R_RUNTIME_PYTHON")
+          fi
+          for command_name in python3.11 python python3; do
+            candidate=$(command -v "$command_name" 2>/dev/null || true)
+            if [[ -n "$candidate" ]]; then
+              candidates+=("$candidate")
+            fi
+          done
+          for candidate in \
+            "$CUT3R_CHECKOUT/.venv/bin/python" \
+            "$CUT3R_CHECKOUT/venv/bin/python" \
+            "$HOME/miniconda3/envs/cut3r/bin/python" \
+            "$HOME/anaconda3/envs/cut3r/bin/python" \
+            "/opt/conda/envs/cut3r/bin/python"
+          do
+            candidates+=("$candidate")
+          done
+          while IFS= read -r candidate; do
+            candidates+=("$candidate")
+          done < <(
+            find "$HOME" /opt -maxdepth 6 -type f -path '*/bin/python' -perm -111 \
+              2>/dev/null | sort
+          )
+
+          selected=""
+          declare -A seen=()
+          for candidate in "${candidates[@]}"; do
+            [[ -n "$candidate" && -x "$candidate" ]] || continue
+            candidate=$(/usr/bin/realpath -e -- "$candidate")
+            [[ -z "${seen[$candidate]:-}" ]] || continue
+            seen[$candidate]=1
+            if PYTHONPATH="$GITHUB_WORKSPACE/src" "$candidate" - "$PREDECESSOR_PLAN" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          from prob4d.cut3r_source_comparison_plan import _runtime_inventory
+
+          expected = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))["runtime"]
+          raise SystemExit(0 if _runtime_inventory() == expected else 1)
+          PY
+            then
+              selected="$candidate"
+              break
+            fi
+          done
+          if [[ -z "$selected" ]]; then
+            printf '%s\n' '{"decision":"exact-cut3r-runtime-not-found","source_rgb_frames_decoded":false,"cut3r_inference_executed":false}' \
+              > "$root/evidence/runtime-selection.json"
+            exit 1
+          fi
+          echo "python=$selected" >> "$GITHUB_OUTPUT"
+          {
+            echo "decision=exact-frozen-runtime-selected"
+            "$selected" --version
+          } > "$root/evidence/runtime-selection.txt" 2>&1
+
+      - name: Generate a new plan before any source data access
+        id: plan
+        if: steps.runtime.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        env:
+          CUT3R_CHECKOUT: ${{ vars.CUT3R_CHECKOUT }}
+          CUT3R_CHECKPOINT: ${{ vars.CUT3R_CHECKPOINT }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          repository=$(/usr/bin/realpath -e -- "$GITHUB_WORKSPACE")
+          cut3r=$(/usr/bin/realpath -e -- "$CUT3R_CHECKOUT")
+          checkpoint=$(/usr/bin/realpath -e -- "$CUT3R_CHECKPOINT")
+          test -d "$cut3r/.git"
+          test -f "$checkpoint"
+          plan="$root/evidence/cut3r-source-comparison-plan-v2.json"
+          GIT_CONFIG_COUNT=2 \
+          GIT_CONFIG_KEY_0=safe.directory \
+          GIT_CONFIG_VALUE_0="$repository" \
+          GIT_CONFIG_KEY_1=safe.directory \
+          GIT_CONFIG_VALUE_1="$cut3r" \
+          PYTHONPATH="$repository/src" \
+          "${{ steps.runtime.outputs.python }}" \
+            scripts/science/build_cut3r_source_comparison_execution_plan.py \
+            --repository "$repository" \
+            --preflight "$SOURCE_PREFLIGHT" \
+            --cut3r-checkout "$cut3r" \
+            --checkpoint "$checkpoint" \
+            --output "$plan" \
+            > "$root/evidence/plan-generation.json"
+          plan_id=$(PYTHONPATH="$repository/src" "${{ steps.runtime.outputs.python }}" - "$plan" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          print(json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))["plan_id"])
+          PY
+          )
+          test "$plan_id" != "0dbb6b3a46e2c895259fd5f4a4691c1d6d3c43b0e71774171bbfb3a20239953c"
+          echo "plan=$plan" >> "$GITHUB_OUTPUT"
+          echo "plan_id=$plan_id" >> "$GITHUB_OUTPUT"
+
+      - name: Rehearse repaired CUT3R imports and model loading without source RGB
+        id: rehearsal
+        if: steps.plan.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        env:
+          CUT3R_CHECKOUT: ${{ vars.CUT3R_CHECKOUT }}
+          CUT3R_CHECKPOINT: ${{ vars.CUT3R_CHECKPOINT }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          repository=$(/usr/bin/realpath -e -- "$GITHUB_WORKSPACE")
+          cut3r=$(/usr/bin/realpath -e -- "$CUT3R_CHECKOUT")
+          checkpoint=$(/usr/bin/realpath -e -- "$CUT3R_CHECKPOINT")
+          CUDA_VISIBLE_DEVICES=1 \
+          PYTHONPATH="$repository/src" \
+          "${{ steps.runtime.outputs.python }}" - "$repository" "$cut3r" "$checkpoint" \
+            > "$root/evidence/runtime-rehearsal.txt" 2>&1 <<'PY'
+          import importlib.util
+          import sys
+          from pathlib import Path
+
+          repository = Path(sys.argv[1])
+          cut3r = Path(sys.argv[2])
+          checkpoint = Path(sys.argv[3])
+          runner = repository / "scripts/science/run_cut3r_source_comparison.py"
+          spec = importlib.util.spec_from_file_location("cut3r_v2_runner", runner)
+          if spec is None or spec.loader is None:
+              raise SystemExit("failed to load frozen CUT3R runner module")
+          module = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+          runtime = module._Cut3RRuntime(cut3r, checkpoint, device="cuda:0")
+          if runtime.device != "cuda:0":
+              raise SystemExit("unexpected CUT3R device")
+          print("runtime-rehearsal-success")
+          PY
+
+      - name: Run exactly one v2 development smoke
+        id: smoke
+        if: steps.rehearsal.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        env:
+          CUT3R_CHECKOUT: ${{ vars.CUT3R_CHECKOUT }}
+          CUT3R_CHECKPOINT: ${{ vars.CUT3R_CHECKPOINT }}
+          DEFORM360_PROCESSED_ROOT: ${{ vars.DEFORM360_PROCESSED_ROOT }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          repository=$(/usr/bin/realpath -e -- "$GITHUB_WORKSPACE")
+          cut3r=$(/usr/bin/realpath -e -- "$CUT3R_CHECKOUT")
+          checkpoint=$(/usr/bin/realpath -e -- "$CUT3R_CHECKPOINT")
+          processed=$(/usr/bin/realpath -e -- "$DEFORM360_PROCESSED_ROOT")
+          CUDA_VISIBLE_DEVICES=1 \
+          GIT_CONFIG_COUNT=2 \
+          GIT_CONFIG_KEY_0=safe.directory \
+          GIT_CONFIG_VALUE_0="$repository" \
+          GIT_CONFIG_KEY_1=safe.directory \
+          GIT_CONFIG_VALUE_1="$cut3r" \
+          PYTHONPATH="$repository/src" \
+          "${{ steps.runtime.outputs.python }}" \
+            scripts/science/run_cut3r_source_comparison.py \
+            --repository "$repository" \
+            --plan "${{ steps.plan.outputs.plan }}" \
+            --processed-root "$processed" \
+            --cut3r-checkout "$cut3r" \
+            --checkpoint "$checkpoint" \
+            --output-root "$root/smoke-output" \
+            --device cuda:0 \
+            --shard-index 0 \
+            --shard-count 2 \
+            --smoke-case-id "$SMOKE_CASE_ID" \
+            > "$root/evidence/smoke-run.json"
+
+      - name: Apply independent custody gate to the smoke
+        id: smoke_gate
+        if: steps.smoke.outcome != 'skipped'
+        shell: bash
+        env:
+          SMOKE_OUTCOME: ${{ steps.smoke.outcome }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          report="$root/smoke-output/shards/smoke-${SMOKE_CASE_ID}.json"
+          receipt="$root/smoke-output/custody/smoke-${SMOKE_CASE_ID}.json"
+          test -f "$report"
+          arguments=()
+          if [[ "$SMOKE_OUTCOME" != "success" ]]; then
+            arguments+=(--allow-technical-failures)
+          fi
+          PYTHONPATH="$GITHUB_WORKSPACE/src" \
+          "${{ steps.runtime.outputs.python }}" \
+            scripts/science/verify_cut3r_source_comparison_artifacts.py shard \
+            --output-root "$root/smoke-output" \
+            --report "$report" \
+            --receipt "$receipt" \
+            --expected-plan-id "${{ steps.plan.outputs.plan_id }}" \
+            "${arguments[@]}" \
+            > "$root/evidence/smoke-custody.json"
+          receipt_id=$(PYTHONPATH="$GITHUB_WORKSPACE/src" \
+            "${{ steps.runtime.outputs.python }}" - "$receipt" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          print(json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))["receipt_id"])
+          PY
+          )
+          echo "receipt_id=$receipt_id" >> "$GITHUB_OUTPUT"
+          if [[ "$SMOKE_OUTCOME" == "success" ]]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Execute frozen source shard 0 after smoke custody
+        id: shard_zero
+        if: steps.smoke_gate.outputs.ready == 'true'
+        continue-on-error: true
+        shell: bash
+        env:
+          CUT3R_CHECKOUT: ${{ vars.CUT3R_CHECKOUT }}
+          CUT3R_CHECKPOINT: ${{ vars.CUT3R_CHECKPOINT }}
+          DEFORM360_PROCESSED_ROOT: ${{ vars.DEFORM360_PROCESSED_ROOT }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          repository=$(/usr/bin/realpath -e -- "$GITHUB_WORKSPACE")
+          cut3r=$(/usr/bin/realpath -e -- "$CUT3R_CHECKOUT")
+          checkpoint=$(/usr/bin/realpath -e -- "$CUT3R_CHECKPOINT")
+          processed=$(/usr/bin/realpath -e -- "$DEFORM360_PROCESSED_ROOT")
+          CUDA_VISIBLE_DEVICES=1 \
+          GIT_CONFIG_COUNT=2 \
+          GIT_CONFIG_KEY_0=safe.directory \
+          GIT_CONFIG_VALUE_0="$repository" \
+          GIT_CONFIG_KEY_1=safe.directory \
+          GIT_CONFIG_VALUE_1="$cut3r" \
+          PYTHONPATH="$repository/src" \
+          "${{ steps.runtime.outputs.python }}" \
+            scripts/science/run_cut3r_source_comparison.py \
+            --repository "$repository" \
+            --plan "${{ steps.plan.outputs.plan }}" \
+            --processed-root "$processed" \
+            --cut3r-checkout "$cut3r" \
+            --checkpoint "$checkpoint" \
+            --output-root "$root/source-output" \
+            --device cuda:0 \
+            --shard-index 0 \
+            --shard-count 2 \
+            > "$root/evidence/shard-zero-run.json"
+
+      - name: Apply independent custody gate to source shard 0
+        id: shard_zero_gate
+        if: steps.shard_zero.outcome != 'skipped'
+        shell: bash
+        env:
+          SHARD_OUTCOME: ${{ steps.shard_zero.outcome }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          report="$root/source-output/shards/shard-00-of-02.json"
+          receipt="$root/source-output/custody/shard-00-of-02.json"
+          test -f "$report"
+          arguments=()
+          if [[ "$SHARD_OUTCOME" != "success" ]]; then
+            arguments+=(--allow-technical-failures)
+          fi
+          PYTHONPATH="$GITHUB_WORKSPACE/src" \
+          "${{ steps.runtime.outputs.python }}" \
+            scripts/science/verify_cut3r_source_comparison_artifacts.py shard \
+            --output-root "$root/source-output" \
+            --report "$report" \
+            --receipt "$receipt" \
+            --expected-plan-id "${{ steps.plan.outputs.plan_id }}" \
+            "${arguments[@]}" \
+            > "$root/evidence/shard-zero-custody.json"
+          receipt_id=$(PYTHONPATH="$GITHUB_WORKSPACE/src" \
+            "${{ steps.runtime.outputs.python }}" - "$receipt" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          print(json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))["receipt_id"])
+          PY
+          )
+          echo "receipt_id=$receipt_id" >> "$GITHUB_OUTPUT"
+          if [[ "$SHARD_OUTCOME" == "success" ]]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Execute frozen source shard 1 after shard-0 custody
+        id: shard_one
+        if: steps.shard_zero_gate.outputs.ready == 'true'
+        continue-on-error: true
+        shell: bash
+        env:
+          CUT3R_CHECKOUT: ${{ vars.CUT3R_CHECKOUT }}
+          CUT3R_CHECKPOINT: ${{ vars.CUT3R_CHECKPOINT }}
+          DEFORM360_PROCESSED_ROOT: ${{ vars.DEFORM360_PROCESSED_ROOT }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          repository=$(/usr/bin/realpath -e -- "$GITHUB_WORKSPACE")
+          cut3r=$(/usr/bin/realpath -e -- "$CUT3R_CHECKOUT")
+          checkpoint=$(/usr/bin/realpath -e -- "$CUT3R_CHECKPOINT")
+          processed=$(/usr/bin/realpath -e -- "$DEFORM360_PROCESSED_ROOT")
+          CUDA_VISIBLE_DEVICES=1 \
+          GIT_CONFIG_COUNT=2 \
+          GIT_CONFIG_KEY_0=safe.directory \
+          GIT_CONFIG_VALUE_0="$repository" \
+          GIT_CONFIG_KEY_1=safe.directory \
+          GIT_CONFIG_VALUE_1="$cut3r" \
+          PYTHONPATH="$repository/src" \
+          "${{ steps.runtime.outputs.python }}" \
+            scripts/science/run_cut3r_source_comparison.py \
+            --repository "$repository" \
+            --plan "${{ steps.plan.outputs.plan }}" \
+            --processed-root "$processed" \
+            --cut3r-checkout "$cut3r" \
+            --checkpoint "$checkpoint" \
+            --output-root "$root/source-output" \
+            --device cuda:0 \
+            --shard-index 1 \
+            --shard-count 2 \
+            > "$root/evidence/shard-one-run.json"
+
+      - name: Apply independent custody gate to source shard 1
+        id: shard_one_gate
+        if: steps.shard_one.outcome != 'skipped'
+        shell: bash
+        env:
+          SHARD_OUTCOME: ${{ steps.shard_one.outcome }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          report="$root/source-output/shards/shard-01-of-02.json"
+          receipt="$root/source-output/custody/shard-01-of-02.json"
+          test -f "$report"
+          arguments=()
+          if [[ "$SHARD_OUTCOME" != "success" ]]; then
+            arguments+=(--allow-technical-failures)
+          fi
+          PYTHONPATH="$GITHUB_WORKSPACE/src" \
+          "${{ steps.runtime.outputs.python }}" \
+            scripts/science/verify_cut3r_source_comparison_artifacts.py shard \
+            --output-root "$root/source-output" \
+            --report "$report" \
+            --receipt "$receipt" \
+            --expected-plan-id "${{ steps.plan.outputs.plan_id }}" \
+            "${arguments[@]}" \
+            > "$root/evidence/shard-one-custody.json"
+          receipt_id=$(PYTHONPATH="$GITHUB_WORKSPACE/src" \
+            "${{ steps.runtime.outputs.python }}" - "$receipt" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          print(json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))["receipt_id"])
+          PY
+          )
+          echo "receipt_id=$receipt_id" >> "$GITHUB_OUTPUT"
+          if [[ "$SHARD_OUTCOME" == "success" ]]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build target-closed terminal summary
+        id: summary
+        if: always() && steps.workspace.outcome == 'success'
+        shell: bash
+        env:
+          RUNTIME_OUTCOME: ${{ steps.runtime.outcome }}
+          PLAN_OUTCOME: ${{ steps.plan.outcome }}
+          REHEARSAL_OUTCOME: ${{ steps.rehearsal.outcome }}
+          SMOKE_READY: ${{ steps.smoke_gate.outputs.ready }}
+          SHARD_ZERO_READY: ${{ steps.shard_zero_gate.outputs.ready }}
+          SHARD_ONE_READY: ${{ steps.shard_one_gate.outputs.ready }}
+          PLAN_ID: ${{ steps.plan.outputs.plan_id }}
+          SMOKE_RECEIPT_ID: ${{ steps.smoke_gate.outputs.receipt_id }}
+          SHARD_ZERO_RECEIPT_ID: ${{ steps.shard_zero_gate.outputs.receipt_id }}
+          SHARD_ONE_RECEIPT_ID: ${{ steps.shard_one_gate.outputs.receipt_id }}
+          EXPECTED_SHA: ${{ needs.authorize.outputs.authorized_sha }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          /usr/bin/python3 - "$root/evidence/terminal-summary.json" <<'PY'
+          import hashlib
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          if os.environ.get("RUNTIME_OUTCOME") != "success":
+              decision = "runtime-selection-failed-before-data"
+          elif os.environ.get("PLAN_OUTCOME") != "success":
+              decision = "plan-generation-failed-before-data"
+          elif os.environ.get("REHEARSAL_OUTCOME") != "success":
+              decision = "runtime-rehearsal-failed-before-data"
+          elif os.environ.get("SMOKE_READY") != "true":
+              decision = "development-smoke-failed"
+          elif os.environ.get("SHARD_ZERO_READY") != "true":
+              decision = "source-shard-zero-failed"
+          elif os.environ.get("SHARD_ONE_READY") != "true":
+              decision = "source-shard-one-failed"
+          else:
+              decision = "source-predictions-custody-complete"
+
+          value = {
+              "schema": "prob4d.cut3r-source-comparison-v2-terminal",
+              "schema_version": 1,
+              "decision": decision,
+              "repository_revision": os.environ["EXPECTED_SHA"],
+              "predecessor_smoke_id": "ef4e5bf187570e918df1d7d14434b4ae55f983c347104b9c6f7ad52b42f7a7bf",
+              "predecessor_plan_id": "0dbb6b3a46e2c895259fd5f4a4691c1d6d3c43b0e71774171bbfb3a20239953c",
+              "source_freeze_id": "5e739b92c2628c61fa99ae68da61d5814ca94d4b6de5720b75c4552de82d1b2c",
+              "generated_plan_id": os.environ.get("PLAN_ID") or None,
+              "smoke_receipt_id": os.environ.get("SMOKE_RECEIPT_ID") or None,
+              "shard_zero_receipt_id": os.environ.get("SHARD_ZERO_RECEIPT_ID") or None,
+              "shard_one_receipt_id": os.environ.get("SHARD_ONE_RECEIPT_ID") or None,
+              "source_residuals_or_truth_opened": False,
+              "candidate_reference_file_contents_opened": False,
+              "target_payloads_opened": False,
+              "target_outcomes_opened": False,
+              "bayesian_phystwin_executed": False,
+              "causal4d_executed": False,
+          }
+          canonical = json.dumps(
+              value,
+              sort_keys=True,
+              separators=(",", ":"),
+              ensure_ascii=False,
+              allow_nan=False,
+          ).encode("utf-8")
+          value["terminal_id"] = hashlib.sha256(canonical).hexdigest()
+          Path(sys.argv[1]).write_text(
+              json.dumps(value, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(decision)
+          PY
+          decision=$(/usr/bin/python3 - "$root/evidence/terminal-summary.json" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          print(json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))["decision"])
+          PY
+          )
+          echo "decision=$decision" >> "$GITHUB_OUTPUT"
+          echo "plan_id=${PLAN_ID:-not-produced}" >> "$GITHUB_OUTPUT"
+          echo "smoke_receipt_id=${SMOKE_RECEIPT_ID:-not-produced}" >> "$GITHUB_OUTPUT"
+          echo "shard_zero_receipt_id=${SHARD_ZERO_RECEIPT_ID:-not-produced}" >> "$GITHUB_OUTPUT"
+          echo "shard_one_receipt_id=${SHARD_ONE_RECEIPT_ID:-not-produced}" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare bounded publication bytes
+        if: always() && steps.summary.outcome == 'success'
+        shell: bash
+        env:
+          DECISION: ${{ steps.summary.outputs.decision }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          publish="$root/publish"
+          /usr/bin/cp -a "$root/evidence" "$publish/evidence"
+          if [[ "$DECISION" == "source-predictions-custody-complete" ]]; then
+            /usr/bin/mv "$root/smoke-output" "$publish/smoke-output"
+            /usr/bin/mv "$root/source-output" "$publish/source-output"
+          else
+            /usr/bin/python3 - "$root" "$publish/retained-negative" <<'PY'
+          from pathlib import Path
+          import shutil
+          import sys
+
+          root = Path(sys.argv[1])
+          destination = Path(sys.argv[2])
+          allowed = {"case_manifest.json", "failure_traceback.txt"}
+          for source_root_name in ("smoke-output", "source-output"):
+              source_root = root / source_root_name
+              if not source_root.exists():
+                  continue
+              for path in sorted(source_root.rglob("*")):
+                  if not path.is_file():
+                      continue
+                  relative = path.relative_to(source_root)
+                  if (
+                      path.name in allowed
+                      or "shards" in relative.parts
+                      or "custody" in relative.parts
+                  ):
+                      target = destination / source_root_name / relative
+                      target.parent.mkdir(parents=True, exist_ok=True)
+                      shutil.copy2(path, target)
+          PY
+            /usr/bin/rm -rf -- "$root/smoke-output" "$root/source-output"
+          fi
+          /usr/bin/python3 - "$publish" <<'PY'
+          from pathlib import Path
+          import hashlib
+          import sys
+
+          root = Path(sys.argv[1])
+          lines = []
+          for path in sorted(root.rglob("*")):
+              if path.is_file() and path.name != "SHA256SUMS":
+                  lines.append(
+                      f"{hashlib.sha256(path.read_bytes()).hexdigest()}  "
+                      f"{path.relative_to(root).as_posix()}"
+                  )
+          (root / "SHA256SUMS").write_text("\n".join(lines) + "\n", encoding="utf-8")
+          PY
+
+      - name: Upload retained v2 evidence
+        if: always() && steps.summary.outcome == 'success'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: cut3r-source-comparison-v2-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.workspace.outputs.root }}/publish/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 6
+
+      - name: Remove isolated execution workspace and checkout residue
+        if: always() && steps.workspace.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          expected="${RUNNER_TEMP}/prob4d-cut3r-source-comparison-v2-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          test "$root" = "$expected"
+          /usr/bin/rm -rf -- "$root"
+          /usr/bin/git reset --hard HEAD
+          /usr/bin/git clean -ffdx
+
+      - name: Enforce terminal v2 decision
+        if: always() && steps.summary.outcome == 'success'
+        shell: bash
+        env:
+          DECISION: ${{ steps.summary.outputs.decision }}
+        run: |
+          set -euo pipefail
+          test "$DECISION" = "source-predictions-custody-complete"
+
+  report:
+    name: Publish target-closed v2 terminal receipt
+    if: >-
+      always() &&
+      github.event_name == 'issue_comment' &&
+      needs.authorize.result == 'success'
+    needs: [authorize, execute]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Check out admitted control-plane revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.authorize.outputs.authorized_sha }}
+          persist-credentials: false
+          clean: true
+
+      - name: Publish exact terminal status without opening outcomes
+        shell: bash
+        env:
+          API_URL: ${{ github.api_url }}
+          REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+          EXECUTION_RESULT: ${{ needs.execute.result }}
+          EXECUTION_DECISION: ${{ needs.execute.outputs.decision }}
+          PLAN_ID: ${{ needs.execute.outputs.plan_id }}
+          SMOKE_RECEIPT_ID: ${{ needs.execute.outputs.smoke_receipt_id }}
+          SHARD_ZERO_RECEIPT_ID: ${{ needs.execute.outputs.shard_zero_receipt_id }}
+          SHARD_ONE_RECEIPT_ID: ${{ needs.execute.outputs.shard_one_receipt_id }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          /usr/bin/python3 scripts/ci/cut3r_source_comparison_v2.py report --repository .
