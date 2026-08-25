@@ -23,10 +23,12 @@ from .cut3r_source_comparison_execution import (
     SOURCE_COMPARISON_METHOD_ID,
     causal_window_schedule,
 )
+from .cut3r_source_comparison_verifier import path_identity_sha256
 
 EXECUTION_PLAN_SCHEMA: Final = "prob4d.cut3r-source-comparison-execution-plan"
 EXECUTION_PLAN_VERSION: Final = 1
-AMENDED_EXECUTION_PLAN_VERSION: Final = 2
+REVOKED_AMENDED_EXECUTION_PLAN_VERSION: Final = 2
+AMENDED_EXECUTION_PLAN_VERSION: Final = 3
 EXECUTION_DECISION: Final = "source-comparison-execution-authorized"
 RUNTIME_AMENDMENT_SCHEMA: Final = "prob4d.cut3r-source-comparison-runtime-amendment"
 RUNTIME_AMENDMENT_VERSION: Final = 1
@@ -409,6 +411,8 @@ def build_amended_execution_plan(
     checkpoint: Path,
     parent_plan_path: Path,
     parent_smoke_result_path: Path,
+    smoke_output_root: Path,
+    smoke_attempt_ledger: Path,
 ) -> dict[str, Any]:
     """Build the one-attempt replacement smoke after a zero-progress runtime failure."""
 
@@ -476,12 +480,29 @@ def build_amended_execution_plan(
     replacement_case_id = cast(str, replacements[0]["case_id"])
     replacement_case_sha256 = _case_id_sha256(replacement_case_id)
 
+    if not smoke_output_root.is_absolute() or not smoke_attempt_ledger.is_absolute():
+        raise ValueError("registered smoke output and attempt paths must be absolute")
+    canonical_output_root = smoke_output_root.resolve(strict=False)
+    canonical_attempt_ledger = smoke_attempt_ledger.resolve(strict=False)
+    if canonical_output_root in canonical_attempt_ledger.parents:
+        raise ValueError("registered smoke attempt ledger must be outside the output root")
+    if smoke_output_root.is_symlink() or smoke_output_root.exists():
+        raise ValueError("registered smoke output root must not exist before the attempt")
+    if smoke_attempt_ledger.is_symlink() or smoke_attempt_ledger.exists():
+        raise ValueError("registered smoke attempt ledger must not exist before the attempt")
+
     plan["schema_version"] = AMENDED_EXECUTION_PLAN_VERSION
     execution = cast(dict[str, Any], plan["execution"])
     execution["smoke_policy"] = {
         "registered_case_id": replacement_case_id,
         "registered_case_id_sha256": replacement_case_sha256,
         "attempt_limit": 1,
+        "registered_output_root_path_sha256": path_identity_sha256(canonical_output_root),
+        "registered_attempt_ledger_path_sha256": path_identity_sha256(
+            canonical_attempt_ledger
+        ),
+        "attempt_ledger_required": True,
+        "output_root_must_not_exist_before_attempt": True,
         "prior_case_retry_authorized": False,
         "source_shards_require_ordinary_success_custody": True,
     }
@@ -506,7 +527,9 @@ def build_amended_execution_plan(
         "after the retained zero-progress runtime import failure. It changes only "
         "the import/bootstrap implementation and custody binding, keeps the frozen "
         "method and provider bytes unchanged, forbids retry of the prior case, and "
-        "does not authorize source shards until an ordinary-success custody receipt."
+        "consumes a path-bound write-once attempt ledger before provider work. It "
+        "does not authorize source shards until the runner revalidates an "
+        "ordinary-success custody receipt against the retained smoke artifact."
     )
     plan.pop("plan_id")
     plan["plan_id"] = _content_id(plan)
@@ -524,6 +547,7 @@ def validate_execution_plan(
 
     if value.get("schema") != EXECUTION_PLAN_SCHEMA or value.get("schema_version") not in {
         EXECUTION_PLAN_VERSION,
+        REVOKED_AMENDED_EXECUTION_PLAN_VERSION,
         AMENDED_EXECUTION_PLAN_VERSION,
     }:
         raise ValueError("unsupported CUT3R source-comparison execution plan")
@@ -555,7 +579,10 @@ def validate_execution_plan(
     if case_ids != sorted(case_ids) or len(set(case_ids)) != 40:
         raise ValueError("execution cases must have unique lexicographically sorted IDs")
 
-    if value["schema_version"] == AMENDED_EXECUTION_PLAN_VERSION:
+    if value["schema_version"] in {
+        REVOKED_AMENDED_EXECUTION_PLAN_VERSION,
+        AMENDED_EXECUTION_PLAN_VERSION,
+    }:
         amendment = value.get("amendment")
         if type(amendment) is not dict or set(amendment) != {
             "schema",
@@ -598,13 +625,21 @@ def validate_execution_plan(
                 raise ValueError(f"amended execution plan changed {name}")
         execution = value.get("execution")
         smoke_policy = execution.get("smoke_policy") if type(execution) is dict else None
-        if type(smoke_policy) is not dict or set(smoke_policy) != {
+        expected_smoke_policy_fields = {
             "registered_case_id",
             "registered_case_id_sha256",
             "attempt_limit",
             "prior_case_retry_authorized",
             "source_shards_require_ordinary_success_custody",
-        }:
+        }
+        if value["schema_version"] == AMENDED_EXECUTION_PLAN_VERSION:
+            expected_smoke_policy_fields |= {
+                "registered_output_root_path_sha256",
+                "registered_attempt_ledger_path_sha256",
+                "attempt_ledger_required",
+                "output_root_must_not_exist_before_attempt",
+            }
+        if type(smoke_policy) is not dict or set(smoke_policy) != expected_smoke_policy_fields:
             raise ValueError("amended execution plan has an invalid smoke policy")
         registered_case_id = smoke_policy["registered_case_id"]
         if type(registered_case_id) is not str or registered_case_id not in case_ids:
@@ -625,6 +660,19 @@ def validate_execution_plan(
             raise ValueError("amended smoke authorizes retry of the failed case")
         if smoke_policy["source_shards_require_ordinary_success_custody"] is not True:
             raise ValueError("amended source shards no longer require smoke custody")
+        if value["schema_version"] == AMENDED_EXECUTION_PLAN_VERSION:
+            _sha256(
+                smoke_policy["registered_output_root_path_sha256"],
+                name="registered_output_root_path_sha256",
+            )
+            _sha256(
+                smoke_policy["registered_attempt_ledger_path_sha256"],
+                name="registered_attempt_ledger_path_sha256",
+            )
+            if smoke_policy["attempt_ledger_required"] is not True:
+                raise ValueError("amended smoke no longer requires the attempt ledger")
+            if smoke_policy["output_root_must_not_exist_before_attempt"] is not True:
+                raise ValueError("amended smoke no longer requires a fresh output root")
         provider = value.get("provider")
         if type(provider) is not dict or provider.get("callable") != "dust3r.inference.inference":
             raise ValueError("amended plan does not use the repaired CUT3R import surface")
@@ -699,6 +747,7 @@ __all__ = [
     "PROVIDER_FILES",
     "RUNTIME_AMENDMENT_SCHEMA",
     "RUNTIME_AMENDMENT_VERSION",
+    "REVOKED_AMENDED_EXECUTION_PLAN_VERSION",
     "build_amended_execution_plan",
     "build_execution_plan",
     "load_execution_plan",

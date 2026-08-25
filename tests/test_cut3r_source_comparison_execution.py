@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
@@ -12,6 +14,12 @@ from prob4d.cut3r_source_comparison_execution import (
     build_restarted_comparison_products,
     causal_window_schedule,
     newest_eligible_windows,
+)
+from prob4d.cut3r_source_comparison_verifier import (
+    content_id,
+    path_identity_sha256,
+    validate_shard_artifact,
+    write_custody_receipt,
 )
 from prob4d.data import PredictionWindow
 from prob4d.sim3 import Sim3
@@ -183,7 +191,7 @@ def test_runtime_bootstrap_failure_is_retained_without_progress(tmp_path: Path) 
 def test_amended_plan_selects_only_the_registered_replacement_smoke() -> None:
     module = _load_runner_module()
     plan = {
-        "schema_version": 2,
+        "schema_version": 3,
         "execution": {
             "shard_count": 2,
             "smoke_policy": {"registered_case_id": "development-new"},
@@ -209,3 +217,139 @@ def test_amended_plan_selects_only_the_registered_replacement_smoke() -> None:
             shard_count=2,
             smoke_case_id="development-old",
         )
+
+
+def _amended_gate_plan(output_root: Path, ledger: Path) -> dict[str, object]:
+    case_id = "development-new"
+    return {
+        "schema_version": 3,
+        "plan_id": "a" * 64,
+        "execution": {
+            "smoke_policy": {
+                "registered_case_id": case_id,
+                "registered_case_id_sha256": hashlib.sha256(
+                    case_id.encode("utf-8")
+                ).hexdigest(),
+                "registered_output_root_path_sha256": path_identity_sha256(output_root),
+                "registered_attempt_ledger_path_sha256": path_identity_sha256(ledger),
+            }
+        },
+    }
+
+
+def _write_successful_smoke(output_root: Path, plan: dict[str, object]) -> Path:
+    case_id = "development-new"
+    case_root = output_root / "cases" / case_id
+    member = case_root / "predictions" / "result.bin"
+    member.parent.mkdir(parents=True)
+    member.write_bytes(b"prediction")
+    manifest: dict[str, object] = {
+        "schema": "prob4d.cut3r-source-comparison-case",
+        "schema_version": 1,
+        "plan_id": plan["plan_id"],
+        "case_id": case_id,
+        "group_id": "development-group",
+        "role": "development",
+        "status": "ordinary-success",
+        "elapsed_seconds": 1.0,
+        "failure": None,
+        "members": [
+            {
+                "path": "predictions/result.bin",
+                "sha256": hashlib.sha256(b"prediction").hexdigest(),
+                "byte_count": len(b"prediction"),
+            }
+        ],
+        "source_rgb_frames_decoded": True,
+        "cut3r_inference_executed": True,
+        "source_predictions_written": True,
+        "source_residuals_or_truth_opened": False,
+        "candidate_reference_file_contents_opened": False,
+        "target_payloads_opened": False,
+        "target_outcomes_opened": False,
+        "bayesian_phystwin_executed": False,
+        "causal4d_executed": False,
+    }
+    manifest["artifact_id"] = content_id(manifest)
+    (case_root / "case_manifest.json").write_text(
+        json.dumps(manifest, sort_keys=True),
+        encoding="utf-8",
+    )
+    report: dict[str, object] = {
+        "schema": "prob4d.cut3r-source-comparison-shard",
+        "schema_version": 1,
+        "plan_id": plan["plan_id"],
+        "scope": "development-smoke",
+        "shard_index": 0,
+        "shard_count": 2,
+        "case_count": 1,
+        "ordinary_success_count": 1,
+        "retained_technical_failure_count": 0,
+        "case_artifact_ids": [manifest["artifact_id"]],
+        "source_residuals_or_truth_opened": False,
+        "target_payloads_opened": False,
+        "target_outcomes_opened": False,
+    }
+    report["artifact_id"] = content_id(report)
+    report_path = output_root / "shards" / "smoke.json"
+    report_path.parent.mkdir(parents=True)
+    report_path.write_text(json.dumps(report, sort_keys=True), encoding="utf-8")
+    return report_path
+
+
+def test_amended_attempt_is_path_bound_and_source_shards_require_custody(
+    tmp_path: Path,
+) -> None:
+    module = _load_runner_module()
+    output_root = tmp_path / "registered-smoke"
+    ledger = tmp_path / "attempts" / "smoke.json"
+    plan = _amended_gate_plan(output_root, ledger)
+
+    with pytest.raises(ValueError, match="require the smoke artifact"):
+        module._validate_amended_shard_authorization(
+            plan,
+            smoke_output_root=None,
+            smoke_shard_report=None,
+            smoke_custody_receipt=None,
+            smoke_attempt_ledger=None,
+        )
+
+    module._claim_registered_smoke_attempt(
+        plan,
+        smoke_case_id="development-new",
+        output_root=output_root,
+        attempt_ledger=ledger,
+    )
+    with pytest.raises(FileExistsError, match="already consumed"):
+        module._claim_registered_smoke_attempt(
+            plan,
+            smoke_case_id="development-new",
+            output_root=output_root,
+            attempt_ledger=ledger,
+        )
+    with pytest.raises(ValueError, match="output root differs"):
+        module._claim_registered_smoke_attempt(
+            plan,
+            smoke_case_id="development-new",
+            output_root=tmp_path / "fresh-unregistered-output",
+            attempt_ledger=tmp_path / "fresh-unregistered-ledger.json",
+        )
+
+    report_path = _write_successful_smoke(output_root, plan)
+    receipt = validate_shard_artifact(
+        output_root,
+        report_path,
+        expected_plan_id=str(plan["plan_id"]),
+        require_success=True,
+    )
+    receipt_path = tmp_path / "custody" / "smoke.json"
+    write_custody_receipt(receipt_path, receipt)
+
+    validated = module._validate_amended_shard_authorization(
+        plan,
+        smoke_output_root=output_root,
+        smoke_shard_report=report_path,
+        smoke_custody_receipt=receipt_path,
+        smoke_attempt_ledger=ledger,
+    )
+    assert validated == receipt

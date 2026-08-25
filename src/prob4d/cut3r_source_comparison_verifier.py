@@ -20,6 +20,8 @@ SHARD_SCHEMA: Final = "prob4d.cut3r-source-comparison-shard"
 SHARD_SCHEMA_VERSION: Final = 1
 CUSTODY_SCHEMA: Final = "prob4d.cut3r-source-comparison-custody"
 CUSTODY_SCHEMA_VERSION: Final = 1
+SMOKE_ATTEMPT_SCHEMA: Final = "prob4d.cut3r-source-comparison-smoke-attempt"
+SMOKE_ATTEMPT_SCHEMA_VERSION: Final = 1
 
 _SHA256_PATTERN: Final = re.compile(r"[0-9a-f]{64}")
 _ALLOWED_ROLES: Final = frozenset({"development", "calibration", "source_evaluation"})
@@ -80,6 +82,48 @@ _SHARD_FIELDS: Final = frozenset(
         "artifact_id",
     }
 )
+_CUSTODY_FIELDS: Final = frozenset(
+    {
+        "schema",
+        "schema_version",
+        "decision",
+        "plan_id",
+        "shard_report_artifact_id",
+        "scope",
+        "shard_index",
+        "shard_count",
+        "case_count",
+        "ordinary_success_count",
+        "retained_technical_failure_count",
+        "case_ids",
+        "case_artifact_ids",
+        "decoded_source_frames_retained",
+        "source_residuals_or_truth_opened",
+        "target_payloads_opened",
+        "target_outcomes_opened",
+        "bayesian_phystwin_executed",
+        "causal4d_executed",
+        "receipt_id",
+    }
+)
+_SMOKE_ATTEMPT_FIELDS: Final = frozenset(
+    {
+        "schema",
+        "schema_version",
+        "decision",
+        "plan_id",
+        "case_id_sha256",
+        "output_root_path_sha256",
+        "attempt_number",
+        "source_rgb_frames_decoded_at_claim",
+        "cut3r_inference_executed_at_claim",
+        "source_predictions_written_at_claim",
+        "source_residuals_or_truth_opened_at_claim",
+        "target_payloads_opened_at_claim",
+        "target_outcomes_opened_at_claim",
+        "record_id",
+    }
+)
 
 
 def _canonical_json_bytes(value: object) -> bytes:
@@ -96,6 +140,13 @@ def content_id(value: object) -> str:
     """Return the canonical SHA-256 content identity used by the executor."""
 
     return hashlib.sha256(_canonical_json_bytes(value)).hexdigest()
+
+
+def path_identity_sha256(path: Path) -> str:
+    """Hash the canonical absolute path without reading its payload."""
+
+    canonical = os.fspath(path.resolve(strict=False)).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()
 
 
 def _require_sha256(value: object, *, name: str) -> str:
@@ -294,9 +345,9 @@ def _validate_declared_members(
             "case member roster mismatch: "
             f"missing={missing!r}, undeclared={undeclared!r}"
         )
-    for relative, path in actual.items():
+    for relative, actual_path in actual.items():
         measured_digest, measured_size = _file_digest(
-            path,
+            actual_path,
             name=f"case member {relative}",
         )
         expected_digest, expected_size = declared[relative]
@@ -514,6 +565,203 @@ def validate_shard_artifact(
     return receipt
 
 
+def claim_smoke_attempt(
+    path: Path,
+    *,
+    plan_id: str,
+    case_id_sha256: str,
+    output_root: Path,
+) -> dict[str, Any]:
+    """Atomically consume the sole registered smoke attempt before provider work."""
+
+    record: dict[str, Any] = {
+        "schema": SMOKE_ATTEMPT_SCHEMA,
+        "schema_version": SMOKE_ATTEMPT_SCHEMA_VERSION,
+        "decision": "smoke-attempt-consumed",
+        "plan_id": _require_sha256(plan_id, name="attempt plan_id"),
+        "case_id_sha256": _require_sha256(
+            case_id_sha256,
+            name="attempt case_id_sha256",
+        ),
+        "output_root_path_sha256": path_identity_sha256(output_root),
+        "attempt_number": 1,
+        "source_rgb_frames_decoded_at_claim": False,
+        "cut3r_inference_executed_at_claim": False,
+        "source_predictions_written_at_claim": False,
+        "source_residuals_or_truth_opened_at_claim": False,
+        "target_payloads_opened_at_claim": False,
+        "target_outcomes_opened_at_claim": False,
+    }
+    record["record_id"] = content_id(record)
+    encoded = (
+        json.dumps(
+            record,
+            indent=2,
+            sort_keys=True,
+            ensure_ascii=False,
+            allow_nan=False,
+        ).encode("utf-8")
+        + b"\n"
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        atomic_write_bytes(path, encoded, overwrite=False)
+    except FileExistsError as error:
+        raise FileExistsError("the registered CUT3R smoke attempt is already consumed") from error
+    return record
+
+
+def validate_smoke_attempt(
+    path: Path,
+    *,
+    expected_plan_id: str,
+    expected_case_id_sha256: str,
+    expected_output_root: Path,
+) -> dict[str, Any]:
+    """Validate the write-once record for the sole registered smoke attempt."""
+
+    record = _load_json(path.resolve(strict=True), name="smoke attempt record")
+    if set(record) != _SMOKE_ATTEMPT_FIELDS:
+        raise ValueError("smoke attempt record has unexpected or missing fields")
+    if record["schema"] != SMOKE_ATTEMPT_SCHEMA:
+        raise ValueError("unexpected smoke attempt schema")
+    if record["schema_version"] != SMOKE_ATTEMPT_SCHEMA_VERSION:
+        raise ValueError("unsupported smoke attempt schema version")
+    if record["decision"] != "smoke-attempt-consumed":
+        raise ValueError("smoke attempt record has an invalid decision")
+    if _require_sha256(record["plan_id"], name="attempt plan_id") != _require_sha256(
+        expected_plan_id,
+        name="expected_plan_id",
+    ):
+        raise ValueError("smoke attempt record belongs to a different execution plan")
+    if _require_sha256(
+        record["case_id_sha256"],
+        name="attempt case_id_sha256",
+    ) != _require_sha256(
+        expected_case_id_sha256,
+        name="expected_case_id_sha256",
+    ):
+        raise ValueError("smoke attempt record belongs to a different case")
+    if _require_sha256(
+        record["output_root_path_sha256"],
+        name="attempt output_root_path_sha256",
+    ) != path_identity_sha256(expected_output_root):
+        raise ValueError("smoke attempt record belongs to a different output root")
+    if _require_integer(record["attempt_number"], name="attempt_number", minimum=1) != 1:
+        raise ValueError("smoke attempt record is not the sole registered attempt")
+    for field in (
+        "source_rgb_frames_decoded_at_claim",
+        "cut3r_inference_executed_at_claim",
+        "source_predictions_written_at_claim",
+        "source_residuals_or_truth_opened_at_claim",
+        "target_payloads_opened_at_claim",
+        "target_outcomes_opened_at_claim",
+    ):
+        if _require_boolean(record[field], name=field):
+            raise ValueError(f"smoke attempt record exceeded its claim boundary: {field}")
+    recorded_id = _require_sha256(record["record_id"], name="attempt record_id")
+    unsigned = dict(record)
+    unsigned.pop("record_id")
+    if recorded_id != content_id(unsigned):
+        raise ValueError("smoke attempt record content identity is invalid")
+    return record
+
+
+def validate_custody_receipt(
+    path: Path,
+    *,
+    expected_plan_id: str | None = None,
+    expected_scope: str | None = None,
+    require_success: bool = True,
+) -> dict[str, Any]:
+    """Validate one previously published independent custody receipt."""
+
+    receipt = _load_json(path.resolve(strict=True), name="custody receipt")
+    if set(receipt) != _CUSTODY_FIELDS:
+        raise ValueError("custody receipt has unexpected or missing fields")
+    if receipt["schema"] != CUSTODY_SCHEMA:
+        raise ValueError("unexpected custody receipt schema")
+    if receipt["schema_version"] != CUSTODY_SCHEMA_VERSION:
+        raise ValueError("unsupported custody receipt schema version")
+    if receipt["decision"] != "source-comparison-custody-valid":
+        raise ValueError("custody receipt does not record a valid decision")
+    plan_id = _require_sha256(receipt["plan_id"], name="custody plan_id")
+    if expected_plan_id is not None and plan_id != _require_sha256(
+        expected_plan_id, name="expected_plan_id"
+    ):
+        raise ValueError("custody receipt belongs to a different execution plan")
+    scope = _require_string(receipt["scope"], name="custody scope")
+    if scope not in _ALLOWED_SCOPES:
+        raise ValueError("custody receipt has an unknown scope")
+    if expected_scope is not None and scope != expected_scope:
+        raise ValueError("custody receipt has the wrong scope")
+    case_count = _require_integer(
+        receipt["case_count"],
+        name="custody case_count",
+        minimum=1,
+    )
+    success_count = _require_integer(
+        receipt["ordinary_success_count"], name="custody ordinary_success_count"
+    )
+    failure_count = _require_integer(
+        receipt["retained_technical_failure_count"],
+        name="custody retained_technical_failure_count",
+    )
+    if success_count + failure_count != case_count:
+        raise ValueError("custody status counts do not sum to case_count")
+    if scope == "development-smoke" and case_count != 1:
+        raise ValueError("smoke custody receipt must contain exactly one case")
+    if require_success and failure_count:
+        raise ValueError("custody receipt contains a technical failure")
+    if require_success and success_count != case_count:
+        raise ValueError("custody receipt is not an ordinary success")
+    shard_count = _require_integer(
+        receipt["shard_count"],
+        name="custody shard_count",
+        minimum=1,
+    )
+    shard_index = _require_integer(receipt["shard_index"], name="custody shard_index")
+    if shard_index >= shard_count:
+        raise ValueError("custody shard_index must be smaller than shard_count")
+    _require_sha256(
+        receipt["shard_report_artifact_id"], name="custody shard_report_artifact_id"
+    )
+    case_ids = receipt["case_ids"]
+    if type(case_ids) is not list or len(case_ids) != case_count:
+        raise ValueError("custody case_ids do not match case_count")
+    normalized_case_ids = [
+        _require_string(value, name=f"custody case_ids[{index}]")
+        for index, value in enumerate(case_ids)
+    ]
+    if normalized_case_ids != sorted(set(normalized_case_ids)):
+        raise ValueError("custody case_ids must be sorted and unique")
+    artifact_ids = receipt["case_artifact_ids"]
+    if type(artifact_ids) is not list or len(artifact_ids) != case_count:
+        raise ValueError("custody case_artifact_ids do not match case_count")
+    normalized_artifact_ids = [
+        _require_sha256(value, name=f"custody case_artifact_ids[{index}]")
+        for index, value in enumerate(artifact_ids)
+    ]
+    if normalized_artifact_ids != sorted(set(normalized_artifact_ids)):
+        raise ValueError("custody case_artifact_ids must be sorted and unique")
+    for field in (
+        "decoded_source_frames_retained",
+        "source_residuals_or_truth_opened",
+        "target_payloads_opened",
+        "target_outcomes_opened",
+        "bayesian_phystwin_executed",
+        "causal4d_executed",
+    ):
+        if _require_boolean(receipt[field], name=field):
+            raise ValueError(f"custody receipt exceeds information boundary: {field}")
+    recorded_id = _require_sha256(receipt["receipt_id"], name="custody receipt_id")
+    unsigned = dict(receipt)
+    unsigned.pop("receipt_id")
+    if recorded_id != content_id(unsigned):
+        raise ValueError("custody receipt content identity is invalid")
+    return receipt
+
+
 def write_custody_receipt(path: Path, receipt: Mapping[str, Any]) -> None:
     """Publish a validated receipt atomically without replacing different bytes."""
 
@@ -539,10 +787,16 @@ __all__ = [
     "CASE_SCHEMA_VERSION",
     "CUSTODY_SCHEMA",
     "CUSTODY_SCHEMA_VERSION",
+    "SMOKE_ATTEMPT_SCHEMA",
+    "SMOKE_ATTEMPT_SCHEMA_VERSION",
     "SHARD_SCHEMA",
     "SHARD_SCHEMA_VERSION",
+    "claim_smoke_attempt",
     "content_id",
+    "path_identity_sha256",
     "validate_case_artifact",
+    "validate_custody_receipt",
     "validate_shard_artifact",
+    "validate_smoke_attempt",
     "write_custody_receipt",
 ]

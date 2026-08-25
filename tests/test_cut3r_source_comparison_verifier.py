@@ -7,9 +7,12 @@ from pathlib import Path
 import pytest
 
 from prob4d.cut3r_source_comparison_verifier import (
+    claim_smoke_attempt,
     content_id,
     validate_case_artifact,
+    validate_custody_receipt,
     validate_shard_artifact,
+    validate_smoke_attempt,
     write_custody_receipt,
 )
 
@@ -138,8 +141,14 @@ def test_validates_complete_case_and_smoke_custody(tmp_path: Path) -> None:
     receipt_path = tmp_path / "custody" / "smoke.json"
     write_custody_receipt(receipt_path, receipt)
     write_custody_receipt(receipt_path, receipt)
+    validated_receipt = validate_custody_receipt(
+        receipt_path,
+        expected_plan_id=PLAN_ID,
+        expected_scope="development-smoke",
+    )
 
     assert receipt["decision"] == "source-comparison-custody-valid"
+    assert validated_receipt == receipt
     assert receipt["case_ids"] == ["case-00"]
     assert receipt["decoded_source_frames_retained"] is False
     assert receipt_path.is_file()
@@ -195,3 +204,62 @@ def test_smoke_rejects_retained_technical_failure(tmp_path: Path) -> None:
 
     receipt = validate_shard_artifact(tmp_path, report, require_success=False)
     assert receipt["retained_technical_failure_count"] == 1
+
+
+def test_smoke_attempt_is_write_once_and_content_addressed(tmp_path: Path) -> None:
+    output_root = tmp_path / "registered-output"
+    ledger = tmp_path / "attempts" / "smoke.json"
+    case_sha256 = "b" * 64
+
+    record = claim_smoke_attempt(
+        ledger,
+        plan_id=PLAN_ID,
+        case_id_sha256=case_sha256,
+        output_root=output_root,
+    )
+    validated = validate_smoke_attempt(
+        ledger,
+        expected_plan_id=PLAN_ID,
+        expected_case_id_sha256=case_sha256,
+        expected_output_root=output_root,
+    )
+
+    assert validated == record
+    with pytest.raises(FileExistsError, match="already consumed"):
+        claim_smoke_attempt(
+            ledger,
+            plan_id=PLAN_ID,
+            case_id_sha256=case_sha256,
+            output_root=output_root,
+        )
+
+
+def test_rejects_tampered_custody_and_attempt_records(tmp_path: Path) -> None:
+    case_root = _case(tmp_path)
+    case = validate_case_artifact(case_root, expected_plan_id=PLAN_ID)
+    report = _shard_report(tmp_path, case)
+    receipt = validate_shard_artifact(tmp_path, report, expected_plan_id=PLAN_ID)
+    receipt_path = tmp_path / "custody.json"
+    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+    receipt["ordinary_success_count"] = 0
+    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+    with pytest.raises(ValueError, match="status counts|content identity"):
+        validate_custody_receipt(receipt_path, expected_plan_id=PLAN_ID)
+
+    ledger = tmp_path / "attempt.json"
+    claim_smoke_attempt(
+        ledger,
+        plan_id=PLAN_ID,
+        case_id_sha256="b" * 64,
+        output_root=tmp_path / "output",
+    )
+    attempt = json.loads(ledger.read_text(encoding="utf-8"))
+    attempt["attempt_number"] = 2
+    ledger.write_text(json.dumps(attempt), encoding="utf-8")
+    with pytest.raises(ValueError, match="sole registered attempt"):
+        validate_smoke_attempt(
+            ledger,
+            expected_plan_id=PLAN_ID,
+            expected_case_id_sha256="b" * 64,
+            expected_output_root=tmp_path / "output",
+        )
