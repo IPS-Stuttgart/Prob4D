@@ -2,12 +2,16 @@ from __future__ import annotations
 
 import copy
 import importlib.util
+import json
 from pathlib import Path
 
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts/ci/cut3r_source_comparison_v2.py"
+REVOCATION_RECEIPT = (
+    ROOT / "evidence" / "cut3r-source-comparison-v2-revocation" / "terminal_receipt.json"
+)
 
 
 def _module():
@@ -80,3 +84,30 @@ def test_dispatch_command_binds_exact_predecessor_and_source_freeze() -> None:
         f"{module.PREDECESSOR_PLAN_ID} "
         f"{module.SOURCE_FREEZE_ID}"
     )
+
+
+def test_v2_execution_route_is_terminally_revoked_before_runner_acceptance() -> None:
+    receipt = json.loads(REVOCATION_RECEIPT.read_text(encoding="utf-8"))
+
+    assert receipt["decision"] == "terminally-revoked-no-execution"
+    assert receipt["retry_authorized"] is False
+    assert receipt["schema_v3_smoke_authorized"] is False
+    assert receipt["primary_run"] == {
+        "conclusion": "cancelled",
+        "empirical_job_id": 97782722679,
+        "run_id": 32841781121,
+        "terminal_comment_id": 5409937297,
+    }
+    assert receipt["duplicate_run"] == {
+        "conclusion": "skipped",
+        "run_id": 32842995278,
+    }
+    assert receipt["empirical_execution"] == {
+        "decoded_frame_count": 0,
+        "inference_count": 0,
+        "prediction_count": 0,
+        "runner_id": 0,
+        "runner_name": "",
+        "step_count": 0,
+    }
+    assert not any(receipt["information_boundary"].values())
