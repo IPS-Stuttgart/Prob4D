@@ -1,0 +1,1 @@
+- Pass exact-path Git trust directly to the retained CUT3R source-freeze driver command, and admit one checksum-bound current-main replacement for the exact attempt-3 pre-provider failure in workflow run 32771242880.
