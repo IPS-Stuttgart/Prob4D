@@ -1,0 +1,61 @@
+{
+  "authorization": {
+    "bayesian_phystwin_authorized": false,
+    "causal4d_authorized": false,
+    "full_source_shards_authorized": false,
+    "maximum_replacement_attempts": 1,
+    "source_truth_or_residuals_authorized": false,
+    "target_access_authorized": false
+  },
+  "authorization_id": "efa8ef5040f268c41c02a9ea7789272d565e36dd655beccb04cfc2b3d588477a",
+  "claim_boundary": "This authorization permits one replacement development smoke only because the first smoke terminated before source RGB decode, CUT3R inference, or prediction publication. It does not authorize the frozen source shards, source truth or residual access, target access, BayesianPhysTwin, Causal4D, deployment, or state-of-the-art claims.",
+  "decision": "one-exact-zero-progress-smoke-replacement-authorized",
+  "first_smoke": {
+    "artifact_id": "ef4e5bf187570e918df1d7d14434b4ae55f983c347104b9c6f7ad52b42f7a7bf",
+    "attempt_count": 1,
+    "case_id": "031-cotton-cloth-episode-0000-brics-odroid-010_cam0",
+    "case_id_sha256": "f306dc541c5c48e069c2ddc9942d75cdf537e81f65b028cbbcf35aaf410a9654",
+    "failure": {
+      "class": "ModuleNotFoundError",
+      "message": "No module named 'dust3r'",
+      "terminal_stage": "initialize-cut3r-runtime"
+    },
+    "implementation_revision": "8d0310e93269c0489b53564fd8077763829c4371",
+    "ordinary_success_count": 0,
+    "output_file_count_after_failure": 0,
+    "plan_id": "0dbb6b3a46e2c895259fd5f4a4691c1d6d3c43b0e71774171bbfb3a20239953c",
+    "retained_technical_failure_count": 1,
+    "zero_progress": {
+      "bayesian_phystwin_executed": false,
+      "candidate_reference_file_contents_opened": false,
+      "causal4d_executed": false,
+      "cut3r_inference_executed": false,
+      "source_predictions_written": false,
+      "source_residuals_or_truth_opened": false,
+      "source_rgb_frames_decoded": false,
+      "target_outcomes_opened": false,
+      "target_payloads_opened": false
+    }
+  },
+  "frozen_scientific_inputs": {
+    "checkpoint_sha256": "45f7e98a0a64dbeb54901ae2b878cd8cd125f20a4497316483f0bd6f109f8103",
+    "device_argument": "cuda:0",
+    "physical_gpu_index": 1,
+    "preflight_artifact_id": "1baad7f8786592363c9e26acf3e5b30e6fb652c6441e32818aeeff676edf2827",
+    "provider_revision": "8bc15dc92a6d7fd92920b4ec81540d3dec7d3ecf",
+    "replacement_smoke_case_id": "031-cotton-cloth-episode-0000-brics-odroid-010_cam0",
+    "source_freeze_id": "5e739b92c2628c61fa99ae68da61d5814ca94d4b6de5720b75c4552de82d1b2c"
+  },
+  "required_control_plane": {
+    "custody_gate_commit": "d787e2a3ba345581969993dabf07393e542f4f4e",
+    "provider_callable": "dust3r.inference.inference",
+    "runner_labels": [
+      "self-hosted",
+      "host-workstation2"
+    ],
+    "runner_name": "workstation2",
+    "runtime_fix_commit": "9b6b5dae325b71a1399b6cbb967740f81e3529a1"
+  },
+  "schema": "prob4d.cut3r-source-comparison-smoke-retry-authorization",
+  "schema_version": 1
+}
