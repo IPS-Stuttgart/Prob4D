@@ -7,9 +7,7 @@ WORKFLOW_ROOT = ROOT / ".github" / "workflows"
 TRUSTED_WORKFLOW = WORKFLOW_ROOT / "trusted-self-hosted-validation.yml"
 SOURCE_FREEZE_EXECUTION_WORKFLOW = WORKFLOW_ROOT / "cut3r-source-freeze-execution.yml"
 SOURCE_FREEZE_AUTO_V2_WORKFLOW = WORKFLOW_ROOT / "cut3r-source-freeze-auto-v2.yml"
-CUT3R_CHECKOUT_TRUST_RERUN_WORKFLOW = (
-    WORKFLOW_ROOT / "cut3r-checkout-trust-rerun-v1.yml"
-)
+CUT3R_CHECKOUT_TRUST_RERUN_WORKFLOW = WORKFLOW_ROOT / "cut3r-checkout-trust-rerun-v1.yml"
 CUT3R_RUNNER_SELECTOR = (
     "runs-on: [self-hosted, Linux, X64, nvidia-smi, "
     + "data-prob4d-deform360-source-v1, prob4d-cut3r]"
@@ -233,7 +231,7 @@ def test_checkout_trust_rerun_is_exact_temporary_and_hosted_dispatched() -> None
     assert "pull_request_target:" not in text
     assert CUT3R_AUTO_V2_RUNNER_SELECTOR in text
     assert 'test "$RUNNER_NAME_VALUE" = "workstation2"' in text
-    assert "-c safe.directory=\"$CUT3R_CHECKOUT\"" in text
+    assert '-c safe.directory="$CUT3R_CHECKOUT"' in text
     assert "git config --system --add safe.directory" in text
     assert "--fixed-value" in text
     assert "--unset-all safe.directory" in text
