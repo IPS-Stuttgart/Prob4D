@@ -140,3 +140,25 @@ def test_log_sanitization_prefers_longer_paths() -> None:
     )
 
     assert sanitized == "<CHECKPOINT> <CUT3R>"
+
+
+def test_driver_binds_the_builders_content_addressed_source_freeze_id() -> None:
+    module = _driver()
+    freeze: dict[str, object] = {
+        "schema": "prob4d.cut3r-deform360-source-freeze",
+        "decision": "source-support-freeze-ready",
+    }
+    source_freeze_id = _canonical_id(freeze)
+    freeze["source_freeze_id"] = source_freeze_id
+
+    assert module._source_freeze_id(freeze) == source_freeze_id
+
+    obsolete_alias = dict(freeze)
+    obsolete_alias["artifact_id"] = obsolete_alias.pop("source_freeze_id")
+    with pytest.raises(ValueError, match="source_freeze_id must be"):
+        module._source_freeze_id(obsolete_alias)
+
+    drifted = dict(freeze)
+    drifted["decision"] = "changed-after-identification"
+    with pytest.raises(ValueError, match="source_freeze_id mismatch"):
+        module._source_freeze_id(drifted)
