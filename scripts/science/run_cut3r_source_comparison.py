@@ -130,21 +130,30 @@ def _decode_frames(
     return frames
 
 
+def _prepend_cut3r_import_paths(checkout: Path) -> None:
+    """Expose CUT3R's repository modules and its internal ``dust3r`` package."""
+    for candidate in (checkout, checkout / "src"):
+        value = os.fspath(candidate)
+        while value in sys.path:
+            sys.path.remove(value)
+        sys.path.insert(0, value)
+
+
 class _Cut3RRuntime:
     def __init__(self, checkout: Path, checkpoint: Path, *, device: str) -> None:
         self.checkout = checkout
         self.checkpoint = checkpoint
         self.device = device
-        sys.path.insert(0, os.fspath(checkout))
+        _prepend_cut3r_import_paths(checkout)
         from add_ckpt_path import add_path_to_dust3r
 
         add_path_to_dust3r(os.fspath(checkpoint))
         import demo
         import torch
-        from src.dust3r.inference import inference
-        from src.dust3r.model import ARCroco3DStereo
-        from src.dust3r.post_process import estimate_focal_knowing_depth
-        from src.dust3r.utils.camera import pose_encoding_to_camera
+        from dust3r.inference import inference
+        from dust3r.model import ARCroco3DStereo
+        from dust3r.post_process import estimate_focal_knowing_depth
+        from dust3r.utils.camera import pose_encoding_to_camera
 
         self.demo = demo
         self.torch = torch
@@ -483,6 +492,57 @@ def _execute_case(
     return manifest
 
 
+def _retain_runtime_failure(
+    *,
+    error: BaseException,
+    traceback_text: str,
+    case: Mapping[str, Any],
+    plan: Mapping[str, Any],
+    processed_root: Path,
+    output_root: Path,
+    cut3r_checkout: Path,
+    checkpoint: Path,
+    shard_index: int,
+) -> dict[str, Any]:
+    case_id = cast(str, case["case_id"])
+    final = output_root / "cases" / case_id
+    if final.exists():
+        manifest = json.loads((final / "case_manifest.json").read_text(encoding="utf-8"))
+        if manifest.get("plan_id") != plan["plan_id"] or manifest.get("case_id") != case_id:
+            raise FileExistsError(f"different retained case artifact exists: {case_id}")
+        return cast(dict[str, Any], manifest)
+    staging = output_root / "staging" / f"{case_id}-shard-{shard_index}-{os.getpid()}"
+    staging.parent.mkdir(parents=True, exist_ok=True)
+    staging.mkdir(parents=False, exist_ok=False)
+    redactions = {
+        os.fspath(processed_root): "<DEFORM360_PROCESSED_ROOT>",
+        os.fspath(output_root): "<OUTPUT_ROOT>",
+        os.fspath(cut3r_checkout): "<CUT3R_CHECKOUT>",
+        os.fspath(checkpoint): "<CUT3R_CHECKPOINT>",
+    }
+    failure = _safe_error(error, redactions)
+    (staging / "failure_traceback.txt").write_text(
+        _safe_error(RuntimeError(traceback_text), redactions) + "\n",
+        encoding="utf-8",
+    )
+    manifest = _publish_case_manifest(
+        staging,
+        plan=plan,
+        case=case,
+        status="retained-technical-failure",
+        elapsed_seconds=0.0,
+        failure=failure,
+        progress={
+            "source_rgb_frames_decoded": False,
+            "cut3r_inference_executed": False,
+            "source_predictions_written": False,
+        },
+    )
+    final.parent.mkdir(parents=True, exist_ok=True)
+    staging.replace(final)
+    return manifest
+
+
 def _selected_cases(
     plan: Mapping[str, Any],
     *,
@@ -524,18 +584,36 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     output_root = args.output_root.resolve()
     output_root.mkdir(parents=True, exist_ok=True)
-    runtime = _Cut3RRuntime(cut3r, checkpoint, device=args.device)
-    records = [
-        _execute_case(
-            runtime,
-            case=case,
-            plan=plan,
-            processed_root=processed_root,
-            output_root=output_root,
-            shard_index=args.shard_index,
-        )
-        for case in selected
-    ]
+    try:
+        runtime = _Cut3RRuntime(cut3r, checkpoint, device=args.device)
+    except Exception as error:
+        traceback_text = traceback.format_exc()
+        records = [
+            _retain_runtime_failure(
+                error=error,
+                traceback_text=traceback_text,
+                case=case,
+                plan=plan,
+                processed_root=processed_root,
+                output_root=output_root,
+                cut3r_checkout=cut3r,
+                checkpoint=checkpoint,
+                shard_index=args.shard_index,
+            )
+            for case in selected
+        ]
+    else:
+        records = [
+            _execute_case(
+                runtime,
+                case=case,
+                plan=plan,
+                processed_root=processed_root,
+                output_root=output_root,
+                shard_index=args.shard_index,
+            )
+            for case in selected
+        ]
     report: dict[str, Any] = {
         "schema": "prob4d.cut3r-source-comparison-shard",
         "schema_version": 1,
