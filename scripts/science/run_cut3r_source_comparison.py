@@ -483,7 +483,6 @@ def _execute_case(
             }
         _write_json_no_clobber(staging / "gauge_diagnostics.json", diagnostics)
         progress["source_predictions_written"] = True
-        shutil.rmtree(staging / "decoded")
     except Exception as error:
         status = "retained-technical-failure"
         failure = _safe_error(error, redactions)
@@ -491,6 +490,12 @@ def _execute_case(
             _safe_error(RuntimeError(traceback.format_exc()), redactions) + "\n",
             encoding="utf-8",
         )
+    finally:
+        decoded_root = staging / "decoded"
+        if decoded_root.is_symlink():
+            decoded_root.unlink()
+        elif decoded_root.exists():
+            shutil.rmtree(decoded_root)
     manifest = _publish_case_manifest(
         staging,
         plan=plan,
@@ -789,9 +794,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "shard_index": args.shard_index,
         "shard_count": args.shard_count,
         "case_count": len(records),
-        "ordinary_success_count": sum(
-            record["status"] == "ordinary-success" for record in records
-        ),
+        "ordinary_success_count": sum(record["status"] == "ordinary-success" for record in records),
         "retained_technical_failure_count": sum(
             record["status"] == "retained-technical-failure" for record in records
         ),
