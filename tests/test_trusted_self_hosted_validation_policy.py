@@ -8,6 +8,7 @@ TRUSTED_WORKFLOW = WORKFLOW_ROOT / "trusted-self-hosted-validation.yml"
 SOURCE_FREEZE_EXECUTION_WORKFLOW = WORKFLOW_ROOT / "cut3r-source-freeze-execution.yml"
 SOURCE_FREEZE_AUTO_V2_WORKFLOW = WORKFLOW_ROOT / "cut3r-source-freeze-auto-v2.yml"
 CUT3R_CHECKOUT_TRUST_RERUN_WORKFLOW = WORKFLOW_ROOT / "cut3r-checkout-trust-rerun-v1.yml"
+CUT3R_SOURCE_COMPARISON_V2_WORKFLOW = WORKFLOW_ROOT / "cut3r-source-comparison-v2.yml"
 CUT3R_RUNNER_SELECTOR = (
     "runs-on: [self-hosted, Linux, X64, nvidia-smi, "
     + "data-prob4d-deform360-source-v1, prob4d-cut3r]"
@@ -18,6 +19,7 @@ TRUSTED_SELF_HOSTED_WORKFLOWS = (
     SOURCE_FREEZE_EXECUTION_WORKFLOW,
     SOURCE_FREEZE_AUTO_V2_WORKFLOW,
     CUT3R_CHECKOUT_TRUST_RERUN_WORKFLOW,
+    CUT3R_SOURCE_COMPARISON_V2_WORKFLOW,
 )
 REMOVED_TEMPORARY_WORKFLOWS = (
     WORKFLOW_ROOT / "issue-49-protected-cohort-inventory.yml",
@@ -288,6 +290,56 @@ def test_checkout_trust_rerun_is_exact_temporary_and_hosted_dispatched() -> None
     assert "issues: write" not in cleanup
     assert "runs-on: ubuntu-latest" in cleanup_report
     assert "issues: write" in cleanup_report
+
+
+def test_source_comparison_v2_is_exact_read_only_and_custody_gated() -> None:
+    text = CUT3R_SOURCE_COMPARISON_V2_WORKFLOW.read_text(encoding="utf-8")
+
+    assert "\n  issue_comment:" in text
+    assert "\n  pull_request:" in text
+    assert "pull_request_target:" not in text
+    assert "github.event.issue.number == 49" in text
+    assert "github.actor == 'FlorianPfaff'" in text
+    assert "github.event.comment.user.login == 'FlorianPfaff'" in text
+    assert (
+        "/prob4d-run-cut3r-source-comparison-v2 "
+        "ef4e5bf187570e918df1d7d14434b4ae55f983c347104b9c6f7ad52b42f7a7bf "
+        "0dbb6b3a46e2c895259fd5f4a4691c1d6d3c43b0e71774171bbfb3a20239953c "
+        "5e739b92c2628c61fa99ae68da61d5814ca94d4b6de5720b75c4552de82d1b2c"
+    ) in text
+    assert CUT3R_AUTO_V2_RUNNER_SELECTOR in text
+    assert 'test "$RUNNER_NAME" = "workstation2"' in text
+    assert 'test "$RUNNER_OS" = "Linux"' in text
+    assert 'test "$RUNNER_ARCH" = "X64"' in text
+    assert "physical GPU 1" in text
+    assert "GIT_CONFIG_COUNT=2" in text
+    assert "build_cut3r_source_comparison_execution_plan.py" in text
+    assert "runtime-rehearsal-success" in text
+    assert '--smoke-case-id "$SMOKE_CASE_ID"' in text
+    assert "verify_cut3r_source_comparison_artifacts.py shard" in text
+    assert "steps.smoke_gate.outputs.ready == 'true'" in text
+    assert "steps.shard_zero_gate.outputs.ready == 'true'" in text
+    assert "source-predictions-custody-complete" in text
+    assert '"source_residuals_or_truth_opened": False' in text
+    assert '"target_payloads_opened": False' in text
+    assert '"target_outcomes_opened": False' in text
+    assert "git push" not in text
+    assert "secrets." not in text
+
+    execute_start = text.index("\n  execute:")
+    report_start = text.index("\n  report:")
+    execute = text[execute_start:report_start]
+    report = text[report_start:]
+
+    assert "permissions:\n      contents: read" in execute
+    assert "issues: write" not in execute
+    assert "actions: write" not in execute
+    assert "contents: write" not in execute
+    assert "pull-requests: write" not in execute
+    assert "persist-credentials: false" in execute
+    assert "runs-on: ubuntu-latest" in report
+    assert "issues: write" in report
+    assert "contents: write" not in report
 
 
 def test_full_validation_tracks_the_05_cleanup_surface() -> None:
