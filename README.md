@@ -11,7 +11,7 @@ resulting BayesianPhysTwin belief rather than raw Prob4D artifacts.
 ## Provider evidence status
 
 <!-- provider-evidence-status:begin -->
-Snapshot: **2026-08-24**. Adapter maturity and scientific evidence are separate.
+Snapshot: **2026-08-26**. Adapter maturity and scientific evidence are separate.
 The authoritative cross-repository claim and data-access status remains in
 [`FlorianPfaff/BayesianPhysTwin-Paper`](https://github.com/FlorianPfaff/BayesianPhysTwin-Paper).
 
@@ -20,7 +20,7 @@ The authoritative cross-repository claim and data-access status remains in
 | Controlled synthetic provider | Stable mechanism study | Positive controlled evidence only; not real-provider competence |
 | MotionCrafter | Mature producer and causal-window path | Frozen retrospective real-transfer negative; the opened cohort is not a promotion candidate |
 | Deform360 official-Hub route | Executed under a sealed support protocol | Terminal source-support negative; confirmation remains closed |
-| CUT3R recurrent-online | Causal adapter, direct-point-map route, and frozen comparison ready | Source mean, identity, gauge/dependence, covariance, and query relevance are not yet established |
+| CUT3R recurrent-online | Causal adapter and direct-point-map route; one registered development smoke consumed | The exact smoke loaded the pinned model and checkpoint, decoded 58 causal frames, entered the provider forward call, and ended after a CUDA device assertion; no prediction or source shard was authorized, so competence remains unestablished |
 | VGGT | Baseline/export adapter ready | Diagnostic baseline only |
 
 This table is generated from
