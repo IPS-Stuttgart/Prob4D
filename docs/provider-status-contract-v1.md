@@ -13,8 +13,13 @@ execution receipts, and immutable results remain in their owning artifacts.
 | Controlled synthetic provider | Stable mechanism study | Positive controlled evidence only; not real-provider competence |
 | MotionCrafter | Mature producer and causal-window path | Frozen retrospective real-transfer negative; the opened cohort is not a promotion candidate |
 | Deform360 official-Hub route | Executed under a sealed support protocol | Terminal source-support negative; confirmation remains closed |
-| CUT3R recurrent-online | Causal adapter, direct-point-map route, and frozen comparison ready | Source mean, identity, gauge/dependence, covariance, and query relevance are not yet established |
+| CUT3R recurrent-online | Causal adapter and direct-point-map route; one registered development smoke consumed | The exact smoke loaded the pinned model and checkpoint, decoded 58 causal frames, entered the provider forward call, and ended after a CUDA device assertion; no prediction or source shard was authorized, so competence remains unestablished |
 | VGGT | Baseline/export adapter ready | Diagnostic baseline only |
+
+The CUT3R result is a retained provider-runtime failure for one exact no-retry
+attempt. It is not an accuracy result and does not establish deterministic
+incompatibility of the invocation, provider, or checkpoint. Source truth,
+targets, BayesianPhysTwin, and Causal4D remained unopened.
 
 A production-quality artifact path is not evidence of production-quality
 perception. Every real provider must still pass the registered support, mean,
