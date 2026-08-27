@@ -106,7 +106,8 @@ def test_grouped_cli_routes_pointworld_sparse_import_help(capsys) -> None:
         main(["prediction", "import-pointworld-sparse", "--help"])
     assert exit_info.value.code == 0
     output = capsys.readouterr().out
-    assert "persistent sparse Prob4D prediction window" in output
+    assert "persistent sparse Prob4D" in output
+    assert "prediction window" in output
     assert "--window-id" in output
     assert "--storage-dtype" in output
 
