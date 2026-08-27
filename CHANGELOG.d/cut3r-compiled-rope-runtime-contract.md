@@ -1,0 +1,1 @@
+- Add a fail-closed CUT3R compiled-RoPE runtime contract, content-bound receipt generator, and separately versioned successor runner. The terminal v1.2 smoke remains unchanged and non-retriable; this change does not constitute scientific evidence or authorize source/target access.
