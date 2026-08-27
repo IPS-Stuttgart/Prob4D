@@ -154,7 +154,7 @@ def window_scoped_point_ids(
 
     point_ids = np.empty(len(source_indices), dtype=np.int64)
     for position, source_index in enumerate(source_indices):
-        payload = f"{identifier}\x00{int(source_index)}".encode("utf-8")
+        payload = f"{identifier}\x00{int(source_index)}".encode()
         digest = hashlib.sha256(payload).digest()
         point_ids[position] = int.from_bytes(digest[:8]) & ((1 << 63) - 1)
     if len(np.unique(point_ids)) != len(point_ids):
