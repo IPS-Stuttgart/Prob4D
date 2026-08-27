@@ -6,6 +6,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from prob4d.persistent_point_prediction import (
+    PersistentPointPredictionWindow,
+)
 from prob4d.pointworld_sparse_adapter import (
     POINTWORLD_SPARSE_SOURCE_SCHEMA,
     POINTWORLD_SPARSE_SOURCE_VERSION,
@@ -13,9 +16,6 @@ from prob4d.pointworld_sparse_adapter import (
     export_pointworld_source_snapshot,
     main,
     pointworld_output_to_persistent_window,
-)
-from prob4d.persistent_point_prediction import (
-    PersistentPointPredictionWindow,
 )
 
 
