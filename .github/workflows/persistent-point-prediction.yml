@@ -6,7 +6,7 @@ on:
     paths:
       - ".github/workflows/persistent-point-prediction.yml"
       - "docs/persistent-point-prediction-window.md"
-      - "evidence/pointworld-flatnfold-source-qualification-v1/representation-decision.json"
+      - "evidence/pointworld-flatnfold-source-qualification-v1/*.json"
       - "src/prob4d/persistent_point_prediction.py"
       - "tests/test_persistent_point_prediction.py"
   workflow_dispatch:
@@ -61,35 +61,54 @@ jobs:
           tests/test_persistent_point_prediction.py
           tests/test_observation_factors.py
 
-      - name: Verify source-only representation evidence
+      - name: Verify source-only evidence
         run: |
           python - <<'PY'
           import hashlib
           import json
           from pathlib import Path
 
-          path = Path(
-              "evidence/pointworld-flatnfold-source-qualification-v1/"
-              "representation-decision.json"
+          root = Path("evidence/pointworld-flatnfold-source-qualification-v1")
+
+          representation = json.loads(
+              (root / "representation-decision.json").read_text(encoding="utf-8")
           )
-          record = json.loads(path.read_text(encoding="utf-8"))
-          decision_id = record.pop("representation_decision_id")
+          decision_id = representation.pop("representation_decision_id")
           canonical = json.dumps(
-              record,
+              representation,
               sort_keys=True,
               separators=(",", ":"),
               ensure_ascii=False,
           )
           assert hashlib.sha256(canonical.encode()).hexdigest() == decision_id
-          assert record["decision"]["status"] == (
+          assert representation["decision"]["status"] == (
               "PERSISTENT_POINT_ARTIFACT_AUTHORIZED_PROVIDER_NOT_YET_QUALIFIED"
           )
-          boundary = record["information_boundary"]
-          assert not boundary["prediction_payloads_opened"]
-          assert not boundary["provider_residuals_used"]
-          assert not boundary["target_outcomes_opened"]
-          assert not boundary["bayesian_phystwin_innovations_used"]
-          assert not boundary["causal4d_outcomes_used"]
+
+          audit = json.loads(
+              (root / "static-source-audit.json").read_text(encoding="utf-8")
+          )
+          audit_id = audit.pop("static_source_audit_id")
+          canonical = json.dumps(
+              audit,
+              sort_keys=True,
+              separators=(",", ":"),
+              ensure_ascii=False,
+          )
+          assert hashlib.sha256(canonical.encode()).hexdigest() == audit_id
+          assert audit["decision"]["status"] == (
+              "SOURCE_STATIC_AUDIT_COMPLETE_DATASET_BYTE_QUALIFICATION_REQUIRED"
+          )
+          assert audit["decision"]["representation_gate_resolved"]
+          assert not audit["decision"]["provider_support_feasibility_authorized"]
+
+          for record in (representation, audit):
+              boundary = record["information_boundary"]
+              assert not boundary["prediction_payloads_opened"]
+              assert not boundary["provider_residuals_used"]
+              assert not boundary["target_outcomes_opened"]
+              assert not boundary["bayesian_phystwin_innovations_used"]
+              assert not boundary["causal4d_outcomes_used"]
           PY
 
       - name: Compile focused source
