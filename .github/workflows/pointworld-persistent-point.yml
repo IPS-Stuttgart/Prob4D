@@ -1,0 +1,84 @@
+name: PointWorld persistent-point contract
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/pointworld-persistent-point.yml"
+      - "docs/persistent-point-prediction.md"
+      - "docs/pointworld-flatnfold-study.md"
+      - "protocols/pointworld-flatnfold-source-qualification-v1.json"
+      - "src/prob4d/persistent_point_prediction.py"
+      - "src/prob4d/pointworld_sparse_adapter.py"
+      - "src/prob4d/prediction_cli.py"
+      - "tests/test_cli.py"
+      - "tests/test_persistent_point_prediction.py"
+      - "tests/test_pointworld_sparse_adapter.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pointworld-persistent-point-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact reviewed source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Install lightweight development environment
+        run: |
+          python -m pip install -e ".[dev]" "numpy>=1.24,<2.3"
+          python -m pip check
+
+      - name: Lint and format focused sources
+        run: |
+          python -m ruff check \
+            src/prob4d/persistent_point_prediction.py \
+            src/prob4d/pointworld_sparse_adapter.py \
+            src/prob4d/prediction_cli.py \
+            tests/test_cli.py \
+            tests/test_persistent_point_prediction.py \
+            tests/test_pointworld_sparse_adapter.py
+          python -m ruff format --check --diff \
+            src/prob4d/persistent_point_prediction.py \
+            src/prob4d/pointworld_sparse_adapter.py \
+            src/prob4d/prediction_cli.py \
+            tests/test_cli.py \
+            tests/test_persistent_point_prediction.py \
+            tests/test_pointworld_sparse_adapter.py
+
+      - name: Type-check focused sources
+        run: |
+          python -m mypy \
+            src/prob4d/persistent_point_prediction.py \
+            src/prob4d/pointworld_sparse_adapter.py
+
+      - name: Run focused contracts
+        run: |
+          python -m pytest -q \
+            tests/test_cli.py \
+            tests/test_persistent_point_prediction.py \
+            tests/test_pointworld_sparse_adapter.py
+
+      - name: Compile and smoke-test installed command
+        run: |
+          python -m compileall -q src/prob4d
+          prob4d prediction import-pointworld-sparse --help

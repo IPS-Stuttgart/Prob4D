@@ -32,6 +32,10 @@ def _help_parser() -> argparse.ArgumentParser:
         help="convert direct recurrent-online CUT3R XYZ point maps",
     )
     subparsers.add_parser(
+        "import-pointworld-sparse",
+        help="convert PointWorld scene-point trajectories into a strict sparse window",
+    )
+    subparsers.add_parser(
         "cut3r-fidelity",
         help="audit direct-pointmap fidelity and recurrent causal-prefix closure",
     )
@@ -98,6 +102,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         from .cut3r_direct_provider_adapter import main as cut3r_direct_main
 
         return int(cut3r_direct_main(arguments[1:]))
+    if arguments[0] == "import-pointworld-sparse":
+        from .pointworld_sparse_adapter import main as pointworld_sparse_main
+
+        return int(pointworld_sparse_main(arguments[1:]))
     if arguments[0] == "cut3r-fidelity":
         from .cut3r_pointmap_fidelity import main as cut3r_fidelity_main
 
