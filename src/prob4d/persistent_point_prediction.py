@@ -156,7 +156,7 @@ def window_scoped_point_ids(
     for position, source_index in enumerate(source_indices):
         payload = f"{identifier}\x00{int(source_index)}".encode("utf-8")
         digest = hashlib.sha256(payload).digest()
-        point_ids[position] = int.from_bytes(digest[:8], "big") & ((1 << 63) - 1)
+        point_ids[position] = int.from_bytes(digest[:8]) & ((1 << 63) - 1)
     if len(np.unique(point_ids)) != len(point_ids):
         raise ValueError("window-scoped point identity collision")
     return cast(IntArray, _readonly(point_ids))
