@@ -1,0 +1,96 @@
+name: Persistent-point prediction contract
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/persistent-point-prediction.yml"
+      - "docs/persistent-point-prediction-window.md"
+      - "evidence/pointworld-flatnfold-source-qualification-v1/representation-decision.json"
+      - "src/prob4d/persistent_point_prediction.py"
+      - "tests/test_persistent_point_prediction.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: persistent-point-prediction-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact reviewed source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Install lightweight development environment
+        run: |
+          python -m pip install -e ".[dev]" "numpy>=1.24,<2.3"
+          python -m pip check
+
+      - name: Lint and format focused sources
+        run: |
+          python -m ruff check \
+            src/prob4d/persistent_point_prediction.py \
+            tests/test_persistent_point_prediction.py
+          python -m ruff format --check --diff \
+            src/prob4d/persistent_point_prediction.py \
+            tests/test_persistent_point_prediction.py
+
+      - name: Type-check the persistent-point contract
+        run: python -m mypy src/prob4d/persistent_point_prediction.py
+
+      - name: Run focused contract tests
+        run: >-
+          python -m pytest -q
+          tests/test_persistent_point_prediction.py
+          tests/test_observation_factors.py
+
+      - name: Verify source-only representation evidence
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          path = Path(
+              "evidence/pointworld-flatnfold-source-qualification-v1/"
+              "representation-decision.json"
+          )
+          record = json.loads(path.read_text(encoding="utf-8"))
+          decision_id = record.pop("representation_decision_id")
+          canonical = json.dumps(
+              record,
+              sort_keys=True,
+              separators=(",", ":"),
+              ensure_ascii=False,
+          )
+          assert hashlib.sha256(canonical.encode()).hexdigest() == decision_id
+          assert record["decision"]["status"] == (
+              "PERSISTENT_POINT_ARTIFACT_AUTHORIZED_PROVIDER_NOT_YET_QUALIFIED"
+          )
+          boundary = record["information_boundary"]
+          assert not boundary["prediction_payloads_opened"]
+          assert not boundary["provider_residuals_used"]
+          assert not boundary["target_outcomes_opened"]
+          assert not boundary["bayesian_phystwin_innovations_used"]
+          assert not boundary["causal4d_outcomes_used"]
+          PY
+
+      - name: Compile focused source
+        run: python -m py_compile src/prob4d/persistent_point_prediction.py
