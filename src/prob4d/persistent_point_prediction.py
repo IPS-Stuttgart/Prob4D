@@ -164,8 +164,7 @@ class PersistentPointPredictionWindow:
             raise ValueError("context_frame_count must lie in [1, number of frames]")
         if not np.all(valid_mask[0]):
             raise ValueError(
-                "every retained persistent point must be valid in the first "
-                "context frame"
+                "every retained persistent point must be valid in the first context frame"
             )
         if not np.all(np.isfinite(trajectory)):
             raise ValueError("point_trajectory must contain only finite values")
@@ -174,8 +173,7 @@ class PersistentPointPredictionWindow:
         if self.uncertainty is None:
             if uncertainty_semantics != UNCERTAINTY_ABSENT:
                 raise ValueError(
-                    "uncertainty_semantics must be 'absent' when uncertainty "
-                    "is absent"
+                    "uncertainty_semantics must be 'absent' when uncertainty is absent"
                 )
             uncertainty = None
         else:
@@ -342,8 +340,7 @@ class PersistentPointPredictionWindow:
             extra = sorted(files - (_REQUIRED_MEMBERS | _OPTIONAL_MEMBERS))
             if missing or extra:
                 raise ValueError(
-                    "persistent-point archive fields changed; "
-                    f"missing={missing}, extra={extra}"
+                    f"persistent-point archive fields changed; missing={missing}, extra={extra}"
                 )
             schema_name = _scalar_text(
                 data["schema_name"],
