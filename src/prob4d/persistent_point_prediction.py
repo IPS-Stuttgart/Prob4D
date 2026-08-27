@@ -16,16 +16,12 @@ BoolArray: TypeAlias = NDArray[np.bool_]
 IntArray: TypeAlias = NDArray[np.integer[Any]]
 StorageDType = Literal["float32", "float64"]
 
-PERSISTENT_POINT_WINDOW_NPZ_SCHEMA: Final = (
-    "prob4d.persistent-point-prediction-window-npz"
-)
+PERSISTENT_POINT_WINDOW_NPZ_SCHEMA: Final = "prob4d.persistent-point-prediction-window-npz"
 PERSISTENT_POINT_WINDOW_NPZ_VERSION: Final = 1
 PERSISTENT_POINT_IDENTITY_SEMANTICS: Final = (
     "window-local-point-id-persistent-across-output-frames-v1"
 )
-PERSISTENT_POINT_TRAJECTORY_SEMANTICS: Final = (
-    "absolute-point-position-per-output-frame-v1"
-)
+PERSISTENT_POINT_TRAJECTORY_SEMANTICS: Final = "absolute-point-position-per-output-frame-v1"
 UNCERTAINTY_ABSENT: Final = "absent"
 STORAGE_DTYPES: Final[tuple[StorageDType, ...]] = ("float32", "float64")
 
@@ -51,9 +47,7 @@ _OPTIONAL_MEMBERS: Final = frozenset({"uncertainty"})
 def _validated_storage_dtype(value: object) -> StorageDType:
     normalized = str(value)
     if normalized not in STORAGE_DTYPES:
-        raise ValueError(
-            "storage_dtype must be one of " + ", ".join(STORAGE_DTYPES)
-        )
+        raise ValueError("storage_dtype must be one of " + ", ".join(STORAGE_DTYPES))
     return cast(StorageDType, normalized)
 
 
@@ -150,60 +144,37 @@ class PersistentPointPredictionWindow:
         if trajectory_semantics != PERSISTENT_POINT_TRAJECTORY_SEMANTICS:
             raise ValueError("unsupported trajectory_semantics")
         if frame_indices.ndim != 1 or frame_indices.size == 0:
-            raise ValueError(
-                "frame_indices must be a non-empty one-dimensional array"
-            )
+            raise ValueError("frame_indices must be a non-empty one-dimensional array")
         if np.any(frame_indices < 0) or np.any(np.diff(frame_indices) <= 0):
-            raise ValueError(
-                "frame_indices must be non-negative and strictly increasing"
-            )
+            raise ValueError("frame_indices must be non-negative and strictly increasing")
         if point_ids.ndim != 1 or point_ids.size == 0:
-            raise ValueError(
-                "point_ids must be a non-empty one-dimensional array"
-            )
+            raise ValueError("point_ids must be a non-empty one-dimensional array")
         if np.any(point_ids < 0) or np.any(np.diff(point_ids) <= 0):
-            raise ValueError(
-                "point_ids must be non-negative and strictly increasing"
-            )
+            raise ValueError("point_ids must be non-negative and strictly increasing")
         if trajectory.ndim != 3 or trajectory.shape[-1] != 3:
-            raise ValueError(
-                "point_trajectory must have shape (T, N, 3)"
-            )
+            raise ValueError("point_trajectory must have shape (T, N, 3)")
         if trajectory.shape[:2] != (
             frame_indices.size,
             point_ids.size,
         ):
-            raise ValueError(
-                "point_trajectory dimensions must match frame_indices and "
-                "point_ids"
-            )
+            raise ValueError("point_trajectory dimensions must match frame_indices and point_ids")
         if valid_mask.shape != trajectory.shape[:2]:
             raise ValueError("valid_mask must have shape (T, N)")
         if not 1 <= context_frame_count <= frame_indices.size:
-            raise ValueError(
-                "context_frame_count must lie in [1, number of frames]"
-            )
+            raise ValueError("context_frame_count must lie in [1, number of frames]")
         if not np.all(valid_mask[0]):
-            raise ValueError(
-                "every retained persistent point must be valid in the first "
-                "context frame"
-            )
+            raise ValueError("every retained persistent point must be valid in the first context frame")
         if not np.all(np.isfinite(trajectory)):
             raise ValueError("point_trajectory must contain only finite values")
 
         uncertainty: np.ndarray | None
         if self.uncertainty is None:
             if uncertainty_semantics != UNCERTAINTY_ABSENT:
-                raise ValueError(
-                    "uncertainty_semantics must be 'absent' when uncertainty "
-                    "is absent"
-                )
+                raise ValueError("uncertainty_semantics must be 'absent' when uncertainty is absent")
             uncertainty = None
         else:
             if uncertainty_semantics == UNCERTAINTY_ABSENT:
-                raise ValueError(
-                    "uncertainty_semantics must describe present uncertainty"
-                )
+                raise ValueError("uncertainty_semantics must describe present uncertainty")
             uncertainty = np.asarray(
                 self.uncertainty,
                 dtype=dense_dtype,
@@ -213,9 +184,7 @@ class PersistentPointPredictionWindow:
                 or uncertainty.shape[:2] != trajectory.shape[:2]
                 or uncertainty.shape[-1] not in {1, 3}
             ):
-                raise ValueError(
-                    "uncertainty must have shape (T, N, 1) or (T, N, 3)"
-                )
+                raise ValueError("uncertainty must have shape (T, N, 1) or (T, N, 3)")
             if not np.all(np.isfinite(uncertainty)):
                 raise ValueError("uncertainty must contain only finite values")
 
@@ -281,13 +250,8 @@ class PersistentPointPredictionWindow:
 
     def local_index(self, frame_index: int) -> int:
         position = int(np.searchsorted(self.frame_indices, frame_index))
-        if (
-            position == self.frame_indices.size
-            or self.frame_indices[position] != frame_index
-        ):
-            raise KeyError(
-                f"frame {frame_index} is not in window {self.window_id!r}"
-            )
+        if position == self.frame_indices.size or self.frame_indices[position] != frame_index:
+            raise KeyError(f"frame {frame_index} is not in window {self.window_id!r}")
         return position
 
     def common_frames(
@@ -307,9 +271,7 @@ class PersistentPointPredictionWindow:
             "stop_frame_exclusive": self.stop_frame,
             "frame_count": int(self.shape[0]),
             "context_frame_count": self.context_frame_count,
-            "prediction_frame_count": int(
-                self.shape[0] - self.context_frame_count
-            ),
+            "prediction_frame_count": int(self.shape[0] - self.context_frame_count),
             "point_count": int(self.shape[1]),
             "uncertainty_dimension": (
                 0 if self.uncertainty is None else int(self.uncertainty.shape[-1])
@@ -327,9 +289,7 @@ class PersistentPointPredictionWindow:
         """Write the strict versioned archive."""
 
         selected_dtype = (
-            self.storage_dtype
-            if storage_dtype is None
-            else _validated_storage_dtype(storage_dtype)
+            self.storage_dtype if storage_dtype is None else _validated_storage_dtype(storage_dtype)
         )
         numpy_dtype = _numpy_dtype(selected_dtype)
         payload: dict[str, Any] = {
@@ -351,13 +311,9 @@ class PersistentPointPredictionWindow:
                 self.context_frame_count,
                 dtype=np.int64,
             ),
-            "point_identity_semantics": np.asarray(
-                self.point_identity_semantics
-            ),
+            "point_identity_semantics": np.asarray(self.point_identity_semantics),
             "trajectory_semantics": np.asarray(self.trajectory_semantics),
-            "uncertainty_semantics": np.asarray(
-                self.uncertainty_semantics
-            ),
+            "uncertainty_semantics": np.asarray(self.uncertainty_semantics),
         }
         if self.uncertainty is not None:
             payload["uncertainty"] = self.uncertainty.astype(
@@ -379,10 +335,7 @@ class PersistentPointPredictionWindow:
             missing = sorted(_REQUIRED_MEMBERS - files)
             extra = sorted(files - (_REQUIRED_MEMBERS | _OPTIONAL_MEMBERS))
             if missing or extra:
-                raise ValueError(
-                    "persistent-point archive fields changed; "
-                    f"missing={missing}, extra={extra}"
-                )
+                raise ValueError(f"persistent-point archive fields changed; missing={missing}, extra={extra}")
             schema_name = _scalar_text(
                 data["schema_name"],
                 name="schema_name",
@@ -392,13 +345,9 @@ class PersistentPointPredictionWindow:
                 name="schema_version",
             )
             if schema_name != PERSISTENT_POINT_WINDOW_NPZ_SCHEMA:
-                raise ValueError(
-                    "unsupported persistent-point archive schema"
-                )
+                raise ValueError("unsupported persistent-point archive schema")
             if schema_version != PERSISTENT_POINT_WINDOW_NPZ_VERSION:
-                raise ValueError(
-                    "unsupported persistent-point archive version"
-                )
+                raise ValueError("unsupported persistent-point archive version")
             storage_dtype = _validated_storage_dtype(
                 _scalar_text(
                     data["storage_dtype"],
@@ -407,13 +356,9 @@ class PersistentPointPredictionWindow:
             )
             expected_dtype = _numpy_dtype(storage_dtype)
             if data["point_trajectory"].dtype != expected_dtype:
-                raise ValueError(
-                    "point_trajectory dtype disagrees with storage_dtype"
-                )
+                raise ValueError("point_trajectory dtype disagrees with storage_dtype")
             if "uncertainty" in data and data["uncertainty"].dtype != expected_dtype:
-                raise ValueError(
-                    "uncertainty dtype disagrees with storage_dtype"
-                )
+                raise ValueError("uncertainty dtype disagrees with storage_dtype")
             for scalar_name in ("schema_version", "context_frame_count"):
                 if data[scalar_name].dtype != np.dtype(np.int64):
                     raise ValueError(f"{scalar_name} must use int64")
@@ -437,11 +382,7 @@ class PersistentPointPredictionWindow:
                     data["context_frame_count"],
                     name="context_frame_count",
                 ),
-                uncertainty=(
-                    data["uncertainty"]
-                    if "uncertainty" in data
-                    else None
-                ),
+                uncertainty=(data["uncertainty"] if "uncertainty" in data else None),
                 uncertainty_semantics=uncertainty_semantics,
                 storage_dtype=storage_dtype,
                 point_identity_semantics=_scalar_text(
