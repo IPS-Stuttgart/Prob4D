@@ -6,7 +6,7 @@ import argparse
 import json
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Final
+from typing import Final
 
 import numpy as np
 
