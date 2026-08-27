@@ -1,10 +1,10 @@
 {
   "contract": "prob4d.provider-status-snapshot",
   "contract_version": 1,
-  "snapshot_date": "2026-08-24",
+  "snapshot_date": "2026-08-26",
   "evidence_source": {
     "path": "docs/provider-status-contract-v1.md",
-    "git_blob_sha1": "be6408cf8dac3123425df0e86210432d74e4603e",
+    "git_blob_sha1": "9da75328c82f4e81a74796413ffe05e8dfffeebc",
     "role": "repository-local provider status contract"
   },
   "routes": [
@@ -36,9 +36,9 @@
       "id": "cut3r_recurrent_online",
       "table_order": 4,
       "provider_route": "CUT3R recurrent-online",
-      "implementation_state": "Causal adapter, direct-point-map route, and frozen comparison ready",
+      "implementation_state": "Causal adapter and direct-point-map route; one registered development smoke consumed",
       "evidence_state": "not_established",
-      "evidence_boundary": "Source mean, identity, gauge/dependence, covariance, and query relevance are not yet established"
+      "evidence_boundary": "The exact smoke loaded the pinned model and checkpoint, decoded 58 causal frames, entered the provider forward call, and ended after a CUDA device assertion; no prediction or source shard was authorized, so competence remains unestablished"
     },
     {
       "id": "vggt",
