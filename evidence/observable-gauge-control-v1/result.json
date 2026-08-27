@@ -1,0 +1,70 @@
+{
+  "claim_boundary": "controlled DLO-like gauge-observability mechanism only; not real-provider competence, downstream physical benefit, or deployment calibration",
+  "config": {
+    "line_half_extent_m": 1.0,
+    "nullspace_precision_ratio": 1.0,
+    "observation_sigma_m": 0.01,
+    "points_per_line": 48,
+    "prior_centroid_translation_std": 0.1,
+    "prior_log_scale_std": 0.06,
+    "prior_rotation_std_rad": 0.14,
+    "probe_radius_m": 0.25,
+    "rank_threshold": 1e-08,
+    "seed": 20260827,
+    "trials": 1000,
+    "truth_scale": 1.1,
+    "truth_twist_rad": 0.6
+  },
+  "criteria": {
+    "all_trials_rank_six": true,
+    "completion_is_more_harmful_than_subspace": true,
+    "completion_is_undercovered": true,
+    "observable_coverage_is_calibrated": true,
+    "observable_nll_improves": true,
+    "observable_probe_rmse_improves": true,
+    "observable_support_rmse_improves_at_least_50pct": true
+  },
+  "decision": "pass",
+  "geometry": {
+    "current_full_covariance_alignment_accepts_rank_deficient_geometry": false,
+    "expected_observable_rank": 6,
+    "mean_unobservable_truth_magnitude_rad": 0.5999931351611657,
+    "rank_counts": {
+      "6": 1000
+    }
+  },
+  "methods": {
+    "exact_physical_prior_fallback": {
+      "empirical_90pct_coverage": 0.907,
+      "mean_gaussian_nll": -5.75528120008018,
+      "mean_local_standard_deviation": 0.11489125293076063,
+      "mean_probe_rmse_mm": 100.47478800812233,
+      "mean_support_rmse_mm": 94.24599488685435,
+      "normalized_nees": 0.9804724663850798
+    },
+    "isotropic_nullspace_completion_control": {
+      "empirical_90pct_coverage": 0.0,
+      "harmful_probe_fraction": 0.437,
+      "mean_gaussian_nll": 37103.341080424216,
+      "mean_local_standard_deviation": 0.0022133127405227974,
+      "mean_probe_rmse_mm": 93.84292343598571,
+      "mean_support_rmse_mm": 1.9555302441809117,
+      "normalized_nees": 10611.347030845327,
+      "probe_rmse_improvement_fraction": 0.06600526065902723,
+      "support_rmse_improvement_fraction": 0.979250786767877
+    },
+    "observable_subspace_factor": {
+      "empirical_90pct_coverage": 0.88,
+      "harmful_probe_fraction": 0.0,
+      "mean_gaussian_nll": -28.62612707940606,
+      "mean_local_standard_deviation": 0.0529548350731917,
+      "mean_probe_rmse_mm": 17.76403321718713,
+      "mean_support_rmse_mm": 1.9554049881790552,
+      "normalized_nees": 1.0281393703277517,
+      "probe_rmse_improvement_fraction": 0.8231990973123418,
+      "support_rmse_improvement_fraction": 0.9792521158005008
+    }
+  },
+  "schema": "prob4d.observable-gauge-study",
+  "schema_version": 1
+}
