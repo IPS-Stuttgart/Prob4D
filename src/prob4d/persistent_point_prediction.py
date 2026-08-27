@@ -292,7 +292,7 @@ class PersistentPointPredictionWindow:
 
     def common_frames(
         self,
-        other: "PersistentPointPredictionWindow",
+        other: PersistentPointPredictionWindow,
     ) -> IntArray:
         return np.intersect1d(
             self.frame_indices,
@@ -371,7 +371,7 @@ class PersistentPointPredictionWindow:
     def from_npz(
         cls,
         path: str | Path,
-    ) -> "PersistentPointPredictionWindow":
+    ) -> PersistentPointPredictionWindow:
         """Read one strict versioned persistent-point archive."""
 
         with np.load(Path(path), allow_pickle=False) as data:
