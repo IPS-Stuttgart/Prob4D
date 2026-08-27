@@ -27,9 +27,7 @@ def _window() -> PersistentPointPredictionWindow:
         valid_mask=np.ones((3, 2), dtype=bool),
         context_frame_count=1,
         uncertainty=np.zeros((3, 2, 1), dtype=np.float32),
-        uncertainty_semantics=(
-            "pointworld-normalized-relative-log-variance-v1"
-        ),
+        uncertainty_semantics=("pointworld-normalized-relative-log-variance-v1"),
         storage_dtype="float32",
     )
 
