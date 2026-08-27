@@ -17,11 +17,13 @@
   "released_source_facts": {
     "pointworld": {
       "input": "partially observable RGB-D plus robot actions represented as 3D point flows",
-      "prediction": "full-scene 3D point flows",
+      "prediction": "full-scene 3D point trajectories/flows",
       "context_horizon_frames": 1,
       "prediction_horizon_frames": 10,
       "model_output_point_shape": "B,T,N_scene,3",
       "model_output_log_variance_shape": "B,T,N_scene,1",
+      "point_identity_fact": "released grid sampling selects scene indices at t=0 and applies the same indices to all timesteps; deterministic test subsampling also applies one sorted index set to all scene fields",
+      "absolute_trajectory_fact": "released model exports scene_flows as scene_coord0 plus predicted relative displacement",
       "released_scene_flow_checkpoints": [
         "small-droid/model-best.pt",
         "large-droid/model-best.pt",
@@ -38,19 +40,28 @@
     }
   },
   "critical_representation_gate": {
-    "prob4d_current_contract": "PredictionWindow v2 requires point_map and optional scene_flow on a dense T,H,W,3 grid",
-    "pointworld_released_contract": "PointWorld predicts flows for N_scene seeded scene points, not a native T,H,W image grid",
-    "target_access_before_resolution": false,
-    "permitted_resolution_paths": [
-      "prove a deterministic source-only mapping from PointWorld scene-point identities back to a registered dense RGB-D grid without interpolation chosen from target outcomes",
-      "introduce a separately versioned sparse persistent-point provider contract with explicit identity and dependence semantics, validated without target outcomes",
-      "declare this provider version infeasible for the present Prob4D claim"
-    ],
+    "prob4d_dense_contract": "PredictionWindow v2 requires point_map and optional scene_flow on a dense T,H,W,3 grid",
+    "pointworld_released_contract": "PointWorld predicts persistent trajectories for N_scene points sampled at the first timestep",
+    "resolution_status": "SPARSE_PERSISTENT_POINT_CONTRACT_IMPLEMENTED_SOURCE_EXECUTION_PENDING",
+    "selected_resolution_path": "separately versioned sparse persistent-point provider payload with explicit within-window point identity, frame identity, context count, trajectory semantics, validity, and raw uncertainty semantics",
+    "implementation": {
+      "archive_module": "src/prob4d/persistent_point_prediction.py",
+      "adapter_module": "src/prob4d/pointworld_sparse_adapter.py",
+      "archive_schema": "prob4d.persistent-point-prediction-window-npz",
+      "archive_schema_version": 1,
+      "source_snapshot_schema": "prob4d.pointworld-persistent-point-source-npz",
+      "source_snapshot_schema_version": 1,
+      "cli": "prob4d prediction import-pointworld-sparse",
+      "uncertainty_semantics": "pointworld-normalized-relative-log-variance-v1"
+    },
+    "target_access_before_runtime_verification": false,
     "forbidden_resolution_paths": [
       "target-truth nearest-neighbor rasterization",
       "target-outcome-tuned interpolation or masks",
-      "dropping unsupported target garments after outcome inspection"
-    ]
+      "dropping unsupported target garments after outcome inspection",
+      "calling PointWorld raw log variance calibrated metric covariance"
+    ],
+    "remaining_gate": "execute the exact released PointWorld checkpoint on source-only Flat'n'Fold inventory windows and verify that runtime arrays, actions, coordinates, and point order satisfy the frozen sparse contract"
   },
   "source_only_qualification": {
     "required_before_any_prediction_competence_result": [
@@ -60,8 +71,8 @@
       "verify three-camera timestamps and intrinsics/extrinsics",
       "verify Baxter action pose semantics and construct PointWorld robot point-flow actions without target state",
       "verify metric coordinate transform using released calibration only",
-      "verify point identity semantics over the ten-frame forecast horizon",
-      "resolve the critical representation gate",
+      "execute source-only PointWorld windows and verify released persistent point-index semantics",
+      "export and replay strict persistent-point source snapshots",
       "build a ProviderSupportFeasibilityV1 request before prediction payloads, residuals, or target outcomes are opened"
     ],
     "support_unit": "complete physical garment identity",
@@ -112,9 +123,9 @@
     "stop and retain a valid negative if PointWorld cannot execute on the frozen source roster",
     "stop if action conversion is not semantically identifiable from released Flat'n'Fold information",
     "stop if coordinate identity requires target truth",
-    "stop if persistent point identities or an outcome-blind dense mapping cannot be established",
-    "do not open target outcomes until source support and representation qualification pass",
+    "stop if runtime point order violates the released persistent-index semantics or the strict archive cannot be reproduced",
+    "do not open target outcomes until source runtime, action, coordinate, archive, and support qualification pass",
     "do not retune checkpoint, split, masks, representation mapping, or guard after target access"
   ],
-  "claim_boundary": "This protocol freezes only a source-side feasibility and representation qualification. It establishes no PointWorld competence on Flat'n'Fold, no Prob4D accuracy or calibration gain, no BayesianPhysTwin benefit, no Causal4D benefit, and no deployment-safety claim."
+  "claim_boundary": "This protocol freezes only a source-side feasibility and representation qualification. The sparse payload implementation resolves representation semantics but establishes no PointWorld competence on Flat'n'Fold, no Prob4D accuracy or calibration gain, no BayesianPhysTwin benefit, no Causal4D benefit, and no deployment-safety claim."
 }
