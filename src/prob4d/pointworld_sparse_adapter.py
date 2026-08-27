@@ -58,7 +58,10 @@ def _without_singleton_batch(
         return array
     if array.ndim == unbatched_ndim + 1 and array.shape[0] == 1:
         return array[0]
-    raise ValueError(f"{name} must have {unbatched_ndim} dimensions or one singleton batch dimension")
+    raise ValueError(
+        f"{name} must have {unbatched_ndim} dimensions or one singleton "
+        "batch dimension"
+    )
 
 
 def pointworld_output_to_persistent_window(
@@ -181,7 +184,10 @@ def load_pointworld_source_snapshot(
         missing = sorted(_SOURCE_REQUIRED_MEMBERS - files)
         extra = sorted(files - (_SOURCE_REQUIRED_MEMBERS | _SOURCE_OPTIONAL_MEMBERS))
         if missing or extra:
-            raise ValueError(f"PointWorld source snapshot fields changed; missing={missing}, extra={extra}")
+            raise ValueError(
+                "PointWorld source snapshot fields changed; "
+                f"missing={missing}, extra={extra}"
+            )
         schema_name = _scalar_text(data["schema_name"], name="schema_name")
         schema_version = _scalar_integer(
             data["schema_version"],
