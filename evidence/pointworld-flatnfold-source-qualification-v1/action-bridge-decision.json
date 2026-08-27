@@ -1,0 +1,63 @@
+{
+  "claim_boundary": "This decision establishes only the implementation and validation of a provenance-bound rigid dual-gripper surface action artifact. It does not establish correct Flat'n'Fold calibration or synchronization, executable PointWorld support, provider competence, calibrated uncertainty, Prob4D benefit, BayesianPhysTwin benefit, Causal4D benefit, or deployment safety.",
+  "decision": {
+    "artifact_schema_name": "prob4d.dual-gripper-surface-action-window-npz",
+    "artifact_schema_version": 1,
+    "dataset_action_bytes_opened": false,
+    "dataset_instantiation_authorized": false,
+    "equivalent_to_released_pointworld_domains_claimed": false,
+    "full_baxter_kinematics_claimed": false,
+    "pointworld_fields_exposed": [
+      "robot_flows",
+      "robot_normals",
+      "robot_colors",
+      "right_gripper_open",
+      "left_gripper_open",
+      "__has_right_gripper__",
+      "__has_left_gripper__"
+    ],
+    "status": "DUAL_GRIPPER_ACTION_ARTIFACT_IMPLEMENTED_DATASET_INSTANTIATION_NOT_AUTHORIZED"
+  },
+  "implemented_semantics": {
+    "arm_order": [
+      "right",
+      "left"
+    ],
+    "colors": "constant-magenta-v1",
+    "coordinate_semantics": "metric-world-frame-v1",
+    "gripper_state": "binary-right-left-feature-v1",
+    "point_identity": "template-calibration-arm-index-hash-v1",
+    "pose_quaternion_order": "wxyz",
+    "quaternion_policy": "normalize-finite-nonzero-v1",
+    "template_support": "fixed-equal-count-rigid-surface-points-per-arm-v1"
+  },
+  "information_boundary": {
+    "bayesian_phystwin_innovations_used": false,
+    "causal4d_outcomes_used": false,
+    "prediction_payloads_opened": false,
+    "provider_residuals_used": false,
+    "target_outcomes_opened": false
+  },
+  "protocol_id": "prob4d-pointworld-flatnfold-source-qualification-v1",
+  "provenance_bindings": [
+    "sampled gripper template SHA-256",
+    "tracker-to-template calibration SHA-256",
+    "pose-stream manifest SHA-256",
+    "timestamp-association SHA-256",
+    "absolute output frame indices"
+  ],
+  "schema_name": "prob4d.pointworld-flatnfold-action-bridge-decision",
+  "schema_version": 1,
+  "source_revision": "f2ce63dd60aced4f2888985b9d1df0363b2d2fca",
+  "unresolved_before_dataset_instantiation": [
+    "exact Flat'n'Fold gripper mesh sampling report",
+    "right and left tracker-to-template transforms",
+    "exact pose and gripper-state byte manifests",
+    "camera/action one-to-one timestamp association and maximum skew",
+    "metric frame verification",
+    "technical-failure and missing-frame policy",
+    "PointWorld checkpoint/runtime execution with the gripper-only representation",
+    "source-only embodiment-shift competence gate"
+  ],
+  "action_bridge_decision_id": "432549ed44b395a0f7c82194a95ce00ac27776ad31cdc6ae3cdb06b519a443bd"
+}
