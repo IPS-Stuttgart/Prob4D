@@ -1,0 +1,92 @@
+{
+  "authorized_path": {
+    "action_candidate": "dual-gripper-surface-points-from-frozen-mesh-and-pose-v1",
+    "conditions": [
+      "Use the exact gripper mesh bytes and two timestamped end-effector pose streams.",
+      "Freeze mesh sampling, gripper-state geometry, coordinate transforms, and all interpolation rules on source data only.",
+      "Retain the resulting PointWorld input as a distribution-shifted adapter; do not call it equivalent to the released DROID or BEHAVIOR robot representation.",
+      "Require exact source lineage for every forecast frame.",
+      "Stop before target access if complete camera/action synchronization cannot be demonstrated from dataset bytes."
+    ],
+    "representation_artifact": "prob4d.persistent-point-prediction-window-npz-v1"
+  },
+  "claim_boundary": "This source-only audit records representation and input-contract facts from pinned public source files. It does not establish executable dataset support, PointWorld competence, calibrated uncertainty, Prob4D benefit, BayesianPhysTwin benefit, Causal4D benefit, or deployment safety.",
+  "decision": {
+    "action_bridge_implemented": false,
+    "camera_geometry_verified_on_dataset_bytes": false,
+    "provider_support_feasibility_authorized": false,
+    "representation_gate_resolved": true,
+    "status": "SOURCE_STATIC_AUDIT_COMPLETE_DATASET_BYTE_QUALIFICATION_REQUIRED",
+    "timestamp_alignment_verified_on_dataset_bytes": false
+  },
+  "information_boundary": {
+    "bayesian_phystwin_innovations_used": false,
+    "causal4d_outcomes_used": false,
+    "prediction_payloads_opened": false,
+    "provider_residuals_used": false,
+    "target_outcomes_opened": false
+  },
+  "observations": {
+    "camera_geometry": [
+      "The published text provides three intrinsic tuples and robot-specific top/side extrinsics.",
+      "The merge script uses the robot-specific top/side extrinsics and the published front extrinsic.",
+      "The front visualization helper passes values inconsistent with the published front intrinsic tuple; it is not accepted as an authoritative calibration implementation."
+    ],
+    "flatnfold_action_source": [
+      "The public parser reads per-arm end-effector position, quaternion orientation, and binary gripper state.",
+      "The repository provides one electric-gripper STL mesh.",
+      "The repository source inspected here does not establish complete Baxter joint trajectories or a PointWorld-compatible Baxter robot sampler."
+    ],
+    "pointworld_action_input": [
+      "PointWorld consumes sampled robot surface-point positions over the complete horizon.",
+      "Released domain conversion dispatch accepts only behavior and droid.",
+      "Behavior conversion requires joint positions, joint names, base pose, and a compatible robot sampler.",
+      "DROID conversion requires seven Panda joint positions, gripper positions, and a compatible robot sampler."
+    ],
+    "temporal_alignment": [
+      "The three-camera merge script contains nearest-timestamp logic but comments out its use.",
+      "The executed loop pairs sorted front, top, and side filenames by list index.",
+      "No maximum inter-camera skew, one-to-one timestamp audit, or action-to-camera synchronization rule is established by the inspected source."
+    ]
+  },
+  "protocol_id": "prob4d-pointworld-flatnfold-source-qualification-v1",
+  "schema_name": "prob4d.pointworld-flatnfold-static-source-audit",
+  "schema_version": 1,
+  "source_files": {
+    "flatnfold_action_visualization": {
+      "blob_sha": "7e832694906d6e6199a4d6f8b396838ca8f82167",
+      "path": "Pointcloud/pointcloud_convert_match.py"
+    },
+    "flatnfold_camera_parameters": {
+      "blob_sha": "006ad0e8018c056b044931bbd787334c31538842",
+      "path": "Hardware/Camera parameter.txt"
+    },
+    "flatnfold_gripper_mesh": {
+      "blob_sha": "7b49b6ebc806b3df98b6451ff6c0d0202f832b17",
+      "path": "Hardware/electric_gripper_w_fingers.STL"
+    },
+    "flatnfold_pointcloud_merge": {
+      "blob_sha": "f71b38411767a75c7d9d2a1baab8891a480ca708",
+      "path": "Pointcloud/pointcloud_merge_threecamera.py"
+    },
+    "pointworld_model": {
+      "blob_sha": "a83cca41e41fd3736cd03909dc8397714dbc2368",
+      "path": "pointworld/base.py"
+    },
+    "pointworld_robot_adapter": {
+      "blob_sha": "2922cb769d944deaa4093d909931ae9007dcdec7",
+      "path": "dataset_components/robot.py"
+    },
+    "pointworld_uncertainty_loss": {
+      "blob_sha": "7c9e17e707471ea21b32e8f41ed961a22f58e8ba",
+      "path": "pointworld/losses.py"
+    }
+  },
+  "source_revisions": {
+    "bayesian_phystwin": "b5f07d649ac2cd7dc6ca1aceb4004ff4803bddc8",
+    "flatnfold": "fa0d3d17ac827e7b5c43ec1ef7c0c38ad5e39340",
+    "pointworld": "05484826dfef74cbe278a3974179a5a16705d35d",
+    "prob4d": "5d0fd7c9191075c05e4f08620aa1ff01cda02a44"
+  },
+  "static_source_audit_id": "68c988a8dbc7dd1d73c2b65031ddadf106ce6385159cfee1ba427cb724b75e99"
+}
