@@ -213,10 +213,12 @@ def _aggregate(
 
 
 def run_observable_gauge_study(
-    config: ObservableGaugeStudyConfig = ObservableGaugeStudyConfig(),
+    config: ObservableGaugeStudyConfig | None = None,
 ) -> dict[str, Any]:
     """Run the frozen controlled mechanism study."""
 
+    if config is None:
+        config = ObservableGaugeStudyConfig()
     config.validate()
     generator = np.random.default_rng(config.seed)
     source = _source_line(config)
