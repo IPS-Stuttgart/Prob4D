@@ -131,6 +131,7 @@ def pointworld_output_to_persistent_window(
         raise ValueError("PointWorld source frame contains no valid scene points")
 
     point_count = int(trajectory.shape[1])
+    identifiers: np.ndarray
     if point_ids is None:
         identifiers = np.arange(point_count, dtype=np.int64)
     else:
