@@ -74,9 +74,7 @@ class CircularMoments2:
         symmetric = 0.5 * (covariance + covariance.T)
         if float(np.linalg.eigvalsh(symmetric)[0]) < -_ROUNDOFF:
             raise ValueError("circular covariance must be positive semidefinite")
-        if not np.isclose(
-            float(np.trace(symmetric) + mean @ mean), 1.0, atol=_ROUNDOFF, rtol=0.0
-        ):
+        if not np.isclose(float(np.trace(symmetric) + mean @ mean), 1.0, atol=_ROUNDOFF, rtol=0.0):
             raise ValueError("circular moments must satisfy E[cos^2 + sin^2] = 1")
         symmetric.setflags(write=False)
         object.__setattr__(self, "mean", mean)
