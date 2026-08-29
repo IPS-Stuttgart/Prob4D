@@ -56,9 +56,9 @@ def test_locally_admitted_radial_query_has_finite_unobserved_orbit_variance():
     # This isolates the axial conditional contribution. It is NOT an exact
     # replacement for every term of the complete seven-dimensional posterior.
     orbit = AxialGaugeOrbit(np.array([0.0, 0.0, 1.0]), np.zeros(3))
-    query = orbit.point_moments(
-        point[None, :], CircularMoments2.wrapped_normal(0.0, 1.0)
-    ).project([[1.0, 0.0, 0.0]])
+    query = orbit.point_moments(point[None, :], CircularMoments2.wrapped_normal(0.0, 1.0)).project(
+        [[1.0, 0.0, 0.0]]
+    )
     assert query.covariance[0, 0] > 0.0019
     np.testing.assert_allclose(query.full_orbit_bounds, [[-0.1, 0.1]])
 
