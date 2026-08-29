@@ -97,7 +97,8 @@ def _validate_protocol(protocol: dict[str, Any]) -> None:
     if len(set(sigmas)) != len(sigmas) or protocol["primary_std_radians"] not in sigmas:
         raise ValueError("primary case must occur once in the declared sweep")
     for key, lower, upper in (
-        ("shared_point_copies", 2, 10000), ("reference_hermite_nodes", 64, 256)
+        ("shared_point_copies", 2, 10000),
+        ("reference_hermite_nodes", 64, 256),
     ):
         value = protocol[key]
         if type(value) is not int or not lower <= value <= upper:
