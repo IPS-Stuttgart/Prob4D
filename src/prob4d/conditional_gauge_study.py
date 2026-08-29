@@ -100,9 +100,7 @@ def _vectorized_prediction(
     return means, session.belief.covariance
 
 
-def _paired_bootstrap_interval(
-    differences: np.ndarray, replicates: int, seed: int
-) -> list[float]:
+def _paired_bootstrap_interval(differences: np.ndarray, replicates: int, seed: int) -> list[float]:
     rng = np.random.default_rng(seed)
     means = []
     for start in range(0, replicates, 100):
@@ -115,8 +113,11 @@ def _paired_bootstrap_interval(
 def _reference_channel_control() -> dict[str, float]:
     design = np.vstack((np.eye(7)[0], np.zeros(7)))
     model = CorrelatedGaugeDesign(
-        "scalar-reference-embedded-in-gauge", "known-reference-noise",
-        ("signal", "noise_reference"), (1, 1), design,
+        "scalar-reference-embedded-in-gauge",
+        "known-reference-noise",
+        ("signal", "noise_reference"),
+        (1, 1),
+        design,
         np.array([[1.0, 1.0], [1.0, 1.1]]),
     )
     session = ConditionalGaugeSession(
@@ -141,8 +142,12 @@ def run_study(*, episodes: int = 10000, bootstrap_replicates: int = 2000) -> dic
     model = make_design()
     independent_noise = np.diag(np.diag(model.noise_covariance))
     independence_model = CorrelatedGaugeDesign(
-        model.chart_id, "deliberately-invalid-independent-noise-control",
-        model.window_ids, model.window_sizes, model.design_matrix, independent_noise,
+        model.chart_id,
+        "deliberately-invalid-independent-noise-control",
+        model.window_ids,
+        model.window_sizes,
+        model.design_matrix,
+        independent_noise,
     )
     query = query_jacobian()
     candidates = ("near_repeat", "complement", "global_only")
@@ -179,8 +184,11 @@ def run_study(*, episodes: int = 10000, bootstrap_replicates: int = 2000) -> dic
         batch_gain = np.linalg.solve(r + h @ p @ h.T, h @ p).T
         batch_means = observations[:, rows] @ batch_gain.T
         batch_covariance = np.linalg.inv(np.linalg.inv(p) + h.T @ np.linalg.solve(r, h))
-        parity_maximum = max(parity_maximum, float(np.max(np.abs(means - batch_means))),
-                             float(np.max(np.abs(covariance - batch_covariance))))
+        parity_maximum = max(
+            parity_maximum,
+            float(np.max(np.abs(means - batch_means))),
+            float(np.max(np.abs(covariance - batch_covariance))),
+        )
         errors[name] = (means - truth) @ query.T
         covariances[name] = query @ covariance @ query.T
     baseline_loss = np.sum(errors["history_only"] ** 2, axis=1)
@@ -193,15 +201,20 @@ def run_study(*, episodes: int = 10000, bootstrap_replicates: int = 2000) -> dic
         if sign <= 0:
             raise ValueError("query covariance must be positive definite for scoring")
         improvement_mm2 = 1e6 * (baseline_loss - loss)
-        interval = _paired_bootstrap_interval(improvement_mm2, bootstrap_replicates,
-                                              PROTOCOL["bootstrap_seed"])
+        interval = _paired_bootstrap_interval(
+            improvement_mm2, bootstrap_replicates, PROTOCOL["bootstrap_seed"]
+        )
         metrics[name] = {
             "selected_window": arms[name][1],
             "query_euclidean_rmse_mm": float(1000 * np.sqrt(np.mean(loss))),
             "query_expected_rmse_mm": float(1000 * np.sqrt(np.trace(covariance))),
             "normalized_query_nees": float(np.mean(nees) / 3),
-            "query_ellipsoid_90_coverage": float(np.mean(nees <= PROTOCOL["ellipsoid_90_chi_square_df3"])),
-            "gaussian_query_nll_nats": float(0.5 * (3 * np.log(2 * np.pi) + logdet + np.mean(nees))),
+            "query_ellipsoid_90_coverage": float(
+                np.mean(nees <= PROTOCOL["ellipsoid_90_chi_square_df3"])
+            ),
+            "gaussian_query_nll_nats": float(
+                0.5 * (3 * np.log(2 * np.pi) + logdet + np.mean(nees))
+            ),
             "harmful_episode_fraction_vs_history": float(np.mean(loss > baseline_loss + 1e-18)),
             "paired_mean_squared_query_error_improvement_mm2": float(np.mean(improvement_mm2)),
             "paired_95_percentile_bootstrap_interval_mm2": interval,
@@ -210,18 +223,28 @@ def run_study(*, episodes: int = 10000, bootstrap_replicates: int = 2000) -> dic
     for correlation in (0.0, 0.5, 0.9, 0.999, 1.0):
         sweep_session = _history_session(make_design(correlation))
         utilities = tuple(sweep_session.preview_query(w, query) for w in candidates)
-        correlation_sweep.append({
-            "correlation": correlation,
-            "selected_window": select_query_window(utilities),
-            "query_variance_reduction_mm2": {u.candidate_id: 1e6 * u.variance_reduction for u in utilities},
-        })
+        correlation_sweep.append(
+            {
+                "correlation": correlation,
+                "selected_window": select_query_window(utilities),
+                "query_variance_reduction_mm2": {
+                    u.candidate_id: 1e6 * u.variance_reduction for u in utilities
+                },
+            }
+        )
     return {
         "schema": "prob4d.conditional-query-design-result-v1",
         "protocol": protocol,
-        "protocol_sha256": hashlib.sha256(json.dumps(protocol, sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
+        "protocol_sha256": hashlib.sha256(
+            json.dumps(protocol, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest(),
         "query_variance_reduction_mm2": {
-            "correct_conditional": {u.candidate_id: 1e6 * u.variance_reduction for u in correct_utilities},
-            "incorrect_marginal": {u.candidate_id: 1e6 * u.variance_reduction for u in marginal_utilities},
+            "correct_conditional": {
+                u.candidate_id: 1e6 * u.variance_reduction for u in correct_utilities
+            },
+            "incorrect_marginal": {
+                u.candidate_id: 1e6 * u.variance_reduction for u in marginal_utilities
+            },
         },
         "arms": metrics,
         "correlation_sweep": correlation_sweep,
@@ -229,11 +252,20 @@ def run_study(*, episodes: int = 10000, bootstrap_replicates: int = 2000) -> dic
         "maximum_kernel_vs_independent_dense_reference_error": parity_maximum,
         "boundaries": [
             "Known, correctly specified Gaussian noise except the explicitly invalid control.",
-            "Constructed local-linear Sim(3) chart, not nonlinear perception or physical simulation.",
+            (
+                "Constructed local-linear Sim(3) chart, "
+                "not nonlinear perception or physical simulation."
+            ),
             "Independent synthetic episodes, not real objects, frames, or target evaluations.",
-            "Utility guarantees expected squared-query-loss reduction only under the assumed model.",
+            (
+                "Utility guarantees expected squared-query-loss reduction "
+                "only under the assumed model."
+            ),
             "Nonzero harmful-episode fractions are retained; no per-update safety claim.",
-            "No PointWorld, BayesianPhysTwin, or Causal4D runtime or empirical benefit is established.",
+            (
+                "No PointWorld, BayesianPhysTwin, or Causal4D runtime "
+                "or empirical benefit is established."
+            ),
         ],
     }
 

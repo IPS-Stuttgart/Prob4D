@@ -30,8 +30,10 @@ def test_existing_partial_factor_and_query_api_parity():
         covariance_method="iid_observable_information_v1",
     )
     model = CorrelatedGaugeDesign(
-        "one-exact-centroid-chart", "known-observable-factor-covariance",
-        ("original", "exact-source-replay"), (6, 6),
+        "one-exact-centroid-chart",
+        "known-observable-factor-covariance",
+        ("original", "exact-source-replay"),
+        (6, 6),
         np.vstack((factor.observable_basis.T, factor.observable_basis.T)),
         np.tile(factor.observable_covariance, (2, 2)),
     )
@@ -42,8 +44,11 @@ def test_existing_partial_factor_and_query_api_parity():
         factor, prior_covariance_local=prior.covariance, query_jacobian_local=query
     )
     preview = session.preview_query("original", query)
-    np.testing.assert_allclose(preview.posterior_metric_variance,
-                               np.trace(existing_report.posterior_query_covariance), rtol=1e-12)
+    np.testing.assert_allclose(
+        preview.posterior_metric_variance,
+        np.trace(existing_report.posterior_query_covariance),
+        rtol=1e-12,
+    )
     expected = factor.fuse_local_gaussian(prior.mean, prior.covariance)
     actual = session.assimilate("original", np.zeros(6))
     np.testing.assert_allclose(actual.mean, expected.mean_local, rtol=1e-12)

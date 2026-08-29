@@ -151,7 +151,7 @@ python -m prob4d.conditional_gauge_study --output /tmp/conditional-query-result.
 The frozen numerical design is in
 `protocols/conditional-query-design-study-v1.json`. The study generates 10,000
 independent Gaussian episodes, a rank-six line-like history, a 0.999-correlated
-repeat, complementary rank-six support, and a precise but query-irrelevant
+repeat, complementary rank-six support, and a precise but weakly query-relevant
 rotation measurement. Each policy receives one additional window at equal cost.
 Selections are made before any episode is drawn. The point-position query uses
 a fixed local Sim(3) Jacobian, not a nonlinear scene renderer or physical solver.

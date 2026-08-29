@@ -19,14 +19,19 @@ from prob4d.conditional_gauge_design import (
 
 def _model(design, noise, sizes, ids=None):
     return CorrelatedGaugeDesign(
-        "normalized-test-chart", "known-synthetic-noise", tuple(ids or [f"w{i}" for i in range(len(sizes))]),
-        tuple(sizes), design, noise,
+        "normalized-test-chart",
+        "known-synthetic-noise",
+        tuple(ids or [f"w{i}" for i in range(len(sizes))]),
+        tuple(sizes),
+        design,
+        noise,
     )
 
 
 def _prior(mean=None, covariance=None):
     return GaussianGaugeBelief(
-        "normalized-test-chart", np.zeros(7) if mean is None else mean,
+        "normalized-test-chart",
+        np.zeros(7) if mean is None else mean,
         np.eye(7) if covariance is None else covariance,
     )
 
@@ -43,7 +48,9 @@ def test_sequential_correlated_updates_equal_dense_joint_posterior(seed):
     model = _model(design, noise, [2, 3, 4])
     prior_information = np.linalg.solve(prior.covariance, np.eye(7))
     expected_cov = np.linalg.inv(prior_information + design.T @ np.linalg.solve(noise, design))
-    expected_mean = expected_cov @ (prior_information @ prior.mean + design.T @ np.linalg.solve(noise, values))
+    expected_mean = expected_cov @ (
+        prior_information @ prior.mean + design.T @ np.linalg.solve(noise, values)
+    )
     for order in itertools.permutations(model.window_ids):
         session = ConditionalGaugeSession(model, prior)
         for window in order:
@@ -128,7 +135,9 @@ def test_global_chart_change_and_query_units_preserve_utility():
     transform = rng.normal(size=(7, 7)) + 4 * np.eye(7)
     inverse = np.linalg.inv(transform)
     original = ConditionalGaugeSession(_model(h, r, [2, 3]), _prior())
-    changed = ConditionalGaugeSession(_model(h @ inverse, r, [2, 3]), _prior(covariance=transform @ transform.T))
+    changed = ConditionalGaugeSession(
+        _model(h @ inverse, r, [2, 3]), _prior(covariance=transform @ transform.T)
+    )
     original.assimilate("w0", np.ones(2))
     changed.assimilate("w0", np.ones(2))
     a = original.preview_query("w1", j)
@@ -144,8 +153,11 @@ def test_measurement_unit_scaling_preserves_utility(scale):
     session.assimilate("w0", np.array([scale]))
     reference = ConditionalGaugeSession(_model(h, r, [1, 1]), _prior())
     reference.assimilate("w0", np.ones(1))
-    np.testing.assert_allclose(session.preview_query("w1", np.eye(7)).variance_reduction,
-                               reference.preview_query("w1", np.eye(7)).variance_reduction, rtol=1e-10)
+    np.testing.assert_allclose(
+        session.preview_query("w1", np.eye(7)).variance_reduction,
+        reference.preview_query("w1", np.eye(7)).variance_reduction,
+        rtol=1e-10,
+    )
 
 
 def test_informative_zero_noise_is_rejected_not_silently_discarded():
@@ -171,7 +183,14 @@ def test_arrays_are_defensive_copies_and_immutable():
         prior.covariance[0, 0] = 7
 
 
-@pytest.mark.parametrize("bad_noise", [np.array([[1.0, 2.0], [2.0, 1.0]]), np.array([[1.0, 0.2], [0.0, 1.0]]), np.full((2, 2), np.nan)])
+@pytest.mark.parametrize(
+    "bad_noise",
+    [
+        np.array([[1.0, 2.0], [2.0, 1.0]]),
+        np.array([[1.0, 0.2], [0.0, 1.0]]),
+        np.full((2, 2), np.nan),
+    ],
+)
 def test_invalid_joint_covariance_is_rejected(bad_noise):
     with pytest.raises(ValueError):
         _model(np.eye(7)[[0, 1]], bad_noise, [1, 1])

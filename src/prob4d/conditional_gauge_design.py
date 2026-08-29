@@ -155,8 +155,7 @@ class ConditionalWindowFactor:
             float(np.sqrt(self.noise_scale)),
         )
         if (
-            float(np.linalg.norm(self.history_zero_noise_basis.T @ history))
-            > self.rtol * scale
+            float(np.linalg.norm(self.history_zero_noise_basis.T @ history)) > self.rtol * scale
             or float(np.linalg.norm(self.zero_noise_basis.T @ residual)) > self.rtol * scale
         ):
             raise ValueError("observations violate a deterministic noise-support identity")
@@ -196,9 +195,7 @@ class CorrelatedGaugeDesign:
         for window_id in ids:
             _text(window_id, "window ID")
         if any(
-            isinstance(size, bool)
-            or not isinstance(size, (int, np.integer))
-            or size < 1
+            isinstance(size, bool) or not isinstance(size, (int, np.integer)) or size < 1
             for size in sizes
         ):
             raise ValueError("window sizes must be positive integers")
