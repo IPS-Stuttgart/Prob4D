@@ -29,6 +29,10 @@ env:
   POINTWORLD_CHECKOUT_RELATIVE: code/PointWorld
   POINTWORLD_CHECKPOINT_RELATIVE: models/pointworld/large-droid+behavior/model-best.pt
   DINOV3_WEIGHTS_RELATIVE: models/dinov3/dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth
+  dataset_access_authorized: "false"
+  prediction_execution_authorized: "false"
+  provider_residuals_authorized: "false"
+  target_outcomes_authorized: "false"
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
   PYTHONHASHSEED: "0"
   PYTHONUNBUFFERED: "1"
