@@ -1,0 +1,88 @@
+name: Axial gauge moment closure
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/axial-gauge-moment-closure.yml"
+      - "src/prob4d/axial_gauge_moments.py"
+      - "src/prob4d/axial_gauge_moment_study.py"
+      - "src/prob4d/observable_gauge.py"
+      - "src/prob4d/query_observability.py"
+      - "src/prob4d/sim3.py"
+      - "tests/test_axial_gauge_moments.py"
+      - "tests/test_axial_gauge_observability_integration.py"
+      - "protocols/axial-gauge-moment-closure-v1.json"
+      - "docs/axial-gauge-moment-closure.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: axial-gauge-moment-closure-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  conditional-moment-contract:
+    name: Conditional moments and local-gate regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install development environment
+        run: |
+          python -m pip install -e ".[dev]"
+          python -m pip install "numpy>=1.24,<2.3"
+      - name: Lint focused files
+        run: |
+          python -m ruff check \
+            src/prob4d/axial_gauge_moments.py \
+            src/prob4d/axial_gauge_moment_study.py \
+            tests/test_axial_gauge_moments.py \
+            tests/test_axial_gauge_observability_integration.py
+      - name: Check formatting and show any required changes
+        if: always()
+        run: |
+          python -m ruff format --diff \
+            src/prob4d/axial_gauge_moments.py \
+            src/prob4d/axial_gauge_moment_study.py \
+            tests/test_axial_gauge_moments.py \
+            tests/test_axial_gauge_observability_integration.py
+      - name: Type check focused modules
+        if: always()
+        run: |
+          python -m mypy \
+            src/prob4d/axial_gauge_moments.py \
+            src/prob4d/axial_gauge_moment_study.py
+      - name: Verify exact moments and existing observable-gauge integration
+        if: always()
+        run: |
+          python -m pytest -q \
+            tests/test_axial_gauge_moments.py \
+            tests/test_axial_gauge_observability_integration.py \
+            tests/test_observable_gauge.py \
+            tests/test_query_observability.py
+      - name: Reproduce analytic control without real-data access
+        if: always()
+        run: |
+          python -m prob4d.axial_gauge_moment_study \
+            --protocol protocols/axial-gauge-moment-closure-v1.json \
+            --output outputs/axial-gauge-moment-closure-v1/result.json
+      - name: Retain numerical reproduction
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: axial-gauge-moment-closure-v1
+          path: outputs/axial-gauge-moment-closure-v1/
+          if-no-files-found: warn
+          retention-days: 30
