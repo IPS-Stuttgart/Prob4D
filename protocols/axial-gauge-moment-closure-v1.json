@@ -1,0 +1,21 @@
+{
+  "schema": "prob4d.axial-gauge-moment-control.v1",
+  "evidence_kind": "designed-analytic-mechanism-control",
+  "radius_m": 0.1,
+  "independent_readout_std_m": 0.005,
+  "wrapped_normal_std_radians": [0.1, 0.5, 1.0, 2.0, 3.0],
+  "primary_std_radians": 1.0,
+  "illustrative_std_screen_m": 0.02,
+  "shared_point_copies": 64,
+  "reference_hermite_nodes": 128,
+  "methods": ["first-order", "second-order", "spherical-radial-2", "gauss-hermite-5", "gauss-hermite-32", "exact-circular-moments"],
+  "information_boundary": {
+    "real_provider_predictions": false,
+    "source_outcomes": false,
+    "target_outcomes": false,
+    "bayesian_phystwin_execution": false,
+    "causal4d_execution": false,
+    "protected_cohort_access_authorized": false
+  },
+  "claim_boundary": "Conditional exact axial point/query moments and a deterministic local-linearization counterexample only. No real-provider, calibration, physical-benefit, causal-benefit, safety, or state-of-the-art claim. The illustrative variance screen is not a production guard."
+}
