@@ -102,12 +102,13 @@ def _vectorized_prediction(
 
 def _paired_bootstrap_interval(differences: np.ndarray, replicates: int, seed: int) -> list[float]:
     rng = np.random.default_rng(seed)
-    means = []
+    means: list[float] = []
     for start in range(0, replicates, 100):
         size = min(100, replicates - start)
         indices = rng.integers(0, differences.size, size=(size, differences.size))
         means.extend(np.mean(differences[indices], axis=1).tolist())
-    return np.quantile(means, [0.025, 0.975]).tolist()
+    quantiles = np.asarray(np.quantile(means, [0.025, 0.975]), dtype=float)
+    return [float(quantiles[0]), float(quantiles[1])]
 
 
 def _reference_channel_control() -> dict[str, float]:

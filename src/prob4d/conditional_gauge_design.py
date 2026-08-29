@@ -13,12 +13,12 @@ A utility is an expected squared-query-loss reduction, not a safety certificate.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, TypeAlias
 
 import numpy as np
 from numpy.typing import NDArray
 
-FloatArray = NDArray[np.floating[Any]]
+FloatArray: TypeAlias = NDArray[np.floating[Any]]
 
 
 class UnsupportedDeterministicConstraint(ValueError):
@@ -37,7 +37,7 @@ def _symmetric(value: object, *, name: str, size: int) -> FloatArray:
     result = _array(value, name=name, ndim=2)
     if result.shape != (size, size):
         raise ValueError(f"{name} must have shape ({size}, {size})")
-    scale = max(float(np.max(np.abs(result), initial=0.0)), np.finfo(float).tiny)
+    scale = max(float(np.max(np.abs(result), initial=0.0)), float(np.finfo(float).tiny))
     if float(np.max(np.abs(result - result.T), initial=0.0)) > 1e-10 * scale:
         raise ValueError(f"{name} must be symmetric")
     return _array((result + result.T) / 2, name=name, ndim=2)
@@ -291,7 +291,7 @@ class QueryWindowUtility:
                 raise ValueError(f"{name} must be finite and nonnegative")
         if isinstance(self.cost, bool) or not np.isfinite(self.cost) or self.cost <= 0:
             raise ValueError("cost must be finite and positive")
-        scale = max(self.prior_metric_variance, np.finfo(float).tiny)
+        scale = max(self.prior_metric_variance, float(np.finfo(float).tiny))
         if self.posterior_metric_variance > self.prior_metric_variance + 1e-10 * scale:
             raise ValueError("posterior query variance must not exceed prior variance")
 
@@ -350,7 +350,8 @@ class ConditionalGaugeSession:
         after = _covariance_update(before, factor.whitened_design)
         prior_variance = float(np.trace(metric @ query @ before @ query.T))
         posterior_variance = float(np.trace(metric @ query @ after @ query.T))
-        if posterior_variance > prior_variance + 1e-10 * max(prior_variance, np.finfo(float).tiny):
+        variance_scale = max(prior_variance, float(np.finfo(float).tiny))
+        if posterior_variance > prior_variance + 1e-10 * variance_scale:
             raise ValueError("conditional update increased query covariance")
         return QueryWindowUtility(
             candidate_id, factor.information_rank, prior_variance, posterior_variance, float(cost)
