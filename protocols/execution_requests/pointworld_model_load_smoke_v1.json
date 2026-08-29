@@ -1,0 +1,15 @@
+{
+  "claim_boundary": "This dataset-free smoke verifies only exact staged asset identity and complete PointWorld plus DINOv3 model initialization on workstation2. It executes no prediction, opens no dataset or residual, and establishes no PointWorld competence, Prob4D accuracy or calibration benefit, BayesianPhysTwin benefit, Causal4D benefit, or deployment-safety claim.",
+  "dataset_access_authorized": false,
+  "execution_authorized": true,
+  "issue_number": 333,
+  "prediction_execution_authorized": false,
+  "profile": "pointworld-model-load-smoke-v1",
+  "provider_residuals_authorized": false,
+  "request_id": "36943051745ac00ab28a6b4e6c451d3b3816db70eccbca308130eadee96d0ce5",
+  "schema": "prob4d.pointworld-model-load-smoke-request",
+  "schema_version": 1,
+  "source_protocol_git_blob_sha": "5f26b345ba742afc7430fa2a332df0c8f6bab7b0",
+  "source_protocol_path": "protocols/pointworld-model-load-smoke-v1.json",
+  "target_outcomes_authorized": false
+}
