@@ -62,11 +62,14 @@ def test_request_identity_binds_protocol_blob() -> None:
     blob_sha = "a" * 40
     request = _request(module, blob_sha)
 
-    assert module.validate_request(
-        request,
-        protocol,
-        source_protocol_git_blob_sha=blob_sha,
-    ) == request["request_id"]
+    assert (
+        module.validate_request(
+            request,
+            protocol,
+            source_protocol_git_blob_sha=blob_sha,
+        )
+        == request["request_id"]
+    )
 
     with pytest.raises(ValueError, match="checked protocol blob"):
         module.validate_request(
