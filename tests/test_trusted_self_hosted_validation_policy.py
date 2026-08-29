@@ -9,6 +9,7 @@ SOURCE_FREEZE_EXECUTION_WORKFLOW = WORKFLOW_ROOT / "cut3r-source-freeze-executio
 SOURCE_FREEZE_AUTO_V2_WORKFLOW = WORKFLOW_ROOT / "cut3r-source-freeze-auto-v2.yml"
 CUT3R_CHECKOUT_TRUST_RERUN_WORKFLOW = WORKFLOW_ROOT / "cut3r-checkout-trust-rerun-v1.yml"
 CUT3R_SOURCE_COMPARISON_V2_WORKFLOW = WORKFLOW_ROOT / "cut3r-source-comparison-v2.yml"
+POINTWORLD_MODEL_LOAD_SMOKE_WORKFLOW = WORKFLOW_ROOT / "pointworld-model-load-smoke.yml"
 CUT3R_RUNNER_SELECTOR = (
     "runs-on: [self-hosted, Linux, X64, nvidia-smi, "
     + "data-prob4d-deform360-source-v1, prob4d-cut3r]"
@@ -19,6 +20,7 @@ TRUSTED_SELF_HOSTED_WORKFLOWS = (
     SOURCE_FREEZE_EXECUTION_WORKFLOW,
     SOURCE_FREEZE_AUTO_V2_WORKFLOW,
     CUT3R_CHECKOUT_TRUST_RERUN_WORKFLOW,
+    POINTWORLD_MODEL_LOAD_SMOKE_WORKFLOW,
 )
 REMOVED_TEMPORARY_WORKFLOWS = (
     WORKFLOW_ROOT / "issue-49-protected-cohort-inventory.yml",
@@ -289,6 +291,47 @@ def test_checkout_trust_rerun_is_exact_temporary_and_hosted_dispatched() -> None
     assert "issues: write" not in cleanup
     assert "runs-on: ubuntu-latest" in cleanup_report
     assert "issues: write" in cleanup_report
+
+
+def test_pointworld_model_load_smoke_is_main_request_bound_and_target_closed() -> None:
+    text = POINTWORLD_MODEL_LOAD_SMOKE_WORKFLOW.read_text(encoding="utf-8")
+
+    assert "\n  push:" in text
+    assert "branches: [main]" in text
+    assert "protocols/execution_requests/pointworld_model_load_smoke_v1.json" in text
+    assert "pull_request_target:" not in text
+    assert 'test "$EVENT_REF" = "refs/heads/main"' in text
+    assert 'test "$EVENT_FORCED" = "false"' in text
+    assert "validate-request" in text
+    assert "source_protocol_git_blob_sha" in text
+    assert "environment: trusted-self-hosted-validation" in text
+    assert CUT3R_AUTO_V2_RUNNER_SELECTOR in text
+    assert 'test "$RUNNER_NAME" = "workstation2"' in text
+    assert 'test "$RUNNER_OS" = "Linux"' in text
+    assert 'test "$RUNNER_ARCH" = "X64"' in text
+    assert "command -v nvidia-smi" in text
+    assert "persist-credentials: false" in text
+    assert "dataset_access_authorized" in text
+    assert "prediction_execution_authorized" in text
+    assert "provider_residuals_authorized" in text
+    assert "target_outcomes_authorized" in text
+    assert "8aa4cbddda325040fc78db2c272754af6ebe8ff2c55f6ec4f1964d8890f66035" not in text
+    assert "git push" not in text
+    assert "secrets." not in text
+
+    execute_start = text.index("\n  execute:")
+    report_start = text.index("\n  report:")
+    execute = text[execute_start:report_start]
+    report = text[report_start:]
+
+    assert "permissions:\n      contents: read" in execute
+    assert "issues: write" not in execute
+    assert "contents: write" not in execute
+    assert "prediction_executed" in execute
+    assert "dataset_opened" in execute
+    assert "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02" in execute
+    assert "permissions:\n      contents: read\n      issues: write" in report
+    assert "runs-on: ubuntu-latest" in report
 
 
 def test_source_comparison_v2_issue_trigger_is_terminally_removed() -> None:
