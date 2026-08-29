@@ -1,0 +1,69 @@
+{
+  "schema": "prob4d.joint-axial-query-study-protocol-v1",
+  "status": "FROZEN_BEFORE_FIRST_NUMERICAL_STUDY",
+  "base_revision": "342513fd8ff4c408057534927a04f0ec531fa8b1",
+  "base_pull_request": 343,
+  "source_sha256": {
+    "src/prob4d/axial_gauge.py": "bb92cf669816bf588ee34b52654b8023fd4459b8b0ddf6a259c14eceb7247aea",
+    "src/prob4d/joint_axial_query.py": "b6c1affb8bfac632c9dd08fef605836ad6ca7c3336f690ef51f0e0a522892c7d",
+    "scripts/science/joint_axial_query_study.py": "2341842ef9af93368ccef5cda1bce23004123269d10f04399e872f6eea512445",
+    "scripts/science/verify_joint_axial_query_study.py": "45d2ecf90fc186eabb8913c0cd0b311242fbb8494ee8958074b7e681cedff642"
+  },
+  "source_points": 4,
+  "point_noise_std_m": 0.01,
+  "query_radius_m": 0.05,
+  "query_readout_std_m": 0.003,
+  "geometry_separations_m": [
+    0.0,
+    0.0025,
+    0.01
+  ],
+  "worlds": [
+    {
+      "name": "independent_matched",
+      "assumed_correlation": 0.0,
+      "true_correlation": 0.0
+    },
+    {
+      "name": "dependent_matched",
+      "assumed_correlation": 0.8,
+      "true_correlation": 0.8
+    },
+    {
+      "name": "dependent_reversed_prior",
+      "assumed_correlation": -0.8,
+      "true_correlation": 0.8
+    }
+  ],
+  "arms": [
+    "frozen_marginal_angle",
+    "map_geometry_conditional_angle",
+    "joint_conditional_law",
+    "joint_moment_matched_gaussian"
+  ],
+  "primary_metric": "expected_brier_loss_of_positive_radial_halfspace",
+  "secondary_metrics": [
+    "expected_binary_log_loss",
+    "radial_rmse_mm"
+  ],
+  "orders": [
+    64,
+    128
+  ],
+  "tail_standard_deviations": 10.0,
+  "maximum_refinement_absolute_error": 2e-10,
+  "maximum_mass_error": 1e-10,
+  "maximum_atom_parity_error": 1e-12,
+  "maximum_covariance_parity_error_m2": 1e-12,
+  "geometry_prior_mass": [
+    0.5,
+    0.5
+  ],
+  "angle_nodes_rad": [
+    0.0,
+    3.141592653589793
+  ],
+  "map_tie_rule": "first component, negative labelled geometry",
+  "retention_rule": "report all nine cases and all four arms; no outcome-dependent prior or threshold changes",
+  "claim_boundary": "Deterministic constructed-model integration only. Known finite priors and noise; no real provider, fitted angular prior, BPT complete-belief integration, physical or Causal4D benefit, calibration or safety claim. No protected source/target or new hardware data."
+}
