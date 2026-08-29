@@ -38,7 +38,7 @@ jobs:
       - name: Check focused source
         run: |
           python -m ruff check src/prob4d/axial_gauge.py src/prob4d/axial_gauge_study.py tests/test_axial_gauge.py
-          python -m mypy src/prob4d/axial_gauge.py src/prob4d/axial_gauge_study.py
+          python -m mypy --python-version 3.12 src/prob4d/axial_gauge.py src/prob4d/axial_gauge_study.py
           python -m pytest -q tests/test_axial_gauge.py
       - name: Execute continuous-truth controlled experiment
         run: |
