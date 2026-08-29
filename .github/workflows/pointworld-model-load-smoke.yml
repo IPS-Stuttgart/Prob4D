@@ -1,0 +1,423 @@
+name: PointWorld model-load smoke
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/pointworld-model-load-smoke.yml"
+      - "scripts/science/run_pointworld_model_load_smoke.py"
+      - "protocols/pointworld-model-load-smoke-v1.json"
+      - "tests/test_pointworld_model_load_smoke.py"
+      - "tests/test_trusted_self_hosted_validation_policy.py"
+      - "docs/pointworld-model-load-smoke.md"
+  push:
+    branches: [main]
+    paths:
+      - "protocols/execution_requests/pointworld_model_load_smoke_v1.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pointworld-model-load-smoke-${{ github.ref }}-${{ github.sha }}
+  cancel-in-progress: false
+
+env:
+  REQUEST_PATH: protocols/execution_requests/pointworld_model_load_smoke_v1.json
+  PROTOCOL_PATH: protocols/pointworld-model-load-smoke-v1.json
+  ASSET_ROOT: /home/github-runner/.cache/datasets/pointworld-flatnfold-v1
+  POINTWORLD_CHECKOUT_RELATIVE: code/PointWorld
+  POINTWORLD_CHECKPOINT_RELATIVE: models/pointworld/large-droid+behavior/model-best.pt
+  DINOV3_WEIGHTS_RELATIVE: models/dinov3/dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+
+jobs:
+  contract:
+    name: Validate smoke control plane
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out proposed source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Provision Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install development environment
+        run: python -m pip install --no-cache-dir ".[dev]"
+      - name: Validate source and workflow policy
+        run: |
+          set -euo pipefail
+          python -m ruff check \
+            scripts/science/run_pointworld_model_load_smoke.py \
+            tests/test_pointworld_model_load_smoke.py \
+            tests/test_trusted_self_hosted_validation_policy.py
+          python -m ruff format --check \
+            scripts/science/run_pointworld_model_load_smoke.py \
+            tests/test_pointworld_model_load_smoke.py \
+            tests/test_trusted_self_hosted_validation_policy.py
+          python -m pytest -q \
+            tests/test_pointworld_model_load_smoke.py \
+            tests/test_trusted_self_hosted_validation_policy.py \
+            tests/test_github_action_pins.py
+          python -m compileall -q scripts/science/run_pointworld_model_load_smoke.py
+
+  authorize:
+    name: Authorize merged target-closed request
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      request_id: ${{ steps.request.outputs.request_id }}
+      head_sha: ${{ steps.request.outputs.head_sha }}
+      source_protocol_git_blob_sha: ${{ steps.request.outputs.source_protocol_git_blob_sha }}
+    steps:
+      - name: Check out exact merged revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require one non-forced main request change
+        id: request
+        shell: bash
+        env:
+          EVENT_REF: ${{ github.ref }}
+          EVENT_BEFORE: ${{ github.event.before }}
+          EVENT_AFTER: ${{ github.event.after }}
+          EVENT_FORCED: ${{ github.event.forced }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_REF" = "refs/heads/main"
+          test "$EVENT_FORCED" = "false"
+          test "$EVENT_AFTER" = "$(/usr/bin/git rev-parse HEAD)"
+          test "$EVENT_BEFORE" != "0000000000000000000000000000000000000000"
+          mapfile -t changed < <(
+            /usr/bin/git diff --name-only "$EVENT_BEFORE" "$EVENT_AFTER" | sort
+          )
+          if [[ ${#changed[@]} -ne 1 || "${changed[0]}" != "$REQUEST_PATH" ]]; then
+            printf 'Expected only %s; changed paths were:\n' "$REQUEST_PATH" >&2
+            printf '  %s\n' "${changed[@]}" >&2
+            exit 2
+          fi
+          test -f "$REQUEST_PATH"
+          test -f "$PROTOCOL_PATH"
+          source_blob=$(/usr/bin/git rev-parse "$EVENT_AFTER:$PROTOCOL_PATH")
+          validation=$(
+            /usr/bin/python3 scripts/science/run_pointworld_model_load_smoke.py \
+              validate-request \
+              --request "$REQUEST_PATH" \
+              --protocol "$PROTOCOL_PATH" \
+              --source-protocol-git-blob-sha "$source_blob"
+          )
+          request_id=$(
+            VALIDATION="$validation" /usr/bin/python3 - <<'PY'
+          import json
+          import os
+
+          print(json.loads(os.environ["VALIDATION"])["request_id"])
+          PY
+          )
+          echo "request_id=$request_id" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$EVENT_AFTER" >> "$GITHUB_OUTPUT"
+          echo "source_protocol_git_blob_sha=$source_blob" >> "$GITHUB_OUTPUT"
+
+  execute:
+    name: Load PointWorld on workstation2
+    if: github.event_name == 'push'
+    needs: authorize
+    environment: trusted-self-hosted-validation
+    runs-on: [self-hosted, host-workstation2]
+    timeout-minutes: 180
+    permissions:
+      contents: read
+    outputs:
+      decision: ${{ steps.finalize.outputs.decision }}
+      failure_stage: ${{ steps.finalize.outputs.failure_stage }}
+      checkpoint_sha256: ${{ steps.finalize.outputs.checkpoint_sha256 }}
+      checkpoint_size_bytes: ${{ steps.finalize.outputs.checkpoint_size_bytes }}
+      gpu: ${{ steps.finalize.outputs.gpu }}
+      parameter_count: ${{ steps.finalize.outputs.parameter_count }}
+    steps:
+      - name: Require the intended runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_NAME" = "workstation2"
+          test "$RUNNER_OS" = "Linux"
+          test "$RUNNER_ARCH" = "X64"
+          command -v nvidia-smi >/dev/null
+          nvidia-smi --query-gpu=name,driver_version,memory.total \
+            --format=csv,noheader
+      - name: Initialize isolated workspace
+        id: workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${RUNNER_TEMP}/prob4d-pointworld-load-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          /usr/bin/rm -rf -- "$root"
+          /usr/bin/mkdir -p \
+            "$root/home" \
+            "$root/cache" \
+            "$root/tmp" \
+            "$root/evidence" \
+            "$root/logs"
+          echo "root=$root" >> "$GITHUB_OUTPUT"
+          {
+            echo "HOME=$root/home"
+            echo "XDG_CACHE_HOME=$root/cache"
+            echo "PIP_CACHE_DIR=$root/cache/pip"
+            echo "HF_HOME=$root/cache/huggingface"
+            echo "TMPDIR=$root/tmp"
+            echo "TORCH_HOME=$root/cache/torch"
+            echo "WANDB_MODE=disabled"
+            echo "WANDB_DISABLED=true"
+          } >> "$GITHUB_ENV"
+      - name: Check out exact authorized Prob4D revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.authorize.outputs.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify clean exact checkout
+        shell: bash
+        env:
+          EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          test "$(/usr/bin/git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test -z "$(/usr/bin/git status --porcelain=v1 --untracked-files=all)"
+      - name: Provision Python 3.10
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.10"
+      - name: Verify and hash staged source assets
+        id: preflight
+        continue-on-error: true
+        shell: bash
+        env:
+          REQUEST_ID: ${{ needs.authorize.outputs.request_id }}
+          EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          python scripts/science/run_pointworld_model_load_smoke.py preflight \
+            --protocol "$PROTOCOL_PATH" \
+            --pointworld-checkout "$ASSET_ROOT/$POINTWORLD_CHECKOUT_RELATIVE" \
+            --checkpoint "$ASSET_ROOT/$POINTWORLD_CHECKPOINT_RELATIVE" \
+            --dinov3-weights "$ASSET_ROOT/$DINOV3_WEIGHTS_RELATIVE" \
+            --request-id "$REQUEST_ID" \
+            --prob4d-revision "$EXPECTED_HEAD_SHA" \
+            --output "$root/evidence/preflight.json"
+      - name: Copy the pinned PointWorld checkout
+        if: steps.preflight.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          source="$ASSET_ROOT/$POINTWORLD_CHECKOUT_RELATIVE"
+          target="$root/PointWorld"
+          /usr/bin/mkdir -p "$target"
+          /usr/bin/cp -a "$source/." "$target/"
+          test "$(/usr/bin/git -C "$target" rev-parse HEAD)" = \
+            "05484826dfef74cbe278a3974179a5a16705d35d"
+          test "$(/usr/bin/git -C "$target/third_party/dinov3" rev-parse HEAD)" = \
+            "54694f7627fd815f62a5dcc82944ffa6153bbb76"
+      - name: Install the pinned PointWorld runtime
+        id: runtime
+        if: steps.preflight.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        env:
+          MAX_JOBS: "4"
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          python -m venv "$root/venv"
+          python_bin="$root/venv/bin/python"
+          "$python_bin" -m pip install --no-cache-dir \
+            "pip==25.2" "setuptools==80.9.0" "wheel==0.45.1"
+          "$python_bin" -m pip install --no-cache-dir \
+            -r "$root/PointWorld/environments/requirements.txt"
+          "$python_bin" -m pip install --no-cache-dir --no-deps \
+            "timm==1.0.19" "networkx==3.4.2"
+          "$python_bin" -m pip install --no-cache-dir --no-build-isolation \
+            "flash-attn==2.7.4.post1"
+          "$python_bin" -m pip check
+          "$python_bin" -m pip freeze \
+            > "$root/evidence/pip-freeze.txt"
+          "$python_bin" - <<'PY' \
+            > "$root/evidence/runtime.txt"
+          import platform
+          import torch
+
+          print("python=" + platform.python_version())
+          print("torch=" + torch.__version__)
+          print("torch_cuda=" + str(torch.version.cuda))
+          print("cuda_available=" + str(torch.cuda.is_available()))
+          if torch.cuda.is_available():
+              print("gpu=" + torch.cuda.get_device_name(0))
+          PY
+      - name: Initialize the complete PointWorld model
+        id: load
+        if: steps.preflight.outcome == 'success' && steps.runtime.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          "$root/venv/bin/python" \
+            scripts/science/run_pointworld_model_load_smoke.py load \
+            --protocol "$PROTOCOL_PATH" \
+            --preflight "$root/evidence/preflight.json" \
+            --pointworld-checkout "$root/PointWorld" \
+            --checkpoint "$ASSET_ROOT/$POINTWORLD_CHECKPOINT_RELATIVE" \
+            --dinov3-weights "$ASSET_ROOT/$DINOV3_WEIGHTS_RELATIVE" \
+            --output "$root/evidence/load.json" \
+            --log-dir "$root/logs"
+      - name: Build sanitized result and outputs
+        id: finalize
+        if: always()
+        shell: bash
+        env:
+          REQUEST_ID: ${{ needs.authorize.outputs.request_id }}
+          EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+          RUNTIME_OUTCOME: ${{ steps.runtime.outcome }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          runtime_outcome=${RUNTIME_OUTCOME:-not_run}
+          set +e
+          python scripts/science/run_pointworld_model_load_smoke.py summarize \
+            --protocol "$PROTOCOL_PATH" \
+            --request-id "$REQUEST_ID" \
+            --prob4d-revision "$EXPECTED_HEAD_SHA" \
+            --preflight "$root/evidence/preflight.json" \
+            --load "$root/evidence/load.json" \
+            --runtime-install-outcome "$runtime_outcome" \
+            --output "$root/evidence/result.json"
+          status=$?
+          set -e
+          RESULT="$root/evidence/result.json" /usr/bin/python3 - <<'PY'
+          import json
+          import os
+
+          result = json.load(open(os.environ["RESULT"], encoding="utf-8"))
+          load = result.get("load") or {}
+          model = load.get("model") or {}
+          runtime = load.get("runtime") or {}
+          preflight = result.get("preflight") or {}
+          checkpoint = preflight.get("checkpoint") or {}
+          values = {
+              "decision": result.get("decision", "fail"),
+              "failure_stage": result.get("failure_stage") or "none",
+              "checkpoint_sha256": checkpoint.get("sha256", "unavailable"),
+              "checkpoint_size_bytes": checkpoint.get("size_bytes", "unavailable"),
+              "gpu": runtime.get("cuda_device", "unavailable"),
+              "parameter_count": model.get("parameter_count", "unavailable"),
+          }
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              for key, value in values.items():
+                  output.write(f"{key}={value}\n")
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              summary.write("## PointWorld model-load smoke\n\n")
+              for key, value in values.items():
+                  summary.write(f"- **{key}:** `{value}`\n")
+          PY
+          exit "$status"
+      - name: Upload sanitized smoke evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: pointworld-model-load-smoke-${{ needs.authorize.outputs.request_id }}
+          path: ${{ steps.workspace.outputs.root }}/evidence
+          if-no-files-found: error
+          retention-days: 30
+      - name: Enforce passing model load
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ steps.finalize.outputs.decision }}" = "pass"
+      - name: Remove isolated workspace
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          test -n "$root"
+          /usr/bin/rm -rf -- "$root"
+
+  report:
+    name: Report smoke result
+    if: always() && github.event_name == 'push'
+    needs: [authorize, execute]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Post result to issue 333
+        shell: bash
+        env:
+          API_URL: ${{ github.api_url }}
+          REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+          REQUEST_ID: ${{ needs.authorize.outputs.request_id }}
+          EXECUTE_RESULT: ${{ needs.execute.result }}
+          DECISION: ${{ needs.execute.outputs.decision }}
+          FAILURE_STAGE: ${{ needs.execute.outputs.failure_stage }}
+          CHECKPOINT_SHA256: ${{ needs.execute.outputs.checkpoint_sha256 }}
+          CHECKPOINT_SIZE_BYTES: ${{ needs.execute.outputs.checkpoint_size_bytes }}
+          GPU: ${{ needs.execute.outputs.gpu }}
+          PARAMETER_COUNT: ${{ needs.execute.outputs.parameter_count }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          /usr/bin/python3 - <<'PY'
+          import json
+          import os
+          import urllib.request
+
+          decision = os.environ.get("DECISION") or "unavailable"
+          stage = os.environ.get("FAILURE_STAGE") or "unavailable"
+          body = f"""PointWorld checkpoint-only model-load smoke completed.
+
+          - Request: `{os.environ.get('REQUEST_ID') or 'unavailable'}`
+          - Workflow result: `{os.environ.get('EXECUTE_RESULT') or 'unavailable'}`
+          - Scientific decision: `{decision}`
+          - Failure stage: `{stage}`
+          - Checkpoint SHA-256: `{os.environ.get('CHECKPOINT_SHA256') or 'unavailable'}`
+          - Checkpoint bytes: `{os.environ.get('CHECKPOINT_SIZE_BYTES') or 'unavailable'}`
+          - GPU: `{os.environ.get('GPU') or 'unavailable'}`
+          - Model parameters: `{os.environ.get('PARAMETER_COUNT') or 'unavailable'}`
+          - Run: {os.environ['RUN_URL']}
+
+          The run was dataset-free: no prediction, provider residual, Flat'n'Fold target outcome, BayesianPhysTwin innovation, or Causal4D outcome was opened. A pass establishes model initialization only.
+          """
+          request = urllib.request.Request(
+              f"{os.environ['API_URL']}/repos/{os.environ['REPOSITORY']}/issues/333/comments",
+              data=json.dumps({"body": body}).encode("utf-8"),
+              headers={
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
+                  "Content-Type": "application/json",
+                  "X-GitHub-Api-Version": "2022-11-28",
+              },
+              method="POST",
+          )
+          with urllib.request.urlopen(request, timeout=30) as response:
+              if response.status not in {200, 201}:
+                  raise SystemExit(f"issue comment failed with HTTP {response.status}")
+          PY
