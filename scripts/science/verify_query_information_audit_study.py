@@ -148,7 +148,9 @@ def verify(directory: Path) -> dict:
         "condition_order": protocol["proposals"], "query_order": protocol["query_names"],
         "summary_sha256": hashlib.sha256((directory / "summary.json").read_bytes()).hexdigest(),
         "verifier_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
-        "boundary": "Artifact/algebra/score verification, not scientific promotion or real-data validation.",
+        "boundary": (
+            "Artifact/algebra/score verification, not scientific promotion or real-data validation."
+        ),
     }
     (directory / "verification.json").write_text(
         json.dumps(result, sort_keys=True, indent=2, allow_nan=False) + "\n"
