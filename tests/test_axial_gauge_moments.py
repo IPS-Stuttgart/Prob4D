@@ -87,7 +87,7 @@ def test_small_variance_retains_second_order_radial_variance():
     angular = CircularMoments2.wrapped_normal(0.0, variance)
     np.testing.assert_allclose(angular.covariance[0, 0], 0.5 * variance**2, rtol=2e-12, atol=0.0)
     np.testing.assert_allclose(angular.covariance[1, 1], variance, rtol=2e-12, atol=0.0)
-    assert np.all(CircularMoments2.wrapped_normal(0.3, 0.0).covariance == 0.0
+    assert np.all(CircularMoments2.wrapped_normal(0.3, 0.0).covariance == 0.0)
 
 
 def test_very_broad_wrapped_normal_has_uniform_limit():
@@ -142,9 +142,8 @@ def test_shared_uncertainty_does_not_average_away_and_identical_contrast_cancels
 
 def test_zero_local_derivative_is_not_global_query_invariance():
     orbit = AxialGaugeOrbit(np.array([0.0, 0.0, 1.0]), np.zeros(3))
-    query = orbit.point_moments(
-        [[0.1, 0.0, 0.0]], CircularMoments2.wrapped_normal(0.0, 1.0)
-    ).project([[1.0, 0.0, 0.0]])
+    moments = orbit.point_moments([[0.1, 0.0, 0.0]], CircularMoments2.wrapped_normal(0.0, 1.0))
+    query = moments.project([[1.0, 0.0, 0.0]])
     assert query.sine_coefficients[0] == 0.0  # dq/dtheta at theta = 0.
     assert query.orbit_amplitude[0] == 0.1
     assert query.covariance[0, 0] > 0.0019
@@ -169,9 +168,8 @@ def test_collinear_support_is_unchanged_but_near_collinearity_is_not_exact():
 def test_full_orbit_bounds_are_componentwise_and_tight():
     orbit = AxialGaugeOrbit(np.array([0.0, 0.0, 1.0]), np.array([1.0, 2.0, 3.0]))
     points = np.array([[2.0, 4.0, 5.0]])
-    query = orbit.point_moments(points, CircularMoments2.uniform()).project(
-        np.eye(3).reshape(3, 1, 3)
-    )
+    moments = orbit.point_moments(points, CircularMoments2.uniform())
+    query = moments.project(np.eye(3).reshape(3, 1, 3))
     for index in range(3):
         angle = np.arctan2(query.sine_coefficients[index], query.cosine_coefficients[index])
         upper = (
@@ -189,7 +187,11 @@ def test_inputs_are_copied_and_outputs_are_readonly():
     pivot[:] = 9.0
     result = orbit.point_moments([[0.1, 0.0, 0.0]], CircularMoments2.uniform())
     for array in (
-        orbit.axis, orbit.pivot, result.mean, result.shared_factors, result.marginal_covariance
+        orbit.axis,
+        orbit.pivot,
+        result.mean,
+        result.shared_factors,
+        result.marginal_covariance,
     ):
         assert not array.flags.writeable
     np.testing.assert_allclose(orbit.axis, [0.0, 0.0, 1.0])
