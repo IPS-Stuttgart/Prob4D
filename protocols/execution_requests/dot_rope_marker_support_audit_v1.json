@@ -1,7 +1,7 @@
 {
   "archive": "R01-10.zip",
   "camera": "cam001",
-  "claim_boundary": "Source-development marker-support diagnosis for the already sealed CUT3R provider bundle from workflow run 33329701704 on R01-R03 only. R04-R70 remain unopened. The audit computes no performance metric and changes no coordinate convention, support threshold, uncertainty method, provider output, or scientific claim. This revision refreshes hosted validation after canonical formatting only.",
+  "claim_boundary": "Source-development marker-support diagnosis for the already sealed CUT3R provider bundle from workflow run 33329701704 on R01-R03 only. R04-R70 remain unopened. The audit computes no performance metric and changes no coordinate convention, support threshold, uncertainty method, provider output, or scientific claim. Execution nonce: 2026-08-31-source-audit-1.",
   "diagnostic_hypotheses": [
     "pixel-zero-based",
     "pixel-one-based",
@@ -22,7 +22,7 @@
   "provider_artifact_name": "dot-rope-cut3r-sealed-provider-33329701704-1",
   "provider_bundle_id": "952421d140731b2a6eb99df3cbd348653e04863fa457aaa490be31fe0b4c06a7",
   "provider_run_id": 33329701704,
-  "request_id": "3b0093a7df8eb6d7c0478e05e5216b7bb8896261906dc6a6d63c1903f823ab47",
+  "request_id": "d6bd7a4a8971df238c2207f2faa8d05a26bad66e6d5b2e4d3f98f58d95516f12",
   "reserved_sequences": "R04-R70",
   "schema": "prob4d.dot-rope-marker-support-audit-request",
   "schema_version": 1,
