@@ -1,0 +1,194 @@
+name: Deform360 finite-orbit real-data pilot v1
+
+on:
+  push:
+    branches: [science/deform360-query-pilot-v1]
+    paths:
+      - "protocols/execution_requests/deform360_finite_orbit_real_data_v1.json"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: deform360-finite-orbit-real-data-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/deform360
+  AUDIT_JSON: evidence/deform360/query_carrier_audit_gpuserver4090_v1.json
+  PROTOCOL_JSON: protocols/deform360-finite-orbit-real-data-v1.json
+  RESULT_DIR: evidence/deform360/finite_orbit_real_data_v1
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Require one trigger-only push and validate sources
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/science/deform360-query-pilot-v1
+          test "${{ github.event.forced }}" = false
+          mapfile -t changed < <(git diff --name-only HEAD^ HEAD)
+          test "${#changed[@]}" -eq 1
+          test "${changed[0]}" = protocols/execution_requests/deform360_finite_orbit_real_data_v1.json
+          python -m py_compile scripts/science/evaluate_deform360_finite_orbit_v1.py
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          protocol = json.loads(Path("protocols/deform360-finite-orbit-real-data-v1.json").read_text())
+          request = json.loads(Path("protocols/execution_requests/deform360_finite_orbit_real_data_v1.json").read_text())
+          assert protocol["protocol_id"] == "deform360-finite-orbit-real-data-v1"
+          assert protocol["registered_before_numerical_target_access"] is True
+          assert request["protocol_id"] == protocol["protocol_id"]
+          assert request["dataset_root"] == "/mnt/seagate10tb/florianpfaff/datasets/deform360"
+          assert request["runner_label"] == "gpuserver4090"
+          assert request["authorize_retrospective_target_scoring"] is True
+          assert request["paper_claim_authorized"] is False
+          PY
+      - name: Require retained target-closed carrier audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s "$AUDIT_JSON"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          audit = json.loads(Path(os.environ["AUDIT_JSON"]).read_text())
+          assert audit["schema"] == "prob4d.deform360-query-carrier-audit"
+          boundary = audit["access_boundary"]
+          assert boundary["array_values_opened"] is False
+          assert boundary["media_decoded"] is False
+          assert boundary["target_scored"] is False
+          assert boundary["dataset_mutated"] is False
+          PY
+
+  evaluate:
+    needs: contract
+    runs-on: [self-hosted, Linux, X64, gpuserver4090]
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Prepare exact Python runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --no-cache-dir "numpy==2.2.6"
+          python - <<'PY'
+          import numpy
+          print("numpy", numpy.__version__)
+          try:
+              import h5py
+              print("h5py", h5py.__version__)
+          except Exception:
+              print("h5py unavailable; HDF5 candidates remain unsupported")
+          PY
+          python -m py_compile scripts/science/evaluate_deform360_finite_orbit_v1.py
+      - name: Verify read-only input boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_OS" = Linux
+          test "$RUNNER_ARCH" = X64
+          test -d "$DATASET_ROOT"
+          test -r "$DATASET_ROOT"
+          test ! -L "$DATASET_ROOT"
+          test -s "$AUDIT_JSON"
+          test -s "$PROTOCOL_JSON"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Execute frozen retrospective real-data pilot
+        id: science
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          rm -rf "$RESULT_DIR"
+          mkdir -p "$RESULT_DIR"
+          python scripts/science/evaluate_deform360_finite_orbit_v1.py \
+            --dataset-root "$DATASET_ROOT" \
+            --audit "$AUDIT_JSON" \
+            --protocol "$PROTOCOL_JSON" \
+            --output-dir "$RESULT_DIR" \
+            --horizons 1 2 4 \
+            --min-frames 8 \
+            --min-points 8 \
+            --max-frames 600 \
+            --min-anisotropy 1.10 \
+            --tail-fraction 0.05 \
+            --orbit-tolerance 0.05 \
+            --advantage-margin 0.0 \
+            --harm-margin 0.01 \
+            --minimum-object-pairs 4 \
+            --bootstrap-repetitions 10000 \
+            --seed 20260831 \
+            2>&1 | tee "$RESULT_DIR/run.log"
+          status=${PIPESTATUS[0]}
+          echo "$status" > "$RESULT_DIR/process_exit_code.txt"
+          exit "$status"
+      - name: Validate and summarize retained result
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s "$RESULT_DIR/summary.json"
+          test -s "$RESULT_DIR/REPORT.md"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          result = json.loads((Path(os.environ["RESULT_DIR"]) / "summary.json").read_text())
+          assert result["protocol_id"] == "deform360-finite-orbit-real-data-v1"
+          assert result["paper_claim_authorized"] is False
+          assert result["decision"] in {
+              "completed-retrospective-real-data-pilot",
+              "support-negative",
+              "technical-negative",
+          }
+          with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a") as handle:
+              handle.write((Path(os.environ["RESULT_DIR"]) / "REPORT.md").read_text())
+          PY
+      - name: Upload complete evidence bundle
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        with:
+          name: deform360-finite-orbit-real-data-v1-${{ github.run_id }}
+          path: evidence/deform360/finite_orbit_real_data_v1
+          if-no-files-found: error
+          retention-days: 90
+      - name: Commit immutable evidence to experiment branch
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$RESULT_DIR"
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "evidence: retain Deform360 finite-orbit run ${GITHUB_RUN_ID} [skip ci]"
+          git push origin "HEAD:science/deform360-query-pilot-v1"
+      - name: Preserve technical failure as failed workflow
+        if: steps.science.outcome == 'failure'
+        shell: bash
+        run: exit 1
