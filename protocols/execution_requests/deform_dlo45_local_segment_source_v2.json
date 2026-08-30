@@ -1,0 +1,38 @@
+{
+  "dataset_root": "external/DEFORM/data_set",
+  "dlo_types": [
+    "DLO4",
+    "DLO5"
+  ],
+  "execution_attempt": 1,
+  "execution_lane": "github-hosted-ubuntu-24.04",
+  "frame_stride": 10,
+  "information_boundary": {
+    "bayesian_phystwin_outcomes_opened": false,
+    "causal4d_outcomes_opened": false,
+    "evaluation_file_contents_opened": false,
+    "opened_split": "train",
+    "provider_predictions_opened": false
+  },
+  "official_repository": "roahmlab/DEFORM",
+  "official_revision": "b73b8b8ecc033caefa693fab7898741d4e6dbeff",
+  "rank_threshold_candidates": [
+    0.0001,
+    0.0003,
+    0.001,
+    0.003,
+    0.01,
+    0.03,
+    0.1
+  ],
+  "request_id": "89416a53e0f99f698a034ed873e74431c49561e4ec1ea0aa05703b2fc173ee68",
+  "schema": "prob4d.deform-dlo45-local-segment-source-request",
+  "schema_version": 2,
+  "segment_lengths": [
+    4,
+    5,
+    6
+  ],
+  "segment_stride": 1,
+  "stage": "source-local-segment-audit"
+}

@@ -1,0 +1,56 @@
+{
+  "dataset_root": "/mnt/seagate10tb/florianpfaff/datasets/deform/data_set",
+  "dlo_types": [
+    "DLO4",
+    "DLO5"
+  ],
+  "execution_attempt": 3,
+  "frame_stride": 10,
+  "information_boundary": {
+    "bayesian_phystwin_outcomes_opened": false,
+    "causal4d_outcomes_opened": false,
+    "evaluation_file_contents_opened": false,
+    "opened_split": "train",
+    "provider_predictions_opened": false
+  },
+  "rank_threshold_candidates": [
+    1e-08,
+    1e-07,
+    1e-06,
+    1e-05,
+    0.0001,
+    0.001,
+    0.01
+  ],
+  "request_id": "ef6d648c8239be5792551105749a2cfd87ced1e94b5bfdf0d9a3607badd537bc",
+  "schema": "prob4d.deform-dlo45-observability-source-request",
+  "schema_version": 1,
+  "stage": "source-audit",
+  "support_configs": [
+    {
+      "frame_span": 1,
+      "name": "local5-span1",
+      "vertex_mode": "local5"
+    },
+    {
+      "frame_span": 5,
+      "name": "local5-span5",
+      "vertex_mode": "local5"
+    },
+    {
+      "frame_span": 1,
+      "name": "interior-span1",
+      "vertex_mode": "interior"
+    },
+    {
+      "frame_span": 1,
+      "name": "full-span1",
+      "vertex_mode": "full"
+    },
+    {
+      "frame_span": 5,
+      "name": "full-span5",
+      "vertex_mode": "full"
+    }
+  ]
+}

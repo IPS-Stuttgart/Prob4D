@@ -1,0 +1,150 @@
+name: DEFORM DLO4/DLO5 held-out query-observability evaluation
+
+on:
+  push:
+    branches:
+      - science/deform-dlo45-query-observability-real-v1
+    paths:
+      - protocols/execution_requests/deform_dlo45_query_observability_eval_v1.json
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deform-dlo45-query-observability-heldout-${{ github.ref }}-${{ github.sha }}
+  cancel-in-progress: false
+
+env:
+  REQUEST_PATH: protocols/execution_requests/deform_dlo45_query_observability_eval_v1.json
+  OUTPUT_DIR: outputs/deform-dlo45-query-observability-heldout-v1
+  OFFICIAL_DEFORM_REVISION: b73b8b8ecc033caefa693fab7898741d4e6dbeff
+  PYTHONPATH: src:scripts/science
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+
+jobs:
+  heldout-evaluation:
+    name: Evaluate frozen query gate on 28 official DLO trajectories
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Check out exact triggering Prob4D revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Check out exact public DEFORM revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: roahmlab/DEFORM
+          ref: b73b8b8ecc033caefa693fab7898741d4e6dbeff
+          path: external/DEFORM
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify immutable identities and evaluation roster
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git diff --quiet
+          git diff --cached --quiet
+          test "$(git -C external/DEFORM rev-parse HEAD)" = "$OFFICIAL_DEFORM_REVISION"
+          test -f "$REQUEST_PATH"
+          test "$(find external/DEFORM/data_set/DLO4/eval -maxdepth 1 -type f -name '*.pkl' | wc -l)" -eq 14
+          test "$(find external/DEFORM/data_set/DLO5/eval -maxdepth 1 -type f -name '*.pkl' | wc -l)" -eq 14
+
+      - name: Set up isolated Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Install pinned numerical runtime and compile exact evaluator
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --no-cache-dir "numpy==2.2.6"
+          python -m py_compile \
+            src/prob4d/sim3.py \
+            src/prob4d/alignment.py \
+            src/prob4d/observable_gauge.py \
+            src/prob4d/query_observability.py \
+            scripts/science/audit_deform_dlo45_observability_v1.py \
+            scripts/science/evaluate_deform_dlo45_query_observability_v1.py \
+            scripts/science/evaluate_deform_dlo45_query_observability_official_v1.py
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          request = json.loads(Path(
+              "protocols/execution_requests/deform_dlo45_query_observability_eval_v1.json"
+          ).read_text())
+          assert request["source_geometry_result_id"] == (
+              "04f0df72492e97de2b16b7db57da707c97a37c1fcc545f6e6853f60498fe58a9"
+          )
+          assert request["source_gate_result_id"] == (
+              "a3b48a522e509e53935cc42c9f1cd293cd5f7753057979c99c743a10d74c14e2"
+          )
+          assert request["rank_threshold"] == 0.01
+          assert request["query_gate"]["minimum_direct_observability_fraction"] == 0.9
+          assert request["information_boundary"]["post_open_retuning_permitted"] is False
+          PY
+
+      - name: Execute the one registered held-out evaluation
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf -- "$OUTPUT_DIR"
+          python scripts/science/evaluate_deform_dlo45_query_observability_official_v1.py \
+            --request "$REQUEST_PATH" \
+            --output-dir "$OUTPUT_DIR"
+
+      - name: Validate result and information boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          result = json.loads(Path(
+              "outputs/deform-dlo45-query-observability-heldout-v1/result.json"
+          ).read_text())
+          assert result["stage"] == "heldout-evaluation"
+          assert result["dataset"]["opened_split"] == "eval"
+          assert result["dataset"]["manifest"]["file_count"] == 28
+          assert result["accounting"]["independent_groups"] == 28
+          assert result["source_freeze"]["rank_threshold"] == 0.01
+          assert result["source_freeze"]["query_gate"] == {
+              "maximum_worst_supported_variance_ratio": 1.0,
+              "minimum_direct_observability_fraction": 0.9,
+              "minimum_metric_variance_reduction_fraction": 0.0,
+          }
+          boundary = result["information_boundary"]
+          assert boundary["evaluation_outcomes_opened"] is True
+          assert boundary["source_gate_frozen_before_opening"] is True
+          assert boundary["provider_predictions_opened"] is False
+          assert boundary["bayesian_phystwin_outcomes_opened"] is False
+          assert boundary["causal4d_outcomes_opened"] is False
+          assert boundary["post_open_retuning_permitted"] is False
+          print(result["result_id"])
+          print(result["decision"])
+          PY
+          cat "$OUTPUT_DIR/summary.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload immutable held-out evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: deform-dlo45-query-observability-heldout-v1-${{ github.sha }}
+          path: |
+            outputs/deform-dlo45-query-observability-heldout-v1/
+            protocols/execution_requests/deform_dlo45_query_observability_eval_v1.json
+          if-no-files-found: warn
+          retention-days: 90

@@ -1,0 +1,57 @@
+{
+  "absolute_twist_range_rad": [
+    0.4,
+    0.8
+  ],
+  "base_rotation_std_rad": 0.08,
+  "bootstrap_replicates": 5000,
+  "bootstrap_seed": 20260831,
+  "correspondence_noise_sigma_m": 0.002,
+  "dataset_root": "external/DEFORM/data_set",
+  "dlo_types": [
+    "DLO4",
+    "DLO5"
+  ],
+  "execution_attempt": 1,
+  "execution_lane": "github-hosted-ubuntu-24.04",
+  "experiment_seed": 20260831,
+  "frame_stride": 25,
+  "information_boundary": {
+    "bayesian_phystwin_outcomes_opened": false,
+    "causal4d_outcomes_opened": false,
+    "evaluation_outcomes_opened": true,
+    "opened_split": "eval",
+    "post_open_retuning_permitted": false,
+    "provider_predictions_opened": false,
+    "source_gate_frozen_before_opening": true
+  },
+  "invalid_nullspace_precision_ratio": 1.0,
+  "log_scale_std": 0.02,
+  "official_repository": "roahmlab/DEFORM",
+  "official_revision": "b73b8b8ecc033caefa693fab7898741d4e6dbeff",
+  "prior_standard_deviations_local": [
+    0.05,
+    0.2,
+    0.2,
+    0.2,
+    0.15,
+    0.15,
+    0.15
+  ],
+  "probe_radius_cloud_scale_factor": 1.0,
+  "query_gate": {
+    "maximum_worst_supported_variance_ratio": 1.0,
+    "minimum_direct_observability_fraction": 0.9,
+    "minimum_metric_variance_reduction_fraction": 0.0
+  },
+  "rank_threshold": 0.01,
+  "request_id": "fd5f6e2fa1ab5070c01c3831697f461c63058cdf4385bc28a36cb1b5adbda2da",
+  "schema": "prob4d.deform-dlo45-query-observability-evaluation-request",
+  "schema_version": 1,
+  "segment_length": 4,
+  "source_gate_result_id": "a3b48a522e509e53935cc42c9f1cd293cd5f7753057979c99c743a10d74c14e2",
+  "source_geometry_result_id": "04f0df72492e97de2b16b7db57da707c97a37c1fcc545f6e6853f60498fe58a9",
+  "source_manifest_sha256": "a715b4544a8395c3d8770a0b2eb4efd41d78e06e4a31969abc09beb49aea9bba",
+  "stage": "heldout-evaluation",
+  "translation_std_m": 0.02
+}
