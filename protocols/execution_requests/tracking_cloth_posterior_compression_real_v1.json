@@ -1,6 +1,7 @@
 {
   "schema": "prob4d.self-hosted-experiment-request.v1",
   "request_id": "tracking-cloth-posterior-compression-real-v1",
+  "request_sequence": 2,
   "method_parent_revision": "fa54c7ce8d7c0903d1ee35e861173a9fa328e0d8",
   "branch": "science/tracking-cloth-posterior-compression-real-v1",
   "runner_labels": ["self-hosted", "Linux", "X64", "gpuserver4090"],
