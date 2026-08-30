@@ -24,6 +24,11 @@ concurrency:
 env:
   PYTHONUNBUFFERED: "1"
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
 
 jobs:
   hosted-preflight:
@@ -106,6 +111,8 @@ jobs:
     runs-on: [self-hosted, Linux, X64, gpuserver6000]
     environment: trusted-self-hosted-validation
     timeout-minutes: 240
+    permissions:
+      contents: read
     steps:
       - name: Bind selected runner and exact dataset root before checkout
         shell: bash
@@ -126,58 +133,81 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Initialize isolated runtime and evidence root
+        id: runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${RUNNER_TEMP:-/tmp}/pokeflex-posterior-compression-v1-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          rm -rf -- "$root"
+          mkdir -p "$root"
+          python3 -m venv --system-site-packages "$root/venv"
+          "$root/venv/bin/python" - <<'PY' > "$root/runtime.json"
+          import json
+          import platform
+          import sys
+
+          import numpy
+
+          print(json.dumps({
+              "python": platform.python_version(),
+              "numpy": numpy.__version__,
+              "executable": sys.executable,
+          }, indent=2, sort_keys=True))
+          PY
+          echo "root=$root" >> "$GITHUB_OUTPUT"
+          echo "output=$root/evidence" >> "$GITHUB_OUTPUT"
+          echo "python=$root/venv/bin/python" >> "$GITHUB_OUTPUT"
       - name: Apply hash-bound pre-data shape repair
         run: |
           python3 scripts/science/prepare_pokeflex_posterior_compression_runtime.py \
             --source scripts/science/run_pokeflex_posterior_compression_real_geometry.py \
-            --output "$RUNNER_TEMP/pokeflex-shape-repair.json"
-      - name: Install lightweight package without resolving new dependencies
-        run: python3 -m pip install --no-deps -e .
+            --output "${{ steps.runtime.outputs.root }}/shape-repair.json"
       - name: Run target-safe real-geometry diagnostic
         id: evaluate
         continue-on-error: true
         env:
           POKEFLEX_ROOT: /mnt/lexar4tb/pokeflex
+        shell: bash
         run: |
-          output="${RUNNER_TEMP:-/tmp}/pokeflex-posterior-compression-v1-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          rm -rf "$output"
-          printf '%s\n' "$output" > "$RUNNER_TEMP/pokeflex-output-path.txt"
+          set -euo pipefail
+          output="${{ steps.runtime.outputs.output }}"
           set +e
-          PYTHONPATH=src python3 \
+          PYTHONPATH=src "${{ steps.runtime.outputs.python }}" \
             scripts/science/run_pokeflex_posterior_compression_real_geometry.py \
-            --dataset-root "$POKEFLEX_ROOT" \
-            --protocol protocols/pokeflex-posterior-compression-real-geometry-v1.json \
-            --output-dir "$output" \
-            --source-revision "$GITHUB_SHA"
+              --dataset-root "$POKEFLEX_ROOT" \
+              --protocol protocols/pokeflex-posterior-compression-real-geometry-v1.json \
+              --output-dir "$output" \
+              --source-revision "$GITHUB_SHA"
           status=$?
           set -e
-          cp "$RUNNER_TEMP/pokeflex-shape-repair.json" "$output/shape-repair.json"
-          printf '%s\n' "$status" > "$output/process-exit-code.txt"
+          mkdir -p "$output"
+          cp "${{ steps.runtime.outputs.root }}/shape-repair.json" \
+            "$output/shape-repair.json"
+          printf '%s\n' "$status" > \
+            "${{ steps.runtime.outputs.root }}/process-exit-code.txt"
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
           exit 0
-      - name: Resolve output path
-        id: output
-        if: always()
-        run: |
-          output=$(cat "$RUNNER_TEMP/pokeflex-output-path.txt")
-          printf 'path=%s\n' "$output" >> "$GITHUB_OUTPUT"
       - name: Upload compact inventory and diagnostic evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: pokeflex-posterior-compression-real-geometry-v1-${{ github.run_attempt }}
-          path: ${{ steps.output.outputs.path }}
+          path: ${{ steps.runtime.outputs.root }}
           if-no-files-found: error
           retention-days: 30
       - name: Publish compact job summary
         if: always()
+        shell: bash
         run: |
-          output=$(cat "$RUNNER_TEMP/pokeflex-output-path.txt")
+          output="${{ steps.runtime.outputs.output }}"
           if test -f "$output/summary.md"; then
             cat "$output/summary.md" >> "$GITHUB_STEP_SUMMARY"
           fi
       - name: Enforce an actual real-geometry evaluation
+        shell: bash
         run: |
-          output=$(cat "$RUNNER_TEMP/pokeflex-output-path.txt")
+          output="${{ steps.runtime.outputs.output }}"
           python3 - "$output/result.json" <<'PY'
           import json
           import sys
