@@ -200,7 +200,8 @@ def _validate_source_bundle(
         raise ValueError("source evaluator revision changed")
     if support.get("request_id") != request["pooled_request_id"]:
         raise ValueError("marker-support evidence is not bound to the pooled request")
-    if support.get("marker_support_audit", {}).get("audit_id") != request["marker_support_audit_id"]:
+    audit_id = support.get("marker_support_audit", {}).get("audit_id")
+    if audit_id != request["marker_support_audit_id"]:
         raise ValueError("marker-support audit identity changed")
     support_id = support.get("support_id")
     unhashed_support = dict(support)
@@ -260,9 +261,15 @@ def _write_summary(result: Mapping[str, Any], path: Path) -> None:
             f"- Source workflow run: `{result['source_evaluation']['run_id']}`.",
             f"- Source artifact ID: `{result['source_evaluation']['artifact_id']}`.",
             f"- Unfinalized evaluation ID: `{result['unfinalized_evaluation_id']}`.",
-            "- No provider output, score, covariance, method ranking, or dataset payload was changed.",
+            (
+                "- No provider output, score, covariance, method ranking, or "
+                "dataset payload was changed."
+            ),
             "",
-            "Source-development evidence only. R04-R70 remained unopened; no BayesianPhysTwin or Causal4D outcome was executed.",
+            (
+                "Source-development evidence only. R04-R70 remained unopened; "
+                "no BayesianPhysTwin or Causal4D outcome was executed."
+            ),
         ]
     )
     path.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
