@@ -79,12 +79,12 @@ def test_prediction_and_marker_access_are_information_separated() -> None:
 
     assert "runtime-smoke" in provider
     assert "Execute marker-free normal-view predictions" in provider
-    assert " predict \\" in provider
-    assert " evaluate \\" not in provider
+    assert "\n              predict" in provider
+    assert "\n              evaluate" not in provider
     assert "Download exact sealed provider bundle" in evaluate
     assert "Open source markers only after prediction seal and evaluate" in evaluate
-    assert " evaluate \\" in evaluate
-    assert " predict \\" not in evaluate
+    assert "\n              evaluate" in evaluate
+    assert "\n              predict" not in evaluate
     assert "needs.provider.outputs.decision == 'sealed-provider-predictions'" in evaluate
     assert "R01-10.zip" in provider
     assert "R01-10.zip" in evaluate
