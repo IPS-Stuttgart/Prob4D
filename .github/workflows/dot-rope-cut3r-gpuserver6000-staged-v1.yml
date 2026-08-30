@@ -1,0 +1,266 @@
+name: DOT CUT3R staged gpuserver6000 experiment
+
+on:
+  push:
+    branches: [science/dot-gpuserver6000-direct-v1]
+    paths:
+      - ".github/workflows/dot-rope-cut3r-gpuserver6000-staged-v1.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dot-cut3r-staged-gpuserver6000-${{ github.sha }}
+  cancel-in-progress: false
+
+env:
+  PROTOCOL_PATH: protocols/dot-rope-cut3r-native-provider-v1.json
+  REQUEST_PATH: protocols/execution_requests/dot_rope_cut3r_native_provider_v1.json
+  DATASET_ROOT: /mnt/corsair/prob4d-dot-v29
+  CUT3R_SOURCE: /mnt/corsair/prob4d-cut3r-source-freeze-v2-inputs/CUT3R
+  CUT3R_CHECKPOINT: /mnt/corsair/prob4d-cut3r-source-freeze-v2-inputs/cut3r_512_dpt_4_64.pth
+  CUT3R_PYTHON: /mnt/corsair/prob4d-cut3r-runtime-v1/bin/python
+  EXPECTED_ARCHIVE_MD5: ca546ff5f22c0279123ccb18509858ee
+  EXPECTED_ARCHIVE_SIZE: "1705947395"
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  CUDA_VISIBLE_DEVICES: "0"
+  TORCH_CUDA_ARCH_LIST: "8.9"
+  MAX_JOBS: "4"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+
+jobs:
+  provider:
+    name: Produce and seal marker-free CUT3R predictions
+    runs-on: [self-hosted, Linux, X64, gpuserver6000]
+    environment: trusted-self-hosted-validation
+    timeout-minutes: 360
+    outputs:
+      request_id: ${{ steps.identity.outputs.request_id }}
+    steps:
+      - name: Require workstation2 and staged immutable inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_NAME" = "workstation2"
+          test "$RUNNER_OS" = "Linux"
+          test "$RUNNER_ARCH" = "X64"
+          command -v nvidia-smi >/dev/null
+          test -f "$DATASET_ROOT/R01-10.zip"
+          test "$(stat -c '%s' "$DATASET_ROOT/R01-10.zip")" = "$EXPECTED_ARCHIVE_SIZE"
+          echo "$EXPECTED_ARCHIVE_MD5  $DATASET_ROOT/R01-10.zip" | md5sum --check --strict
+          test -f "$CUT3R_SOURCE/src/croco/models/curope/setup.py"
+          test -f "$CUT3R_CHECKPOINT"
+          test -x "$CUT3R_PYTHON"
+          nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv,noheader
+      - name: Provision Python 3.11 loader environment
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+      - name: Verify staged CUT3R runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$CUT3R_PYTHON" - <<'PY'
+          import numpy
+          import PIL
+          import torch
+          assert torch.cuda.is_available()
+          print("torch=" + torch.__version__)
+          print("torch_cuda=" + str(torch.version.cuda))
+          print("gpu=" + torch.cuda.get_device_name(0))
+          print("numpy=" + numpy.__version__)
+          print("pillow=" + PIL.__version__)
+          PY
+      - name: Initialize isolated provider workspace
+        id: workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${RUNNER_TEMP}/prob4d-dot-staged-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          rm -rf -- "$root"
+          mkdir -p "$root/provider" "$root/home" "$root/cache" "$root/tmp" "$root/CUT3R"
+          echo "root=$root" >> "$GITHUB_OUTPUT"
+          {
+            echo "HOME=$root/home"
+            echo "XDG_CACHE_HOME=$root/cache"
+            echo "HF_HOME=$root/cache/huggingface"
+            echo "TMPDIR=$root/tmp"
+            echo "TORCH_EXTENSIONS_DIR=$root/cache/torch-extensions"
+            echo "WANDB_MODE=disabled"
+            echo "WANDB_DISABLED=true"
+          } >> "$GITHUB_ENV"
+      - name: Check out exact experiment revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+      - name: Validate immutable request and protocol identity
+        id: identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          protocol_blob=$(git rev-parse "$GITHUB_SHA:$PROTOCOL_PATH")
+          validation=$(
+            PYTHONPATH="$GITHUB_WORKSPACE/src" \
+              "$CUT3R_PYTHON" \
+              scripts/science/run_dot_rope_cut3r_native_provider.py \
+                validate-request \
+                --request "$REQUEST_PATH" \
+                --protocol "$PROTOCOL_PATH" \
+                --protocol-git-blob-sha "$protocol_blob"
+          )
+          request_id=$(VALIDATION="$validation" "$CUT3R_PYTHON" - <<'PY'
+          import json
+          import os
+          print(json.loads(os.environ["VALIDATION"])["request_id"])
+          PY
+          )
+          echo "request_id=$request_id" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "$validation"
+      - name: Copy frozen CUT3R source and compile native RoPE
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          cp -a "$CUT3R_SOURCE/." "$root/CUT3R/"
+          PYTHONPATH="$GITHUB_WORKSPACE/src" \
+            "$CUT3R_PYTHON" \
+            scripts/science/prepare_cut3r_runtime.py \
+              --cut3r-checkout "$root/CUT3R" \
+              --build \
+              --output "$root/provider/runtime-receipt.json"
+          "$CUT3R_PYTHON" -m json.tool "$root/provider/runtime-receipt.json"
+      - name: Run synthetic native-RoPE forward smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          PYTHONPATH="$GITHUB_WORKSPACE/src:$GITHUB_WORKSPACE/scripts/science" \
+            "$CUT3R_PYTHON" \
+            scripts/science/run_dot_rope_cut3r_native_provider.py \
+              runtime-smoke \
+              --protocol "$PROTOCOL_PATH" \
+              --request-id "${{ steps.identity.outputs.request_id }}" \
+              --prob4d-revision "$GITHUB_SHA" \
+              --cut3r-checkout "$root/CUT3R" \
+              --checkpoint "$CUT3R_CHECKPOINT" \
+              --runtime-receipt "$root/provider/runtime-receipt.json" \
+              --output-dir "$root/provider/smoke"
+          "$CUT3R_PYTHON" -m json.tool "$root/provider/smoke/smoke-result.json"
+      - name: Execute marker-free R01-R03 provider runs
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          PYTHONPATH="$GITHUB_WORKSPACE/src:$GITHUB_WORKSPACE/scripts/science" \
+            "$CUT3R_PYTHON" \
+            scripts/science/run_dot_rope_cut3r_native_provider.py \
+              predict \
+              --protocol "$PROTOCOL_PATH" \
+              --request-id "${{ steps.identity.outputs.request_id }}" \
+              --prob4d-revision "$GITHUB_SHA" \
+              --dataset-root "$DATASET_ROOT" \
+              --cut3r-checkout "$root/CUT3R" \
+              --checkpoint "$CUT3R_CHECKPOINT" \
+              --runtime-receipt "$root/provider/runtime-receipt.json" \
+              --output-dir "$root/provider/bundle"
+          "$CUT3R_PYTHON" -m json.tool "$root/provider/bundle/manifest.json"
+      - name: Upload sealed provider evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dot-cut3r-gpuserver6000-provider-${{ github.run_id }}
+          path: ${{ steps.workspace.outputs.root }}/provider/
+          if-no-files-found: warn
+          retention-days: 30
+
+  evaluate:
+    name: Open source markers only after provider seal
+    needs: provider
+    runs-on: [self-hosted, Linux, X64, gpuserver6000]
+    environment: trusted-self-hosted-validation
+    timeout-minutes: 180
+    steps:
+      - name: Require workstation2 and staged source archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_NAME" = "workstation2"
+          test -f "$DATASET_ROOT/R01-10.zip"
+          test "$(stat -c '%s' "$DATASET_ROOT/R01-10.zip")" = "$EXPECTED_ARCHIVE_SIZE"
+          test -x "$CUT3R_PYTHON"
+      - name: Provision Python 3.11 loader environment
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+      - name: Initialize isolated evaluation workspace
+        id: workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${RUNNER_TEMP}/prob4d-dot-evaluation-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          rm -rf -- "$root"
+          mkdir -p "$root/provider" "$root/evaluation" "$root/home" "$root/tmp"
+          echo "root=$root" >> "$GITHUB_OUTPUT"
+          echo "HOME=$root/home" >> "$GITHUB_ENV"
+          echo "TMPDIR=$root/tmp" >> "$GITHUB_ENV"
+      - name: Check out exact experiment revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+      - name: Download exact sealed provider evidence
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: dot-cut3r-gpuserver6000-provider-${{ github.run_id }}
+          path: ${{ steps.workspace.outputs.root }}/provider
+      - name: Require provider seal before marker access
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          test -f "$root/provider/bundle/manifest.json"
+          PROVIDER_MANIFEST="$root/provider/bundle/manifest.json" \
+            "$CUT3R_PYTHON" - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          value = json.loads(Path(os.environ["PROVIDER_MANIFEST"]).read_text(encoding="utf-8"))
+          assert value["decision"] == "sealed-provider-predictions"
+          assert value["marker_payloads_opened"] is False
+          print("provider_artifact_id=" + value["artifact_id"])
+          PY
+      - name: Evaluate sealed predictions against R01-R03 markers
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          PYTHONPATH="$GITHUB_WORKSPACE/src:$GITHUB_WORKSPACE/scripts/science" \
+            "$CUT3R_PYTHON" \
+            scripts/science/run_dot_rope_cut3r_native_provider.py \
+              evaluate \
+              --protocol "$PROTOCOL_PATH" \
+              --request-id "${{ needs.provider.outputs.request_id }}" \
+              --prob4d-revision "$GITHUB_SHA" \
+              --dataset-root "$DATASET_ROOT" \
+              --provider-bundle "$root/provider/bundle" \
+              --output-dir "$root/evaluation/result"
+          cat "$root/evaluation/result/summary.md"
+          "$CUT3R_PYTHON" -m json.tool "$root/evaluation/result/result.json"
+      - name: Upload complete source evaluation
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dot-cut3r-gpuserver6000-evaluation-${{ github.run_id }}
+          path: ${{ steps.workspace.outputs.root }}/evaluation/
+          if-no-files-found: warn
+          retention-days: 30
