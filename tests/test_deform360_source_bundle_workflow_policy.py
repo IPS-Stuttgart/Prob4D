@@ -27,6 +27,7 @@ def test_workflow_is_single_request_main_bound_and_metadata_only() -> None:
     assert "file_content_reads_authorized" in text
     assert "prediction_execution_authorized" in text
     assert "provider_residuals_authorized" in text
+    assert "root_symlink_target_reporting_authorized" in text
     assert "target_payloads_authorized" in text
     assert "target_outcomes_authorized" in text
     assert "dataset_mutation_authorized" in text
@@ -50,12 +51,32 @@ def test_self_hosted_job_has_read_only_repository_access_and_sanitized_output() 
     assert '--output "$root/evidence/result.json"' in execute
     assert '--summary "$root/evidence/summary.md"' in execute
     assert "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02" in execute
-    assert 'test "${{ steps.finalize.outputs.decision }}" = "source-bundle-present"' in execute
+    assert 'test "$decision" = "source-root-symlink-rejected"' in execute
+    assert "source-root-symlink-target-reported" in execute
+    assert "target_lstat_performed" in execute
+    assert "target_traversed" in execute
     assert '/usr/bin/rm -rf -- "$root"' in execute
 
     assert "permissions:\n      contents: read\n      issues: write" in report
     assert "runs-on: ubuntu-latest" in report
     assert "GITHUB_TOKEN: ${{ github.token }}" in report
+
+
+def test_source_root_link_is_reported_without_resolution_or_traversal() -> None:
+    text = WORKFLOW.read_text(encoding="utf-8")
+    execute_start = text.index("\n  execute:")
+    report_start = text.index("\n  report:")
+    execute = text[execute_start:report_start]
+
+    assert "os.readlink(source)" in execute
+    assert "os.path.normpath(" in execute
+    assert "os.path.realpath" not in execute
+    assert ".resolve(" not in execute
+    assert '"target_lstat_performed": False' in execute
+    assert '"target_traversed": False' in execute
+    assert '"dataset_file_contents_opened": False' in execute
+    assert '"dataset_mutated": False' in execute
+    assert "root-symlink.json" in execute
 
 
 def test_source_path_and_forbidden_boundaries_are_literal() -> None:
