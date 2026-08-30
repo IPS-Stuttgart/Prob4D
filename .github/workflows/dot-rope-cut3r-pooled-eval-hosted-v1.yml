@@ -126,14 +126,22 @@ jobs:
           value = json.loads(Path(os.environ["RESULT"]).read_text(encoding="utf-8"))
           if value.get("decision") != "complete-source-evaluation-pooled-marker-support":
               raise SystemExit("pooled evaluator did not produce a complete source result")
+          methods = value.get("aggregate_methods")
+          sequences = value.get("sequences")
+          if not isinstance(methods, list) or not methods:
+              raise SystemExit("pooled result has no aggregate method rows")
+          if not isinstance(sequences, list) or not sequences:
+              raise SystemExit("pooled result has no sequence rows")
           print(json.dumps({
+              "decision": value["decision"],
               "evaluation_id": value["evaluation_id"],
-              "best_method": value["aggregate_methods"][0]["method"],
-              "aggregate_methods": value["aggregate_methods"],
-              "sequence_results": value["sequence_results"],
+              "best_method": methods[0]["method"],
+              "aggregate_methods": methods,
+              "sequences": sequences,
           }, indent=2, sort_keys=True))
           PY
       - name: Upload complete pooled-evaluation evidence
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: dot-rope-cut3r-pooled-hosted-${{ github.run_id }}-${{ github.run_attempt }}
