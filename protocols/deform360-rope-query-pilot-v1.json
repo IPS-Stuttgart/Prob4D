@@ -1,0 +1,73 @@
+{
+  "schema": "prob4d.deform360-rope-query-pilot-v1",
+  "schema_version": 1,
+  "protocol_id": "deform360-rope-query-pilot-v1",
+  "dataset": {
+    "name": "Deform360",
+    "object_id": "001-rope",
+    "runner_root": "/mnt/seagate10tb/florianpfaff/datasets/deform360",
+    "metadata_paths": [
+      "raw-repository/raw/001-rope/metadata.json",
+      "raw/001-rope/metadata.json"
+    ],
+    "packed_point_cloud_template": "processed-repository/processed/001-rope/episode_{episode}/pcd_clean.tar"
+  },
+  "processed_source": {
+    "repository": "brownu/deform360_processed",
+    "revision": "e92deaf7e437e7e51ad464706ae647f522a279d9",
+    "published_layout": "packed-per-episode",
+    "allow_patterns": [
+      "processed/001-rope/episode_*/pcd_clean.tar"
+    ]
+  },
+  "episode_split": {
+    "source": [0, 1, 2, 3, 4],
+    "calibration": [5, 6],
+    "target": [7, 8, 9]
+  },
+  "geometry": {
+    "tail_fraction": 0.05,
+    "minimum_axis_ratio": 1.5,
+    "minimum_span_m": 0.05,
+    "minimum_selected_frames": 20,
+    "maximum_selected_frames": 50,
+    "frame_stride": 2
+  },
+  "prediction": {
+    "candidate": "source-fitted-damped-constant-velocity",
+    "fallback": "exact-persistence",
+    "horizons_frames": [1, 5, 15]
+  },
+  "evaluation": {
+    "queries": [
+      "span_change",
+      "centroid_progress",
+      "named_endpoint_progress"
+    ],
+    "arms": [
+      "fallback",
+      "ungated_candidate",
+      "local_canonical",
+      "reject_noninvariant",
+      "independent_finite_orbit",
+      "shared_finite_orbit"
+    ],
+    "advantage_margin_normalized": 0.0,
+    "orbit_tolerance_normalized": 0.05,
+    "harm_margin_normalized": 0.01,
+    "bootstrap_seed": 20260831,
+    "bootstrap_repetitions": 10000,
+    "minimum_usable_episodes": {
+      "source": 5,
+      "calibration": 2,
+      "target": 3
+    }
+  },
+  "information_boundary": {
+    "target_used_for_fitting": false,
+    "target_used_for_calibration": false,
+    "frames_are_independent_units": false,
+    "mounted_source_mutated": false
+  },
+  "claim_boundary": "This is a within-object, held-out-episode real-data pilot for finite-orbit physical-query admission on released Deform360 rope geometry. It does not establish unseen-object transfer, learned-provider competence, calibrated deployment risk, BayesianPhysTwin or Causal4D benefit, or state of the art."
+}
