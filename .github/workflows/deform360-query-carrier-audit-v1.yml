@@ -1,0 +1,101 @@
+name: Deform360 query-carrier audit v1
+
+on:
+  push:
+    branches: [science/deform360-query-pilot-v1]
+    paths:
+      - "protocols/execution_requests/deform360_query_carrier_audit_v1.json"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: deform360-query-carrier-audit-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/deform360
+  RESULT_JSON: evidence/deform360/query_carrier_audit_gpuserver4090_v1.json
+  RESULT_MD: evidence/deform360/query_carrier_audit_gpuserver4090_v1.md
+
+jobs:
+  audit:
+    runs-on: [self-hosted, Linux, X64, gpuserver4090]
+    timeout-minutes: 120
+    steps:
+      - name: Check out exact experiment branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Verify execution boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_OS" = Linux
+          test "$RUNNER_ARCH" = X64
+          test -d "$DATASET_ROOT"
+          test -r "$DATASET_ROOT"
+          test ! -L "$DATASET_ROOT"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Compile audit implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/science/audit_deform360_query_carriers_v1.py
+
+      - name: Build target-closed representation audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$(dirname "$RESULT_JSON")"
+          python3 scripts/science/audit_deform360_query_carriers_v1.py \
+            --dataset-root "$DATASET_ROOT" \
+            --output "$RESULT_JSON" \
+            --report "$RESULT_MD"
+          test -s "$RESULT_JSON"
+          test -s "$RESULT_MD"
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          result = json.loads(Path(os.environ["RESULT_JSON"]).read_text())
+          boundary = result["access_boundary"]
+          assert boundary["array_values_opened"] is False
+          assert boundary["pickle_values_opened"] is False
+          assert boundary["hdf5_values_opened"] is False
+          assert boundary["media_decoded"] is False
+          assert boundary["target_scored"] is False
+          assert boundary["dataset_mutated"] is False
+          assert len(result["units"]) == 16
+          print(result["audit_id"])
+          PY
+
+      - name: Upload audit artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        with:
+          name: deform360-query-carrier-audit-v1-${{ github.run_id }}
+          path: |
+            evidence/deform360/query_carrier_audit_gpuserver4090_v1.json
+            evidence/deform360/query_carrier_audit_gpuserver4090_v1.md
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Retain sanitized audit on the experiment branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$RESULT_JSON" "$RESULT_MD"
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "evidence: retain Deform360 carrier audit ${GITHUB_RUN_ID} [skip ci]"
+          git push origin "HEAD:science/deform360-query-pilot-v1"
