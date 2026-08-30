@@ -1,0 +1,302 @@
+name: Deform360 persistent-point archive inventory
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/deform360-pcd-query-inventory.yml"
+      - "scripts/science/inventory_deform360_pcd_archives.py"
+      - "protocols/deform360-pcd-query-inventory-v1.json"
+      - "tests/test_deform360_pcd_query_inventory.py"
+      - "tests/test_deform360_pcd_query_inventory_workflow.py"
+      - "tests/test_trusted_self_hosted_validation_policy.py"
+      - "docs/deform360-pcd-query-study.md"
+  push:
+    branches: [main]
+    paths:
+      - "protocols/execution_requests/deform360_pcd_query_inventory_v1.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deform360-pcd-query-inventory-${{ github.ref }}-${{ github.sha }}
+  cancel-in-progress: false
+
+env:
+  REQUEST_PATH: protocols/execution_requests/deform360_pcd_query_inventory_v1.json
+  PROTOCOL_PATH: protocols/deform360-pcd-query-inventory-v1.json
+  SOURCE_ROOT: /mnt/seagate10tb/florianpfaff/datasets/deform360/processed-repository/processed
+  metadata_access_authorized: "true"
+  archive_header_reads_authorized: "true"
+  archive_member_payload_reads_authorized: "false"
+  numeric_array_reads_authorized: "false"
+  provider_predictions_authorized: "false"
+  physical_query_scoring_authorized: "false"
+  target_outcomes_authorized: "false"
+  dataset_mutation_authorized: "false"
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+
+jobs:
+  contract:
+    name: Validate Deform360 inventory control plane
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out proposed source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Provision Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install development checks
+        run: python -m pip install --no-cache-dir ".[dev]"
+      - name: Validate protocol, source, tests, and workflow policy
+        run: |
+          set -euo pipefail
+          python scripts/science/inventory_deform360_pcd_archives.py \
+            validate-protocol --protocol "$PROTOCOL_PATH"
+          python -m ruff check \
+            scripts/science/inventory_deform360_pcd_archives.py \
+            tests/test_deform360_pcd_query_inventory.py \
+            tests/test_deform360_pcd_query_inventory_workflow.py \
+            tests/test_trusted_self_hosted_validation_policy.py
+          python -m ruff format --check \
+            scripts/science/inventory_deform360_pcd_archives.py \
+            tests/test_deform360_pcd_query_inventory.py \
+            tests/test_deform360_pcd_query_inventory_workflow.py \
+            tests/test_trusted_self_hosted_validation_policy.py
+          python -m pytest -q \
+            tests/test_deform360_pcd_query_inventory.py \
+            tests/test_deform360_pcd_query_inventory_workflow.py \
+            tests/test_trusted_self_hosted_validation_policy.py \
+            tests/test_github_action_pins.py
+          python -m compileall -q scripts/science/inventory_deform360_pcd_archives.py
+
+  authorize:
+    name: Authorize merged tar-header-only request
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      request_id: ${{ steps.request.outputs.request_id }}
+      head_sha: ${{ steps.request.outputs.head_sha }}
+      source_protocol_git_blob_sha: ${{ steps.request.outputs.source_protocol_git_blob_sha }}
+    steps:
+      - name: Check out exact merged revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require one non-forced main request change
+        id: request
+        shell: bash
+        env:
+          EVENT_REF: ${{ github.ref }}
+          EVENT_BEFORE: ${{ github.event.before }}
+          EVENT_AFTER: ${{ github.event.after }}
+          EVENT_FORCED: ${{ github.event.forced }}
+          EVENT_DELETED: ${{ github.event.deleted }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_REF" = "refs/heads/main"
+          test "$EVENT_FORCED" = "false"
+          test "$EVENT_DELETED" = "false"
+          test "$EVENT_AFTER" = "$(/usr/bin/git rev-parse HEAD)"
+          test "$EVENT_BEFORE" != "0000000000000000000000000000000000000000"
+          mapfile -t changed < <(
+            /usr/bin/git diff --name-only "$EVENT_BEFORE" "$EVENT_AFTER" | sort
+          )
+          if [[ ${#changed[@]} -ne 1 || "${changed[0]}" != "$REQUEST_PATH" ]]; then
+            printf 'Expected only %s; changed paths were:\n' "$REQUEST_PATH" >&2
+            printf '  %s\n' "${changed[@]}" >&2
+            exit 2
+          fi
+          test -f "$REQUEST_PATH"
+          test -f "$PROTOCOL_PATH"
+          source_blob=$(/usr/bin/git rev-parse "$EVENT_AFTER:$PROTOCOL_PATH")
+          validation=$(
+            /usr/bin/python3 scripts/science/inventory_deform360_pcd_archives.py \
+              validate-request \
+              --request "$REQUEST_PATH" \
+              --protocol "$PROTOCOL_PATH" \
+              --source-protocol-git-blob-sha "$source_blob"
+          )
+          request_id=$(
+            VALIDATION="$validation" /usr/bin/python3 - <<'PY'
+          import json
+          import os
+
+          print(json.loads(os.environ["VALIDATION"])["request_id"])
+          PY
+          )
+          echo "request_id=$request_id" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$EVENT_AFTER" >> "$GITHUB_OUTPUT"
+          echo "source_protocol_git_blob_sha=$source_blob" >> "$GITHUB_OUTPUT"
+
+  inventory:
+    name: Inventory Deform360 pcd_clean archives on gpuserver4090
+    if: github.event_name == 'push'
+    needs: authorize
+    environment: trusted-self-hosted-validation
+    runs-on: [self-hosted, Linux, X64, gpuserver4090]
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    outputs:
+      decision: ${{ steps.finalize.outputs.decision }}
+      inventory_id: ${{ steps.finalize.outputs.inventory_id }}
+      eligible_object_count: ${{ steps.finalize.outputs.eligible_object_count }}
+      eligible_archive_count: ${{ steps.finalize.outputs.eligible_archive_count }}
+    steps:
+      - name: Require the intended data runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_NAME" = "workstation1"
+          test "$RUNNER_OS" = "Linux"
+          test "$RUNNER_ARCH" = "X64"
+          test -x /usr/bin/python3
+          test -d "$SOURCE_ROOT"
+          test "$(readlink -f "$SOURCE_ROOT")" = "$SOURCE_ROOT"
+      - name: Initialize isolated output workspace
+        id: workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${RUNNER_TEMP}/prob4d-deform360-pcd-inventory-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          /usr/bin/rm -rf -- "$root"
+          /usr/bin/mkdir -p "$root/evidence"
+          echo "root=$root" >> "$GITHUB_OUTPUT"
+      - name: Check out exact authorized Prob4D revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.authorize.outputs.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify clean source and information boundary
+        shell: bash
+        env:
+          EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          test "$(/usr/bin/git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test -z "$(/usr/bin/git status --porcelain=v1 --untracked-files=all)"
+          test "$metadata_access_authorized" = "true"
+          test "$archive_header_reads_authorized" = "true"
+          test "$archive_member_payload_reads_authorized" = "false"
+          test "$numeric_array_reads_authorized" = "false"
+          test "$provider_predictions_authorized" = "false"
+          test "$physical_query_scoring_authorized" = "false"
+          test "$target_outcomes_authorized" = "false"
+          test "$dataset_mutation_authorized" = "false"
+      - name: Inspect filesystem metadata and tar headers only
+        id: inspect
+        continue-on-error: true
+        shell: bash
+        env:
+          EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+          SOURCE_PROTOCOL_GIT_BLOB_SHA: ${{ needs.authorize.outputs.source_protocol_git_blob_sha }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          /usr/bin/python3 scripts/science/inventory_deform360_pcd_archives.py \
+            inventory \
+            --request "$REQUEST_PATH" \
+            --protocol "$PROTOCOL_PATH" \
+            --source-protocol-git-blob-sha "$SOURCE_PROTOCOL_GIT_BLOB_SHA" \
+            --prob4d-revision "$EXPECTED_HEAD_SHA" \
+            --runner-name "$RUNNER_NAME" \
+            --github-run-id "$GITHUB_RUN_ID" \
+            --output "$root/evidence/result.json" \
+            --summary "$root/evidence/summary.md"
+      - name: Build sanitized failure record when needed
+        id: finalize
+        if: always()
+        shell: bash
+        env:
+          REQUEST_ID: ${{ needs.authorize.outputs.request_id }}
+          EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          result="$root/evidence/result.json"
+          if [[ ! -f "$result" ]]; then
+            RESULT="$result" /usr/bin/python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+
+          record = {
+              "schema": "prob4d.deform360-pcd-query-inventory-result",
+              "schema_version": 1,
+              "profile": "deform360-pcd-query-inventory-v1",
+              "issue_number": 49,
+              "decision": "inventory-technical-failure",
+              "request_id": os.environ["REQUEST_ID"],
+              "prob4d_revision": os.environ["EXPECTED_HEAD_SHA"],
+              "inventory": {},
+              "execution_boundary": {
+                  "metadata_accessed": False,
+                  "archive_headers_read": False,
+                  "archive_member_payloads_read": False,
+                  "numeric_arrays_read": False,
+                  "provider_predictions_executed": False,
+                  "physical_query_scored": False,
+                  "target_outcomes_opened": False,
+                  "dataset_mutated": False,
+              },
+              "claim_boundary": (
+                  "The metadata/tar-header inventory failed before a complete result; "
+                  "archive member payloads and numerical arrays remained unauthorized."
+              ),
+          }
+          canonical = json.dumps(record, sort_keys=True, separators=(",", ":")).encode()
+          record["inventory_id"] = hashlib.sha256(canonical).hexdigest()
+          with open(os.environ["RESULT"], "w", encoding="utf-8") as output:
+              json.dump(record, output, indent=2, sort_keys=True)
+              output.write("\n")
+          PY
+          fi
+          RESULT="$result" /usr/bin/python3 - <<'PY'
+          import json
+          import os
+
+          result = json.load(open(os.environ["RESULT"], encoding="utf-8"))
+          inventory = result.get("inventory") or {}
+          values = {
+              "decision": result.get("decision", "inventory-technical-failure"),
+              "inventory_id": result.get("inventory_id", "unavailable"),
+              "eligible_object_count": inventory.get("eligible_object_count", 0),
+              "eligible_archive_count": inventory.get("eligible_archive_count", 0),
+          }
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              for key, value in values.items():
+                  output.write(f"{key}={value}\n")
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              summary.write("## Deform360 persistent-point archive inventory\n\n")
+              for key, value in values.items():
+                  summary.write(f"- **{key}:** `{value}`\n")
+              summary.write(
+                  "\nOnly filesystem metadata and tar headers were authorized. "
+                  "No archive payload or numerical array was opened.\n"
+              )
+          PY
+      - name: Upload sanitized inventory evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        with:
+          name: deform360-pcd-query-inventory-${{ github.run_id }}
+          path: ${{ steps.workspace.outputs.root }}/evidence
+          if-no-files-found: error
+          retention-days: 30
+      - name: Preserve technical failure after evidence upload
+        if: always() && steps.inspect.outcome != 'success'
+        shell: bash
+        run: exit 1
