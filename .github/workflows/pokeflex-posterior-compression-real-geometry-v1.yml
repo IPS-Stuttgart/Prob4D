@@ -8,6 +8,7 @@ on:
       - .github/experiment-requests/pokeflex-posterior-compression-real-geometry-request-v1.json
       - .github/workflows/pokeflex-posterior-compression-real-geometry-v1.yml
       - protocols/pokeflex-posterior-compression-real-geometry-v1.json
+      - scripts/science/prepare_pokeflex_posterior_compression_runtime.py
       - scripts/science/run_pokeflex_posterior_compression_real_geometry.py
       - tests/test_pokeflex_posterior_compression_real_geometry.py
       - src/prob4d/posterior_preserving_compression.py
@@ -67,6 +68,11 @@ jobs:
           assert protocol["opens_or_repairs_prior_causal4d_pokeflex_target"] is False
           assert protocol["provider_promotion_authorized"] is False
           PY
+      - name: Apply hash-bound pre-data shape repair
+        run: |
+          python scripts/science/prepare_pokeflex_posterior_compression_runtime.py \
+            --source scripts/science/run_pokeflex_posterior_compression_real_geometry.py \
+            --output "$RUNNER_TEMP/pokeflex-shape-repair.json"
       - name: Install lightweight development package
         run: python -m pip install -e ".[dev]"
       - name: Run focused parser and posterior-parity tests
@@ -78,6 +84,7 @@ jobs:
         run: >-
           python -m ruff check
           src/prob4d/posterior_preserving_compression.py
+          scripts/science/prepare_pokeflex_posterior_compression_runtime.py
           scripts/science/run_pokeflex_posterior_compression_real_geometry.py
           tests/test_pokeflex_posterior_compression_real_geometry.py
 
@@ -112,6 +119,11 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Apply hash-bound pre-data shape repair
+        run: |
+          python3 scripts/science/prepare_pokeflex_posterior_compression_runtime.py \
+            --source scripts/science/run_pokeflex_posterior_compression_real_geometry.py \
+            --output "$RUNNER_TEMP/pokeflex-shape-repair.json"
       - name: Install lightweight package without resolving new dependencies
         run: python3 -m pip install --no-deps -e .
       - name: Run target-safe real-geometry diagnostic
@@ -132,6 +144,7 @@ jobs:
             --source-revision "$GITHUB_SHA"
           status=$?
           set -e
+          cp "$RUNNER_TEMP/pokeflex-shape-repair.json" "$output/shape-repair.json"
           printf '%s\n' "$status" > "$output/process-exit-code.txt"
           exit 0
       - name: Resolve output path
