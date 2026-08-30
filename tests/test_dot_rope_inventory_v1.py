@@ -42,9 +42,7 @@ def test_member_safety_and_sequence_detection() -> None:
     assert not member_name_is_safe("R01\\windows")
     assert sequence_id_from_member("dataset/R07/track.npy") == "R07"
     assert sequence_id_from_member("dataset/no_sequence/track.npy") is None
-    assert normalized_member_pattern("R07/cam12/frame000123.png") == (
-        "R##/cam#/frame#.png"
-    )
+    assert normalized_member_pattern("R07/cam12/frame000123.png") == ("R##/cam#/frame#.png")
 
 
 def test_symlink_detection() -> None:
