@@ -47,10 +47,10 @@ def test_self_hosted_job_has_read_only_repository_access_and_sanitized_output() 
     assert "pull-requests: write" not in execute
     assert "GITHUB_TOKEN" not in execute
     assert "/usr/bin/python3 scripts/science/audit_deform360_source_bundle.py" in execute
-    assert "--output \"$root/evidence/result.json\"" in execute
-    assert "--summary \"$root/evidence/summary.md\"" in execute
+    assert '--output "$root/evidence/result.json"' in execute
+    assert '--summary "$root/evidence/summary.md"' in execute
     assert "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02" in execute
-    assert "test \"${{ steps.finalize.outputs.decision }}\" = \"source-bundle-present\"" in execute
+    assert 'test "${{ steps.finalize.outputs.decision }}" = "source-bundle-present"' in execute
     assert '/usr/bin/rm -rf -- "$root"' in execute
 
     assert "permissions:\n      contents: read\n      issues: write" in report
@@ -61,10 +61,7 @@ def test_self_hosted_job_has_read_only_repository_access_and_sanitized_output() 
 def test_source_path_and_forbidden_boundaries_are_literal() -> None:
     text = WORKFLOW.read_text(encoding="utf-8")
 
-    assert (
-        "SOURCE_ROOT: "
-        "/home/florianpfaff/deform360-fresh-source-processed-v1-1a3f9b1"
-    ) in text
+    assert ("SOURCE_ROOT: /home/florianpfaff/deform360-fresh-source-processed-v1-1a3f9b1") in text
     assert "dataset_file_contents_opened" in text
     assert "follow symlinks" in text
     assert "target_payloads_opened" in text
