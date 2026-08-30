@@ -1,4 +1,4 @@
-name: DOT rope marker support audit v1
+name: DOT rope pooled CUT3R evaluation v2
 
 on:
   pull_request:
@@ -6,29 +6,30 @@ on:
     paths:
       - ".github/workflows/dot-rope-marker-support-audit-v1.yml"
       - "protocols/execution_requests/dot_rope_marker_support_audit_v1.json"
-      - "scripts/science/audit_dot_rope_marker_support.py"
-      - "tests/test_dot_rope_marker_support_audit.py"
+      - "protocols/execution_requests/dot_rope_cut3r_pooled_evaluation_v2.json"
+      - "scripts/science/evaluate_dot_rope_cut3r_pooled.py"
+      - "tests/test_dot_rope_cut3r_pooled_evaluation.py"
       - "tests/test_trusted_self_hosted_validation_policy.py"
   push:
     branches: [main]
     paths:
-      - "protocols/execution_requests/dot_rope_marker_support_audit_v1.json"
+      - "protocols/execution_requests/dot_rope_cut3r_pooled_evaluation_v2.json"
 
 permissions:
   contents: read
 
 concurrency:
-  group: dot-rope-marker-support-audit-v1-${{ github.ref }}-${{ github.sha }}
+  group: dot-rope-pooled-cut3r-evaluation-v2-${{ github.ref }}-${{ github.sha }}
   cancel-in-progress: false
 
 env:
-  REQUEST_PATH: protocols/execution_requests/dot_rope_marker_support_audit_v1.json
+  REQUEST_PATH: protocols/execution_requests/dot_rope_cut3r_pooled_evaluation_v2.json
   DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/dot
-  AUDIT_PYTHON: /home/github-runner/.cache/prob4d/cut3r-runtime-v1/venv/bin/python
+  EVALUATION_PYTHON: /home/github-runner/.cache/prob4d/cut3r-runtime-v1/venv/bin/python
 
 jobs:
   contract:
-    name: Validate DOT marker-support audit control plane
+    name: Validate pooled DOT evaluator control plane
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -52,21 +53,21 @@ jobs:
           python -m pip install -e ".[dev]"
           python -m pip check
           python -m ruff check \
-            scripts/science/audit_dot_rope_marker_support.py \
-            tests/test_dot_rope_marker_support_audit.py \
+            scripts/science/evaluate_dot_rope_cut3r_pooled.py \
+            tests/test_dot_rope_cut3r_pooled_evaluation.py \
             tests/test_trusted_self_hosted_validation_policy.py
           python -m ruff format --check \
-            scripts/science/audit_dot_rope_marker_support.py \
-            tests/test_dot_rope_marker_support_audit.py \
+            scripts/science/evaluate_dot_rope_cut3r_pooled.py \
+            tests/test_dot_rope_cut3r_pooled_evaluation.py \
             tests/test_trusted_self_hosted_validation_policy.py
           python -m pytest -q \
-            tests/test_dot_rope_marker_support_audit.py \
+            tests/test_dot_rope_cut3r_pooled_evaluation.py \
             tests/test_trusted_self_hosted_validation_policy.py \
             tests/test_github_action_pins.py
-          python -m compileall -q scripts/science/audit_dot_rope_marker_support.py
+          python -m compileall -q scripts/science/evaluate_dot_rope_cut3r_pooled.py
 
   authorize:
-    name: Authorize one immutable marker-support request
+    name: Authorize one immutable pooled-evaluation request
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -113,7 +114,7 @@ jobs:
           fi
           python -m pip install -e .
           validation=$(
-            python scripts/science/audit_dot_rope_marker_support.py \
+            python scripts/science/evaluate_dot_rope_cut3r_pooled.py \
               validate-request \
               --request "$REQUEST_PATH"
           )
@@ -133,27 +134,27 @@ jobs:
                   output.write(f"{key}={item}\n")
           PY
 
-  audit:
-    name: Audit sealed DOT marker support on gpuserver4090
+  evaluate:
+    name: Evaluate sealed DOT predictions with pooled marker support
     if: github.event_name == 'push'
     needs: authorize
     environment: trusted-self-hosted-validation
     runs-on: [self-hosted, Linux, X64, gpuserver4090]
-    timeout-minutes: 90
+    timeout-minutes: 120
     permissions:
       contents: read
       actions: read
     outputs:
       decision: ${{ steps.result.outputs.decision }}
-      audit_id: ${{ steps.result.outputs.audit_id }}
-      feasible_candidate_count: ${{ steps.result.outputs.feasible_candidate_count }}
+      result_id: ${{ steps.result.outputs.result_id }}
+      best_method: ${{ steps.result.outputs.best_method }}
     steps:
-      - name: Initialize isolated audit workspace
+      - name: Initialize isolated evaluation workspace
         id: workspace
         shell: bash
         run: |
           set -euo pipefail
-          root="${RUNNER_TEMP}/prob4d-dot-marker-audit-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          root="${RUNNER_TEMP}/prob4d-dot-pooled-evaluation-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           /usr/bin/rm -rf -- "$root"
           /usr/bin/mkdir -p "$root/provider" "$root/evidence" "$root/home" "$root/tmp"
           echo "root=$root" >> "$GITHUB_OUTPUT"
@@ -162,6 +163,9 @@ jobs:
             echo "TMPDIR=$root/tmp"
             echo "PYTHONDONTWRITEBYTECODE=1"
             echo "PYTHONHASHSEED=0"
+            echo "OMP_NUM_THREADS=1"
+            echo "OPENBLAS_NUM_THREADS=1"
+            echo "MKL_NUM_THREADS=1"
           } >> "$GITHUB_ENV"
       - name: Require intended runner, source archive, and scientific interpreter
         shell: bash
@@ -174,8 +178,8 @@ jobs:
           test ! -L "$DATASET_ROOT"
           test -f "$DATASET_ROOT/R01-10.zip"
           test -r "$DATASET_ROOT/R01-10.zip"
-          test -x "$AUDIT_PYTHON"
-          "$AUDIT_PYTHON" -c 'import numpy'
+          test -x "$EVALUATION_PYTHON"
+          "$EVALUATION_PYTHON" -c 'import numpy'
       - name: Check out exact authorized revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -199,7 +203,9 @@ jobs:
           github-token: ${{ github.token }}
           repository: ${{ github.repository }}
           run-id: ${{ needs.authorize.outputs.provider_run_id }}
-      - name: Audit marker support without computing performance
+      - name: Evaluate without decoding normal-view pixels
+        id: execute
+        continue-on-error: true
         shell: bash
         env:
           EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
@@ -207,58 +213,72 @@ jobs:
           set -euo pipefail
           root="${{ steps.workspace.outputs.root }}"
           PYTHONPATH="$GITHUB_WORKSPACE/src" \
-            "$AUDIT_PYTHON" \
-            scripts/science/audit_dot_rope_marker_support.py \
-              audit \
+            "$EVALUATION_PYTHON" \
+            scripts/science/evaluate_dot_rope_cut3r_pooled.py \
+              evaluate \
               --request "$REQUEST_PATH" \
               --dataset-root "$DATASET_ROOT" \
               --provider-bundle "$root/provider/bundle" \
-              --output "$root/evidence/result.json" \
+              --output-dir "$root/evidence/result" \
               --repository-revision "$EXPECTED_HEAD_SHA"
-      - name: Read content-addressed audit result
+      - name: Read content-addressed pooled result
         id: result
+        if: always()
         shell: bash
+        env:
+          EXECUTION_OUTCOME: ${{ steps.execute.outcome }}
         run: |
           set -euo pipefail
-          result="${{ steps.workspace.outputs.root }}/evidence/result.json"
-          RESULT="$result" /usr/bin/python3 - <<'PY'
+          root="${{ steps.workspace.outputs.root }}/evidence/result"
+          ROOT="$root" EXECUTION_OUTCOME="$EXECUTION_OUTCOME" /usr/bin/python3 - <<'PY'
           import json
           import os
           import re
           from pathlib import Path
 
-          value = json.loads(Path(os.environ["RESULT"]).read_text(encoding="utf-8"))
-          allowed = {
-              "current-convention-pooled-support-feasible",
-              "current-convention-support-sufficient",
-              "alternative-coordinate-convention-required",
-              "coordinate-convention-ambiguous",
-              "source-marker-support-negative",
-          }
-          if value.get("decision") not in allowed:
-              raise SystemExit("marker-support audit has no terminal decision")
-          audit_id = value.get("audit_id")
-          if not isinstance(audit_id, str) or re.fullmatch(r"[0-9a-f]{64}", audit_id) is None:
-              raise SystemExit("marker-support audit identity is invalid")
+          root = Path(os.environ["ROOT"])
+          completed = root / "result.json"
+          failed = root / "technical-failure.json"
+          if os.environ["EXECUTION_OUTCOME"] == "success" and completed.is_file():
+              value = json.loads(completed.read_text(encoding="utf-8"))
+              decision = value["decision"]
+              result_id = value["evaluation_id"]
+              best_method = value["aggregate_methods"][0]["method"]
+          elif failed.is_file():
+              value = json.loads(failed.read_text(encoding="utf-8"))
+              decision = value["decision"]
+              result_id = value["technical_result_id"]
+              best_method = "unavailable"
+          else:
+              raise SystemExit("pooled evaluator emitted no bounded result")
+          if re.fullmatch(r"[0-9a-f]{64}", result_id) is None:
+              raise SystemExit("pooled evaluator result identity is invalid")
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
-              output.write(f"decision={value['decision']}\n")
-              output.write(f"audit_id={audit_id}\n")
-              output.write(
-                  f"feasible_candidate_count={value['feasible_candidate_count']}\n"
-              )
+              output.write(f"decision={decision}\n")
+              output.write(f"result_id={result_id}\n")
+              output.write(f"best_method={best_method}\n")
           PY
-      - name: Upload bounded marker-support evidence
+      - name: Upload bounded pooled-evaluation evidence
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: dot-rope-marker-support-audit-${{ github.run_id }}-${{ github.run_attempt }}
+          name: dot-rope-cut3r-pooled-evaluation-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ steps.workspace.outputs.root }}/evidence/
           if-no-files-found: error
           retention-days: 30
+      - name: Require a complete source evaluation
+        if: always()
+        shell: bash
+        env:
+          DECISION: ${{ steps.result.outputs.decision }}
+        run: |
+          set -euo pipefail
+          test "$DECISION" = "complete-source-evaluation-pooled-marker-support"
 
   publish:
-    name: Publish marker-support terminal decision
+    name: Publish pooled DOT terminal decision
     if: always() && github.event_name == 'push'
-    needs: [authorize, audit]
+    needs: [authorize, evaluate]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -266,18 +286,19 @@ jobs:
       - name: Write run summary
         shell: bash
         env:
-          AUDIT_RESULT: ${{ needs.audit.result }}
-          DECISION: ${{ needs.audit.outputs.decision }}
-          AUDIT_ID: ${{ needs.audit.outputs.audit_id }}
-          FEASIBLE_CANDIDATE_COUNT: ${{ needs.audit.outputs.feasible_candidate_count }}
+          EVALUATION_RESULT: ${{ needs.evaluate.result }}
+          DECISION: ${{ needs.evaluate.outputs.decision }}
+          RESULT_ID: ${{ needs.evaluate.outputs.result_id }}
+          BEST_METHOD: ${{ needs.evaluate.outputs.best_method }}
         run: |
           {
-            echo "## DOT rope marker-support audit"
+            echo "## DOT rope pooled CUT3R evaluation"
             echo
-            echo "- audit job: \`$AUDIT_RESULT\`"
+            echo "- evaluation job: \`$EVALUATION_RESULT\`"
             echo "- decision: \`$DECISION\`"
-            echo "- audit ID: \`$AUDIT_ID\`"
-            echo "- feasible registered hypotheses: \`$FEASIBLE_CANDIDATE_COUNT\`"
+            echo "- result ID: \`$RESULT_ID\`"
+            echo "- best uncertainty method: \`$BEST_METHOD\`"
             echo
-            echo "No normal-view pixels were decoded; R04-R70 remained unopened; no performance metric was computed."
+            echo "R01-R03 source markers were opened only after prediction sealing."
+            echo "No normal-view pixels were decoded in this stage; R04-R70 remained unopened."
           } >> "$GITHUB_STEP_SUMMARY"
