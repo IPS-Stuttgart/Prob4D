@@ -1,0 +1,127 @@
+{
+  "arms": [
+    "physical_fallback",
+    "reject_rank_deficient",
+    "point_transform",
+    "pseudoinverse_covariance",
+    "ridge_completion",
+    "exact_subspace",
+    "query_without_audit",
+    "audited_query"
+  ],
+  "base_revision": "224d13dc9a93731ac5297b479eb1e121b3dbe659",
+  "bootstrap_repetitions": 10000,
+  "bootstrap_seed": 906411,
+  "claim_boundary": "Controlled local linear-Gaussian mechanism study only. Not a learned-provider, nonlinear Sim(3), physical, BPT integration, Causal4D, fresh-object, calibration-transfer, deployment-safety, or state-of-the-art result.",
+  "cloud_half_extent_m": 0.2,
+  "comparison_boundary": "Correct observable-subspace Gaussian inference is the reference. No hypothesis that selective fallback dominates its Bayes risk under the correctly specified model. Fabricated-nullspace controls coincide with exact proposals in full-rank cases; repeated-information control coincides with exact when rho=0.",
+  "data_access": "No external dataset, checkpoint, provider, target, source residual, GPU runner, or protected cohort is accessed.",
+  "generator": "DLO-like centered point geometry defines a Sim(3) tangent design. Observations are Gaussian sufficient statistics projected onto the retained geometry subspace; not noisy nonlinear alignment. Four repeated estimates have a known exchangeable covariance; their mean has variance sigma^2*(rho+(1-rho)/4).",
+  "geometry_rank_rtol": 0.0001,
+  "immutability": "Do not modify numerical settings after viewing the first scientific outcome. Retain negatives and execution failures; source edits for technical defects must be reported with original failure and new source hashes. Refuse overwriting an output directory.",
+  "noise_std_m": [
+    0.001,
+    0.004
+  ],
+  "point_counts": [
+    8,
+    32
+  ],
+  "policy": {
+    "allow_prior_bounded": true,
+    "direct_nullspace_fraction_max": 1e-08,
+    "information_rtol": 1e-08,
+    "minimum_variance_reduction": 0.05,
+    "natural_parameter_rtol": 1e-08,
+    "rank_rtol": 1e-10
+  },
+  "primary_questions": [
+    "Does auditing both natural parameters reject fabricated information and mean shifts that covariance/query checks alone can admit?",
+    "Can rank-deficient factors support useful queries rather than being rejected wholesale?",
+    "What point-error, proper-score, width and acceptance costs does exact fallback incur relative to the correct ungated Gaussian posterior?",
+    "Does the fixed prior-shift stress expose that algebraic validity is not a calibration or no-harm guarantee?"
+  ],
+  "primary_reporting": "All eight arms, four proposal conditions and two worlds, separately. Equal weight per configuration/query within complete independent seeds. Seed-clustered paired percentile bootstrap intervals are descriptive, not multiplicity-corrected significance claims. No best-panel selection or pooled synthetic/real claim.",
+  "primary_tolerance_m": 0.003,
+  "prior_mean_local": [
+    0.0,
+    0.12,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "prior_std_local": [
+    0.02,
+    0.08,
+    0.06,
+    0.06,
+    0.02,
+    0.02,
+    0.02
+  ],
+  "prior_std_multipliers": [
+    0.5,
+    2.0
+  ],
+  "proposals": [
+    "exact",
+    "nullspace_precision",
+    "nullspace_mean",
+    "repeated_information"
+  ],
+  "query_names": [
+    "on_axis",
+    "near_axis",
+    "off_axis"
+  ],
+  "query_points_m": [
+    [
+      0.2,
+      0.0,
+      0.0
+    ],
+    [
+      0.12,
+      0.003,
+      0.0
+    ],
+    [
+      0.1,
+      0.06,
+      0.0
+    ]
+  ],
+  "schema": "prob4d.query-information-audit-study.v1",
+  "scores": "3-D point-query RMSE, Gaussian NLL, joint nominal-90% ellipsoid coverage, mean marginal full nominal-90% interval width, acceptance and harmful-accepted rate among all cases. Point-only uncertainty metrics are undefined. Harm means accepted squared query error exceeds physical fallback by >1e-12 m^2; this is not an admission oracle.",
+  "seed_count": 128,
+  "seed_start": 900000,
+  "shared_window_correlations": [
+    0.0,
+    0.75
+  ],
+  "source_sha256": {
+    "scripts/science/query_information_audit_study.py": "e85683f2dae26b93a7b8f14ecfdd54bdff4812810db17a0b286db651dea16954",
+    "src/prob4d/query_information_audit.py": "a893977859e83575a815b19840dbdd05f1dda616a75aa1ec4016e728f728e0a9"
+  },
+  "status": "registered-before-first-simulation",
+  "stress_prior_shift_rad": 0.15,
+  "thickness_ratios": [
+    0.0,
+    0.002,
+    0.15
+  ],
+  "tolerance_grid_m": [
+    0.0015,
+    0.003,
+    0.006,
+    0.012
+  ],
+  "unsupported_mean_shift_rad": 0.12,
+  "windows": 4,
+  "worlds": [
+    "matched_prior",
+    "shifted_prior"
+  ]
+}
