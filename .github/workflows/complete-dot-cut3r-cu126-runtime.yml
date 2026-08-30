@@ -62,6 +62,11 @@ jobs:
           grep -F 'torch==2.11.0 torchvision==0.26.0' "$workflow"
           grep -F 'EXPECTED_CUROPE_KERNELS_BLOB: 7156cd1bb935cb1f0be45e58add53f9c21505c20' "$workflow"
           grep -F 'EXPECTED_CUROPE_SETUP_BLOB: 02ddb0912370a67a49fd2bb91164cf2f1da8648e' "$workflow"
+          grep -F 'from dust3r.model import ARCroco3DStereo' "$workflow"
+          if grep -F 'AsymmetricCroCo3DStereo' "$workflow"; then
+            echo "incorrect upstream model class remains" >&2
+            exit 2
+          fi
           test -f "$patch"
           git apply --numstat "$patch"
           grep -F 'tokens.scalar_type()' "$patch"
@@ -267,8 +272,8 @@ jobs:
           PYTHONPATH="$GITHUB_WORKSPACE/src:$checkout:$checkout/src" \
             "$RUNTIME_PYTHON" - <<'PY'
           import torch
-          from dust3r.model import AsymmetricCroCo3DStereo
-          print(f"dust3r_model_import={AsymmetricCroCo3DStereo.__name__}")
+          from dust3r.model import ARCroco3DStereo
+          print(f"dust3r_model_import={ARCroco3DStereo.__name__}")
           print(f"torch={torch.__version__}")
           print(f"torch_cuda={torch.version.cuda}")
           print(f"cuda_available={torch.cuda.is_available()}")
