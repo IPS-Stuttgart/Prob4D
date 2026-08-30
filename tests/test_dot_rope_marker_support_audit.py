@@ -10,12 +10,7 @@ from prob4d.dot_rope_cut3r_study import content_id
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "science" / "audit_dot_rope_marker_support.py"
-REQUEST = (
-    ROOT
-    / "protocols"
-    / "execution_requests"
-    / "dot_rope_marker_support_audit_v1.json"
-)
+REQUEST = ROOT / "protocols" / "execution_requests" / "dot_rope_marker_support_audit_v1.json"
 
 
 def _load_script():

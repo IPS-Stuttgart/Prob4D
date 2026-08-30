@@ -339,10 +339,7 @@ def _support(
         if window_a is None or window_b is None
         else np.intersect1d(window_a, window_b, assume_unique=True)
     )
-    result = {
-        name: -1 if indices is None else int(indices.size)
-        for name, indices in valid.items()
-    }
+    result = {name: -1 if indices is None else int(indices.size) for name, indices in valid.items()}
     result["window_common"] = -1 if common is None else int(common.size)
     return result
 
@@ -426,10 +423,7 @@ def audit(args: argparse.Namespace) -> int:
 
     manifest, provider_paths = _verify_provider(args.provider_bundle, request)
     runs = {
-        sequence: {
-            run_name: _load_run(path)
-            for run_name, path in sequence_paths.items()
-        }
+        sequence: {run_name: _load_run(path) for run_name, path in sequence_paths.items()}
         for sequence, sequence_paths in provider_paths.items()
     }
     current_support = _empty_support()
@@ -483,9 +477,7 @@ def audit(args: argparse.Namespace) -> int:
                     raise ValueError("continuous provider run is missing a frame")
                 width, height = (
                     int(value)
-                    for value in runs[sequence]["continuous"]["original_sizes"][
-                        continuous_index
-                    ]
+                    for value in runs[sequence]["continuous"]["original_sizes"][continuous_index]
                 )
                 point_height, point_width = runs[sequence]["continuous"]["points"][
                     continuous_index
@@ -531,9 +523,9 @@ def audit(args: argparse.Namespace) -> int:
                                 coordinates=transformed,
                                 truth=truth,
                             )
-                            candidate_support.setdefault(name, _empty_support())[
-                                sequence
-                            ][frame] = support
+                            candidate_support.setdefault(name, _empty_support())[sequence][
+                                frame
+                            ] = support
                             best = max(best, *(value for value in support.values() if value >= 0))
                 diagnostics.append(
                     {
@@ -559,8 +551,7 @@ def audit(args: argparse.Namespace) -> int:
         current_support,
     )
     candidates = [
-        _summarize_candidate(name, support)
-        for name, support in candidate_support.items()
+        _summarize_candidate(name, support) for name, support in candidate_support.items()
     ]
     candidates.sort(
         key=lambda value: (
@@ -571,12 +562,9 @@ def audit(args: argparse.Namespace) -> int:
         )
     )
     feasible = [
-        value for value in candidates
-        if value["all_sequences_feasible_for_pooled_evaluation"]
+        value for value in candidates if value["all_sequences_feasible_for_pooled_evaluation"]
     ]
-    current_feasible = current_summary[
-        "all_sequences_feasible_for_pooled_evaluation"
-    ]
+    current_feasible = current_summary["all_sequences_feasible_for_pooled_evaluation"]
     current_below_six = any(
         value < 6
         for sequence in current_support.values()

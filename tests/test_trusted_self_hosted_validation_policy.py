@@ -13,9 +13,7 @@ POINTWORLD_MODEL_LOAD_SMOKE_WORKFLOW = WORKFLOW_ROOT / "pointworld-model-load-sm
 DEFORM360_SOURCE_BUNDLE_AUDIT_WORKFLOW = WORKFLOW_ROOT / "deform360-source-bundle-audit.yml"
 DOT_ROPE_CUT3R_NATIVE_PROVIDER_WORKFLOW = WORKFLOW_ROOT / "dot-rope-cut3r-native-provider-v1.yml"
 DOT_ROPE_CUT3R_SEALED_RUNTIME_WORKFLOW = WORKFLOW_ROOT / "dot-rope-cut3r-sealed-runtime-v1.yml"
-DOT_ROPE_MARKER_SUPPORT_AUDIT_WORKFLOW = (
-    WORKFLOW_ROOT / "dot-rope-marker-support-audit-v1.yml"
-)
+DOT_ROPE_MARKER_SUPPORT_AUDIT_WORKFLOW = WORKFLOW_ROOT / "dot-rope-marker-support-audit-v1.yml"
 DOT_CUT3R_RUNTIME_BOOTSTRAP_WORKFLOW = (
     WORKFLOW_ROOT / "bootstrap-dot-cut3r-gpuserver4090-runtime.yml"
 )
