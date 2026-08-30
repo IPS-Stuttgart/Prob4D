@@ -13,6 +13,9 @@ POINTWORLD_MODEL_LOAD_SMOKE_WORKFLOW = WORKFLOW_ROOT / "pointworld-model-load-sm
 DEFORM360_SOURCE_BUNDLE_AUDIT_WORKFLOW = WORKFLOW_ROOT / "deform360-source-bundle-audit.yml"
 DOT_ROPE_CUT3R_NATIVE_PROVIDER_WORKFLOW = WORKFLOW_ROOT / "dot-rope-cut3r-native-provider-v1.yml"
 DOT_ROPE_CUT3R_SEALED_RUNTIME_WORKFLOW = WORKFLOW_ROOT / "dot-rope-cut3r-sealed-runtime-v1.yml"
+DOT_ROPE_MARKER_SUPPORT_AUDIT_WORKFLOW = (
+    WORKFLOW_ROOT / "dot-rope-marker-support-audit-v1.yml"
+)
 DOT_CUT3R_RUNTIME_BOOTSTRAP_WORKFLOW = (
     WORKFLOW_ROOT / "bootstrap-dot-cut3r-gpuserver4090-runtime.yml"
 )
@@ -32,6 +35,7 @@ TRUSTED_SELF_HOSTED_WORKFLOWS = (
     DEFORM360_SOURCE_BUNDLE_AUDIT_WORKFLOW,
     DOT_ROPE_CUT3R_NATIVE_PROVIDER_WORKFLOW,
     DOT_ROPE_CUT3R_SEALED_RUNTIME_WORKFLOW,
+    DOT_ROPE_MARKER_SUPPORT_AUDIT_WORKFLOW,
     DOT_CUT3R_RUNTIME_BOOTSTRAP_WORKFLOW,
     DOT_CUT3R_RUNTIME_COMPLETE_WORKFLOW,
 )
@@ -360,6 +364,26 @@ def test_dot_rope_cut3r_provider_is_main_request_bound_and_stage_sealed() -> Non
     assert "native-rope-extension.tar.gz" in text
     assert "sealed-provider-predictions" in text
     assert "complete-source-evaluation" in text
+    assert "R04-R70" in text
+    assert "secrets." not in text
+    assert "git push" not in text
+
+
+def test_dot_rope_marker_support_audit_is_main_bound_and_source_only() -> None:
+    text = DOT_ROPE_MARKER_SUPPORT_AUDIT_WORKFLOW.read_text(encoding="utf-8")
+
+    assert "\n  push:" in text
+    assert "branches: [main]" in text
+    assert "dot_rope_marker_support_audit_v1.json" in text
+    assert "pull_request_target:" not in text
+    assert "runs-on: [self-hosted, Linux, X64, gpuserver4090]" in text
+    assert 'test "$RUNNER_NAME" = "workstation1"' in text
+    assert "environment: trusted-self-hosted-validation" in text
+    assert "DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/dot" in text
+    assert "33329701704" not in text
+    assert "github-token: ${{ github.token }}" in text
+    assert "actions: read" in text
+    assert "normal-view pixels" in text
     assert "R04-R70" in text
     assert "secrets." not in text
     assert "git push" not in text
