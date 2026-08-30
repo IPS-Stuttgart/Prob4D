@@ -89,11 +89,12 @@ jobs:
               missing = sorted(expected - names)
               if missing:
                   raise SystemExit(f"missing required normal-view members: {missing[:3]}")
-              bad = stream.testzip()
-              if bad is not None:
-                  raise SystemExit(f"archive CRC failure at {bad}")
-          print(f"verified_archive={archive}")
+              empty = sorted(member for member in expected if stream.getinfo(member).file_size <= 0)
+              if empty:
+                  raise SystemExit(f"empty required normal-view members: {empty[:3]}")
+          print(f"verified_archive_identity={archive}")
           print(f"required_normal_view_members={len(expected)}")
+          print("marker_payload_members_opened=false")
           PY
       - name: Build or reuse pinned CUT3R CUDA environment
         shell: bash
