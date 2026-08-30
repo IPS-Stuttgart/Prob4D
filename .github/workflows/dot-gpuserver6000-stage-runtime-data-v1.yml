@@ -1,0 +1,193 @@
+name: Stage DOT archive and CUT3R runtime on gpuserver6000
+
+on:
+  push:
+    branches: [science/dot-gpuserver6000-direct-v1]
+    paths:
+      - ".github/workflows/dot-gpuserver6000-stage-runtime-data-v1.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dot-gpuserver6000-stage-runtime-data-v1
+  cancel-in-progress: false
+
+jobs:
+  stage:
+    runs-on: [self-hosted, Linux, X64, gpuserver6000]
+    environment: trusted-self-hosted-validation
+    timeout-minutes: 180
+    env:
+      CUT3R_CHECKOUT: /mnt/corsair/prob4d-cut3r-source-freeze-v2-inputs/CUT3R
+      CUT3R_CHECKPOINT: /mnt/corsair/prob4d-cut3r-source-freeze-v2-inputs/cut3r_512_dpt_4_64.pth
+      DATA_CACHE_ROOT: /mnt/corsair/prob4d-dot-v29
+      RUNTIME_ROOT: /mnt/corsair/prob4d-cut3r-runtime-v1
+      PIP_CACHE_DIR: /mnt/corsair/prob4d-cut3r-pip-cache
+      EXPECTED_ARCHIVE_MD5: ca546ff5f22c0279123ccb18509858ee
+      EXPECTED_ARCHIVE_SIZE: "1705947395"
+      DATAFILE_ID: "2343"
+    steps:
+      - name: Require workstation2 and frozen CUT3R assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_NAME" = "workstation2"
+          test "$RUNNER_OS" = "Linux"
+          test "$RUNNER_ARCH" = "X64"
+          test -w /mnt/corsair
+          test -f "$CUT3R_CHECKOUT/requirements.txt"
+          test -f "$CUT3R_CHECKOUT/src/croco/models/curope/setup.py"
+          test -f "$CUT3R_CHECKPOINT"
+          command -v nvidia-smi >/dev/null
+          nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv,noheader
+          df -h /mnt/corsair
+      - name: Provision Python 3.11
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+      - name: Stage and verify official R01-10 archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$DATA_CACHE_ROOT"
+          target="$DATA_CACHE_ROOT/R01-10.zip"
+          partial="$target.part"
+          valid=false
+          if [[ -f "$target" ]]; then
+            observed_size=$(stat -c '%s' "$target")
+            observed_md5=$(md5sum "$target" | awk '{print $1}')
+            if [[ "$observed_size" = "$EXPECTED_ARCHIVE_SIZE" && "$observed_md5" = "$EXPECTED_ARCHIVE_MD5" ]]; then
+              valid=true
+            fi
+          fi
+          if [[ "$valid" != true ]]; then
+            rm -f "$target"
+            curl --fail --location --show-error --retry 12 --retry-delay 5 \
+              --retry-all-errors --continue-at - \
+              "https://dataverse.orc.gmu.edu/api/access/datafile/$DATAFILE_ID" \
+              --output "$partial"
+            test "$(stat -c '%s' "$partial")" = "$EXPECTED_ARCHIVE_SIZE"
+            echo "$EXPECTED_ARCHIVE_MD5  $partial" | md5sum --check --strict
+            mv -f "$partial" "$target"
+          fi
+          test "$(stat -c '%s' "$target")" = "$EXPECTED_ARCHIVE_SIZE"
+          echo "$EXPECTED_ARCHIVE_MD5  $target" | md5sum --check --strict
+          python - "$target" <<'PY'
+          import sys
+          import zipfile
+          from pathlib import Path
+
+          archive = Path(sys.argv[1])
+          expected = {
+              f"R{sequence:02d}/images/normal_view/frame{frame:06d}_cam001.jpg"
+              for sequence in range(1, 4)
+              for frame in range(1, 8)
+          }
+          with zipfile.ZipFile(archive, "r") as stream:
+              names = set(stream.namelist())
+              missing = sorted(expected - names)
+              if missing:
+                  raise SystemExit(f"missing required normal-view members: {missing[:3]}")
+              bad = stream.testzip()
+              if bad is not None:
+                  raise SystemExit(f"archive CRC failure at {bad}")
+          print(f"verified_archive={archive}")
+          print(f"required_normal_view_members={len(expected)}")
+          PY
+      - name: Build or reuse pinned CUT3R CUDA environment
+        shell: bash
+        env:
+          TORCH_VERSION: 2.2.2
+          TORCHVISION_VERSION: 0.17.2
+        run: |
+          set -euo pipefail
+          mkdir -p "$PIP_CACHE_DIR"
+          spec_material=$(cat <<EOF
+          python=3.11
+          torch=${TORCH_VERSION}+cu121
+          torchvision=${TORCHVISION_VERSION}+cu121
+          cut3r_requirements_sha256=$(sha256sum "$CUT3R_CHECKOUT/requirements.txt" | awk '{print $1}')
+          extra=imageio
+          EOF
+          )
+          spec_id=$(printf '%s' "$spec_material" | sha256sum | awk '{print $1}')
+          marker="$RUNTIME_ROOT/.prob4d-runtime-spec"
+          reusable=false
+          if [[ -x "$RUNTIME_ROOT/bin/python" && -f "$marker" ]] && \
+             [[ "$(cat "$marker")" = "$spec_id" ]]; then
+            if "$RUNTIME_ROOT/bin/python" - <<'PY'
+          import cv2
+          import einops
+          import hydra
+          import imageio
+          import numpy
+          import PIL
+          import roma
+          import scipy
+          import torch
+          import transformers
+          assert torch.cuda.is_available()
+          print(torch.__version__, torch.version.cuda, torch.cuda.get_device_name(0))
+          PY
+            then
+              reusable=true
+            fi
+          fi
+          if [[ "$reusable" != true ]]; then
+            build="$RUNTIME_ROOT.build-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+            rm -rf "$build"
+            python -m venv "$build"
+            "$build/bin/python" -m pip install \
+              "pip==25.2" "setuptools==80.9.0" "wheel==0.45.1"
+            "$build/bin/python" -m pip install \
+              --index-url https://download.pytorch.org/whl/cu121 \
+              "torch==${TORCH_VERSION}+cu121" \
+              "torchvision==${TORCHVISION_VERSION}+cu121"
+            "$build/bin/python" -m pip install \
+              -r "$CUT3R_CHECKOUT/requirements.txt" \
+              "imageio>=2.34,<3"
+            "$build/bin/python" -m pip check
+            printf '%s\n' "$spec_id" > "$build/.prob4d-runtime-spec"
+            rm -rf "$RUNTIME_ROOT.previous"
+            if [[ -e "$RUNTIME_ROOT" ]]; then
+              mv "$RUNTIME_ROOT" "$RUNTIME_ROOT.previous"
+            fi
+            mv "$build" "$RUNTIME_ROOT"
+            rm -rf "$RUNTIME_ROOT.previous"
+          fi
+          "$RUNTIME_ROOT/bin/python" - <<'PY'
+          import platform
+          import cv2
+          import einops
+          import hydra
+          import imageio
+          import numpy
+          import PIL
+          import roma
+          import scipy
+          import torch
+          import torchvision
+          import transformers
+
+          assert torch.cuda.is_available()
+          print("python=" + platform.python_version())
+          print("torch=" + torch.__version__)
+          print("torchvision=" + torchvision.__version__)
+          print("torch_cuda=" + str(torch.version.cuda))
+          print("gpu=" + torch.cuda.get_device_name(0))
+          print("numpy=" + numpy.__version__)
+          print("pillow=" + PIL.__version__)
+          print("opencv=" + cv2.__version__)
+          PY
+          "$RUNTIME_ROOT/bin/python" -m pip freeze > "$RUNTIME_ROOT/pip-freeze.txt"
+          sha256sum "$RUNTIME_ROOT/pip-freeze.txt"
+      - name: Record staged identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'archive='; sha256sum "$DATA_CACHE_ROOT/R01-10.zip"
+          printf 'checkpoint='; sha256sum "$CUT3R_CHECKPOINT"
+          printf 'requirements='; sha256sum "$CUT3R_CHECKOUT/requirements.txt"
+          printf 'runtime_spec='; cat "$RUNTIME_ROOT/.prob4d-runtime-spec"
+          printf 'runtime_python=%s\n' "$RUNTIME_ROOT/bin/python"
