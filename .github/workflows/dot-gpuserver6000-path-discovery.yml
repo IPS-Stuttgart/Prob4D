@@ -1,0 +1,48 @@
+name: Discover DOT and CUT3R paths on gpuserver6000
+
+on:
+  push:
+    branches: [science/dot-gpuserver6000-direct-v1]
+    paths:
+      - ".github/workflows/dot-gpuserver6000-path-discovery.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    runs-on: [self-hosted, Linux, X64, gpuserver6000]
+    environment: trusted-self-hosted-validation
+    timeout-minutes: 20
+    steps:
+      - name: Inventory retained paths without reading payloads
+        shell: bash
+        env:
+          CONFIGURED_CHECKOUT: ${{ vars.CUT3R_CHECKOUT }}
+          CONFIGURED_PYTHON: ${{ vars.CUT3R_PYTHON }}
+          CONFIGURED_CHECKPOINT: ${{ vars.CUT3R_CHECKPOINT }}
+        run: |
+          set -u
+          echo "runner=$RUNNER_NAME os=$RUNNER_OS arch=$RUNNER_ARCH"
+          nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv,noheader || true
+          for label in CONFIGURED_CHECKOUT CONFIGURED_PYTHON CONFIGURED_CHECKPOINT; do
+            value="${!label:-}"
+            printf '%s=%q exists=' "$label" "$value"
+            if [[ -e "$value" ]]; then echo yes; else echo no; fi
+          done
+          echo '--- DOT archives ---'
+          timeout 300 find /mnt /home -maxdepth 10 -type f -name 'R01-10.zip' -print 2>/dev/null | sort | head -100 || true
+          echo '--- DOT directories and symlinks ---'
+          timeout 300 find /mnt /home -maxdepth 8 \( -type d -o -type l \) \( -iname 'dot' -o -iname 'dot-rope' -o -iname '*dot*v29*' \) -print 2>/dev/null | sort | head -200 || true
+          echo '--- CUT3R curope roots ---'
+          timeout 300 find /mnt /home -maxdepth 12 -type f -path '*/src/croco/models/curope/setup.py' -print 2>/dev/null | sort | head -100 || true
+          echo '--- CUT3R checkpoints ---'
+          timeout 300 find /mnt /home -maxdepth 12 -type f \( -iname '*cut3r*.pth' -o -iname '*cut3r*.pt' \) -print 2>/dev/null | sort | head -100 || true
+          echo '--- CUDA Python candidates ---'
+          while IFS= read -r candidate; do
+            [[ -x "$candidate" ]] || continue
+            if timeout 30 "$candidate" -c 'import numpy, PIL, torch; assert torch.cuda.is_available(); print(torch.__version__, torch.cuda.get_device_name(0))' >/tmp/candidate.out 2>/tmp/candidate.err; then
+              printf 'PASS %s :: ' "$candidate"
+              cat /tmp/candidate.out
+            fi
+          done < <(timeout 300 find /mnt /home /opt -maxdepth 12 -type f -path '*/bin/python' -print 2>/dev/null | sort | head -500 || true)
