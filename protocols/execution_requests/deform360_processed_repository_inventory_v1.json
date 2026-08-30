@@ -1,0 +1,15 @@
+{
+  "schema": "prob4d.deform360-processed-repository-inventory-request",
+  "schema_version": 1,
+  "source_root": "/mnt/seagate10tb/florianpfaff/datasets/deform360/processed-repository",
+  "runner_selector": ["self-hosted", "gpuserver4090"],
+  "metadata_access_authorized": true,
+  "file_content_reads_authorized": false,
+  "prediction_execution_authorized": false,
+  "provider_residuals_authorized": false,
+  "target_payloads_authorized": false,
+  "target_outcomes_authorized": false,
+  "dataset_mutation_authorized": false,
+  "claim_boundary": "Metadata-only source inventory. No dataset file content, provider prediction, residual, target payload/outcome, BayesianPhysTwin innovation, Causal4D result, or dataset mutation is authorized.",
+  "request_nonce": "2026-08-31T00:16:00+08:00"
+}
