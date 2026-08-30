@@ -1,0 +1,20 @@
+name: Cancel full DOT download v2
+
+on:
+  push:
+    branches: [science/dot-gpuserver6000-direct-v1]
+    paths:
+      - ".github/workflows/cancel-full-dot-download-v2.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dot-gpuserver6000-stage-runtime-data-v1
+  cancel-in-progress: true
+
+jobs:
+  cancel-full-download:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo 'Sparse publisher access validated; cancelling the opaque full-archive transfer.'
