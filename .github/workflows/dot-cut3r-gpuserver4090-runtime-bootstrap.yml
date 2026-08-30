@@ -1,0 +1,302 @@
+name: DOT CUT3R gpuserver4090 runtime bootstrap
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/dot-cut3r-gpuserver4090-runtime-bootstrap.yml"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/dot-cut3r-gpuserver4090-runtime-bootstrap.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dot-cut3r-gpuserver4090-runtime-bootstrap-${{ github.sha }}
+  cancel-in-progress: false
+
+env:
+  EXPECTED_CUT3R_REVISION: 8bc15dc92a6d7fd92920b4ec81540d3dec7d3ecf
+  EXPECTED_CHECKPOINT_SHA256: 45f7e98a0a64dbeb54901ae2b878cd8cd125f20a4497316483f0bd6f109f8103
+  CHECKPOINT_URL: https://drive.google.com/file/d/1Asz-ZB3FfpzZYwunhQvNPZEUA8XUNAYD/view?usp=drive_link
+  CUDA_SEED_PYTHON: /home/github-runner/.cache/datasets/venvs/hdetrackv2/bin/python
+  CUT3R_ENV: /home/github-runner/.conda/envs/cut3r
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+
+jobs:
+  contract:
+    name: Validate target-closed bootstrap control plane
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Require exact inputs and no DOT payload path
+        shell: bash
+        run: |
+          set -euo pipefail
+          workflow=.github/workflows/dot-cut3r-gpuserver4090-runtime-bootstrap.yml
+          grep -F 'runs-on: [self-hosted, Linux, X64, gpuserver4090]' "$workflow"
+          grep -F 'EXPECTED_CUT3R_REVISION: 8bc15dc92a6d7fd92920b4ec81540d3dec7d3ecf' "$workflow"
+          grep -F 'EXPECTED_CHECKPOINT_SHA256: 45f7e98a0a64dbeb54901ae2b878cd8cd125f20a4497316483f0bd6f109f8103' "$workflow"
+          grep -F 'CUT3R/CUT3R.git' "$workflow"
+          grep -F 'gdown==5.2.0' "$workflow"
+          if grep -E 'R0[0-9]|dot-rope|datasets/dot' "$workflow"; then
+            echo "Bootstrap must not reference DOT payloads" >&2
+            exit 2
+          fi
+
+  bootstrap:
+    name: Build exact CUT3R runtime without DOT access
+    if: github.event_name == 'push'
+    environment: trusted-self-hosted-validation
+    runs-on: [self-hosted, Linux, X64, gpuserver4090]
+    timeout-minutes: 180
+    env:
+      CUT3R_CHECKOUT: ${{ vars.CUT3R_CHECKOUT }}
+      CUT3R_CHECKPOINT: ${{ vars.CUT3R_CHECKPOINT }}
+    steps:
+      - name: Check out exact reviewed Prob4D revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+          clean: true
+
+      - name: Bootstrap source, checkpoint, dependencies, and native RoPE
+        id: bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/dot-cut3r-runtime-bootstrap.log"
+          exec > >(tee "$log") 2>&1
+
+          test "$RUNNER_NAME" = "workstation1"
+          test "$RUNNER_OS" = "Linux"
+          test "$RUNNER_ARCH" = "X64"
+          test -n "${CUT3R_CHECKOUT:-}"
+          test -n "${CUT3R_CHECKPOINT:-}"
+          test -x "$CUDA_SEED_PYTHON"
+          command -v git >/dev/null
+          command -v nvidia-smi >/dev/null
+          command -v nvcc >/dev/null
+
+          case "$(realpath -m "$CUT3R_CHECKOUT")" in
+            */datasets/*)
+              echo "CUT3R source path must not be inside a dataset tree" >&2
+              exit 2
+              ;;
+          esac
+          case "$(realpath -m "$CUT3R_CHECKPOINT")" in
+            */datasets/*)
+              echo "CUT3R checkpoint path must not be inside a dataset tree" >&2
+              exit 2
+              ;;
+          esac
+
+          "$CUDA_SEED_PYTHON" - <<'PY'
+          import numpy
+          import PIL
+          import torch
+
+          print(f"seed_numpy={numpy.__version__}")
+          print(f"seed_pillow={PIL.__version__}")
+          print(f"seed_torch={torch.__version__}")
+          print(f"seed_cuda_available={torch.cuda.is_available()}")
+          if not torch.cuda.is_available():
+              raise SystemExit("retained seed interpreter has no CUDA")
+          print(f"seed_cuda_device={torch.cuda.get_device_name(0)}")
+          PY
+
+          lock="/home/github-runner/.cache/workflows/dot-cut3r-runtime-bootstrap.lock"
+          mkdir -p "$(dirname "$lock")"
+          exec 9>"$lock"
+          flock 9
+
+          source_revision=""
+          if [[ -d "$CUT3R_CHECKOUT/.git" ]]; then
+            source_revision=$(git -C "$CUT3R_CHECKOUT" rev-parse HEAD)
+            test "$source_revision" = "$EXPECTED_CUT3R_REVISION" || {
+              echo "Existing CUT3R checkout has an unexpected revision" >&2
+              exit 2
+            }
+          else
+            test ! -e "$CUT3R_CHECKOUT" || {
+              echo "CUT3R checkout path exists but is not a Git checkout" >&2
+              exit 2
+            }
+            source_parent=$(dirname "$CUT3R_CHECKOUT")
+            source_stage="${CUT3R_CHECKOUT}.stage-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+            mkdir -p "$source_parent"
+            rm -rf -- "$source_stage"
+            git clone --filter=blob:none --no-checkout \
+              https://github.com/CUT3R/CUT3R.git "$source_stage"
+            git -C "$source_stage" fetch --depth=1 origin "$EXPECTED_CUT3R_REVISION"
+            git -C "$source_stage" checkout --detach "$EXPECTED_CUT3R_REVISION"
+            test "$(git -C "$source_stage" rev-parse HEAD)" = "$EXPECTED_CUT3R_REVISION"
+            test -z "$(git -C "$source_stage" status --porcelain=v1 --untracked-files=all)"
+            mv "$source_stage" "$CUT3R_CHECKOUT"
+            source_revision="$EXPECTED_CUT3R_REVISION"
+          fi
+
+          checkpoint_parent=$(dirname "$CUT3R_CHECKPOINT")
+          mkdir -p "$checkpoint_parent"
+          checkpoint_digest=""
+          if [[ -f "$CUT3R_CHECKPOINT" ]]; then
+            checkpoint_digest=$(sha256sum "$CUT3R_CHECKPOINT" | cut -d' ' -f1)
+            test "$checkpoint_digest" = "$EXPECTED_CHECKPOINT_SHA256" || {
+              echo "Existing CUT3R checkpoint has an unexpected SHA-256" >&2
+              exit 2
+            }
+          else
+            test ! -e "$CUT3R_CHECKPOINT" || {
+              echo "CUT3R checkpoint path exists but is not a regular file" >&2
+              exit 2
+            }
+            downloader="$RUNNER_TEMP/dot-cut3r-gdown-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+            checkpoint_stage="${CUT3R_CHECKPOINT}.stage-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+            rm -rf -- "$downloader"
+            rm -f -- "$checkpoint_stage"
+            /usr/bin/python3 -m venv "$downloader"
+            "$downloader/bin/python" -m pip install "gdown==5.2.0"
+            "$downloader/bin/python" -m gdown --fuzzy "$CHECKPOINT_URL" \
+              --output "$checkpoint_stage"
+            checkpoint_digest=$(sha256sum "$checkpoint_stage" | cut -d' ' -f1)
+            test "$checkpoint_digest" = "$EXPECTED_CHECKPOINT_SHA256" || {
+              echo "Downloaded CUT3R checkpoint SHA-256 mismatch" >&2
+              exit 2
+            }
+            chmod 0444 "$checkpoint_stage"
+            mv "$checkpoint_stage" "$CUT3R_CHECKPOINT"
+          fi
+
+          if [[ ! -x "$CUT3R_ENV/bin/python" ]]; then
+            test ! -e "$CUT3R_ENV" || {
+              echo "Dedicated CUT3R environment exists but is incomplete" >&2
+              exit 2
+            }
+            mkdir -p "$(dirname "$CUT3R_ENV")"
+            /usr/bin/python3 -m venv "$CUT3R_ENV"
+            seed_site=$(
+              "$CUDA_SEED_PYTHON" - <<'PY'
+          import site
+          print(site.getsitepackages()[0])
+          PY
+            )
+            target_site=$(
+              "$CUT3R_ENV/bin/python" - <<'PY'
+          import site
+          print(site.getsitepackages()[0])
+          PY
+            )
+            printf '%s\n' "$seed_site" > "$target_site/prob4d-cut3r-cuda-seed.pth"
+            "$CUT3R_ENV/bin/python" -m pip install --upgrade pip setuptools wheel
+            requirements="$RUNNER_TEMP/cut3r-requirements-${GITHUB_RUN_ID}.txt"
+            grep -Ev '^(torch|torchvision)[[:space:]]*$' \
+              "$CUT3R_CHECKOUT/requirements.txt" > "$requirements"
+            "$CUT3R_ENV/bin/python" -m pip install -r "$requirements"
+          fi
+
+          PYTHONPATH="$CUT3R_CHECKOUT:$CUT3R_CHECKOUT/src" \
+            "$CUT3R_ENV/bin/python" - <<'PY'
+          import numpy
+          import PIL
+          import torch
+          import torchvision
+          import demo
+          from dust3r.model import ARCroco3DStereo
+
+          print(f"runtime_numpy={numpy.__version__}")
+          print(f"runtime_pillow={PIL.__version__}")
+          print(f"runtime_torch={torch.__version__}")
+          print(f"runtime_torchvision={torchvision.__version__}")
+          print(f"runtime_cuda_available={torch.cuda.is_available()}")
+          if not torch.cuda.is_available():
+              raise SystemExit("dedicated CUT3R environment has no CUDA")
+          print(f"runtime_cuda_device={torch.cuda.get_device_name(0)}")
+          print(f"demo_module={demo.__file__}")
+          print(f"model_class={ARCroco3DStereo.__name__}")
+          PY
+
+          receipt="$RUNNER_TEMP/dot-cut3r-native-rope-runtime-receipt.json"
+          rm -f -- "$receipt"
+          PYTHONPATH="$GITHUB_WORKSPACE/src" \
+            "$CUT3R_ENV/bin/python" \
+            scripts/science/prepare_cut3r_runtime.py \
+              --cut3r-checkout "$CUT3R_CHECKOUT" \
+              --build \
+              --output "$receipt"
+
+          RECEIPT="$receipt" \
+          SOURCE_REVISION="$source_revision" \
+          CHECKPOINT_DIGEST="$checkpoint_digest" \
+          "$CUT3R_ENV/bin/python" - <<'PY'
+          import hashlib
+          import json
+          import os
+          import platform
+          from pathlib import Path
+
+          import numpy
+          import PIL
+          import torch
+          import torchvision
+
+          native = json.loads(Path(os.environ["RECEIPT"]).read_text(encoding="utf-8"))
+          record = {
+              "schema": "prob4d.dot-cut3r-gpuserver4090-runtime-bootstrap",
+              "schema_version": 1,
+              "source_repository": "https://github.com/CUT3R/CUT3R.git",
+              "source_revision": os.environ["SOURCE_REVISION"],
+              "checkpoint_sha256": os.environ["CHECKPOINT_DIGEST"],
+              "python": platform.python_version(),
+              "numpy": numpy.__version__,
+              "pillow": PIL.__version__,
+              "torch": torch.__version__,
+              "torchvision": torchvision.__version__,
+              "cuda_available": torch.cuda.is_available(),
+              "cuda_device": torch.cuda.get_device_name(0),
+              "native_rope_artifact_id": native["artifact_id"],
+              "normal_view_images_opened": False,
+              "marker_payloads_opened": False,
+              "target_payloads_opened": False,
+          }
+          encoded = json.dumps(record, sort_keys=True, separators=(",", ":"))
+          record["bootstrap_id"] = hashlib.sha256(encoded.encode()).hexdigest()
+          output = Path(os.environ["RUNNER_TEMP"]) / "dot-cut3r-runtime-bootstrap.json"
+          output.write_text(
+              json.dumps(record, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(output.read_text(encoding="utf-8"))
+          PY
+
+      - name: Upload compact runtime bootstrap evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dot-cut3r-runtime-bootstrap-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/dot-cut3r-runtime-bootstrap.log
+            ${{ runner.temp }}/dot-cut3r-runtime-bootstrap.json
+            ${{ runner.temp }}/dot-cut3r-native-rope-runtime-receipt.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Require complete target-closed runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f "$RUNNER_TEMP/dot-cut3r-runtime-bootstrap.json"
+          test -f "$RUNNER_TEMP/dot-cut3r-native-rope-runtime-receipt.json"
