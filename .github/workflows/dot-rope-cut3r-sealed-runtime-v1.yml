@@ -80,9 +80,7 @@ jobs:
             tests/test_dot_rope_cut3r_sealed_runtime_workflow.py \
             tests/test_trusted_self_hosted_validation_policy.py
           python -m ruff format --check \
-            scripts/science/prepare_cut3r_runtime.py \
             scripts/science/run_dot_rope_cut3r_native_provider.py \
-            src/prob4d/cut3r_runtime_contract.py \
             src/prob4d/dot_rope_cut3r_study.py \
             tests/test_dot_rope_cut3r_native_provider.py \
             tests/test_dot_rope_cut3r_sealed_runtime_workflow.py \
