@@ -399,9 +399,7 @@ def runtime_smoke(args: argparse.Namespace) -> int:
             device="cuda",
         )
         with tempfile.TemporaryDirectory(prefix="dot-cut3r-smoke-") as temporary:
-            frame_paths = _make_synthetic_frames(
-                Path(temporary) / "frames", count=3
-            )
+            frame_paths = _make_synthetic_frames(Path(temporary) / "frames", count=3)
             prediction = runtime.infer(
                 frame_paths,
                 image_size=int(protocol["provider"]["image_size"]),

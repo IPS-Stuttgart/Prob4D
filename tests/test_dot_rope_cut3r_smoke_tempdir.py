@@ -18,7 +18,7 @@ def _load_script():
 
 def test_runtime_smoke_uses_an_uncreated_child_directory() -> None:
     text = SCRIPT.read_text(encoding="utf-8")
-    assert '_make_synthetic_frames(\n                Path(temporary) / "frames", count=3' in text
+    assert '_make_synthetic_frames(Path(temporary) / "frames", count=3)' in text
     assert "_make_synthetic_frames(Path(temporary), count=3)" not in text
 
 
