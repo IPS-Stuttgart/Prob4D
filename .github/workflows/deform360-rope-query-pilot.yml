@@ -1,0 +1,142 @@
+name: Deform360 rope finite-orbit query pilot
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/deform360-rope-query-pilot.yml"
+      - "scripts/science/run_deform360_rope_query_pilot.py"
+      - "protocols/deform360-rope-query-pilot-v1.json"
+      - "tests/test_deform360_rope_query_pilot.py"
+  push:
+    branches: [science/deform360-rope-query-pilot-v1]
+    paths:
+      - ".github/workflows/deform360-rope-query-pilot.yml"
+      - "scripts/science/run_deform360_rope_query_pilot.py"
+      - "protocols/deform360-rope-query-pilot-v1.json"
+      - "tests/test_deform360_rope_query_pilot.py"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deform360-rope-query-pilot-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PROTOCOL_PATH: protocols/deform360-rope-query-pilot-v1.json
+  DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/deform360
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  HF_HUB_DISABLE_PROGRESS_BARS: "1"
+
+jobs:
+  contracts:
+    name: Validate Deform360 rope pilot contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out exact revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Provision Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install focused test dependencies
+        run: python -m pip install --disable-pip-version-check "numpy==2.2.6" "pytest==8.4.1"
+      - name: Validate protocol and mechanism contracts
+        run: |
+          set -euo pipefail
+          python -m compileall -q scripts/science/run_deform360_rope_query_pilot.py
+          python scripts/science/run_deform360_rope_query_pilot.py --self-test
+          python -m pytest -q tests/test_deform360_rope_query_pilot.py
+
+  evaluate:
+    name: Evaluate held-out Deform360 rope episodes on gpuserver4090
+    if: github.event_name == 'push'
+    needs: contracts
+    runs-on: [self-hosted, Linux, X64, gpuserver4090]
+    timeout-minutes: 240
+    steps:
+      - name: Check out exact evaluated revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Verify runner and mounted public dataset
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_OS" = Linux
+          test "$RUNNER_ARCH" = X64
+          test -d "$DATASET_ROOT"
+          test -r "$DATASET_ROOT"
+          echo "runner_name=$RUNNER_NAME"
+          echo "dataset_root=$DATASET_ROOT"
+          echo "revision=$(git rev-parse HEAD)"
+      - name: Prepare isolated runtime and evidence locations
+        shell: bash
+        run: |
+          set -euo pipefail
+          venv="$RUNNER_TEMP/deform360-rope-venv-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          output="$RUNNER_TEMP/deform360-rope-result-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          download="$RUNNER_TEMP/deform360-rope-processed-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          rm -rf -- "$venv" "$output" "$download"
+          python3 -m venv "$venv"
+          "$venv/bin/python" -m pip install --disable-pip-version-check --no-cache-dir \
+            "numpy==2.2.6" "huggingface_hub==0.34.4"
+          echo "PILOT_PY=$venv/bin/python" >> "$GITHUB_ENV"
+          echo "PILOT_VENV=$venv" >> "$GITHUB_ENV"
+          echo "PILOT_OUTPUT=$output" >> "$GITHUB_ENV"
+          echo "PILOT_DOWNLOAD=$download" >> "$GITHUB_ENV"
+      - name: Execute frozen source-calibration-target pilot
+        id: pilot
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          "$PILOT_PY" scripts/science/run_deform360_rope_query_pilot.py \
+            --protocol "$PROTOCOL_PATH" \
+            --dataset-root "$DATASET_ROOT" \
+            --download-root "$PILOT_DOWNLOAD" \
+            --output-dir "$PILOT_OUTPUT" \
+            2>&1 | tee "$RUNNER_TEMP/deform360-rope-pilot.log"
+          status=${PIPESTATUS[0]}
+          cp "$RUNNER_TEMP/deform360-rope-pilot.log" "$PILOT_OUTPUT/run.log"
+          {
+            echo "github_repository=$GITHUB_REPOSITORY"
+            echo "github_revision=$GITHUB_SHA"
+            echo "github_run_id=$GITHUB_RUN_ID"
+            echo "github_run_attempt=$GITHUB_RUN_ATTEMPT"
+            echo "runner_name=$RUNNER_NAME"
+            echo "protocol_sha256=$(sha256sum "$PROTOCOL_PATH" | cut -d' ' -f1)"
+            echo "script_sha256=$(sha256sum scripts/science/run_deform360_rope_query_pilot.py | cut -d' ' -f1)"
+            echo "process_exit_code=$status"
+          } > "$PILOT_OUTPUT/execution_identity.txt"
+          exit "$status"
+      - name: Publish result in the workflow log and summary
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f "$PILOT_OUTPUT/result.json"
+          test -f "$PILOT_OUTPUT/REPORT.md"
+          cat "$PILOT_OUTPUT/result.json"
+          cat "$PILOT_OUTPUT/REPORT.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload complete evidence bundle
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        with:
+          name: deform360-rope-query-pilot-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.PILOT_OUTPUT }}
+          if-no-files-found: error
+          retention-days: 90
+      - name: Remove private scratch
+        if: always()
+        shell: bash
+        run: rm -rf -- "$PILOT_VENV" "$PILOT_DOWNLOAD"
+      - name: Preserve technical failure as a failed run
+        if: steps.pilot.outcome == 'failure'
+        shell: bash
+        run: exit 1
