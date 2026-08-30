@@ -1,0 +1,136 @@
+name: Resolve DOT API file and CUT3R Python on gpuserver6000
+
+on:
+  push:
+    branches: [science/dot-gpuserver6000-direct-v1]
+    paths:
+      - ".github/workflows/dot-gpuserver6000-runtime-discovery-v2.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    runs-on: [self-hosted, Linux, X64, gpuserver6000]
+    environment: trusted-self-hosted-validation
+    timeout-minutes: 30
+    steps:
+      - name: Resolve public archive, writable cache, and CUDA Python
+        shell: bash
+        env:
+          CONFIGURED_CHECKOUT: ${{ vars.CUT3R_CHECKOUT }}
+          CONFIGURED_PYTHON: ${{ vars.CUT3R_PYTHON }}
+          CONFIGURED_CHECKPOINT: ${{ vars.CUT3R_CHECKPOINT }}
+        run: |
+          set -uo pipefail
+          echo "runner=$RUNNER_NAME os=$RUNNER_OS arch=$RUNNER_ARCH"
+          nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv,noheader || true
+
+          echo '--- writable cache candidates ---'
+          for candidate in /mnt/corsair /home/github-runner/.cache "$RUNNER_TEMP" /tmp; do
+            printf '%s exists=%s writable=%s ' "$candidate" "$([[ -d "$candidate" ]] && echo yes || echo no)" "$([[ -w "$candidate" ]] && echo yes || echo no)"
+            df -h "$candidate" 2>/dev/null | tail -1 || true
+          done
+
+          echo '--- official Dataverse metadata ---'
+          metadata="$RUNNER_TEMP/dot-v29-metadata.json"
+          curl --fail --location --silent --show-error --retry 5 --retry-all-errors \
+            'https://dataverse.orc.gmu.edu/api/datasets/:persistentId/?persistentId=doi%3A10.13021%2FORC2020%2FXXLVXM' \
+            --output "$metadata"
+          /usr/bin/python3 - "$metadata" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          version = payload["data"]["latestVersion"]
+          rows = []
+          for item in version["files"]:
+              data = item["dataFile"]
+              if data.get("filename") == "R01-10.zip":
+                  rows.append(
+                      {
+                          "id": data["id"],
+                          "filename": data["filename"],
+                          "filesize": data.get("filesize"),
+                          "checksum": data.get("checksum"),
+                          "contentType": data.get("contentType"),
+                      }
+                  )
+          if len(rows) != 1:
+              raise SystemExit(f"expected one R01-10.zip entry, observed {len(rows)}")
+          print(json.dumps(rows[0], indent=2, sort_keys=True))
+          print(f'DATAFILE_ID={rows[0]["id"]}')
+          PY
+          datafile_id=$(/usr/bin/python3 - "$metadata" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+          payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          matches = [
+              item["dataFile"]["id"]
+              for item in payload["data"]["latestVersion"]["files"]
+              if item["dataFile"].get("filename") == "R01-10.zip"
+          ]
+          assert len(matches) == 1, matches
+          print(matches[0])
+          PY
+          )
+          curl --fail --location --silent --show-error --head --retry 3 --retry-all-errors \
+            "https://dataverse.orc.gmu.edu/api/access/datafile/$datafile_id" | \
+            sed -n '1,20p'
+
+          echo '--- explicit and symlinked Python candidates ---'
+          candidates_file="$RUNNER_TEMP/python-candidates.txt"
+          : > "$candidates_file"
+          for candidate in \
+            "${CONFIGURED_PYTHON:-}" \
+            "$CONFIGURED_CHECKOUT/.venv/bin/python" \
+            "$CONFIGURED_CHECKOUT/venv/bin/python" \
+            /usr/bin/python3 /usr/bin/python \
+            /home/florianpfaff/conda_envs/cut3r/bin/python \
+            /home/florianpfaff/miniconda3/envs/cut3r/bin/python \
+            /home/florian/miniconda3/envs/cut3r/bin/python \
+            /home/github-runner/.conda/envs/cut3r/bin/python \
+            /opt/conda/envs/cut3r/bin/python; do
+            [[ -n "$candidate" ]] && printf '%s\n' "$candidate" >> "$candidates_file"
+          done
+          while IFS= read -r candidate; do
+            printf '%s\n' "$candidate" >> "$candidates_file"
+          done < <(
+            timeout 300 find /mnt/corsair /home /opt -maxdepth 12 \
+              \( -type f -o -type l \) \
+              \( -path '*/bin/python' -o -path '*/bin/python3' \) \
+              -print 2>/dev/null | sort || true
+          )
+          sort -u "$candidates_file" -o "$candidates_file"
+
+          passed=0
+          while IFS= read -r candidate; do
+            [[ -x "$candidate" ]] || continue
+            echo "::group::candidate $candidate"
+            ls -l "$candidate" || true
+            if timeout 45 "$candidate" - <<'PY'
+          import sys
+          print(f"python={sys.version.split()[0]}")
+          import numpy
+          import PIL
+          import torch
+          print(f"numpy={numpy.__version__}")
+          print(f"PIL={PIL.__version__}")
+          print(f"torch={torch.__version__}")
+          print(f"cuda_available={torch.cuda.is_available()}")
+          if not torch.cuda.is_available():
+              raise SystemExit(3)
+          print(f"cuda_device={torch.cuda.get_device_name(0)}")
+          PY
+            then
+              echo "PASS_CUDA_PYTHON=$candidate"
+              passed=$((passed + 1))
+            else
+              echo "REJECTED=$candidate"
+            fi
+            echo '::endgroup::'
+          done < "$candidates_file"
+          echo "passing_cuda_python_count=$passed"
+          test "$passed" -ge 1
