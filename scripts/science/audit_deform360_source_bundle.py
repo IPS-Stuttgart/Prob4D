@@ -25,9 +25,7 @@ REQUEST_SCHEMA = "prob4d.deform360-source-bundle-audit-request"
 RESULT_SCHEMA = "prob4d.deform360-source-bundle-audit-result"
 PROFILE = "deform360-source-bundle-audit-v1"
 ISSUE_NUMBER = 49
-EXPECTED_SOURCE_ROOT = Path(
-    "/home/florianpfaff/deform360-fresh-source-processed-v1-1a3f9b1"
-)
+EXPECTED_SOURCE_ROOT = Path("/home/florianpfaff/deform360-fresh-source-processed-v1-1a3f9b1")
 EXPECTED_RUNNER_LABEL = "gpuserver4090"
 EXPECTED_PROTOCOL_PATH = "protocols/deform360-source-bundle-audit-v1.json"
 EXPECTED_FORBIDDEN_TOKENS = (
@@ -96,9 +94,7 @@ def _require_int(
 
 def _require_sha(value: object, *, name: str, length: int) -> str:
     text = str(value)
-    if len(text) != length or any(
-        character not in "0123456789abcdef" for character in text
-    ):
+    if len(text) != length or any(character not in "0123456789abcdef" for character in text):
         raise AuditContractError(f"{name} must be a lowercase {length}-hex digest")
     return text
 
@@ -302,9 +298,7 @@ def scan_source_root(
                 break
 
             relative_path = (
-                entry.name
-                if not relative_directory
-                else f"{relative_directory}/{entry.name}"
+                entry.name if not relative_directory else f"{relative_directory}/{entry.name}"
             )
             depth = directory_depth + 1
             if depth > max_depth:
@@ -358,9 +352,7 @@ def scan_source_root(
 
     inventory = {
         "metadata_manifest_sha256": manifest.hexdigest(),
-        "metadata_manifest_semantics": (
-            "relative path, lstat type, POSIX mode, and size only"
-        ),
+        "metadata_manifest_semantics": ("relative path, lstat type, POSIX mode, and size only"),
         "entry_count_excluding_root": entry_count,
         "counts_including_root": dict(sorted(counts.items())),
         "total_regular_file_bytes": total_file_bytes,
@@ -370,8 +362,7 @@ def scan_source_root(
         },
         "extension_counts": dict(sorted(extensions.items())),
         "top_level": {
-            name: dict(sorted(summary.items()))
-            for name, summary in sorted(top_level.items())
+            name: dict(sorted(summary.items())) for name, summary in sorted(top_level.items())
         },
         "largest_regular_files": [
             {"path": path, "size_bytes": size}
