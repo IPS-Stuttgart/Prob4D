@@ -234,10 +234,15 @@ jobs:
           import json
           import os
           from pathlib import Path
+
           value = json.loads(Path(os.environ["PROVIDER_MANIFEST"]).read_text(encoding="utf-8"))
           assert value["decision"] == "sealed-provider-predictions"
-          assert value["marker_payloads_opened"] is False
-          print("provider_artifact_id=" + value["artifact_id"])
+          boundary = value["information_boundary"]
+          assert boundary["normal_view_images_opened"] is True
+          assert boundary["two_dimensional_markers_opened"] is False
+          assert boundary["three_dimensional_markers_opened"] is False
+          assert boundary["target_payloads_opened"] is False
+          print("provider_bundle_id=" + value["provider_bundle_id"])
           PY
       - name: Evaluate sealed predictions against R01-R03 markers
         shell: bash
