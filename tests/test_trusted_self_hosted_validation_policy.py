@@ -10,6 +10,8 @@ SOURCE_FREEZE_AUTO_V2_WORKFLOW = WORKFLOW_ROOT / "cut3r-source-freeze-auto-v2.ym
 CUT3R_CHECKOUT_TRUST_RERUN_WORKFLOW = WORKFLOW_ROOT / "cut3r-checkout-trust-rerun-v1.yml"
 CUT3R_SOURCE_COMPARISON_V2_WORKFLOW = WORKFLOW_ROOT / "cut3r-source-comparison-v2.yml"
 POINTWORLD_MODEL_LOAD_SMOKE_WORKFLOW = WORKFLOW_ROOT / "pointworld-model-load-smoke.yml"
+DEFORM360_SOURCE_BUNDLE_AUDIT_WORKFLOW = WORKFLOW_ROOT / "deform360-source-bundle-audit.yml"
+DOT_ROPE_CUT3R_NATIVE_PROVIDER_WORKFLOW = WORKFLOW_ROOT / "dot-rope-cut3r-native-provider-v1.yml"
 CUT3R_RUNNER_SELECTOR = (
     "runs-on: [self-hosted, Linux, X64, nvidia-smi, "
     + "data-prob4d-deform360-source-v1, prob4d-cut3r]"
@@ -22,6 +24,8 @@ TRUSTED_SELF_HOSTED_WORKFLOWS = (
     SOURCE_FREEZE_AUTO_V2_WORKFLOW,
     CUT3R_CHECKOUT_TRUST_RERUN_WORKFLOW,
     POINTWORLD_MODEL_LOAD_SMOKE_WORKFLOW,
+    DEFORM360_SOURCE_BUNDLE_AUDIT_WORKFLOW,
+    DOT_ROPE_CUT3R_NATIVE_PROVIDER_WORKFLOW,
 )
 REMOVED_TEMPORARY_WORKFLOWS = (
     WORKFLOW_ROOT / "issue-49-protected-cohort-inventory.yml",
@@ -335,6 +339,22 @@ def test_pointworld_model_load_smoke_is_main_request_bound_and_target_closed() -
     assert "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02" in execute
     assert "permissions:\n      contents: read\n      issues: write" in report
     assert "runs-on: ubuntu-latest" in report
+
+
+def test_dot_rope_cut3r_provider_is_main_request_bound_and_stage_sealed() -> None:
+    text = DOT_ROPE_CUT3R_NATIVE_PROVIDER_WORKFLOW.read_text(encoding="utf-8")
+    assert "branches: [main]" in text
+    assert "dot_rope_cut3r_native_provider_v1.json" in text
+    assert "pull_request_target:" not in text
+    assert "runs-on: [self-hosted, Linux, X64, gpuserver4090]" in text
+    assert 'test "$RUNNER_NAME" = "workstation1"' in text
+    assert "DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/dot" in text
+    assert "native-rope-extension.tar.gz" in text
+    assert "sealed-provider-predictions" in text
+    assert "complete-source-evaluation" in text
+    assert "R04-R70" in text
+    assert "secrets." not in text
+    assert "git push" not in text
 
 
 def test_source_comparison_v2_issue_trigger_is_terminally_removed() -> None:

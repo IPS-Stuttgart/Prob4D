@@ -1,0 +1,21 @@
+{
+  "bayesian_phystwin_executed": false,
+  "causal4d_executed": false,
+  "claim_boundary": "Source-development marker-free-provider evidence on R01-R03 only, executed through the reviewed gpuserver4090 control plane against the official DOT V29 root. R04-R70 remain unopened. This experiment does not establish held-out transfer, real uncertainty calibration, BayesianPhysTwin benefit, Causal4D benefit, safety, or state of the art.",
+  "marker_2d_evaluation_authorized": true,
+  "marker_3d_evaluation_authorized": true,
+  "normal_view_prediction_authorized": true,
+  "protocol_git_blob_sha": "eaf84956189015c35e53a521cf1b152ca813e680",
+  "protocol_path": "protocols/dot-rope-cut3r-native-provider-v1.json",
+  "request_id": "93fa0abd39bb275bc6c31502d26fb348e20bf2c6494de16046c0baa7b3fb48b2",
+  "reserved_sequences": "R04-R70",
+  "runtime_smoke_authorized": true,
+  "schema": "prob4d.dot-rope-cut3r-native-provider-request",
+  "schema_version": 1,
+  "source_sequences": [
+    "R01",
+    "R02",
+    "R03"
+  ],
+  "target_payloads_opened": false
+}

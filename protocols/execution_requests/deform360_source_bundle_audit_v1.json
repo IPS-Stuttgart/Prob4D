@@ -1,0 +1,19 @@
+{
+  "claim_boundary": "Metadata-only source-bundle inventory. No dataset file content, provider prediction, residual, target payload, target outcome, BayesianPhysTwin innovation, or Causal4D outcome is authorized.",
+  "dataset_mutation_authorized": false,
+  "execution_authorized": true,
+  "file_content_reads_authorized": false,
+  "issue_number": 49,
+  "metadata_access_authorized": true,
+  "prediction_execution_authorized": false,
+  "profile": "deform360-source-bundle-audit-v1",
+  "protocol_id": "cf2d49aa7d7e174d6fb76d8773072c7d99463c13f5ec50eb2c844ef31422455a",
+  "provider_residuals_authorized": false,
+  "request_id": "4a613c24f18f38495569c722a2ce32e79f7aeb0472a0bafeb7e5dccb047a8a16",
+  "schema": "prob4d.deform360-source-bundle-audit-request",
+  "schema_version": 1,
+  "source_protocol_git_blob_sha": "72ef8a49e942c42d7557ed8f1115e6082b78d29e",
+  "source_protocol_path": "protocols/deform360-source-bundle-audit-v1.json",
+  "target_outcomes_authorized": false,
+  "target_payloads_authorized": false
+}

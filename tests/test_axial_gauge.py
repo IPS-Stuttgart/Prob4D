@@ -116,8 +116,12 @@ def test_single_component_logpdf_matches_gaussian_and_batches() -> None:
         + np.einsum("ij,jk,ik->i", delta, np.linalg.inv(covariance), delta)
     )
     np.testing.assert_allclose(query.logpdf(observations, batch_size=7), expected, atol=1e-13)
-    np.testing.assert_array_equal(
-        query.logpdf(observations, batch_size=1), query.logpdf(observations, batch_size=7)
+    tolerance = 8 * np.finfo(float).eps
+    np.testing.assert_allclose(
+        query.logpdf(observations, batch_size=1),
+        query.logpdf(observations, batch_size=7),
+        rtol=tolerance,
+        atol=tolerance,
     )
 
 

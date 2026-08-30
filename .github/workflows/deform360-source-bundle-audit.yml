@@ -1,0 +1,477 @@
+name: Deform360 source-bundle audit
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/deform360-source-bundle-audit.yml"
+      - "scripts/science/audit_deform360_source_bundle.py"
+      - "protocols/deform360-source-bundle-audit-v1.json"
+      - "tests/test_deform360_source_bundle_audit.py"
+      - "tests/test_deform360_source_bundle_workflow_policy.py"
+      - "tests/test_trusted_self_hosted_validation_policy.py"
+      - "docs/deform360-source-bundle-audit.md"
+  push:
+    branches: [main]
+    paths:
+      - "protocols/execution_requests/deform360_source_bundle_audit_v1.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deform360-source-bundle-audit-${{ github.ref }}-${{ github.sha }}
+  cancel-in-progress: false
+
+env:
+  REQUEST_PATH: protocols/execution_requests/deform360_source_bundle_audit_v1.json
+  PROTOCOL_PATH: protocols/deform360-source-bundle-audit-v1.json
+  SOURCE_ROOT: /home/florianpfaff/deform360-fresh-source-processed-v1-1a3f9b1
+  metadata_access_authorized: "true"
+  file_content_reads_authorized: "false"
+  prediction_execution_authorized: "false"
+  provider_residuals_authorized: "false"
+  root_symlink_target_reporting_authorized: "true"
+  target_payloads_authorized: "false"
+  target_outcomes_authorized: "false"
+  dataset_mutation_authorized: "false"
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+
+jobs:
+  contract:
+    name: Validate metadata-audit control plane
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out proposed source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Provision Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install development environment
+        run: python -m pip install --no-cache-dir ".[dev]"
+      - name: Validate source, protocol, tests, and workflow policy
+        run: |
+          set -euo pipefail
+          python scripts/science/audit_deform360_source_bundle.py \
+            validate-protocol --protocol "$PROTOCOL_PATH"
+          python -m ruff check \
+            scripts/science/audit_deform360_source_bundle.py \
+            tests/test_deform360_source_bundle_audit.py \
+            tests/test_deform360_source_bundle_workflow_policy.py \
+            tests/test_trusted_self_hosted_validation_policy.py
+          python -m ruff format --check \
+            scripts/science/audit_deform360_source_bundle.py \
+            tests/test_deform360_source_bundle_audit.py \
+            tests/test_deform360_source_bundle_workflow_policy.py \
+            tests/test_trusted_self_hosted_validation_policy.py
+          python -m pytest -q \
+            tests/test_deform360_source_bundle_audit.py \
+            tests/test_deform360_source_bundle_workflow_policy.py \
+            tests/test_trusted_self_hosted_validation_policy.py \
+            tests/test_github_action_pins.py
+          python -m compileall -q scripts/science/audit_deform360_source_bundle.py
+
+  authorize:
+    name: Authorize merged metadata-only request
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      request_id: ${{ steps.request.outputs.request_id }}
+      head_sha: ${{ steps.request.outputs.head_sha }}
+      source_protocol_git_blob_sha: ${{ steps.request.outputs.source_protocol_git_blob_sha }}
+    steps:
+      - name: Check out exact merged revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require one non-forced main request change
+        id: request
+        shell: bash
+        env:
+          EVENT_REF: ${{ github.ref }}
+          EVENT_BEFORE: ${{ github.event.before }}
+          EVENT_AFTER: ${{ github.event.after }}
+          EVENT_FORCED: ${{ github.event.forced }}
+          EVENT_DELETED: ${{ github.event.deleted }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_REF" = "refs/heads/main"
+          test "$EVENT_FORCED" = "false"
+          test "$EVENT_DELETED" = "false"
+          test "$EVENT_AFTER" = "$(/usr/bin/git rev-parse HEAD)"
+          test "$EVENT_BEFORE" != "0000000000000000000000000000000000000000"
+          mapfile -t changed < <(
+            /usr/bin/git diff --name-only "$EVENT_BEFORE" "$EVENT_AFTER" | sort
+          )
+          if [[ ${#changed[@]} -ne 1 || "${changed[0]}" != "$REQUEST_PATH" ]]; then
+            printf 'Expected only %s; changed paths were:\n' "$REQUEST_PATH" >&2
+            printf '  %s\n' "${changed[@]}" >&2
+            exit 2
+          fi
+          test -f "$REQUEST_PATH"
+          test -f "$PROTOCOL_PATH"
+          source_blob=$(/usr/bin/git rev-parse "$EVENT_AFTER:$PROTOCOL_PATH")
+          validation=$(
+            /usr/bin/python3 scripts/science/audit_deform360_source_bundle.py \
+              validate-request \
+              --request "$REQUEST_PATH" \
+              --protocol "$PROTOCOL_PATH" \
+              --source-protocol-git-blob-sha "$source_blob"
+          )
+          request_id=$(
+            VALIDATION="$validation" /usr/bin/python3 - <<'PY'
+          import json
+          import os
+
+          print(json.loads(os.environ["VALIDATION"])["request_id"])
+          PY
+          )
+          echo "request_id=$request_id" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$EVENT_AFTER" >> "$GITHUB_OUTPUT"
+          echo "source_protocol_git_blob_sha=$source_blob" >> "$GITHUB_OUTPUT"
+
+  execute:
+    name: Audit Deform360 source bundle on gpuserver4090
+    if: github.event_name == 'push'
+    needs: authorize
+    environment: trusted-self-hosted-validation
+    runs-on: [self-hosted, gpuserver4090]
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    outputs:
+      decision: ${{ steps.finalize.outputs.decision }}
+      audit_id: ${{ steps.finalize.outputs.audit_id }}
+      metadata_manifest_sha256: ${{ steps.finalize.outputs.metadata_manifest_sha256 }}
+      file_count: ${{ steps.finalize.outputs.file_count }}
+      directory_count: ${{ steps.finalize.outputs.directory_count }}
+      total_regular_file_bytes: ${{ steps.finalize.outputs.total_regular_file_bytes }}
+      forbidden_skipped: ${{ steps.finalize.outputs.forbidden_skipped }}
+    steps:
+      - name: Require the intended runner class
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_OS" = "Linux"
+          test "$RUNNER_ARCH" = "X64"
+          test -x /usr/bin/python3
+      - name: Initialize isolated output workspace
+        id: workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${RUNNER_TEMP}/prob4d-deform360-source-audit-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          /usr/bin/rm -rf -- "$root"
+          /usr/bin/mkdir -p "$root/evidence"
+          echo "root=$root" >> "$GITHUB_OUTPUT"
+      - name: Check out exact authorized Prob4D revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.authorize.outputs.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify clean exact checkout and fixed source boundary
+        shell: bash
+        env:
+          EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          test "$(/usr/bin/git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test -z "$(/usr/bin/git status --porcelain=v1 --untracked-files=all)"
+          test "$SOURCE_ROOT" = \
+            "/home/florianpfaff/deform360-fresh-source-processed-v1-1a3f9b1"
+          test "$metadata_access_authorized" = "true"
+          test "$file_content_reads_authorized" = "false"
+          test "$prediction_execution_authorized" = "false"
+          test "$provider_residuals_authorized" = "false"
+          test "$root_symlink_target_reporting_authorized" = "true"
+          test "$target_payloads_authorized" = "false"
+          test "$target_outcomes_authorized" = "false"
+          test "$dataset_mutation_authorized" = "false"
+      - name: Build bounded metadata-only inventory
+        id: inventory
+        continue-on-error: true
+        shell: bash
+        env:
+          EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+          REQUEST_ID: ${{ needs.authorize.outputs.request_id }}
+          SOURCE_PROTOCOL_GIT_BLOB_SHA: ${{ needs.authorize.outputs.source_protocol_git_blob_sha }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          /usr/bin/python3 scripts/science/audit_deform360_source_bundle.py \
+            inventory \
+            --request "$REQUEST_PATH" \
+            --protocol "$PROTOCOL_PATH" \
+            --source-protocol-git-blob-sha "$SOURCE_PROTOCOL_GIT_BLOB_SHA" \
+            --prob4d-revision "$EXPECTED_HEAD_SHA" \
+            --runner-name "$RUNNER_NAME" \
+            --github-run-id "$GITHUB_RUN_ID" \
+            --output "$root/evidence/result.json" \
+            --summary "$root/evidence/summary.md"
+      - name: Build sanitized outputs
+        id: finalize
+        if: always()
+        shell: bash
+        env:
+          INVENTORY_OUTCOME: ${{ steps.inventory.outcome }}
+          REQUEST_ID: ${{ needs.authorize.outputs.request_id }}
+          EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          result="$root/evidence/result.json"
+          if [[ ! -f "$result" ]]; then
+            RESULT="$result" /usr/bin/python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+
+          record = {
+              "schema": "prob4d.deform360-source-bundle-audit-result",
+              "schema_version": 1,
+              "profile": "deform360-source-bundle-audit-v1",
+              "decision": "audit-technical-failure",
+              "request_id": os.environ["REQUEST_ID"],
+              "prob4d_revision": os.environ["EXPECTED_HEAD_SHA"],
+              "execution_boundary": {
+                  "dataset_file_contents_opened": False,
+                  "prediction_executed": False,
+                  "provider_residuals_opened": False,
+                  "target_payloads_opened": False,
+                  "target_outcomes_opened": False,
+                  "dataset_mutated": False,
+              },
+              "inventory": {},
+              "claim_boundary": (
+                  "Metadata-only source-bundle inventory failed before a complete "
+                  "inventory was produced; no target or file-content access was authorized."
+              ),
+          }
+          canonical = json.dumps(
+              record,
+              sort_keys=True,
+              separators=(",", ":"),
+          ).encode("utf-8")
+          record["audit_id"] = hashlib.sha256(canonical).hexdigest()
+          with open(os.environ["RESULT"], "w", encoding="utf-8") as output:
+              json.dump(record, output, indent=2, sort_keys=True)
+              output.write("\n")
+          PY
+          fi
+          RESULT="$result" /usr/bin/python3 - <<'PY'
+          import json
+          import os
+
+          result = json.load(open(os.environ["RESULT"], encoding="utf-8"))
+          inventory = result.get("inventory") or {}
+          counts = inventory.get("counts_including_root") or {}
+          values = {
+              "decision": result.get("decision", "audit-technical-failure"),
+              "audit_id": result.get("audit_id", "unavailable"),
+              "metadata_manifest_sha256": inventory.get(
+                  "metadata_manifest_sha256", "unavailable"
+              ),
+              "file_count": counts.get("file", 0),
+              "directory_count": counts.get("directory", 0),
+              "total_regular_file_bytes": inventory.get(
+                  "total_regular_file_bytes", 0
+              ),
+              "forbidden_skipped": inventory.get(
+                  "forbidden_path_components_skipped", 0
+              ),
+          }
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              for key, value in values.items():
+                  output.write(f"{key}={value}\n")
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              summary.write("## Deform360 source-bundle metadata audit\n\n")
+              for key, value in values.items():
+                  summary.write(f"- **{key}:** `{value}`\n")
+              summary.write(
+                  "\nNo dataset file contents, predictions, residuals, target payloads, "
+                  "or target outcomes were authorized.\n"
+              )
+          PY
+      - name: Record non-followed source-root link target
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          ROOT_LINK_RESULT="$root/evidence/root-symlink.json" \
+          /usr/bin/python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          import stat
+          from pathlib import Path
+
+          protocol = json.load(open(os.environ["PROTOCOL_PATH"], encoding="utf-8"))
+          if protocol.get("root_symlink_target_reporting_authorized") is not True:
+              raise SystemExit("root symlink target reporting is not authorized")
+          source = Path(os.environ["SOURCE_ROOT"])
+          metadata = source.lstat()
+          if not stat.S_ISLNK(metadata.st_mode):
+              record = {
+                  "schema": "prob4d.deform360-source-root-link",
+                  "schema_version": 1,
+                  "decision": "source-root-not-symlink",
+                  "source_root": str(source),
+                  "target_lstat_performed": False,
+                  "target_traversed": False,
+              }
+          else:
+              raw_target = os.readlink(source)
+              if not raw_target or len(raw_target) > 4096:
+                  raise SystemExit("source-root symlink target has invalid length")
+              if any(ord(character) < 32 or ord(character) == 127 for character in raw_target):
+                  raise SystemExit("source-root symlink target contains control characters")
+              lexical_absolute = os.path.normpath(
+                  raw_target
+                  if os.path.isabs(raw_target)
+                  else os.path.join(str(source.parent), raw_target)
+              )
+              normalized_parts = [
+                  part.casefold().replace("_", "-").replace(" ", "-")
+                  for part in Path(lexical_absolute).parts
+              ]
+              forbidden_tokens = tuple(protocol["forbidden_path_tokens"])
+              matched_forbidden_tokens = sorted(
+                  {
+                      token
+                      for token in forbidden_tokens
+                      if any(token in part for part in normalized_parts)
+                  }
+              )
+              record = {
+                  "schema": "prob4d.deform360-source-root-link",
+                  "schema_version": 1,
+                  "decision": "source-root-symlink-target-reported",
+                  "source_root": str(source),
+                  "symlink_target": raw_target,
+                  "lexical_absolute_target": lexical_absolute,
+                  "symlink_target_sha256": hashlib.sha256(raw_target.encode()).hexdigest(),
+                  "matched_forbidden_tokens": matched_forbidden_tokens,
+                  "target_lstat_performed": False,
+                  "target_traversed": False,
+                  "dataset_file_contents_opened": False,
+                  "dataset_mutated": False,
+              }
+          with open(os.environ["ROOT_LINK_RESULT"], "w", encoding="utf-8") as output:
+              json.dump(record, output, indent=2, sort_keys=True)
+              output.write("\n")
+          PY
+      - name: Upload sanitized metadata evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: deform360-source-bundle-audit-${{ needs.authorize.outputs.request_id }}
+          path: ${{ steps.workspace.outputs.root }}/evidence
+          if-no-files-found: error
+          retention-days: 30
+      - name: Enforce bounded source decision
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          decision="${{ steps.finalize.outputs.decision }}"
+          if [[ "$decision" = "source-bundle-present" ]]; then
+            exit 0
+          fi
+          test "$decision" = "source-root-symlink-rejected"
+          ROOT_LINK_RESULT="${{ steps.workspace.outputs.root }}/evidence/root-symlink.json" \
+          /usr/bin/python3 - <<'PY'
+          import json
+          import os
+
+          record = json.load(open(os.environ["ROOT_LINK_RESULT"], encoding="utf-8"))
+          if record.get("decision") != "source-root-symlink-target-reported":
+              raise SystemExit("source-root link target was not reported")
+          if record.get("target_lstat_performed") is not False:
+              raise SystemExit("source-root link target was unexpectedly inspected")
+          if record.get("target_traversed") is not False:
+              raise SystemExit("source-root link target was unexpectedly traversed")
+          PY
+      - name: Remove isolated output workspace
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          test -n "$root"
+          /usr/bin/rm -rf -- "$root"
+
+  report:
+    name: Report source-bundle audit
+    if: always() && github.event_name == 'push'
+    needs: [authorize, execute]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Post result to issue 49
+        shell: bash
+        env:
+          API_URL: ${{ github.api_url }}
+          REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+          REQUEST_ID: ${{ needs.authorize.outputs.request_id }}
+          EXECUTE_RESULT: ${{ needs.execute.result }}
+          DECISION: ${{ needs.execute.outputs.decision }}
+          AUDIT_ID: ${{ needs.execute.outputs.audit_id }}
+          MANIFEST_SHA256: ${{ needs.execute.outputs.metadata_manifest_sha256 }}
+          FILE_COUNT: ${{ needs.execute.outputs.file_count }}
+          DIRECTORY_COUNT: ${{ needs.execute.outputs.directory_count }}
+          TOTAL_BYTES: ${{ needs.execute.outputs.total_regular_file_bytes }}
+          FORBIDDEN_SKIPPED: ${{ needs.execute.outputs.forbidden_skipped }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          /usr/bin/python3 - <<'PY'
+          import json
+          import os
+          import urllib.request
+
+          body = f"""Deform360 processed source-bundle metadata audit completed.
+
+          - Request: `{os.environ.get('REQUEST_ID') or 'unavailable'}`
+          - Workflow result: `{os.environ.get('EXECUTE_RESULT') or 'unavailable'}`
+          - Audit decision: `{os.environ.get('DECISION') or 'unavailable'}`
+          - Audit ID: `{os.environ.get('AUDIT_ID') or 'unavailable'}`
+          - Metadata-manifest SHA-256: `{os.environ.get('MANIFEST_SHA256') or 'unavailable'}`
+          - Regular files: `{os.environ.get('FILE_COUNT') or '0'}`
+          - Directories including root: `{os.environ.get('DIRECTORY_COUNT') or '0'}`
+          - Regular-file bytes: `{os.environ.get('TOTAL_BYTES') or '0'}`
+          - Forbidden path components skipped: `{os.environ.get('FORBIDDEN_SKIPPED') or '0'}`
+          - Run: {os.environ['RUN_URL']}
+
+          This was a read-only metadata audit of the fixed processed source root on `gpuserver4090`. It did not open dataset file contents, follow symlinks, execute predictions, inspect provider residuals, open target payloads/outcomes, or modify the dataset. A positive inventory decision establishes availability and structure only, not provider competence or physical benefit.
+          """
+          request = urllib.request.Request(
+              f"{os.environ['API_URL']}/repos/{os.environ['REPOSITORY']}/issues/49/comments",
+              data=json.dumps({"body": body}).encode("utf-8"),
+              headers={
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
+                  "Content-Type": "application/json",
+                  "X-GitHub-Api-Version": "2022-11-28",
+              },
+              method="POST",
+          )
+          with urllib.request.urlopen(request, timeout=30) as response:
+              if response.status not in {200, 201}:
+                  raise SystemExit(f"issue comment failed with HTTP {response.status}")
+          PY

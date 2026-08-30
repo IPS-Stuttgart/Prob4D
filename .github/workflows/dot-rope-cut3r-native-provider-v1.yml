@@ -1,0 +1,594 @@
+name: DOT rope CUT3R native provider v1
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/dot-rope-cut3r-native-provider-v1.yml"
+      - "CHANGELOG.d/dot-rope-cut3r-native-provider-v1.md"
+      - "docs/dot-rope-cut3r-native-provider-v1.md"
+      - "protocols/dot-rope-cut3r-native-provider-v1.json"
+      - "scripts/science/run_dot_rope_cut3r_native_provider.py"
+      - "src/prob4d/dot_rope_cut3r_study.py"
+      - "tests/test_dot_rope_cut3r_native_provider.py"
+      - "tests/test_trusted_self_hosted_validation_policy.py"
+  push:
+    branches: [main]
+    paths:
+      - "protocols/execution_requests/dot_rope_cut3r_native_provider_v1.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dot-rope-cut3r-native-provider-v1-${{ github.ref }}-${{ github.sha }}
+  cancel-in-progress: false
+
+env:
+  REQUEST_PATH: protocols/execution_requests/dot_rope_cut3r_native_provider_v1.json
+  PROTOCOL_PATH: protocols/dot-rope-cut3r-native-provider-v1.json
+  DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/dot
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+
+jobs:
+  contract:
+    name: Validate reviewed DOT provider control plane
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out reviewed revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          clean: true
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Validate source, tests, and self-hosted policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -e ".[dev]"
+          python -m pip check
+          python -m ruff check \
+            scripts/science/run_dot_rope_cut3r_native_provider.py \
+            src/prob4d/dot_rope_cut3r_study.py \
+            tests/test_dot_rope_cut3r_native_provider.py \
+            tests/test_trusted_self_hosted_validation_policy.py
+          python -m ruff format --check \
+            scripts/science/run_dot_rope_cut3r_native_provider.py \
+            src/prob4d/dot_rope_cut3r_study.py \
+            tests/test_dot_rope_cut3r_native_provider.py \
+            tests/test_trusted_self_hosted_validation_policy.py
+          python -m pytest -q \
+            tests/test_dot_rope_cut3r_native_provider.py \
+            tests/test_trusted_self_hosted_validation_policy.py \
+            tests/test_github_action_pins.py
+          python -m compileall -q \
+            scripts/science/run_dot_rope_cut3r_native_provider.py \
+            src/prob4d/dot_rope_cut3r_study.py
+
+  authorize:
+    name: Authorize immutable merged-main request
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      request_id: ${{ steps.request.outputs.request_id }}
+      protocol_id: ${{ steps.request.outputs.protocol_id }}
+      protocol_git_blob_sha: ${{ steps.request.outputs.protocol_git_blob_sha }}
+      head_sha: ${{ steps.request.outputs.head_sha }}
+    steps:
+      - name: Check out exact merged revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+          clean: true
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Require exactly one non-forced request-file change
+        id: request
+        shell: bash
+        env:
+          EVENT_REF: ${{ github.ref }}
+          EVENT_BEFORE: ${{ github.event.before }}
+          EVENT_AFTER: ${{ github.event.after }}
+          EVENT_FORCED: ${{ github.event.forced }}
+          EVENT_DELETED: ${{ github.event.deleted }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_REF" = "refs/heads/main"
+          test "$EVENT_AFTER" = "$(/usr/bin/git rev-parse HEAD)"
+          test "$EVENT_FORCED" = "false"
+          test "$EVENT_DELETED" = "false"
+          test "$EVENT_BEFORE" != "0000000000000000000000000000000000000000"
+          mapfile -t changed < <(
+            /usr/bin/git diff --name-only "$EVENT_BEFORE" "$EVENT_AFTER" | sort
+          )
+          if [[ ${#changed[@]} -ne 1 || "${changed[0]}" != "$REQUEST_PATH" ]]; then
+            printf 'Expected only %s; changed paths were:\n' "$REQUEST_PATH" >&2
+            printf '  %s\n' "${changed[@]}" >&2
+            exit 2
+          fi
+          protocol_blob=$(/usr/bin/git rev-parse "$EVENT_AFTER:$PROTOCOL_PATH")
+          python -m pip install -e .
+          validation=$(
+            python scripts/science/run_dot_rope_cut3r_native_provider.py \
+              validate-request \
+              --request "$REQUEST_PATH" \
+              --protocol "$PROTOCOL_PATH" \
+              --protocol-git-blob-sha "$protocol_blob"
+          )
+          VALIDATION="$validation" \
+            PROTOCOL_BLOB="$protocol_blob" \
+            /usr/bin/python3 - <<'PY'
+          import json
+          import os
+
+          value = json.loads(os.environ["VALIDATION"])
+          outputs = {
+              "request_id": value["request_id"],
+              "protocol_id": value["protocol_id"],
+              "protocol_git_blob_sha": os.environ["PROTOCOL_BLOB"],
+              "head_sha": os.environ["EVENT_AFTER"],
+          }
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              for key, item in outputs.items():
+                  output.write(f"{key}={item}\n")
+          PY
+
+  provider:
+    name: Seal marker-free DOT predictions on gpuserver4090
+    if: github.event_name == 'push'
+    needs: authorize
+    environment: trusted-self-hosted-validation
+    runs-on: [self-hosted, Linux, X64, gpuserver4090]
+    timeout-minutes: 360
+    permissions:
+      contents: read
+    outputs:
+      decision: ${{ steps.result.outputs.decision }}
+      runtime_artifact_id: ${{ steps.result.outputs.runtime_artifact_id }}
+      provider_bundle_id: ${{ steps.result.outputs.provider_bundle_id }}
+    steps:
+      - name: Initialize isolated provider workspace
+        id: workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${RUNNER_TEMP}/prob4d-dot-cut3r-provider-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          /usr/bin/rm -rf -- "$root"
+          /usr/bin/mkdir -p "$root/provider" "$root/home" "$root/cache" "$root/tmp"
+          echo "root=$root" >> "$GITHUB_OUTPUT"
+          {
+            echo "HOME=$root/home"
+            echo "XDG_CACHE_HOME=$root/cache"
+            echo "TMPDIR=$root/tmp"
+            echo "TORCH_EXTENSIONS_DIR=$root/cache/torch-extensions"
+            echo "WANDB_MODE=disabled"
+            echo "WANDB_DISABLED=true"
+          } >> "$GITHUB_ENV"
+      - name: Require the intended runner and mounted archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_NAME" = "workstation1"
+          test "$RUNNER_OS" = "Linux"
+          test "$RUNNER_ARCH" = "X64"
+          command -v nvidia-smi >/dev/null 2>&1
+          test -d "$DATASET_ROOT"
+          test -r "$DATASET_ROOT/R01-10.zip"
+          nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv,noheader
+      - name: Check out exact authorized revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.authorize.outputs.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+      - name: Verify clean exact checkout
+        shell: bash
+        env:
+          EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          test "$(/usr/bin/git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test -z "$(/usr/bin/git status --porcelain=v1 --untracked-files=all)"
+      - name: Select the retained CUT3R interpreter
+        id: python
+        shell: bash
+        env:
+          CUT3R_CHECKOUT: ${{ vars.CUT3R_CHECKOUT }}
+          CUT3R_PYTHON: ${{ vars.CUT3R_PYTHON }}
+        run: |
+          set -euo pipefail
+          test -n "${CUT3R_CHECKOUT:-}"
+          test -d "$CUT3R_CHECKOUT"
+          candidates=(
+            "${CUT3R_PYTHON:-}"
+            "$CUT3R_CHECKOUT/.venv/bin/python"
+            "/home/florianpfaff/conda_envs/cut3r/bin/python"
+            "/home/florianpfaff/miniconda3/envs/cut3r/bin/python"
+            "/home/florian/conda_envs/cut3r/bin/python"
+            "/home/github-runner/.conda/envs/cut3r/bin/python"
+          )
+          selected=""
+          for candidate in "${candidates[@]}"; do
+            [[ -n "$candidate" && -x "$candidate" ]] || continue
+            if "$candidate" - <<'PY' >/dev/null 2>&1
+          import numpy
+          import PIL
+          import torch
+          assert torch.cuda.is_available()
+          PY
+            then
+              selected="$candidate"
+              break
+            fi
+          done
+          test -n "$selected" || {
+            echo "No retained CUDA CUT3R Python environment is usable" >&2
+            exit 2
+          }
+          echo "python=$selected" >> "$GITHUB_OUTPUT"
+      - name: Copy and bind the native-RoPE runtime
+        shell: bash
+        env:
+          CUT3R_CHECKOUT: ${{ vars.CUT3R_CHECKOUT }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          /usr/bin/mkdir -p "$root/CUT3R"
+          /usr/bin/cp -a "$CUT3R_CHECKOUT/." "$root/CUT3R/"
+          PYTHONPATH="$GITHUB_WORKSPACE/src" \
+            "${{ steps.python.outputs.python }}" \
+            scripts/science/prepare_cut3r_runtime.py \
+              --cut3r-checkout "$root/CUT3R" \
+              --build \
+              --output "$root/provider/runtime-receipt.json"
+          RECEIPT="$root/provider/runtime-receipt.json" \
+            "${{ steps.python.outputs.python }}" - <<'PY'
+          import json
+          import os
+          import tarfile
+          from pathlib import Path
+
+          receipt = json.loads(Path(os.environ["RECEIPT"]).read_text(encoding="utf-8"))
+          root = Path(os.environ["RECEIPT"]).parents[1]
+          checkout = root / "CUT3R"
+          relative = Path(receipt["extension"]["relative_path"])
+          with tarfile.open(root / "provider" / "native-rope-extension.tar.gz", "w:gz") as archive:
+              archive.add(checkout / relative, arcname=relative.as_posix(), recursive=False)
+          PY
+      - name: Run synthetic native-RoPE forward pass
+        id: smoke
+        continue-on-error: true
+        shell: bash
+        env:
+          CUT3R_CHECKPOINT: ${{ vars.CUT3R_CHECKPOINT }}
+          REQUEST_ID: ${{ needs.authorize.outputs.request_id }}
+          EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          test -f "$CUT3R_CHECKPOINT"
+          PYTHONPATH="$GITHUB_WORKSPACE/src:$GITHUB_WORKSPACE/scripts/science" \
+            "${{ steps.python.outputs.python }}" \
+            scripts/science/run_dot_rope_cut3r_native_provider.py \
+              runtime-smoke \
+              --protocol "$PROTOCOL_PATH" \
+              --request-id "$REQUEST_ID" \
+              --prob4d-revision "$EXPECTED_HEAD_SHA" \
+              --cut3r-checkout "$root/CUT3R" \
+              --checkpoint "$CUT3R_CHECKPOINT" \
+              --runtime-receipt "$root/provider/runtime-receipt.json" \
+              --output-dir "$root/provider/smoke"
+      - name: Execute marker-free normal-view predictions
+        id: execute
+        if: steps.smoke.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        env:
+          CUT3R_CHECKPOINT: ${{ vars.CUT3R_CHECKPOINT }}
+          REQUEST_ID: ${{ needs.authorize.outputs.request_id }}
+          EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          PYTHONPATH="$GITHUB_WORKSPACE/src:$GITHUB_WORKSPACE/scripts/science" \
+            "${{ steps.python.outputs.python }}" \
+            scripts/science/run_dot_rope_cut3r_native_provider.py \
+              predict \
+              --protocol "$PROTOCOL_PATH" \
+              --request-id "$REQUEST_ID" \
+              --prob4d-revision "$EXPECTED_HEAD_SHA" \
+              --dataset-root "$DATASET_ROOT" \
+              --cut3r-checkout "$root/CUT3R" \
+              --checkpoint "$CUT3R_CHECKPOINT" \
+              --runtime-receipt "$root/provider/runtime-receipt.json" \
+              --output-dir "$root/provider/bundle"
+      - name: Read sealed provider identity
+        id: result
+        if: always()
+        shell: bash
+        env:
+          EXECUTION_OUTCOME: ${{ steps.execute.outcome }}
+          SMOKE_OUTCOME: ${{ steps.smoke.outcome }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          ROOT="$root" /usr/bin/python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["ROOT"])
+          manifest_path = root / "provider" / "bundle" / "manifest.json"
+          receipt_path = root / "provider" / "runtime-receipt.json"
+          smoke_path = root / "provider" / "smoke" / "smoke-result.json"
+          runtime_id = "unavailable"
+          if receipt_path.is_file():
+              runtime_id = json.loads(receipt_path.read_text(encoding="utf-8"))["artifact_id"]
+          if os.environ["EXECUTION_OUTCOME"] == "success" and manifest_path.is_file():
+              manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+              decision = manifest["decision"]
+              provider_id = manifest["provider_bundle_id"]
+          else:
+              decision = "technical-failure"
+              provider_id = "unavailable"
+              failure = {
+                  "schema": "prob4d.dot-rope-cut3r-gpuserver4090-technical-receipt",
+                  "schema_version": 1,
+                  "smoke_outcome": os.environ["SMOKE_OUTCOME"],
+                  "prediction_outcome": os.environ["EXECUTION_OUTCOME"],
+                  "runtime_artifact_id": runtime_id,
+                  "smoke_result_present": smoke_path.is_file(),
+                  "provider_manifest_present": manifest_path.is_file(),
+              }
+              (root / "provider" / "technical-receipt.json").write_text(
+                  json.dumps(failure, indent=2, sort_keys=True) + "\n",
+                  encoding="utf-8",
+              )
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"decision={decision}\n")
+              output.write(f"runtime_artifact_id={runtime_id}\n")
+              output.write(f"provider_bundle_id={provider_id}\n")
+          PY
+      - name: Upload sealed provider evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dot-rope-cut3r-provider-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.workspace.outputs.root }}/provider/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Enforce a sealed provider bundle
+        if: always()
+        shell: bash
+        env:
+          DECISION: ${{ steps.result.outputs.decision }}
+        run: |
+          set -euo pipefail
+          test "$DECISION" = "sealed-provider-predictions"
+
+  evaluate:
+    name: Evaluate sealed predictions against R01-R03 markers
+    if: >-
+      github.event_name == 'push' &&
+      needs.provider.outputs.decision == 'sealed-provider-predictions'
+    needs: [authorize, provider]
+    environment: trusted-self-hosted-validation
+    runs-on: [self-hosted, Linux, X64, gpuserver4090]
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    outputs:
+      decision: ${{ steps.result.outputs.decision }}
+      evaluation_id: ${{ steps.result.outputs.evaluation_id }}
+      best_method: ${{ steps.result.outputs.best_method }}
+    steps:
+      - name: Initialize isolated evaluation workspace
+        id: workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${RUNNER_TEMP}/prob4d-dot-cut3r-evaluate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          /usr/bin/rm -rf -- "$root"
+          /usr/bin/mkdir -p "$root/provider" "$root/evaluation" "$root/home" "$root/tmp"
+          echo "root=$root" >> "$GITHUB_OUTPUT"
+          {
+            echo "HOME=$root/home"
+            echo "TMPDIR=$root/tmp"
+          } >> "$GITHUB_ENV"
+      - name: Require the intended runner and mounted archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_NAME" = "workstation1"
+          test "$RUNNER_OS" = "Linux"
+          test "$RUNNER_ARCH" = "X64"
+          test -r "$DATASET_ROOT/R01-10.zip"
+      - name: Check out exact authorized revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.authorize.outputs.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+      - name: Download exact sealed provider bundle
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: dot-rope-cut3r-provider-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.workspace.outputs.root }}/provider
+      - name: Select a retained NumPy interpreter
+        id: python
+        shell: bash
+        env:
+          CUT3R_CHECKOUT: ${{ vars.CUT3R_CHECKOUT }}
+          CUT3R_PYTHON: ${{ vars.CUT3R_PYTHON }}
+        run: |
+          set -euo pipefail
+          candidates=(
+            "${CUT3R_PYTHON:-}"
+            "${CUT3R_CHECKOUT:-}/.venv/bin/python"
+            "/home/florianpfaff/conda_envs/cut3r/bin/python"
+            "/home/florianpfaff/miniconda3/envs/cut3r/bin/python"
+            "/home/florian/conda_envs/cut3r/bin/python"
+            "/home/github-runner/.conda/envs/cut3r/bin/python"
+            "/usr/bin/python3"
+          )
+          selected=""
+          for candidate in "${candidates[@]}"; do
+            [[ -n "$candidate" && -x "$candidate" ]] || continue
+            if "$candidate" -c 'import numpy' >/dev/null 2>&1; then
+              selected="$candidate"
+              break
+            fi
+          done
+          test -n "$selected"
+          echo "python=$selected" >> "$GITHUB_OUTPUT"
+      - name: Open source markers only after prediction seal and evaluate
+        id: execute
+        continue-on-error: true
+        shell: bash
+        env:
+          REQUEST_ID: ${{ needs.authorize.outputs.request_id }}
+          EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          PYTHONPATH="$GITHUB_WORKSPACE/src:$GITHUB_WORKSPACE/scripts/science" \
+            "${{ steps.python.outputs.python }}" \
+            scripts/science/run_dot_rope_cut3r_native_provider.py \
+              evaluate \
+              --protocol "$PROTOCOL_PATH" \
+              --request-id "$REQUEST_ID" \
+              --prob4d-revision "$EXPECTED_HEAD_SHA" \
+              --dataset-root "$DATASET_ROOT" \
+              --provider-bundle "$root/provider/bundle" \
+              --output-dir "$root/evaluation/result"
+      - name: Read evaluation identity
+        id: result
+        if: always()
+        shell: bash
+        env:
+          EXECUTION_OUTCOME: ${{ steps.execute.outcome }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          result="$root/evaluation/result/result.json"
+          if [[ "$EXECUTION_OUTCOME" == "success" && -f "$result" ]]; then
+            RESULT="$result" /usr/bin/python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          value = json.loads(Path(os.environ["RESULT"]).read_text(encoding="utf-8"))
+          best = value["aggregate_methods"][0]["method"]
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"decision={value['decision']}\n")
+              output.write(f"evaluation_id={value['evaluation_id']}\n")
+              output.write(f"best_method={best}\n")
+          PY
+          else
+            echo "decision=technical-failure" >> "$GITHUB_OUTPUT"
+            echo "evaluation_id=unavailable" >> "$GITHUB_OUTPUT"
+            echo "best_method=unavailable" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Upload complete source evaluation
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dot-rope-cut3r-evaluation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.workspace.outputs.root }}/evaluation/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Enforce complete source evaluation
+        if: always()
+        shell: bash
+        env:
+          DECISION: ${{ steps.result.outputs.decision }}
+        run: |
+          set -euo pipefail
+          test "$DECISION" = "complete-source-evaluation"
+
+  report:
+    name: Publish bounded experiment pointer
+    if: always() && github.event_name == 'push'
+    needs: [authorize, provider, evaluate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Comment source-only outcome on issue 339
+        shell: bash
+        env:
+          API_URL: ${{ github.api_url }}
+          REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+          REQUEST_ID: ${{ needs.authorize.outputs.request_id }}
+          RUNTIME_ID: ${{ needs.provider.outputs.runtime_artifact_id }}
+          PROVIDER_DECISION: ${{ needs.provider.outputs.decision }}
+          PROVIDER_ID: ${{ needs.provider.outputs.provider_bundle_id }}
+          EVALUATION_DECISION: ${{ needs.evaluate.outputs.decision }}
+          EVALUATION_ID: ${{ needs.evaluate.outputs.evaluation_id }}
+          BEST_METHOD: ${{ needs.evaluate.outputs.best_method }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          import urllib.request
+
+          body = "\n".join(
+              (
+                  "## DOT marker-free CUT3R source experiment on gpuserver4090",
+                  "",
+                  f"- request ID: `{os.environ.get('REQUEST_ID') or 'unavailable'}`",
+                  f"- native runtime ID: `{os.environ.get('RUNTIME_ID') or 'unavailable'}`",
+                  f"- sealed provider: `{os.environ.get('PROVIDER_DECISION') or 'skipped'}` / "
+                  f"`{os.environ.get('PROVIDER_ID') or 'unavailable'}`",
+                  f"- source evaluation: `{os.environ.get('EVALUATION_DECISION') or 'skipped'}` / "
+                  f"`{os.environ.get('EVALUATION_ID') or 'unavailable'}`",
+                  f"- lowest registered source NLL: `{os.environ.get('BEST_METHOD') or 'unavailable'}`",
+                  f"- workflow run: {os.environ['RUN_URL']}",
+                  "",
+                  "The provider stage could open only R01-R03 normal-view images from the "
+                  "official DOT V29 archive. Marker payloads were available only to the "
+                  "later job after the provider bundle was sealed. R04-R70 remained unopened. "
+                  "No BayesianPhysTwin or Causal4D outcome was run.",
+              )
+          )
+          request = urllib.request.Request(
+              f"{os.environ['API_URL']}/repos/{os.environ['REPOSITORY']}/issues/339/comments",
+              data=json.dumps({"body": body}).encode("utf-8"),
+              method="POST",
+              headers={
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
+                  "Content-Type": "application/json",
+                  "X-GitHub-Api-Version": "2022-11-28",
+              },
+          )
+          with urllib.request.urlopen(request, timeout=30):
+              pass
+          PY
