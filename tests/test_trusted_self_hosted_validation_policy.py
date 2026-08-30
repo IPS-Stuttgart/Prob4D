@@ -346,8 +346,9 @@ def test_dot_rope_cut3r_provider_is_main_request_bound_and_stage_sealed() -> Non
     assert "branches: [main]" in text
     assert "dot_rope_cut3r_native_provider_v1.json" in text
     assert "pull_request_target:" not in text
-    assert "runs-on: [self-hosted, Linux, X64, gpuserver6000]" in text
-    assert 'test "$RUNNER_NAME" = "gpuserver6000"' in text
+    assert "runs-on: [self-hosted, Linux, X64, gpuserver4090]" in text
+    assert 'test "$RUNNER_NAME" = "workstation1"' in text
+    assert "DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/dot" in text
     assert "native-rope-extension.tar.gz" in text
     assert "sealed-provider-predictions" in text
     assert "complete-source-evaluation" in text
