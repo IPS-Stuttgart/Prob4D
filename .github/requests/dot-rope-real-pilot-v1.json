@@ -1,0 +1,10 @@
+{
+  "schema": "prob4d.self-hosted-request.v1",
+  "request_id": "dot-rope-layout-inventory-2026-08-30-v1",
+  "phase": "archive-layout-inventory",
+  "dataset_doi": "10.13021/ORC2020/XXLVXM",
+  "dataset_path": "/home/github-runner/.cache/workflows/dot-rope",
+  "runner_labels": ["self-hosted", "gpuserver4090"],
+  "read_only": true,
+  "requested_outputs": ["archive layout", "candidate truth files", "small metadata previews", "array headers"]
+}
