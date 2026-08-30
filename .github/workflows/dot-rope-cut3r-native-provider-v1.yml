@@ -221,7 +221,7 @@ jobs:
           test -n "${CUT3R_CHECKOUT:-}"
           test -d "$CUT3R_CHECKOUT"
 
-          candidates=()
+          candidates=("")
           add_candidate() {
             local candidate="${1:-}"
             [[ -n "$candidate" ]] || return 0
