@@ -1,0 +1,44 @@
+name: Finite-orbit query mechanism
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - src/prob4d/axial_query_certificate.py
+      - src/prob4d/axial_query_study.py
+      - tests/test_axial_query_certificate*.py
+      - docs/finite-orbit-query-certificates.md
+      - .github/workflows/finite-orbit-query.yml
+
+permissions:
+  contents: read
+
+jobs:
+  mechanism:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install lightweight development dependencies
+        run: python -m pip install -e ".[dev]"
+      - name: Check new source and tests
+        run: |
+          python -m ruff check src/prob4d/axial_query_certificate.py src/prob4d/axial_query_study.py tests/test_axial_query_certificate*.py
+          # Current NumPy stubs use Python 3.12 syntax. Runtime-floor coverage remains in Tests.
+          python -m mypy --python-version 3.12 src/prob4d/axial_query_certificate.py src/prob4d/axial_query_study.py
+          python -m pytest -q tests/test_axial_query_certificate.py tests/test_axial_query_certificate_integration.py tests/test_query_observability.py --junitxml=outputs/finite-orbit-query-tests.xml
+      - name: Execute constructed mechanism only
+        run: |
+          python -m prob4d.axial_query_study --seed 73029 --cases-per-family 512 --output outputs/finite-orbit-query-v1/result.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: finite-orbit-query-mechanism
+          path: outputs/
+          if-no-files-found: warn
+          retention-days: 14
