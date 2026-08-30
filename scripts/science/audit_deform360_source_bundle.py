@@ -103,9 +103,7 @@ def _scan_episode_layout(
                 entry_limit_exceeded = True
                 break
             relative_path = (
-                entry.name
-                if not relative_directory
-                else f"{relative_directory}/{entry.name}"
+                entry.name if not relative_directory else f"{relative_directory}/{entry.name}"
             )
             child_depth = depth + 1
             if child_depth > max_depth:
@@ -114,9 +112,7 @@ def _scan_episode_layout(
             try:
                 metadata = entry.stat(follow_symlinks=False)
             except OSError as exc:
-                errors.append(
-                    {"operation": "lstat", "path": relative_path, "errno": exc.errno}
-                )
+                errors.append({"operation": "lstat", "path": relative_path, "errno": exc.errno})
                 continue
             entry_kind = _kind(metadata.st_mode)
             size = int(metadata.st_size)
@@ -184,9 +180,7 @@ def build_processed_repository_census(
     if stat.S_ISLNK(metadata.st_mode):
         return "processed-root-symlink-rejected", {"error": "processed root is a symlink"}
     if not stat.S_ISDIR(metadata.st_mode):
-        return "processed-root-not-directory", {
-            "error": "processed root is not a directory"
-        }
+        return "processed-root-not-directory", {"error": "processed root is not a directory"}
 
     try:
         with os.scandir(processed_root) as iterator:
@@ -312,9 +306,7 @@ def build_processed_repository_census(
             counts = episode_layout["counts"]
             object_file_count += int(counts.get("file", 0))
             object_directory_count += int(counts.get("directory", 0))
-            object_regular_file_bytes += int(
-                episode_layout["total_regular_file_bytes"]
-            )
+            object_regular_file_bytes += int(episode_layout["total_regular_file_bytes"])
             total_episode_bytes += int(episode_layout["total_regular_file_bytes"])
             global_extensions.update(episode_layout["extension_counts"])
             global_basenames.update(episode_layout["basename_counts"])
@@ -330,9 +322,7 @@ def build_processed_repository_census(
             )
             layout_group["episode_count"] += 1
             if len(layout_group["examples"]) < 10:
-                layout_group["examples"].append(
-                    f"{object_entry.name}/{child.name}"
-                )
+                layout_group["examples"].append(f"{object_entry.name}/{child.name}")
             if episode_layout["decision"] != "episode-layout-present":
                 census_errors.append(
                     {
@@ -400,9 +390,7 @@ def build_processed_repository_census(
 def validate_protocol_record(record: dict[str, Any]) -> dict[str, Any]:
     validated = _ORIGINAL_VALIDATE_PROTOCOL_RECORD(record)
     if record.get("structured_processed_census_version") != _CENSUS_VERSION:
-        raise _IMPLEMENTATION.AuditContractError(
-            "structured_processed_census_version must be 1"
-        )
+        raise _IMPLEMENTATION.AuditContractError("structured_processed_census_version must be 1")
     return validated
 
 
