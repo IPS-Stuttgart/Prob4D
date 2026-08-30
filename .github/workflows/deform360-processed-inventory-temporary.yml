@@ -1,0 +1,97 @@
+name: Temporary Deform360 processed-archive inventory
+
+on:
+  push:
+    branches: [science/deform360-query-pilot-v1]
+    paths:
+      - "protocols/execution_requests/deform360_processed_inventory_v1.json"
+
+permissions:
+  contents: read
+
+jobs:
+  inventory:
+    runs-on: [self-hosted, Linux, X64, gpuserver4090]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Inventory mounted processed point-cloud archives
+        shell: bash
+        env:
+          DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/deform360
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/deform360-processed-inventory-${GITHUB_RUN_ID}.json"
+          python3 - "$DATASET_ROOT" "$output" <<'PY'
+          import hashlib
+          import json
+          import os
+          import sys
+          from collections import defaultdict
+          from pathlib import Path
+
+          root = Path(sys.argv[1])
+          output = Path(sys.argv[2])
+          processed = root / "processed-repository" / "processed"
+          if not processed.is_dir():
+              raise SystemExit(f"missing processed root: {processed}")
+
+          by_object = defaultdict(list)
+          for archive in sorted(processed.glob("*/episode_*/pcd_clean.tar")):
+              if archive.is_symlink() or not archive.is_file():
+                  continue
+              object_id = archive.parents[1].name
+              episode_name = archive.parent.name
+              try:
+                  episode = int(episode_name.removeprefix("episode_"))
+              except ValueError:
+                  continue
+              by_object[object_id].append({
+                  "episode": episode,
+                  "relative_path": archive.relative_to(root).as_posix(),
+                  "bytes": archive.stat().st_size,
+              })
+
+          complete = []
+          for object_id, episodes in sorted(by_object.items()):
+              episodes = sorted(episodes, key=lambda item: item["episode"])
+              complete.append({
+                  "object_id": object_id,
+                  "episode_count": len(episodes),
+                  "episodes": episodes,
+              })
+
+          record = {
+              "schema": "prob4d.deform360-processed-archive-inventory-v1",
+              "dataset_root": str(root),
+              "runner_name": os.environ.get("RUNNER_NAME", "unknown"),
+              "github_run_id": os.environ.get("GITHUB_RUN_ID", "unknown"),
+              "github_sha": os.environ.get("GITHUB_SHA", "unknown"),
+              "archive_count": sum(item["episode_count"] for item in complete),
+              "object_count": len(complete),
+              "objects_with_at_least_two_episodes": sum(item["episode_count"] >= 2 for item in complete),
+              "objects": complete,
+              "access_boundary": {
+                  "paths_and_sizes_opened": True,
+                  "archive_members_opened": False,
+                  "array_values_opened": False,
+                  "target_scored": False,
+                  "dataset_mutated": False,
+              },
+          }
+          canonical = json.dumps(record, sort_keys=True, separators=(",", ":")).encode()
+          record["inventory_id"] = hashlib.sha256(canonical).hexdigest()
+          output.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
+          print(json.dumps(record, indent=2, sort_keys=True))
+          PY
+          echo "INVENTORY_JSON=$output" >> "$GITHUB_ENV"
+      - name: Upload inventory
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        with:
+          name: deform360-processed-inventory-${{ github.run_id }}
+          path: ${{ env.INVENTORY_JSON }}
+          if-no-files-found: error
+          retention-days: 30
