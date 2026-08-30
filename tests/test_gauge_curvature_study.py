@@ -23,7 +23,7 @@ SPEC.loader.exec_module(STUDY)
 @pytest.mark.parametrize("rank", [1, 2, 4, 7])
 def test_fifth_degree_rule_matches_gaussian_moments(rank):
     for degree, exact in ((0, 1), (1, 0), (2, 1), (3, 0), (4, 3), (5, 0)):
-        mean, _ = STUDY.fifth_degree_cubature(lambda z: z[0]**degree, rank)
+        mean, _ = STUDY.fifth_degree_cubature(lambda z, degree=degree: z[0]**degree, rank)
         np.testing.assert_allclose(mean, exact, atol=2e-13)
     if rank >= 2:
         mean, _ = STUDY.fifth_degree_cubature(lambda z: z[0]**2 * z[1]**2, rank)
