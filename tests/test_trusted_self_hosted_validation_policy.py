@@ -15,6 +15,7 @@ CUT3R_RUNNER_SELECTOR = (
     + "data-prob4d-deform360-source-v1, prob4d-cut3r]"
 )
 CUT3R_AUTO_V2_RUNNER_SELECTOR = "runs-on: [self-hosted, host-workstation2]"
+POINTWORLD_MODEL_LOAD_RUNNER_SELECTOR = "runs-on: [self-hosted, gpuserver6000]"
 TRUSTED_SELF_HOSTED_WORKFLOWS = (
     TRUSTED_WORKFLOW,
     SOURCE_FREEZE_EXECUTION_WORKFLOW,
@@ -305,8 +306,10 @@ def test_pointworld_model_load_smoke_is_main_request_bound_and_target_closed() -
     assert "validate-request" in text
     assert "source_protocol_git_blob_sha" in text
     assert "environment: trusted-self-hosted-validation" in text
-    assert CUT3R_AUTO_V2_RUNNER_SELECTOR in text
-    assert 'test "$RUNNER_NAME" = "workstation2"' in text
+    assert POINTWORLD_MODEL_LOAD_RUNNER_SELECTOR in text
+    assert 'test "$RUNNER_NAME" = "gpuserver6000"' in text
+    assert "host-workstation2" not in text
+    assert 'test "$RUNNER_NAME" = "workstation2"' not in text
     assert 'test "$RUNNER_OS" = "Linux"' in text
     assert 'test "$RUNNER_ARCH" = "X64"' in text
     assert "command -v nvidia-smi" in text

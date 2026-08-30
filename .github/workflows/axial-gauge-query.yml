@@ -1,0 +1,60 @@
+name: Axial gauge query mechanism
+
+on:
+  pull_request:
+    paths:
+      - src/prob4d/axial_gauge.py
+      - src/prob4d/axial_gauge_study.py
+      - tests/test_axial_gauge.py
+      - docs/axial-gauge-query.md
+      - .github/workflows/axial-gauge-query.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: axial-gauge-query-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  controlled:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      OPENBLAS_NUM_THREADS: "1"
+      OMP_NUM_THREADS: "1"
+      SOURCE_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install NumPy-only package and development checks
+        run: python -m pip install -e ".[dev]"
+      - name: Check focused source
+        run: |
+          python -m ruff check src/prob4d/axial_gauge.py src/prob4d/axial_gauge_study.py tests/test_axial_gauge.py
+          python -m mypy --python-version 3.12 src/prob4d/axial_gauge.py src/prob4d/axial_gauge_study.py
+          python -m pytest -q tests/test_axial_gauge.py
+      - name: Execute continuous-truth controlled experiment
+        run: |
+          python -m prob4d.axial_gauge_study \
+            --source-revision "$SOURCE_REVISION" \
+            --output outputs/axial-gauge-query-control-v1/result.json
+      - name: Verify numerical controls and show results
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path("outputs/axial-gauge-query-control-v1/result.json").read_text())
+          for row in report["records"]:
+              assert row["same_mean_max_abs_mm"] < 1e-10
+              assert row["same_covariance_max_abs_mm2"] < 1e-8
+              assert row["quadrature_refinement_max_abs_nll_nats"] < 1e-7
+              print(json.dumps(row, sort_keys=True))
+          print(report["claim_boundary"])
+          PY
