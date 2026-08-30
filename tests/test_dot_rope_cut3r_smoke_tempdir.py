@@ -57,8 +57,8 @@ def test_synthetic_frames_are_created_inside_fresh_child_directory(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     fake_pil = ModuleType("PIL")
-    setattr(fake_pil, "Image", _FakeImage)
-    setattr(fake_pil, "ImageDraw", _FakeImageDraw)
+    fake_pil.Image = _FakeImage
+    fake_pil.ImageDraw = _FakeImageDraw
     monkeypatch.setitem(sys.modules, "PIL", fake_pil)
 
     module = _load_script()
