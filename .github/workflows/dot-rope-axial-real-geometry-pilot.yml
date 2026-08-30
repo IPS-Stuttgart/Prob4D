@@ -100,7 +100,7 @@ jobs:
           capsule_sha="$(sha256sum "$capsule" | cut -d' ' -f1)"
           echo "capsule_sha256=$capsule_sha"
           test "$capsule_sha" = \
-            efb8dfea3108a120863396b68383762a03fb344f39ca0b42c29abb3963011fe6
+            8dde9d39362839d03b74fda4fcd07ef1cbfcea857327851dfd92f273251fd878
           base64 --decode "$capsule" | gzip --decompress > "$RUNNER_SCRIPT"
           script_sha="$(sha256sum "$RUNNER_SCRIPT" | cut -d' ' -f1)"
           echo "runner_script_sha256=$script_sha"
