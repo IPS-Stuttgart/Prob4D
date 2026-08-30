@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Query public Hub identities and mounted names
+      - name: Resolve public Hub and mounted processed layouts
         shell: bash
         env:
           DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/deform360
@@ -28,46 +28,77 @@ jobs:
           rm -rf -- "$venv"
           python3 -m venv "$venv"
           "$venv/bin/python" -m pip install --disable-pip-version-check --no-cache-dir \
-            "huggingface_hub==0.34.4"
+            "numpy==2.2.6" "huggingface_hub==0.34.4"
           "$venv/bin/python" - <<'PY'
+          from collections import Counter
           from pathlib import Path
+
+          import numpy as np
           from huggingface_hub import HfApi
 
           api = HfApi()
-          for repository in (
-              "brownu/deform360_processed",
-              "brownu/deform360",
-              "liuyibing/deform360",
-          ):
-              print(f"=== HUB {repository} ===")
+          repository = "brownu/deform360_processed"
+          info = api.dataset_info(repository)
+          print("=== PINNED PROCESSED REPOSITORY ===")
+          print("repository", repository)
+          print("sha", info.sha)
+          for subpath in ("processed", "processed/001-rope"):
+              print(f"=== HUB TREE {subpath} ===")
               try:
-                  info = api.dataset_info(repository)
-                  print("sha", info.sha)
-                  print("private", info.private)
-                  refs = api.list_repo_refs(repository, repo_type="dataset")
-                  print("branches", [(item.name, item.ref, item.target_commit) for item in refs.branches])
-                  print("tags", [(item.name, item.ref, item.target_commit) for item in refs.tags])
-                  tree = list(api.list_repo_tree(repository, repo_type="dataset", recursive=False))
-                  print("top_level", [(item.path, type(item).__name__) for item in tree[:100]])
+                  entries = list(
+                      api.list_repo_tree(
+                          repository,
+                          path_in_repo=subpath,
+                          repo_type="dataset",
+                          revision=info.sha,
+                          recursive=False,
+                      )
+                  )
+                  for item in entries[:300]:
+                      print(
+                          "entry",
+                          item.path,
+                          type(item).__name__,
+                          getattr(item, "size", None),
+                          getattr(item, "blob_id", None),
+                          getattr(item, "lfs", None),
+                      )
               except Exception as exc:
-                  print("ERROR", type(exc).__name__, str(exc))
+                  print("TREE_ERROR", subpath, type(exc).__name__, str(exc))
 
           root = Path("/mnt/seagate10tb/florianpfaff/datasets/deform360")
-          print("=== LOCAL ROOT ===")
-          print("root", root.resolve())
-          print("top_level", sorted(path.name for path in root.iterdir())[:200])
-          patterns = (
-              "**/001-rope/**/pcd_clean/*.npz",
-              "**/001-rope/**/robot/*.npz",
-              "**/001-rope/**/robot/*.npy",
-              "**/001-rope/metadata.json",
-          )
-          for pattern in patterns:
-              matches = []
-              for path in root.glob(pattern):
-                  matches.append(str(path.relative_to(root)))
-                  if len(matches) >= 30:
-                      break
-              print("pattern", pattern, "matches", matches)
+          object_root = root / "processed-repository" / "processed" / "001-rope"
+          print("=== LOCAL OBJECT TREE ===")
+          print("object_root", object_root)
+          suffixes = Counter()
+          count = 0
+          total_bytes = 0
+          for path in sorted(object_root.rglob("*")):
+              if not path.is_file():
+                  continue
+              suffixes[path.suffix.lower() or "<none>"] += 1
+              count += 1
+              total_bytes += path.stat().st_size
+              if count <= 500:
+                  print("local", path.relative_to(root), path.stat().st_size)
+          print("local_file_count", count)
+          print("local_total_bytes", total_bytes)
+          print("local_suffix_counts", dict(suffixes))
+
+          source_robot = object_root / "episode_0" / "robot" / "robot.npy"
+          print("=== SOURCE EPISODE LEGACY ROBOT HEADER ===")
+          print("source_robot_exists", source_robot.is_file())
+          if source_robot.is_file():
+              value = np.load(source_robot, allow_pickle=True)
+              print("container_shape", value.shape)
+              print("container_dtype", value.dtype)
+              payload = value.item() if value.shape == () else value
+              print("payload_type", type(payload).__name__)
+              if isinstance(payload, dict):
+                  for key in sorted(payload):
+                      member = np.asarray(payload[key])
+                      print("robot_member", key, member.shape, member.dtype)
+              elif isinstance(payload, np.ndarray):
+                  print("robot_array", payload.shape, payload.dtype)
           PY
           rm -rf -- "$venv"
