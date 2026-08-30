@@ -1,0 +1,20 @@
+name: Cancel full-archive DOT experiment
+
+on:
+  push:
+    branches: [science/dot-gpuserver6000-direct-v1]
+    paths:
+      - ".github/workflows/cancel-full-archive-dot-experiment-v1.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dot-cut3r-staged-gpuserver6000-86b444c6267ddd41cb6780e6c0434b0c40f7f29c
+  cancel-in-progress: true
+
+jobs:
+  cancel-full-archive-run:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo 'Cancelling the queued full-archive run; sparse image/marker access preserves the frozen protocol.'
