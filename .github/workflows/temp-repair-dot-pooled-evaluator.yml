@@ -1,0 +1,466 @@
+name: Temporary repair DOT pooled evaluator branch
+
+on:
+  push:
+    branches: [fix/dot-cut3r-pooled-marker-evaluation-v2]
+    paths:
+      - ".github/workflows/temp-repair-dot-pooled-evaluator.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: >-
+      github.repository == 'IPS-Stuttgart/Prob4D' &&
+      github.actor == 'FlorianPfaff' &&
+      github.ref == 'refs/heads/fix/dot-cut3r-pooled-marker-evaluation-v2'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact repair branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: fix/dot-cut3r-pooled-marker-evaluation-v2
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Apply evaluator, runner, and deserialization repairs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from __future__ import annotations
+
+          import subprocess
+          from pathlib import Path
+
+          BASE_SHA = "9811e97c0294c60e8654598c8d9b28f66dd827dd"
+          AUDIT_PATH = Path(".github/workflows/dot-rope-marker-support-audit-v1.yml")
+          POOLED_PATH = Path(".github/workflows/dot-rope-cut3r-pooled-evaluation-v2.yml")
+
+
+          def replace_once(text: str, old: str, new: str, label: str) -> str:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected one preimage, found {count}")
+              return text.replace(old, new, 1)
+
+
+          pooled = AUDIT_PATH.read_text(encoding="utf-8")
+          audit = subprocess.check_output(
+              ["git", "show", f"{BASE_SHA}:{AUDIT_PATH.as_posix()}"],
+              text=True,
+          )
+
+          audit = replace_once(
+              audit,
+              "  DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/dot\n"
+              "  AUDIT_PYTHON: /home/github-runner/.cache/prob4d/cut3r-runtime-v1/venv/bin/python\n",
+              "  DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/dot-rope\n",
+              "audit runtime environment",
+          )
+          audit = replace_once(
+              audit,
+              "    name: Audit sealed DOT marker support on gpuserver4090\n",
+              "    name: Audit sealed DOT marker support on gpuserver6000\n",
+              "audit job name",
+          )
+          audit = replace_once(
+              audit,
+              "    runs-on: [self-hosted, Linux, X64, gpuserver4090]\n",
+              "    runs-on: [self-hosted, Linux, X64, gpuserver6000]\n",
+              "audit runner selector",
+          )
+          audit = replace_once(
+              audit,
+              "      - name: Require intended runner, source archive, and scientific interpreter\n"
+              "        shell: bash\n"
+              "        run: |\n"
+              "          set -euo pipefail\n"
+              "          test \"$RUNNER_NAME\" = \"workstation1\"\n"
+              "          test \"$RUNNER_OS\" = \"Linux\"\n"
+              "          test \"$RUNNER_ARCH\" = \"X64\"\n"
+              "          test -d \"$DATASET_ROOT\"\n"
+              "          test ! -L \"$DATASET_ROOT\"\n"
+              "          test -f \"$DATASET_ROOT/R01-10.zip\"\n"
+              "          test -r \"$DATASET_ROOT/R01-10.zip\"\n"
+              "          test -x \"$AUDIT_PYTHON\"\n"
+              "          \"$AUDIT_PYTHON\" -c 'import numpy'\n",
+              "      - name: Require intended runner and source archive\n"
+              "        shell: bash\n"
+              "        run: |\n"
+              "          set -euo pipefail\n"
+              "          test \"$RUNNER_NAME\" = \"workstation2\"\n"
+              "          test \"$RUNNER_OS\" = \"Linux\"\n"
+              "          test \"$RUNNER_ARCH\" = \"X64\"\n"
+              "          test -d \"$DATASET_ROOT\"\n"
+              "          test ! -L \"$DATASET_ROOT\"\n"
+              "          test -f \"$DATASET_ROOT/R01-10.zip\"\n"
+              "          test -r \"$DATASET_ROOT/R01-10.zip\"\n",
+              "audit runner assertion",
+          )
+          audit = replace_once(
+              audit,
+              "      - name: Verify clean exact checkout\n"
+              "        shell: bash\n"
+              "        env:\n"
+              "          EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}\n"
+              "        run: |\n"
+              "          set -euo pipefail\n"
+              "          test \"$(/usr/bin/git rev-parse HEAD)\" = \"$EXPECTED_HEAD_SHA\"\n"
+              "          test -z \"$(/usr/bin/git status --porcelain=v1 --untracked-files=all)\"\n",
+              "      - name: Verify clean exact checkout\n"
+              "        shell: bash\n"
+              "        env:\n"
+              "          EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}\n"
+              "        run: |\n"
+              "          set -euo pipefail\n"
+              "          test \"$(/usr/bin/git rev-parse HEAD)\" = \"$EXPECTED_HEAD_SHA\"\n"
+              "          test -z \"$(/usr/bin/git status --porcelain=v1 --untracked-files=all)\"\n"
+              "      - name: Set up bounded Python 3.12 audit runtime\n"
+              "        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0\n"
+              "        with:\n"
+              "          python-version: \"3.12\"\n"
+              "      - name: Install bounded numeric dependency\n"
+              "        shell: bash\n"
+              "        run: python -m pip install --no-cache-dir \"numpy==2.2.6\"\n",
+              "audit Python setup insertion",
+          )
+          audit = replace_once(
+              audit,
+              "          PYTHONPATH=\"$GITHUB_WORKSPACE/src\" \\\n            \"$AUDIT_PYTHON\" \\\n",
+              "          PYTHONPATH=\"$GITHUB_WORKSPACE/src\" \\\n            python \\\n",
+              "audit interpreter invocation",
+          )
+          if "AUDIT_PYTHON" in audit:
+              raise SystemExit("audit workflow still references the retained CUT3R interpreter")
+
+          pooled = replace_once(
+              pooled,
+              '      - ".github/workflows/dot-rope-marker-support-audit-v1.yml"\n',
+              '      - ".github/workflows/dot-rope-cut3r-pooled-evaluation-v2.yml"\n',
+              "pooled workflow path",
+          )
+          pooled = replace_once(
+              pooled,
+              "  DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/dot\n"
+              "  EVALUATION_PYTHON: /home/github-runner/.cache/prob4d/cut3r-runtime-v1/venv/bin/python\n",
+              "  DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/dot-rope\n",
+              "pooled runtime environment",
+          )
+          pooled = replace_once(
+              pooled,
+              "    runs-on: [self-hosted, Linux, X64, gpuserver4090]\n",
+              "    runs-on: [self-hosted, Linux, X64, gpuserver6000]\n",
+              "pooled runner selector",
+          )
+          pooled = replace_once(
+              pooled,
+              "      - name: Require intended runner, source archive, and scientific interpreter\n"
+              "        shell: bash\n"
+              "        run: |\n"
+              "          set -euo pipefail\n"
+              "          test \"$RUNNER_NAME\" = \"workstation1\"\n"
+              "          test \"$RUNNER_OS\" = \"Linux\"\n"
+              "          test \"$RUNNER_ARCH\" = \"X64\"\n"
+              "          test -d \"$DATASET_ROOT\"\n"
+              "          test ! -L \"$DATASET_ROOT\"\n"
+              "          test -f \"$DATASET_ROOT/R01-10.zip\"\n"
+              "          test -r \"$DATASET_ROOT/R01-10.zip\"\n"
+              "          test -x \"$EVALUATION_PYTHON\"\n"
+              "          \"$EVALUATION_PYTHON\" -c 'import numpy'\n",
+              "      - name: Require intended runner and source archive\n"
+              "        shell: bash\n"
+              "        run: |\n"
+              "          set -euo pipefail\n"
+              "          test \"$RUNNER_NAME\" = \"workstation2\"\n"
+              "          test \"$RUNNER_OS\" = \"Linux\"\n"
+              "          test \"$RUNNER_ARCH\" = \"X64\"\n"
+              "          test -d \"$DATASET_ROOT\"\n"
+              "          test ! -L \"$DATASET_ROOT\"\n"
+              "          test -f \"$DATASET_ROOT/R01-10.zip\"\n"
+              "          test -r \"$DATASET_ROOT/R01-10.zip\"\n",
+              "pooled runner assertion",
+          )
+          pooled = replace_once(
+              pooled,
+              "      - name: Verify clean exact checkout\n"
+              "        shell: bash\n"
+              "        env:\n"
+              "          EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}\n"
+              "        run: |\n"
+              "          set -euo pipefail\n"
+              "          test \"$(/usr/bin/git rev-parse HEAD)\" = \"$EXPECTED_HEAD_SHA\"\n"
+              "          test -z \"$(/usr/bin/git status --porcelain=v1 --untracked-files=all)\"\n",
+              "      - name: Verify clean exact checkout\n"
+              "        shell: bash\n"
+              "        env:\n"
+              "          EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}\n"
+              "        run: |\n"
+              "          set -euo pipefail\n"
+              "          test \"$(/usr/bin/git rev-parse HEAD)\" = \"$EXPECTED_HEAD_SHA\"\n"
+              "          test -z \"$(/usr/bin/git status --porcelain=v1 --untracked-files=all)\"\n"
+              "      - name: Set up bounded Python 3.12 evaluation runtime\n"
+              "        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0\n"
+              "        with:\n"
+              "          python-version: \"3.12\"\n"
+              "      - name: Install bounded numeric dependency\n"
+              "        shell: bash\n"
+              "        run: python -m pip install --no-cache-dir \"numpy==2.2.6\"\n",
+              "pooled Python setup insertion",
+          )
+          pooled = replace_once(
+              pooled,
+              "          PYTHONPATH=\"$GITHUB_WORKSPACE/src\" \\\n            \"$EVALUATION_PYTHON\" \\\n",
+              "          PYTHONPATH=\"$GITHUB_WORKSPACE/src\" \\\n            python \\\n",
+              "pooled interpreter invocation",
+          )
+          if "EVALUATION_PYTHON" in pooled:
+              raise SystemExit("pooled workflow still references the retained CUT3R interpreter")
+
+          AUDIT_PATH.write_text(audit, encoding="utf-8", newline="\n")
+          POOLED_PATH.write_text(pooled, encoding="utf-8", newline="\n")
+
+          pooled_test_path = Path("tests/test_dot_rope_cut3r_pooled_evaluation.py")
+          pooled_test = pooled_test_path.read_text(encoding="utf-8")
+          pooled_test = replace_once(
+              pooled_test,
+              'WORKFLOW = ROOT / ".github" / "workflows" / "dot-rope-marker-support-audit-v1.yml"',
+              'WORKFLOW = ROOT / ".github" / "workflows" / "dot-rope-cut3r-pooled-evaluation-v2.yml"',
+              "pooled test workflow path",
+          )
+          pooled_test = replace_once(
+              pooled_test,
+              '    assert "runs-on: [self-hosted, Linux, X64, gpuserver4090]" in text\n'
+              '    assert \'test "$RUNNER_NAME" = "workstation1"\' in text\n',
+              '    assert "runs-on: [self-hosted, Linux, X64, gpuserver6000]" in text\n'
+              '    assert \'test "$RUNNER_NAME" = "workstation2"\' in text\n'
+              '    assert "DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/dot-rope" in text\n'
+              '    assert "numpy==2.2.6" in text\n',
+              "pooled test runner expectations",
+          )
+          pooled_test_path.write_text(pooled_test, encoding="utf-8", newline="\n")
+
+          policy_path = Path("tests/test_trusted_self_hosted_validation_policy.py")
+          policy = policy_path.read_text(encoding="utf-8")
+          policy = replace_once(
+              policy,
+              'DOT_ROPE_MARKER_SUPPORT_AUDIT_WORKFLOW = WORKFLOW_ROOT / "dot-rope-marker-support-audit-v1.yml"\n',
+              'DOT_ROPE_MARKER_SUPPORT_AUDIT_WORKFLOW = WORKFLOW_ROOT / "dot-rope-marker-support-audit-v1.yml"\n'
+              'DOT_ROPE_CUT3R_POOLED_EVALUATION_WORKFLOW = (\n'
+              '    WORKFLOW_ROOT / "dot-rope-cut3r-pooled-evaluation-v2.yml"\n'
+              ')\n',
+              "trusted workflow constant",
+          )
+          policy = replace_once(
+              policy,
+              "    DOT_ROPE_MARKER_SUPPORT_AUDIT_WORKFLOW,\n"
+              "    DOT_CUT3R_RUNTIME_BOOTSTRAP_WORKFLOW,\n",
+              "    DOT_ROPE_MARKER_SUPPORT_AUDIT_WORKFLOW,\n"
+              "    DOT_ROPE_CUT3R_POOLED_EVALUATION_WORKFLOW,\n"
+              "    DOT_CUT3R_RUNTIME_BOOTSTRAP_WORKFLOW,\n",
+              "trusted workflow roster",
+          )
+          old_audit_test = '''def test_dot_rope_marker_support_audit_is_main_bound_and_source_only() -> None:
+              text = DOT_ROPE_MARKER_SUPPORT_AUDIT_WORKFLOW.read_text(encoding="utf-8")
+
+              assert "\\n  push:" in text
+              assert "branches: [main]" in text
+              assert "dot_rope_marker_support_audit_v1.json" in text
+              assert "pull_request_target:" not in text
+              assert "runs-on: [self-hosted, Linux, X64, gpuserver4090]" in text
+              assert 'test "$RUNNER_NAME" = "workstation1"' in text
+              assert "environment: trusted-self-hosted-validation" in text
+              assert "DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/dot" in text
+              assert "33329701704" not in text
+              assert "github-token: ${{ github.token }}" in text
+              assert "actions: read" in text
+              assert "normal-view pixels" in text
+              assert "R04-R70" in text
+              assert "secrets." not in text
+              assert "git push" not in text
+          '''.replace("          ", "")
+          new_audit_tests = '''def test_dot_rope_marker_support_audit_is_main_bound_and_source_only() -> None:
+              text = DOT_ROPE_MARKER_SUPPORT_AUDIT_WORKFLOW.read_text(encoding="utf-8")
+
+              assert "\\n  push:" in text
+              assert "branches: [main]" in text
+              assert "dot_rope_marker_support_audit_v1.json" in text
+              assert "pull_request_target:" not in text
+              assert "runs-on: [self-hosted, Linux, X64, gpuserver6000]" in text
+              assert 'test "$RUNNER_NAME" = "workstation2"' in text
+              assert "environment: trusted-self-hosted-validation" in text
+              assert "DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/dot-rope" in text
+              assert "numpy==2.2.6" in text
+              assert "33329701704" not in text
+              assert "github-token: ${{ github.token }}" in text
+              assert "actions: read" in text
+              assert "normal-view pixels" in text
+              assert "R04-R70" in text
+              assert "secrets." not in text
+              assert "git push" not in text
+
+
+          def test_dot_rope_pooled_evaluation_is_main_bound_and_source_only() -> None:
+              text = DOT_ROPE_CUT3R_POOLED_EVALUATION_WORKFLOW.read_text(encoding="utf-8")
+
+              assert "\\n  push:" in text
+              assert "branches: [main]" in text
+              assert "dot_rope_cut3r_pooled_evaluation_v2.json" in text
+              assert "pull_request_target:" not in text
+              assert "runs-on: [self-hosted, Linux, X64, gpuserver6000]" in text
+              assert 'test "$RUNNER_NAME" = "workstation2"' in text
+              assert "environment: trusted-self-hosted-validation" in text
+              assert "DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/dot-rope" in text
+              assert "numpy==2.2.6" in text
+              assert "github-token: ${{ github.token }}" in text
+              assert "actions: read" in text
+              assert "normal-view pixels" in text
+              assert "R04-R70 remained unopened" in text
+              assert "secrets." not in text
+              assert "git push" not in text
+          '''.replace("          ", "")
+          policy = replace_once(
+              policy,
+              old_audit_test,
+              new_audit_tests,
+              "trusted audit and pooled workflow tests",
+          )
+          policy_path.write_text(policy, encoding="utf-8", newline="\n")
+
+          dlo_path = Path("scripts/science/audit_deform_dlo45_observability_v1.py")
+          dlo = dlo_path.read_text(encoding="utf-8")
+          old_loader = '''def load_trajectory(path: Path) -> np.ndarray:
+              with path.open("rb") as stream:
+                  loaded = pickle.load(stream)  # noqa: S301 - verified official public dataset.
+              array = np.asarray(loaded, dtype=np.float64).squeeze()
+          '''.replace("          ", "")
+          new_loader = '''_ALLOWED_NUMPY_PICKLE_GLOBALS = frozenset(
+              {
+                  ("_codecs", "encode"),
+                  ("builtins", "slice"),
+                  ("__builtin__", "slice"),
+                  ("numpy", "dtype"),
+                  ("numpy", "ndarray"),
+                  ("numpy._core.multiarray", "_reconstruct"),
+                  ("numpy._core.multiarray", "scalar"),
+                  ("numpy._core.numeric", "_frombuffer"),
+                  ("numpy.core.multiarray", "_reconstruct"),
+                  ("numpy.core.multiarray", "scalar"),
+                  ("numpy.core.numeric", "_frombuffer"),
+              }
+          )
+
+
+          class _NumpyArrayUnpickler(pickle.Unpickler):
+              """Unpickle only the globals needed by plain NumPy arrays."""
+
+              def find_class(self, module: str, name: str) -> Any:
+                  if (module, name) not in _ALLOWED_NUMPY_PICKLE_GLOBALS:
+                      raise pickle.UnpicklingError(f"forbidden pickle global: {module}.{name}")
+                  return super().find_class(module, name)
+
+
+          def _load_numpy_array_pickle(stream: Any) -> np.ndarray:
+              loaded = _NumpyArrayUnpickler(stream).load()
+              if not isinstance(loaded, np.ndarray):
+                  raise pickle.UnpicklingError("trajectory pickle must contain one NumPy array")
+              return loaded
+
+
+          def load_trajectory(path: Path) -> np.ndarray:
+              with path.open("rb") as stream:
+                  loaded = _load_numpy_array_pickle(stream)
+              array = np.asarray(loaded, dtype=np.float64).squeeze()
+          '''.replace("          ", "")
+          dlo = replace_once(dlo, old_loader, new_loader, "restricted DLO pickle loader")
+          dlo_path.write_text(dlo, encoding="utf-8", newline="\n")
+
+          safe_test = '''from __future__ import annotations
+
+          import importlib.util
+          import io
+          import pickle
+          from pathlib import Path
+
+          import numpy as np
+          import pytest
+
+          ROOT = Path(__file__).resolve().parents[1]
+          SCRIPT = ROOT / "scripts" / "science" / "audit_deform_dlo45_observability_v1.py"
+
+
+          def _load_module():
+              spec = importlib.util.spec_from_file_location("dlo45_safe_loader", SCRIPT)
+              assert spec is not None and spec.loader is not None
+              module = importlib.util.module_from_spec(spec)
+              spec.loader.exec_module(module)
+              return module
+
+
+          def _forbidden_factory() -> object:
+              return object()
+
+
+          class _ForbiddenPayload:
+              def __reduce__(self):
+                  return (_forbidden_factory, ())
+
+
+          @pytest.mark.parametrize("protocol", [0, 2, pickle.HIGHEST_PROTOCOL])
+          def test_restricted_loader_accepts_plain_numpy_arrays(protocol: int) -> None:
+              module = _load_module()
+              expected = np.arange(30, dtype=np.float64).reshape(2, 5, 3)
+              payload = pickle.dumps(expected, protocol=protocol)
+
+              actual = module._load_numpy_array_pickle(io.BytesIO(payload))
+
+              np.testing.assert_array_equal(actual, expected)
+
+
+          def test_restricted_loader_rejects_arbitrary_globals() -> None:
+              module = _load_module()
+              payload = pickle.dumps(_ForbiddenPayload(), protocol=pickle.HIGHEST_PROTOCOL)
+
+              with pytest.raises(pickle.UnpicklingError, match="forbidden pickle global"):
+                  module._load_numpy_array_pickle(io.BytesIO(payload))
+
+
+          def test_restricted_loader_rejects_non_array_payloads() -> None:
+              module = _load_module()
+              payload = pickle.dumps([1.0, 2.0, 3.0], protocol=pickle.HIGHEST_PROTOCOL)
+
+              with pytest.raises(pickle.UnpicklingError, match="one NumPy array"):
+                  module._load_numpy_array_pickle(io.BytesIO(payload))
+          '''.replace("          ", "")
+          Path("tests/test_deform_dlo45_safe_loader.py").write_text(
+              safe_test,
+              encoding="utf-8",
+              newline="\n",
+          )
+
+          Path(".github/workflows/temp-repair-dot-pooled-evaluator.yml").unlink()
+          PY
+          python3 -m compileall -q \
+            scripts/science/audit_deform_dlo45_observability_v1.py \
+            scripts/science/evaluate_dot_rope_cut3r_pooled.py \
+            tests/test_deform_dlo45_safe_loader.py \
+            tests/test_dot_rope_cut3r_pooled_evaluation.py \
+            tests/test_trusted_self_hosted_validation_policy.py
+          git diff --check
+      - name: Commit and push repaired branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            .github/workflows/dot-rope-marker-support-audit-v1.yml \
+            .github/workflows/dot-rope-cut3r-pooled-evaluation-v2.yml \
+            .github/workflows/temp-repair-dot-pooled-evaluator.yml \
+            scripts/science/audit_deform_dlo45_observability_v1.py \
+            tests/test_deform_dlo45_safe_loader.py \
+            tests/test_dot_rope_cut3r_pooled_evaluation.py \
+            tests/test_trusted_self_hosted_validation_policy.py
+          git diff --cached --check
+          git commit -m "Route DOT evaluation to gpuserver6000 and harden source loading"
+          git push origin HEAD:fix/dot-cut3r-pooled-marker-evaluation-v2
