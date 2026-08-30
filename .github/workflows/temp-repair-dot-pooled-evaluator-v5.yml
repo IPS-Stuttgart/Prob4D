@@ -1,0 +1,247 @@
+name: Temporary repair DOT pooled evaluator branch v5
+
+on:
+  push:
+    branches: [fix/dot-cut3r-pooled-marker-evaluation-v2]
+    paths:
+      - ".github/workflows/temp-repair-dot-pooled-evaluator-v5.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: >-
+      github.repository == 'IPS-Stuttgart/Prob4D' &&
+      github.actor == 'FlorianPfaff' &&
+      github.ref == 'refs/heads/fix/dot-cut3r-pooled-marker-evaluation-v2'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact repair branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: fix/dot-cut3r-pooled-marker-evaluation-v2
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Apply focused evaluator and policy repairs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from __future__ import annotations
+
+          import subprocess
+          import textwrap
+          from pathlib import Path
+
+          BASE_SHA = "9811e97c0294c60e8654598c8d9b28f66dd827dd"
+          AUDIT_PATH = Path(".github/workflows/dot-rope-marker-support-audit-v1.yml")
+          POOLED_PATH = Path(".github/workflows/dot-rope-cut3r-pooled-evaluation-v2.yml")
+
+
+          def replace_once(text: str, old: str, new: str, label: str) -> str:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected one preimage, found {count}")
+              return text.replace(old, new, 1)
+
+
+          def route_workflow(text: str, interpreter: str) -> str:
+              text = replace_once(
+                  text,
+                  "  DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/dot\n",
+                  "  DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/dot-rope\n",
+                  "dataset root",
+              )
+              text = replace_once(
+                  text,
+                  f"  {interpreter}: /home/github-runner/.cache/prob4d/cut3r-runtime-v1/venv/bin/python\n",
+                  "",
+                  "retained interpreter environment",
+              )
+              text = replace_once(
+                  text,
+                  "    runs-on: [self-hosted, Linux, X64, gpuserver4090]\n",
+                  "    runs-on: [self-hosted, Linux, X64, gpuserver6000]\n",
+                  "runner selector",
+              )
+              text = replace_once(
+                  text,
+                  '          test "$RUNNER_NAME" = "workstation1"\n',
+                  '          test "$RUNNER_NAME" = "workstation2"\n',
+                  "runner identity",
+              )
+              text = replace_once(
+                  text,
+                  "      - name: Require intended runner, source archive, and scientific interpreter\n",
+                  "      - name: Require intended runner and source archive\n",
+                  "runner preflight name",
+              )
+              text = replace_once(
+                  text,
+                  f'          test -x "${interpreter}"\n'
+                  f'          "${interpreter}" -c \'import numpy\'\n',
+                  "",
+                  "retained interpreter preflight",
+              )
+              clean_line = (
+                  '          test -z "$(/usr/bin/git status --porcelain=v1 '
+                  '--untracked-files=all)"\n'
+              )
+              setup = (
+                  clean_line
+                  + "      - name: Set up bounded Python 3.12 numeric runtime\n"
+                  + "        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0\n"
+                  + "        with:\n"
+                  + '          python-version: "3.12"\n'
+                  + "      - name: Install bounded numeric dependency\n"
+                  + "        shell: bash\n"
+                  + '        run: python -m pip install --no-cache-dir "numpy==2.2.6"\n'
+              )
+              text = replace_once(text, clean_line, setup, "numeric runtime insertion")
+              text = replace_once(
+                  text,
+                  f'            "${interpreter}" \\\n',
+                  "            python \\\n",
+                  "numeric interpreter invocation",
+              )
+              if interpreter in text:
+                  raise SystemExit(f"workflow still references {interpreter}")
+              return text
+
+
+          audit = subprocess.check_output(
+              ["git", "show", f"{BASE_SHA}:{AUDIT_PATH.as_posix()}"],
+              text=True,
+          )
+          pooled = AUDIT_PATH.read_text(encoding="utf-8")
+
+          audit = replace_once(
+              audit,
+              "    name: Audit sealed DOT marker support on gpuserver4090\n",
+              "    name: Audit sealed DOT marker support on gpuserver6000\n",
+              "audit job name",
+          )
+          audit = route_workflow(audit, "AUDIT_PYTHON")
+
+          pooled = replace_once(
+              pooled,
+              '      - ".github/workflows/dot-rope-marker-support-audit-v1.yml"\n',
+              '      - ".github/workflows/dot-rope-cut3r-pooled-evaluation-v2.yml"\n',
+              "pooled workflow path",
+          )
+          pooled = route_workflow(pooled, "EVALUATION_PYTHON")
+
+          AUDIT_PATH.write_text(audit, encoding="utf-8", newline="\n")
+          POOLED_PATH.write_text(pooled, encoding="utf-8", newline="\n")
+
+          pooled_test_path = Path("tests/test_dot_rope_cut3r_pooled_evaluation.py")
+          pooled_test = pooled_test_path.read_text(encoding="utf-8")
+          pooled_test = replace_once(
+              pooled_test,
+              'WORKFLOW = ROOT / ".github" / "workflows" / "dot-rope-marker-support-audit-v1.yml"',
+              'WORKFLOW = ROOT / ".github" / "workflows" / "dot-rope-cut3r-pooled-evaluation-v2.yml"',
+              "pooled test workflow path",
+          )
+          pooled_test = replace_once(
+              pooled_test,
+              '    assert "runs-on: [self-hosted, Linux, X64, gpuserver4090]" in text\n'
+              '    assert \'test "$RUNNER_NAME" = "workstation1"\' in text\n',
+              '    assert "runs-on: [self-hosted, Linux, X64, gpuserver6000]" in text\n'
+              '    assert \'test "$RUNNER_NAME" = "workstation2"\' in text\n'
+              '    assert "DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/dot-rope" in text\n'
+              '    assert "numpy==2.2.6" in text\n',
+              "pooled test runner expectations",
+          )
+          pooled_test_path.write_text(pooled_test, encoding="utf-8", newline="\n")
+
+          policy_path = Path("tests/test_trusted_self_hosted_validation_policy.py")
+          policy = policy_path.read_text(encoding="utf-8")
+          policy = replace_once(
+              policy,
+              'DOT_ROPE_MARKER_SUPPORT_AUDIT_WORKFLOW = WORKFLOW_ROOT / "dot-rope-marker-support-audit-v1.yml"\n',
+              'DOT_ROPE_MARKER_SUPPORT_AUDIT_WORKFLOW = WORKFLOW_ROOT / "dot-rope-marker-support-audit-v1.yml"\n'
+              'DOT_ROPE_CUT3R_POOLED_EVALUATION_WORKFLOW = (\n'
+              '    WORKFLOW_ROOT / "dot-rope-cut3r-pooled-evaluation-v2.yml"\n'
+              ')\n',
+              "trusted workflow constant",
+          )
+          policy = replace_once(
+              policy,
+              "    DOT_ROPE_MARKER_SUPPORT_AUDIT_WORKFLOW,\n"
+              "    DOT_CUT3R_RUNTIME_BOOTSTRAP_WORKFLOW,\n",
+              "    DOT_ROPE_MARKER_SUPPORT_AUDIT_WORKFLOW,\n"
+              "    DOT_ROPE_CUT3R_POOLED_EVALUATION_WORKFLOW,\n"
+              "    DOT_CUT3R_RUNTIME_BOOTSTRAP_WORKFLOW,\n",
+              "trusted workflow roster",
+          )
+          audit_start = policy.index(
+              "def test_dot_rope_marker_support_audit_is_main_bound_and_source_only()"
+          )
+          audit_end = policy.index("\n\ndef test_dot_cut3r_runtime_workflows", audit_start)
+          audit_section = policy[audit_start:audit_end]
+          audit_section = replace_once(
+              audit_section,
+              '    assert "runs-on: [self-hosted, Linux, X64, gpuserver4090]" in text\n',
+              '    assert "runs-on: [self-hosted, Linux, X64, gpuserver6000]" in text\n',
+              "audit policy runner selector",
+          )
+          audit_section = replace_once(
+              audit_section,
+              '    assert \'test "$RUNNER_NAME" = "workstation1"\' in text\n',
+              '    assert \'test "$RUNNER_NAME" = "workstation2"\' in text\n',
+              "audit policy runner identity",
+          )
+          audit_section = replace_once(
+              audit_section,
+              '    assert "DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/dot" in text\n',
+              '    assert "DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/dot-rope" in text\n'
+              '    assert "numpy==2.2.6" in text\n',
+              "audit policy dataset root",
+          )
+          pooled_policy_test = textwrap.dedent(
+              """
+
+
+              def test_dot_rope_pooled_evaluation_is_main_bound_and_source_only() -> None:
+                  text = DOT_ROPE_CUT3R_POOLED_EVALUATION_WORKFLOW.read_text(encoding="utf-8")
+
+                  assert "\\n  push:" in text
+                  assert "branches: [main]" in text
+                  assert "dot_rope_cut3r_pooled_evaluation_v2.json" in text
+                  assert "pull_request_target:" not in text
+                  assert "runs-on: [self-hosted, Linux, X64, gpuserver6000]" in text
+                  assert "workstation2" in text
+                  assert "environment: trusted-self-hosted-validation" in text
+                  assert "DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/dot-rope" in text
+                  assert "numpy==2.2.6" in text
+                  assert "actions: read" in text
+                  assert "normal-view pixels" in text
+                  assert "R04-R70 remained unopened" in text
+                  assert "secrets." not in text
+                  assert "git push" not in text
+              """
+          )
+          policy = policy[:audit_start] + audit_section + pooled_policy_test + policy[audit_end:]
+          policy_path.write_text(policy, encoding="utf-8", newline="\n")
+
+          for temporary in Path(".github/workflows").glob(
+              "temp-repair-dot-pooled-evaluator*.yml"
+          ):
+              temporary.unlink()
+          PY
+          python3 -m compileall -q \
+            scripts/science/evaluate_dot_rope_cut3r_pooled.py \
+            tests/test_dot_rope_cut3r_pooled_evaluation.py \
+            tests/test_trusted_self_hosted_validation_policy.py
+          git diff --check
+      - name: Commit and push repaired branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "Route DOT pooled evaluation to gpuserver6000"
+          git push origin HEAD:fix/dot-cut3r-pooled-marker-evaluation-v2
