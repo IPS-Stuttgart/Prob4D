@@ -47,7 +47,6 @@ jobs:
       - name: Validate immutable request boundary
         shell: bash
         env:
-          EVENT_NAME: ${{ github.event_name }}
           EVENT_ACTOR: ${{ github.actor }}
           EVENT_REPOSITORY: ${{ github.repository }}
           EVENT_SHA: ${{ github.sha }}
@@ -58,11 +57,10 @@ jobs:
           import os
           from pathlib import Path
 
-          request_path = Path(
+          request = json.loads(Path(
               "protocols/execution_requests/"
               "tracking_cloth_posterior_compression_real_v1.json"
-          )
-          request = json.loads(request_path.read_text(encoding="utf-8"))
+          ).read_text(encoding="utf-8"))
           protocol = json.loads(Path(
               "protocols/tracking-cloth-posterior-compression-real-v1.json"
           ).read_text(encoding="utf-8"))
@@ -120,7 +118,7 @@ jobs:
       (github.event_name == 'workflow_dispatch' ||
        github.ref_name == 'science/tracking-cloth-posterior-compression-real-v1')
     environment: trusted-self-hosted-validation
-    runs-on: [self-hosted, gpuserver4090]
+    runs-on: [self-hosted, Linux, X64, gpuserver4090]
     timeout-minutes: 120
     permissions:
       contents: read
@@ -136,7 +134,7 @@ jobs:
           test -d "$DATASET_ROOT"
           test -r "$DATASET_ROOT"
           csv_count=$(find "$DATASET_ROOT" -type f -iname '*.csv' | wc -l)
-          test "$csv_count" -ge 120
+          test "$csv_count" -eq 120
           printf 'csv_count=%s\n' "$csv_count"
       - name: Check out exact preflighted revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -150,32 +148,108 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
-      - name: Create isolated lightweight runtime
-        id: runtime
+      - name: Initialize isolated evidence workspace
+        id: workspace
         shell: bash
         run: |
           set -euo pipefail
           root="${RUNNER_TEMP}/prob4d-tracking-cloth-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           rm -rf -- "$root"
           mkdir -p "$root"
-          python3 -m venv --system-site-packages "$root/venv"
-          "$root/venv/bin/python" - <<'PY'
-          import numpy
-          print("numpy", numpy.__version__)
-          PY
-          "$root/venv/bin/python" -m pip install --no-deps -e .
+          printf '125\n' > "$root/process-exit-code.txt"
           echo "root=$root" >> "$GITHUB_OUTPUT"
-          echo "python=$root/venv/bin/python" >> "$GITHUB_OUTPUT"
+      - name: Select a retained NumPy interpreter
+        id: python
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          log="$root/interpreter-selection.txt"
+          candidates=("")
+          add_candidate() {
+            local candidate="${1:-}"
+            [[ -n "$candidate" ]] || return 0
+            local existing
+            for existing in "${candidates[@]}"; do
+              [[ "$existing" != "$candidate" ]] || return 0
+            done
+            candidates+=("$candidate")
+          }
+
+          add_candidate "/home/florianpfaff/conda_envs/cut3r/bin/python"
+          add_candidate "/home/florianpfaff/miniconda3/envs/cut3r/bin/python"
+          add_candidate "/home/florianpfaff/anaconda3/envs/cut3r/bin/python"
+          add_candidate "/home/florian/conda_envs/cut3r/bin/python"
+          add_candidate "/home/florian/miniconda3/envs/cut3r/bin/python"
+          add_candidate "/home/florian/anaconda3/envs/cut3r/bin/python"
+          add_candidate "/home/github-runner/.conda/envs/cut3r/bin/python"
+          add_candidate "/home/github-runner/miniconda3/envs/cut3r/bin/python"
+          add_candidate "/home/github-runner/anaconda3/envs/cut3r/bin/python"
+          add_candidate "/mnt/seagate10tb/florianpfaff/conda_envs/cut3r/bin/python"
+          add_candidate "/opt/conda/envs/cut3r/bin/python"
+
+          roots=(
+            "/home/florianpfaff/conda_envs"
+            "/home/florianpfaff/miniconda3/envs"
+            "/home/florianpfaff/anaconda3/envs"
+            "/home/florian/conda_envs"
+            "/home/florian/miniconda3/envs"
+            "/home/florian/anaconda3/envs"
+            "/home/github-runner/.conda/envs"
+            "/home/github-runner/miniconda3/envs"
+            "/home/github-runner/anaconda3/envs"
+            "/mnt/seagate10tb/florianpfaff/conda_envs"
+            "/opt/conda/envs"
+          )
+          for env_root in "${roots[@]}"; do
+            if [[ -d "$env_root" ]]; then
+              while IFS= read -r candidate; do
+                add_candidate "$candidate"
+              done < <(
+                find "$env_root" -mindepth 3 -maxdepth 3 \
+                  -path '*/bin/python' -executable -print 2>/dev/null | sort
+              )
+            fi
+          done
+          add_candidate "$(command -v python3 || true)"
+          add_candidate "$(command -v python || true)"
+
+          selected=""
+          for candidate in "${candidates[@]}"; do
+            [[ -x "$candidate" ]] || continue
+            {
+              printf 'candidate=%s\n' "$candidate"
+              "$candidate" - <<'PY'
+          import sys
+          import numpy
+
+          print(f"python={sys.version.split()[0]}")
+          print(f"numpy={numpy.__version__}")
+          if sys.version_info < (3, 10):
+              raise SystemExit(2)
+          PY
+            } >> "$log" 2>&1 || continue
+            selected="$candidate"
+            break
+          done
+          if [[ -z "$selected" ]]; then
+            cat "$log" >&2 || true
+            echo "No retained Python >=3.10 with NumPy is available" >&2
+            exit 2
+          fi
+          printf 'selected=%s\n' "$selected" >> "$log"
+          cat "$log"
+          echo "python=$selected" >> "$GITHUB_OUTPUT"
       - name: Execute recording-disjoint real-trajectory evaluation
         id: execute
         shell: bash
         run: |
           set -euo pipefail
-          root="${{ steps.runtime.outputs.root }}"
+          root="${{ steps.workspace.outputs.root }}"
           output="$root/evidence"
-          printf '%s\n' "$output" > "$RUNNER_TEMP/tracking-cloth-output-path.txt"
+          rm -rf -- "$output"
           set +e
-          PYTHONPATH=src "${{ steps.runtime.outputs.python }}" \
+          PYTHONPATH="$GITHUB_WORKSPACE/src" "${{ steps.python.outputs.python }}" \
             scripts/science/run_tracking_cloth_posterior_compression.py \
               --dataset-root "$DATASET_ROOT" \
               --protocol "$PROTOCOL_PATH" \
@@ -191,9 +265,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: tracking-cloth-posterior-compression-real-v1-${{ github.run_attempt }}
-          path: |
-            ${{ steps.runtime.outputs.root }}/evidence
-            ${{ steps.runtime.outputs.root }}/process-exit-code.txt
+          path: ${{ steps.workspace.outputs.root }}
           if-no-files-found: error
           retention-days: 30
       - name: Publish run summary
@@ -201,7 +273,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          output=$(cat "$RUNNER_TEMP/tracking-cloth-output-path.txt")
+          output="${{ steps.workspace.outputs.root }}/evidence"
           if test -f "$output/summary.md"; then
             cat "$output/summary.md" >> "$GITHUB_STEP_SUMMARY"
           fi
@@ -209,8 +281,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          output=$(cat "$RUNNER_TEMP/tracking-cloth-output-path.txt")
-          python3 - "$output/result.json" <<'PY'
+          root="${{ steps.workspace.outputs.root }}"
+          output="$root/evidence"
+          test "$(cat "$root/process-exit-code.txt")" = "0"
+          test -f "$output/result.json"
+          /usr/bin/python3 - "$output/result.json" <<'PY'
           import json
           import sys
           from pathlib import Path
