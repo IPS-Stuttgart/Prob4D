@@ -1,0 +1,39 @@
+{
+  "schema": "prob4d.dot-rope-real-pilot.v1",
+  "phase": "archive-layout-inventory",
+  "dataset": {
+    "doi": "10.13021/ORC2020/XXLVXM",
+    "runner_path": "/home/github-runner/.cache/workflows/dot-rope",
+    "expected_archives": [
+      "R01-10.zip",
+      "R11-20.zip",
+      "R21-30.zip",
+      "R31-40.zip",
+      "R41-50.zip",
+      "R51-60.zip",
+      "R61-70.zip"
+    ],
+    "expected_total_filesystem_bytes": 9478165486
+  },
+  "runner": {
+    "required_labels": ["self-hosted", "gpuserver4090"],
+    "network_downloads": false,
+    "dataset_mutation": false,
+    "archive_extraction": false
+  },
+  "outputs": [
+    "inventory.json",
+    "members.tsv",
+    "candidate_members.json",
+    "text_previews.json",
+    "array_headers.json"
+  ],
+  "information_boundary": {
+    "provider_executed": false,
+    "ground_truth_scored": false,
+    "method_selected_from_outcomes": false,
+    "bayesian_phystwin_executed": false,
+    "causal4d_executed": false
+  },
+  "next_authorization": "Use the inventory only to write a separately frozen, small real-data pilot. Do not claim provider competence or calibration from archive layout."
+}
