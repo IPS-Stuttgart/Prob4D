@@ -1,0 +1,15 @@
+{
+  "schema": "dot-rope-curvature-inventory-request-v1",
+  "request_id": "dot-rope-gpuserver6000-inventory-2026-08-30-v1",
+  "mode": "inventory",
+  "dataset_root": "/mnt/seagate10tb/florianpfaff/datasets/dot-rope",
+  "runner_label": "gpuserver6000",
+  "development_sequences": "R01-R30",
+  "calibration_sequences": "R31-R40",
+  "held_out_sequences": "R41-R70",
+  "held_out_payload_decode_authorized": false,
+  "provider_execution_authorized": false,
+  "paper_claim_authorized": false,
+  "evidence_class": "public-real-data inventory; central-directory metadata only; no provider or target outcome claim",
+  "expected_source_revision": "eb1afd56a5b61c1854f9c552f6b1440252c07839"
+}
