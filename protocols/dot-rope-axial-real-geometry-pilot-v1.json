@@ -1,0 +1,66 @@
+{
+  "schema": "prob4d.dot-rope-axial-real-geometry-pilot.v1",
+  "phase": "source-real-geometry-controlled-gauge-pilot",
+  "dataset": {
+    "doi": "10.13021/ORC2020/XXLVXM",
+    "runner_path": "/home/github-runner/.cache/workflows/dot-rope",
+    "expected_total_filesystem_bytes": 9478165486,
+    "coordinate_semantics": "publisher-3d-joint-coordinates-cam001",
+    "coordinate_unit": "dataset-native-unverified"
+  },
+  "source_roster": {
+    "sequences": ["R01", "R02", "R03"],
+    "allowed_archive": "R01-10.zip",
+    "reserved_payload_sequences": "R04-R70"
+  },
+  "sampling": {
+    "frame_start": 1,
+    "frame_stop_inclusive": 599,
+    "frame_stride": 10
+  },
+  "geometry": {
+    "overlap_nodes": 4,
+    "minimum_query_radius_fraction": 0.2,
+    "primary_max_straightness_fraction": 0.03,
+    "primary_min_query_radius_fraction": 0.25,
+    "selection": "per-frame-minimum-straightness-then-maximum-query-radius-then-index-v1"
+  },
+  "angular_model": {
+    "prior": "wrapped-normal-zero-mean",
+    "prior_standard_deviation_radians": 1.0,
+    "observation_noise_standard_deviation_fractions_of_overlap_span": [
+      0.01,
+      0.02,
+      0.05
+    ],
+    "primary_observation_noise_fraction": 0.02,
+    "posterior_grid_size": 8192,
+    "likelihood": "fixed-axis-isotropic-overlap-point-gaussian-v1"
+  },
+  "score": {
+    "independent_query_noise_standard_deviation_fraction_of_overlap_span": 0.005,
+    "illustrative_query_standard_deviation_screen_fraction_of_overlap_span": 0.02,
+    "nominal_interval_probability": 0.9
+  },
+  "methods": [
+    "local-first-order",
+    "local-second-order",
+    "local-spherical-radial-2",
+    "local-gauss-hermite-5",
+    "local-gauss-hermite-32",
+    "laplace-wrapped-normal-circular",
+    "posterior-circular-moments"
+  ],
+  "information_boundary": {
+    "normal_view_images_read": false,
+    "uv_view_images_read": false,
+    "two_dimensional_coordinates_read": false,
+    "three_dimensional_coordinates_read": true,
+    "learned_provider_executed": false,
+    "real_provider_competence_claimed": false,
+    "reserved_sequence_payloads_read": false,
+    "bayesian_phystwin_executed": false,
+    "causal4d_executed": false
+  },
+  "claim_boundary": "Source-only stress test using real DOT rope geometry and a controlled angular prior/noise model. No learned provider, held-out confirmation, empirical calibration, BayesianPhysTwin benefit, Causal4D benefit, safety, or state-of-the-art claim."
+}
