@@ -160,7 +160,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$RUNNER_NAME" = "gpuserver6000"
+          test "$RUNNER_NAME" = "workstation2"
           test "$RUNNER_OS" = "Linux"
           test "$RUNNER_ARCH" = "X64"
           command -v nvidia-smi >/dev/null
