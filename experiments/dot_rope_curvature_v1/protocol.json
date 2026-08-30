@@ -1,0 +1,34 @@
+{
+  "schema": "dot-rope-curvature-protocol-v1",
+  "dataset": {
+    "name": "Deformable Object Tracking Dataset (DOT) - rope subset",
+    "persistent_id": "doi:10.13021/ORC2020/XXLVXM",
+    "publisher_version": "29.0",
+    "license": "CC0-1.0",
+    "dataset_root": "/mnt/seagate10tb/florianpfaff/datasets/dot-rope",
+    "archives": [
+      {"name": "R01-10.zip", "md5": "ca546ff5f22c0279123ccb18509858ee"},
+      {"name": "R11-20.zip", "md5": "23ce3e7067465d3edabe20b4c7cfa388"},
+      {"name": "R21-30.zip", "md5": "8aee77f79d1aff6e1f3fd21886b251a0"},
+      {"name": "R31-40.zip", "md5": "8a96081d20af9fa486fafa8e24e54442"},
+      {"name": "R41-50.zip", "md5": "fe1edaf708d0dc55ebf108d24badacce"},
+      {"name": "R51-60.zip", "md5": "aa74ff1f12a898d61e5255abf09680aa"},
+      {"name": "R61-70.zip", "md5": "da7a7a11a7d4e4541c891f3fafbe07b7"}
+    ]
+  },
+  "prospective_split": {
+    "development": "R01-R30",
+    "calibration": "R31-R40",
+    "held_out": "R41-R70"
+  },
+  "inventory_boundary": {
+    "archive_bytes_may_be_read_for_publisher_checksums": true,
+    "zip_central_directories_may_be_read": true,
+    "member_payload_decode_authorized": false,
+    "member_extraction_authorized": false,
+    "provider_execution_authorized": false,
+    "outcome_scoring_authorized": false
+  },
+  "next_stage_after_inventory": "Freeze a source-only parser and real-camera geometry audit before any held-out payload is decoded.",
+  "claim_boundary": "Operational inventory only; no provider competence, calibration, BayesianPhysTwin, Causal4D, or state-of-the-art claim."
+}
