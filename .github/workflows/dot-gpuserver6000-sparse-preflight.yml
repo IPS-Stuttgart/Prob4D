@@ -1,0 +1,60 @@
+name: Preflight sparse DOT CUT3R runtime on gpuserver6000
+
+on:
+  push:
+    branches: [science/dot-gpuserver6000-direct-v1]
+    paths:
+      - ".github/workflows/dot-gpuserver6000-sparse-preflight.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: [self-hosted, Linux, X64, gpuserver6000]
+    environment: trusted-self-hosted-validation
+    timeout-minutes: 15
+    env:
+      CUT3R_SOURCE: /mnt/corsair/prob4d-cut3r-source-freeze-v2-inputs/CUT3R
+      CUT3R_CHECKPOINT: /mnt/corsair/prob4d-cut3r-source-freeze-v2-inputs/cut3r_512_dpt_4_64.pth
+    steps:
+      - name: Record runtime and frozen asset identities without dataset access
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_NAME" = "workstation2"
+          test "$RUNNER_OS" = "Linux"
+          test "$RUNNER_ARCH" = "X64"
+          nvidia-smi --query-gpu=name,driver_version,memory.total,compute_cap --format=csv,noheader
+          echo '--- CUDA toolkits ---'
+          find /usr/local -maxdepth 3 -type f -path '*/bin/nvcc' -executable -print 2>/dev/null | sort
+          for nvcc in /usr/local/cuda/bin/nvcc /usr/local/cuda-*/bin/nvcc; do
+            [[ -x "$nvcc" ]] || continue
+            echo "NVCC=$nvcc"
+            "$nvcc" --version
+          done
+          echo '--- CUT3R source ---'
+          test -d "$CUT3R_SOURCE/.git"
+          git -C "$CUT3R_SOURCE" rev-parse HEAD
+          git -C "$CUT3R_SOURCE" status --porcelain=v1 --untracked-files=all | head -50
+          sha256sum "$CUT3R_SOURCE/requirements.txt"
+          echo '--- checkpoint ---'
+          test -f "$CUT3R_CHECKPOINT"
+          stat -c 'bytes=%s' "$CUT3R_CHECKPOINT"
+          sha256sum "$CUT3R_CHECKPOINT"
+          echo '--- retained Python/runtime candidates ---'
+          for candidate in \
+            /home/github-runner/.cache/prob4d/cut3r-runtime-v1/venv/bin/python \
+            /home/github-runner/.cache/prob4d/cut3r-runtime-v2/venv/bin/python \
+            /mnt/corsair/prob4d-cut3r-runtime-v1/bin/python \
+            /mnt/corsair/prob4d-cut3r-runtime-v2/venv/bin/python \
+            /home/github-runner/.cache/datasets/venvs/hdetrackv2/bin/python; do
+            if [[ -e "$candidate" || -L "$candidate" ]]; then
+              ls -l "$candidate"
+              set +e
+              "$candidate" -c 'import sys; print(sys.version)' 2>&1
+              "$candidate" -c 'import torch; print(torch.__version__, torch.version.cuda, torch.cuda.is_available())' 2>&1
+              set -e
+            fi
+          done
+          echo 'dataset_payload_accessed=false'
