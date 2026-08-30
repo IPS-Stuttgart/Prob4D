@@ -508,7 +508,8 @@ def render_summary(result: dict[str, Any]) -> str:
     lines.extend(
         [
             "",
-            "Only tar headers and filesystem metadata were read. Archive payloads and arrays remained unopened.",
+            "Only tar headers and filesystem metadata were read. "
+            "Archive payloads and arrays remained unopened.",
             "",
         ]
     )
