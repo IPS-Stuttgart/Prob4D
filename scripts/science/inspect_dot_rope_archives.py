@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 """Inspect the official DOT rope archives without extracting dataset payloads.
 
-The command is intentionally read-only. It verifies the expected archive roster,
-rejects unsafe ZIP member paths, summarizes layout and extensions, previews small
-metadata files, and records NumPy array headers where possible. It does not score
-truth, run a provider, or select an evaluation cohort.
+The command is intentionally read-only and standard-library-only. It verifies
+the expected archive roster, rejects unsafe ZIP member paths, summarizes layout
+and extensions, previews small metadata files, and records NumPy array headers
+where possible. Publisher checksums are assumed to have been verified before
+this source-only preflight; the command does not redundantly decompress all 9 GB.
+It does not score truth, run a provider, or select an evaluation cohort.
 """
 
 from __future__ import annotations
 
 import argparse
+import ast
 import csv
 import hashlib
 import io
@@ -17,12 +20,11 @@ import json
 import os
 import re
 import stat
+import struct
 import zipfile
-from collections import Counter, defaultdict
+from collections import Counter
 from pathlib import Path, PurePosixPath
 from typing import Any
-
-import numpy as np
 
 EXPECTED_ARCHIVES = (
     "R01-10.zip",
@@ -81,37 +83,61 @@ def _top_prefix(name: str, depth: int = 3) -> str:
 
 def _preview_text(raw: bytes, limit: int = 8192) -> dict[str, Any]:
     sample = raw[:limit]
-    for encoding in ("utf-8", "utf-8-sig", "latin-1"):
+    encoding = "latin-1"
+    text = sample.decode(encoding)
+    for candidate in ("utf-8", "utf-8-sig"):
         try:
-            text = sample.decode(encoding)
+            text = sample.decode(candidate)
+            encoding = candidate
             break
         except UnicodeDecodeError:
             continue
-    else:  # pragma: no cover - latin-1 always succeeds
-        text = sample.decode("latin-1", errors="replace")
-    text = text.replace("\x00", "\\0")
     return {
         "encoding": encoding,
         "truncated": len(raw) > limit,
-        "preview": text,
+        "preview": text.replace("\x00", "\\0"),
         "sha256": hashlib.sha256(raw).hexdigest(),
     }
 
 
 def _npy_header(raw: bytes) -> dict[str, Any]:
+    """Parse an NPY header without importing NumPy or loading an array."""
     stream = io.BytesIO(raw)
-    version = np.lib.format.read_magic(stream)
+    if stream.read(6) != b"\x93NUMPY":
+        raise ValueError("invalid NPY magic")
+    version = tuple(stream.read(2))
     if version == (1, 0):
-        shape, fortran_order, dtype = np.lib.format.read_array_header_1_0(stream)
+        length_raw = stream.read(2)
+        if len(length_raw) != 2:
+            raise ValueError("truncated NPY v1 header length")
+        header_length = struct.unpack("<H", length_raw)[0]
+        encoding = "latin-1"
     elif version in {(2, 0), (3, 0)}:
-        shape, fortran_order, dtype = np.lib.format.read_array_header_2_0(stream)
+        length_raw = stream.read(4)
+        if len(length_raw) != 4:
+            raise ValueError("truncated NPY v2/v3 header length")
+        header_length = struct.unpack("<I", length_raw)[0]
+        encoding = "utf-8" if version == (3, 0) else "latin-1"
     else:
         raise ValueError(f"unsupported NPY version {version}")
+    header_raw = stream.read(header_length)
+    if len(header_raw) != header_length:
+        raise ValueError("truncated NPY header")
+    header = ast.literal_eval(header_raw.decode(encoding).strip())
+    if not isinstance(header, dict):
+        raise ValueError("NPY header is not a dictionary")
+    if set(header) != {"descr", "fortran_order", "shape"}:
+        raise ValueError(f"unexpected NPY header fields: {sorted(header)}")
+    shape = header["shape"]
+    if not isinstance(shape, tuple) or any(type(value) is not int or value < 0 for value in shape):
+        raise ValueError("invalid NPY shape")
+    if type(header["fortran_order"]) is not bool:
+        raise ValueError("invalid NPY fortran_order")
     return {
         "version": list(version),
         "shape": list(shape),
-        "fortran_order": bool(fortran_order),
-        "dtype": str(dtype),
+        "fortran_order": header["fortran_order"],
+        "dtype_descriptor": header["descr"],
         "header_bytes": stream.tell(),
     }
 
@@ -149,9 +175,6 @@ def inspect_archives(dataset_root: Path, output_dir: Path) -> dict[str, Any]:
         archive_uncompressed = 0
         archive_compressed = 0
         with zipfile.ZipFile(archive_path, "r") as archive:
-            corrupt = archive.testzip()
-            if corrupt is not None:
-                raise ValueError(f"CRC failure in {archive_name}: {corrupt}")
             members = archive.infolist()
             for info in members:
                 if not _safe_member(info.filename):
@@ -159,10 +182,11 @@ def inspect_archives(dataset_root: Path, output_dir: Path) -> dict[str, Any]:
                 is_directory = info.is_dir()
                 suffix = _extension(info.filename)
                 prefix = _top_prefix(info.filename)
-                extension_counts[suffix] += int(not is_directory)
-                prefix_counts[prefix] += int(not is_directory)
-                global_extensions[suffix] += int(not is_directory)
-                global_prefixes[prefix] += int(not is_directory)
+                if not is_directory:
+                    extension_counts[suffix] += 1
+                    prefix_counts[prefix] += 1
+                    global_extensions[suffix] += 1
+                    global_prefixes[prefix] += 1
                 archive_uncompressed += info.file_size
                 archive_compressed += info.compress_size
                 member_rows.append(
