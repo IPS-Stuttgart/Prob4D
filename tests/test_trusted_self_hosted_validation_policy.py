@@ -10,9 +10,7 @@ SOURCE_FREEZE_AUTO_V2_WORKFLOW = WORKFLOW_ROOT / "cut3r-source-freeze-auto-v2.ym
 CUT3R_CHECKOUT_TRUST_RERUN_WORKFLOW = WORKFLOW_ROOT / "cut3r-checkout-trust-rerun-v1.yml"
 CUT3R_SOURCE_COMPARISON_V2_WORKFLOW = WORKFLOW_ROOT / "cut3r-source-comparison-v2.yml"
 POINTWORLD_MODEL_LOAD_SMOKE_WORKFLOW = WORKFLOW_ROOT / "pointworld-model-load-smoke.yml"
-DEFORM360_SOURCE_BUNDLE_AUDIT_WORKFLOW = (
-    WORKFLOW_ROOT / "deform360-source-bundle-audit.yml"
-)
+DEFORM360_SOURCE_BUNDLE_AUDIT_WORKFLOW = WORKFLOW_ROOT / "deform360-source-bundle-audit.yml"
 CUT3R_RUNNER_SELECTOR = (
     "runs-on: [self-hosted, Linux, X64, nvidia-smi, "
     + "data-prob4d-deform360-source-v1, prob4d-cut3r]"
