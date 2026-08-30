@@ -3,12 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-WORKFLOW = (
-    ROOT
-    / ".github"
-    / "workflows"
-    / "dot-rope-cut3r-pooled-evaluation-hosted-v1.yml"
-)
+WORKFLOW = ROOT / ".github" / "workflows" / "dot-rope-cut3r-pooled-evaluation-hosted-v1.yml"
 
 
 def test_hosted_pooled_evaluation_is_file_triggered_and_not_self_hosted() -> None:
@@ -16,10 +11,7 @@ def test_hosted_pooled_evaluation_is_file_triggered_and_not_self_hosted() -> Non
 
     assert "name: DOT rope hosted pooled CUT3R evaluation v1" in text
     assert "branches: [main]" in text
-    assert (
-        "protocols/execution_requests/"
-        "dot_rope_cut3r_pooled_evaluation_hosted_v1.json"
-    ) in text
+    assert ("protocols/execution_requests/dot_rope_cut3r_pooled_evaluation_hosted_v1.json") in text
     assert "runs-on: ubuntu-latest" in text
     assert "self-hosted" not in text
     assert "pull_request_target:" not in text
