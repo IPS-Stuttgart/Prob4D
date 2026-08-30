@@ -10,8 +10,9 @@ import json
 import math
 import traceback
 from collections import defaultdict
+from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any
 
 import numpy as np
 
@@ -229,13 +230,13 @@ def load_episodes(
                 "frames": len(endpoints),
             }
         except Exception as exc:
-            failures.append(
-                {"episode": episode, "cohort": cohorts[episode], "reason": str(exc)}
-            )
+            failures.append({"episode": episode, "cohort": cohorts[episode], "reason": str(exc)})
     return episodes, failures
 
 
-def fit_damping(episodes: Mapping[int, Mapping[str, Any]], horizons: Sequence[int]) -> dict[int, float]:
+def fit_damping(
+    episodes: Mapping[int, Mapping[str, Any]], horizons: Sequence[int]
+) -> dict[int, float]:
     result: dict[int, float] = {}
     for horizon in horizons:
         numerator = 0.0
@@ -258,8 +259,7 @@ def query_value(
 ) -> float:
     if query == "span_change":
         return float(
-            np.linalg.norm(future[1] - future[0])
-            - np.linalg.norm(current[1] - current[0])
+            np.linalg.norm(future[1] - future[0]) - np.linalg.norm(current[1] - current[0])
         )
     if query == "centroid_progress":
         return float((np.mean(future, axis=0) - np.mean(current, axis=0)) @ axis)
@@ -284,7 +284,10 @@ def episode_metrics(
                 axis = canonical_axis(current[1] - current[0])
                 span = float(spans[frame])
                 predictions = {
-                    query: [query_value(current, candidate, axis, query, gauge) / span for gauge in (0, 1)]
+                    query: [
+                        query_value(current, candidate, axis, query, gauge) / span
+                        for gauge in (0, 1)
+                    ]
                     for query in QUERIES
                 }
                 for query in QUERIES:
@@ -293,9 +296,7 @@ def episode_metrics(
                         actual = query_value(current, truth, axis, query, gauge) / span
                         candidate_error = abs(predictions[query][gauge] - actual)
                         fallback_error = abs(actual)
-                        grouped[(query, gauge)].append(
-                            (candidate_error, fallback_error, diameter)
-                        )
+                        grouped[(query, gauge)].append((candidate_error, fallback_error, diameter))
             for (query, gauge), values in sorted(grouped.items()):
                 rows.append(
                     {
@@ -321,7 +322,9 @@ def conservative_quantile(values: Iterable[float], probability: float) -> float:
     return float(array[min(max(index, 0), len(array) - 1)])
 
 
-def calibration_model(rows: Sequence[Mapping[str, Any]]) -> tuple[dict[tuple[str, int, int], dict[str, float]], list[dict[str, Any]]]:
+def calibration_model(
+    rows: Sequence[Mapping[str, Any]],
+) -> tuple[dict[tuple[str, int, int], dict[str, float]], list[dict[str, Any]]]:
     grouped: dict[tuple[str, int, int], list[Mapping[str, Any]]] = defaultdict(list)
     for row in rows:
         if row["cohort"] == "calibration":
@@ -332,17 +335,13 @@ def calibration_model(rows: Sequence[Mapping[str, Any]]) -> tuple[dict[tuple[str
         shared = conservative_quantile((float(value["advantage"]) for value in values), 0.10)
         independent = conservative_quantile(
             (float(value["fallback_error"]) for value in values), 0.10
-        ) - conservative_quantile(
-            (float(value["candidate_error"]) for value in values), 0.90
-        )
+        ) - conservative_quantile((float(value["candidate_error"]) for value in values), 0.90)
         model[key] = {
             "shared_lcb": shared,
             "independent_lcb": independent,
             "orbit_diameter": max(float(value["orbit_diameter"]) for value in values),
         }
-        output.append(
-            {"query": key[0], "horizon": key[1], "gauge": key[2], **model[key]}
-        )
+        output.append({"query": key[0], "horizon": key[1], "gauge": key[2], **model[key]})
     return model, output
 
 
@@ -372,7 +371,10 @@ def bootstrap_ci(values: Sequence[float], seed: int, repetitions: int) -> tuple[
     array = np.asarray(values, dtype=np.float64)
     generator = np.random.default_rng(seed)
     means = np.asarray(
-        [float(np.mean(generator.choice(array, size=len(array), replace=True))) for _ in range(repetitions)]
+        [
+            float(np.mean(generator.choice(array, size=len(array), replace=True)))
+            for _ in range(repetitions)
+        ]
     )
     return float(np.quantile(means, 0.025)), float(np.quantile(means, 0.975))
 
@@ -441,7 +443,9 @@ def evaluate(
                         "regret_ci95_low": lower,
                         "regret_ci95_high": upper,
                         "harmful_accepted_rate": float(
-                            np.mean([row["harmful_accepted"] for row in arm_rows if row["accepted"]])
+                            np.mean(
+                                [row["harmful_accepted"] for row in arm_rows if row["accepted"]]
+                            )
                         )
                         if admitted
                         else 0.0,
@@ -572,7 +576,10 @@ def main() -> int:
         self_test()
         print("self-test passed")
         return 0
-    if any(value is None for value in (args.protocol, args.dataset_root, args.download_root, args.output_dir)):
+    if any(
+        value is None
+        for value in (args.protocol, args.dataset_root, args.download_root, args.output_dir)
+    ):
         parser.error("all path arguments are required")
     args.output_dir.mkdir(parents=True, exist_ok=False)
     try:
