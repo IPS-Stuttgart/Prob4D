@@ -47,6 +47,34 @@ def _configure_fixture(monkeypatch, module, tmp_path: Path) -> tuple[Path, Path,
     return checkout, model_path, source
 
 
+def _configure_smoke_fixture(
+    monkeypatch,
+    module,
+    tmp_path: Path,
+) -> tuple[Path, Path, bytes]:
+    repository_root = tmp_path / "repository"
+    source_path = repository_root / module._TRUSTED_PROVIDER_SCRIPT_RELATIVE_PATH
+    source_path.parent.mkdir(parents=True)
+    source = (
+        b"with tempfile.TemporaryDirectory(prefix=\"dot-cut3r-smoke-\") as temporary:\n"
+        b"            frame_paths = _make_synthetic_frames(Path(temporary), count=3)\n"
+        b"            prediction = runtime.infer(frame_paths, image_size=512)\n"
+    )
+    source_path.write_bytes(source)
+    monkeypatch.setattr(
+        module,
+        "_TRUSTED_PROVIDER_SCRIPT_GIT_BLOB_SHA1",
+        module._git_blob_sha1(source),
+    )
+    monkeypatch.setenv("REQUEST_PATH", module._TRUSTED_REQUEST_PATH)
+    monkeypatch.setenv("CUT3R_REVISION", module._TRUSTED_CUT3R_REVISION)
+    monkeypatch.setenv(
+        "CUT3R_CHECKPOINT_SHA256",
+        module._TRUSTED_CHECKPOINT_SHA256,
+    )
+    return repository_root, source_path, source
+
+
 def test_trusted_checkpoint_compatibility_is_hash_bound(
     monkeypatch,
     tmp_path: Path,
@@ -79,8 +107,49 @@ def test_trusted_checkpoint_compatibility_rejects_source_drift(
         module._prepare_trusted_checkpoint_compatibility(checkout.resolve())
 
 
+def test_trusted_smoke_workspace_compatibility_is_hash_bound(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_script()
+    repository_root, source_path, source = _configure_smoke_fixture(
+        monkeypatch,
+        module,
+        tmp_path,
+    )
+
+    record = module._prepare_trusted_smoke_workspace_compatibility(repository_root)
+
+    assert record is not None
+    assert record["status"] == "trusted-smoke-child-workspace-enabled"
+    assert record["source_git_blob_sha1"] == module._git_blob_sha1(source)
+    patched = source_path.read_text(encoding="utf-8")
+    assert '_make_synthetic_frames(Path(temporary) / "frames", count=3)' in patched
+    assert "_make_synthetic_frames(Path(temporary), count=3)" not in patched
+    unsigned = dict(record)
+    artifact_id = unsigned.pop("artifact_id")
+    assert artifact_id == module._content_id(unsigned)
+
+
+def test_trusted_smoke_workspace_compatibility_rejects_source_drift(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_script()
+    repository_root, source_path, _ = _configure_smoke_fixture(
+        monkeypatch,
+        module,
+        tmp_path,
+    )
+    source_path.write_text("unexpected source\n", encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="provider source bytes changed"):
+        module._prepare_trusted_smoke_workspace_compatibility(repository_root)
+
+
 def test_unrelated_runtime_does_not_patch(monkeypatch, tmp_path: Path) -> None:
     module = _load_script()
     monkeypatch.delenv("REQUEST_PATH", raising=False)
 
     assert module._prepare_trusted_checkpoint_compatibility(tmp_path.resolve()) is None
+    assert module._prepare_trusted_smoke_workspace_compatibility(tmp_path.resolve()) is None
