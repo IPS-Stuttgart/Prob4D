@@ -48,9 +48,7 @@ SUPPORT_RULE = {
     "provider_truth_minimum_total": 6,
     "score_minimum_total": 2,
 }
-PREPROCESSING_TRANSFORM = (
-    "cut3r-long-edge-resize-512-center-crop-multiple-of-16-pixel-centers"
-)
+PREPROCESSING_TRANSFORM = "cut3r-long-edge-resize-512-center-crop-multiple-of-16-pixel-centers"
 COORDINATE_MODES = {
     "pixel-zero-based",
     "pixel-one-based",
@@ -258,9 +256,7 @@ def _parse_coordinate_text(text: str, dimensions: int) -> np.ndarray:
             raise RuntimeError("coordinate columns were not activated")
         first, second = _ACTIVE_COORDINATE_COLUMNS
         selected = [
-            [row[first], row[second]]
-            for row in rows
-            if first < len(row) and second < len(row)
+            [row[first], row[second]] for row in rows if first < len(row) and second < len(row)
         ]
     elif dimensions == 3:
         selected = [row[-3:] for row in rows if len(row) >= 3]
@@ -335,12 +331,8 @@ def cut3r_output_coordinates(
         & (raw[:, 1] <= original_height - 1.0)
     )
     mapped = raw.copy()
-    mapped[:, 0] = (
-        (raw[:, 0] + 0.5) * resized_width / original_width - 0.5 - crop_left
-    )
-    mapped[:, 1] = (
-        (raw[:, 1] + 0.5) * resized_height / original_height - 0.5 - crop_top
-    )
+    mapped[:, 0] = (raw[:, 0] + 0.5) * resized_width / original_width - 0.5 - crop_left
+    mapped[:, 1] = (raw[:, 1] + 0.5) * resized_height / original_height - 0.5 - crop_top
     metadata = {
         "resized_width": resized_width,
         "resized_height": resized_height,
@@ -398,9 +390,7 @@ def _sample_markers(
     sampled_points, valid_points = bilinear_sample(points, mapped)
     sampled_confidence, valid_confidence = bilinear_sample(confidence[..., None], mapped)
     finite_truth = np.isfinite(truth).all(axis=1)
-    positive_confidence = np.isfinite(sampled_confidence[:, 0]) & (
-        sampled_confidence[:, 0] > 0.0
-    )
+    positive_confidence = np.isfinite(sampled_confidence[:, 0]) & (sampled_confidence[:, 0] > 0.0)
     valid = (
         original_valid
         & valid_points
