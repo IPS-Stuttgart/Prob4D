@@ -1,0 +1,24 @@
+{
+  "calibration_session": "action-aligned-source-v1/002-rope-silk-ep0000/episode_0000/pcd_clean",
+  "claim_boundary": "Development-only real-geometry evidence on the partial clean Deform360 subset on gpuserver6000. The calibration and evaluation sessions are separate physical objects, but the mounted dataset is incomplete and has prior development exposure. This result does not establish complete-dataset performance, fresh independent confirmation, learned-provider competence, BayesianPhysTwin benefit, Causal4D benefit, deployment safety, or state of the art.",
+  "covariance_diagonal_shrinkage": 0.05,
+  "covariance_relative_eigen_floor": 1e-09,
+  "dataset_root": "/mnt/lexar4tb/datasets/deform360",
+  "evaluation_session": "action-aligned-source-v1/085-scarf-cloth-ep0001/episode_0000/pcd_clean",
+  "forecast_ages_frames": [
+    2,
+    4,
+    6
+  ],
+  "frame_rate_hz": 30.0,
+  "guard_quantile": 0.95,
+  "minimum_initial_visibility_views": 2,
+  "minimum_selected_points": 24,
+  "profile": "deform360-partial-pcd-overlap-v1",
+  "protocol_id": "faa77a28879a47b71e553b1cfc2d88822c98a8f7e05c8514f22a86f884aa1262",
+  "runner_label": "gpuserver6000",
+  "runner_name": "workstation2",
+  "schema": "prob4d.deform360-partial-pcd-overlap-protocol",
+  "schema_version": 1,
+  "tip_fraction": 0.2
+}
