@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Build a bounded metadata-only inventory of a staged Deform360 source bundle.
 
-The audit deliberately never opens a dataset file. It traverses directory
-entries with ``os.scandir`` and records only lstat-derived metadata. Symlinks are
-not followed, target-like path components are skipped before stat or descent,
-and all outputs are written outside the dataset root.
+The audit never opens a dataset file. It traverses directory entries with
+``os.scandir`` and records only ``lstat``-derived metadata. Symlinks are not
+followed, target-like path components are skipped before stat or descent, and
+all outputs are written outside the dataset root.
 """
 
 from __future__ import annotations
@@ -96,7 +96,9 @@ def _require_int(
 
 def _require_sha(value: object, *, name: str, length: int) -> str:
     text = str(value)
-    if len(text) != length or any(character not in "0123456789abcdef" for character in text):
+    if len(text) != length or any(
+        character not in "0123456789abcdef" for character in text
+    ):
         raise AuditContractError(f"{name} must be a lowercase {length}-hex digest")
     return text
 
@@ -116,9 +118,9 @@ def validate_protocol_record(record: dict[str, Any]) -> dict[str, Any]:
         raise AuditContractError("source_root differs from the reviewed source bundle")
     if record.get("runner_label") != EXPECTED_RUNNER_LABEL:
         raise AuditContractError("runner_label differs from the reviewed runner")
-    tokens = record.get("forbidden_path_tokens")
-    if tokens != list(EXPECTED_FORBIDDEN_TOKENS):
+    if record.get("forbidden_path_tokens") != list(EXPECTED_FORBIDDEN_TOKENS):
         raise AuditContractError("forbidden_path_tokens differ from the reviewed set")
+
     _require_bool(record, "metadata_access_authorized", True)
     for key in (
         "file_content_reads_authorized",
@@ -129,6 +131,7 @@ def validate_protocol_record(record: dict[str, Any]) -> dict[str, Any]:
         "dataset_mutation_authorized",
     ):
         _require_bool(record, key, False)
+
     limits = record.get("limits")
     if not isinstance(limits, dict):
         raise AuditContractError("limits must be a JSON object")
@@ -136,11 +139,11 @@ def validate_protocol_record(record: dict[str, Any]) -> dict[str, Any]:
     _require_int(limits, "max_depth", minimum=1, maximum=128)
     _require_int(limits, "largest_file_limit", minimum=0, maximum=500)
     _require_int(limits, "sample_path_limit", minimum=0, maximum=1_000)
+
     if record.get("claim_boundary") != CLAIM_BOUNDARY:
-        raise AuditContractError("protocol claim_boundary differs from the reviewed wording")
+        raise AuditContractError("protocol claim_boundary differs from reviewed wording")
     actual_id = _require_sha(record.get("protocol_id"), name="protocol_id", length=64)
-    expected_id = _content_id(record, "protocol_id")
-    if actual_id != expected_id:
+    if actual_id != _content_id(record, "protocol_id"):
         raise AuditContractError("protocol_id mismatch")
     return record
 
@@ -164,20 +167,22 @@ def validate_request_record(
         raise AuditContractError(f"issue_number must be {ISSUE_NUMBER}")
     if record.get("source_protocol_path") != EXPECTED_PROTOCOL_PATH:
         raise AuditContractError("request source_protocol_path mismatch")
-    blob = _require_sha(
+
+    request_blob = _require_sha(
         record.get("source_protocol_git_blob_sha"),
         name="source_protocol_git_blob_sha",
         length=40,
     )
-    expected_blob = _require_sha(
+    merged_blob = _require_sha(
         source_protocol_git_blob_sha,
         name="expected source protocol Git blob SHA",
         length=40,
     )
-    if blob != expected_blob:
+    if request_blob != merged_blob:
         raise AuditContractError("request does not bind the merged protocol blob")
     if record.get("protocol_id") != protocol["protocol_id"]:
         raise AuditContractError("request protocol_id mismatch")
+
     _require_bool(record, "execution_authorized", True)
     _require_bool(record, "metadata_access_authorized", True)
     for key in (
@@ -189,21 +194,18 @@ def validate_request_record(
         "dataset_mutation_authorized",
     ):
         _require_bool(record, key, False)
+
     if record.get("claim_boundary") != CLAIM_BOUNDARY:
-        raise AuditContractError("request claim_boundary differs from the reviewed wording")
+        raise AuditContractError("request claim_boundary differs from reviewed wording")
     actual_id = _require_sha(record.get("request_id"), name="request_id", length=64)
-    expected_id = _content_id(record, "request_id")
-    if actual_id != expected_id:
+    if actual_id != _content_id(record, "request_id"):
         raise AuditContractError("request_id mismatch")
     return record
 
 
 def _forbidden_token(name: str, tokens: tuple[str, ...]) -> str | None:
     normalized = name.casefold().replace("_", "-").replace(" ", "-")
-    for token in tokens:
-        if token in normalized:
-            return token
-    return None
+    return next((token for token in tokens if token in normalized), None)
 
 
 def _entry_type(mode: int) -> str:
@@ -217,7 +219,14 @@ def _entry_type(mode: int) -> str:
 
 
 def _manifest_line(relative_path: str, kind: str, mode: int, size: int) -> bytes:
-    return f"{kind}\0{stat.S_IMODE(mode):04o}\0{size}\0{relative_path}\n".encode("utf-8")
+    return f"{kind}\0{stat.S_IMODE(mode):04o}\0{size}\0{relative_path}\n".encode()
+
+
+def _root_failure(decision: str, message: str, errno: int | None = None):
+    result: dict[str, Any] = {"error": message}
+    if errno is not None:
+        result["errno"] = errno
+    return decision, result
 
 
 def scan_source_root(
@@ -234,41 +243,43 @@ def scan_source_root(
     try:
         root_stat = source_root.lstat()
     except FileNotFoundError:
-        return "source-root-missing", {"error": "source root does not exist"}
+        return _root_failure("source-root-missing", "source root does not exist")
     except OSError as exc:
-        return "source-root-unreadable", {
-            "error": "source root metadata could not be read",
-            "errno": exc.errno,
-        }
+        return _root_failure(
+            "source-root-unreadable",
+            "source root metadata could not be read",
+            exc.errno,
+        )
     if stat.S_ISLNK(root_stat.st_mode):
-        return "source-root-symlink-rejected", {"error": "source root is a symlink"}
+        return _root_failure("source-root-symlink-rejected", "source root is a symlink")
     if not stat.S_ISDIR(root_stat.st_mode):
-        return "source-root-not-directory", {"error": "source root is not a directory"}
+        return _root_failure("source-root-not-directory", "source root is not a directory")
 
     counts: Counter[str] = Counter({"directory": 1})
-    extension_counts: Counter[str] = Counter()
-    depth_counts: Counter[int] = Counter({0: 1})
-    forbidden_counts: Counter[str] = Counter()
+    extensions: Counter[str] = Counter()
+    depths: Counter[int] = Counter({0: 1})
+    forbidden: Counter[str] = Counter()
     top_level: dict[str, Counter[str]] = defaultdict(Counter)
-    error_counts: Counter[str] = Counter()
+    errors: Counter[str] = Counter()
     error_samples: list[dict[str, Any]] = []
     samples: list[dict[str, Any]] = []
     largest: list[tuple[int, str]] = []
     manifest = hashlib.sha256()
     manifest.update(_manifest_line(".", "directory", root_stat.st_mode, root_stat.st_size))
+
     entry_count = 0
-    total_regular_file_bytes = 0
+    total_file_bytes = 0
     maximum_depth_seen = 0
     limit_exceeded = False
-
     stack: list[tuple[Path, str, int]] = [(source_root, "", 0)]
+
     while stack and not limit_exceeded:
         directory, relative_directory, directory_depth = stack.pop()
         try:
             with os.scandir(directory) as iterator:
                 entries = sorted(iterator, key=lambda entry: entry.name)
         except OSError as exc:
-            error_counts["directory-scan"] += 1
+            errors["directory-scan"] += 1
             if len(error_samples) < 50:
                 error_samples.append(
                     {
@@ -281,16 +292,19 @@ def scan_source_root(
 
         child_directories: list[tuple[Path, str, int]] = []
         for entry in entries:
-            token = _forbidden_token(entry.name, forbidden_tokens)
-            if token is not None:
-                forbidden_counts[token] += 1
+            forbidden_token = _forbidden_token(entry.name, forbidden_tokens)
+            if forbidden_token is not None:
+                forbidden[forbidden_token] += 1
                 counts["forbidden-subtree-skipped"] += 1
                 continue
             if entry_count >= max_entries:
                 limit_exceeded = True
                 break
+
             relative_path = (
-                entry.name if not relative_directory else f"{relative_directory}/{entry.name}"
+                entry.name
+                if not relative_directory
+                else f"{relative_directory}/{entry.name}"
             )
             depth = directory_depth + 1
             if depth > max_depth:
@@ -299,14 +313,10 @@ def scan_source_root(
             try:
                 metadata = entry.stat(follow_symlinks=False)
             except OSError as exc:
-                error_counts["lstat"] += 1
+                errors["lstat"] += 1
                 if len(error_samples) < 50:
                     error_samples.append(
-                        {
-                            "operation": "lstat",
-                            "path": relative_path,
-                            "errno": exc.errno,
-                        }
+                        {"operation": "lstat", "path": relative_path, "errno": exc.errno}
                     )
                 continue
 
@@ -314,7 +324,7 @@ def scan_source_root(
             size = int(metadata.st_size)
             entry_count += 1
             counts[kind] += 1
-            depth_counts[depth] += 1
+            depths[depth] += 1
             maximum_depth_seen = max(maximum_depth_seen, depth)
             manifest.update(_manifest_line(relative_path, kind, metadata.st_mode, size))
 
@@ -322,10 +332,9 @@ def scan_source_root(
             top_level[top_name]["entries"] += 1
             top_level[top_name][kind] += 1
             if kind == "file":
-                total_regular_file_bytes += size
+                total_file_bytes += size
                 top_level[top_name]["regular_file_bytes"] += size
-                suffix = Path(entry.name).suffix.casefold() or "<none>"
-                extension_counts[suffix] += 1
+                extensions[Path(entry.name).suffix.casefold() or "<none>"] += 1
                 item = (size, relative_path)
                 if largest_file_limit > 0:
                     if len(largest) < largest_file_limit:
@@ -338,38 +347,40 @@ def scan_source_root(
             if kind == "directory":
                 child_directories.append((Path(entry.path), relative_path, depth))
 
-        for child in reversed(child_directories):
-            stack.append(child)
+        stack.extend(reversed(child_directories))
 
     if limit_exceeded:
         decision = "entry-limit-exceeded"
-    elif error_counts:
+    elif errors:
         decision = "source-bundle-partial"
     else:
         decision = "source-bundle-present"
 
     inventory = {
         "metadata_manifest_sha256": manifest.hexdigest(),
-        "metadata_manifest_semantics": "relative path, lstat type, POSIX mode, and size only",
+        "metadata_manifest_semantics": (
+            "relative path, lstat type, POSIX mode, and size only"
+        ),
         "entry_count_excluding_root": entry_count,
         "counts_including_root": dict(sorted(counts.items())),
-        "total_regular_file_bytes": total_regular_file_bytes,
+        "total_regular_file_bytes": total_file_bytes,
         "maximum_depth_seen": maximum_depth_seen,
         "depth_counts_including_root": {
-            str(depth): count for depth, count in sorted(depth_counts.items())
+            str(depth): count for depth, count in sorted(depths.items())
         },
-        "extension_counts": dict(sorted(extension_counts.items())),
+        "extension_counts": dict(sorted(extensions.items())),
         "top_level": {
-            name: dict(sorted(summary.items())) for name, summary in sorted(top_level.items())
+            name: dict(sorted(summary.items()))
+            for name, summary in sorted(top_level.items())
         },
         "largest_regular_files": [
             {"path": path, "size_bytes": size}
-            for size, path in sorted(largest, key=lambda value: (-value[0], value[1]))
+            for size, path in sorted(largest, key=lambda item: (-item[0], item[1]))
         ],
         "deterministic_path_sample": samples,
-        "forbidden_path_components_skipped": sum(forbidden_counts.values()),
-        "forbidden_token_counts": dict(sorted(forbidden_counts.items())),
-        "metadata_error_counts": dict(sorted(error_counts.items())),
+        "forbidden_path_components_skipped": sum(forbidden.values()),
+        "forbidden_token_counts": dict(sorted(forbidden.items())),
+        "metadata_error_counts": dict(sorted(errors.items())),
         "metadata_error_samples": error_samples,
         "entry_limit_exceeded": limit_exceeded,
     }
@@ -385,7 +396,7 @@ def build_audit_result(
     runner_name: str,
     github_run_id: str,
 ) -> dict[str, Any]:
-    """Validate contracts, scan the reviewed source root, and bind the result."""
+    """Validate contracts, scan the source root, and bind the result."""
 
     validate_request_record(
         request,
@@ -491,6 +502,7 @@ def _command_inventory(args: argparse.Namespace) -> int:
         raise AuditContractError("output and summary paths must differ")
     if output.is_relative_to(source_root) or summary.is_relative_to(source_root):
         raise AuditContractError("audit outputs must remain outside the source root")
+
     result = build_audit_result(
         protocol=protocol,
         request=_load_json(Path(args.request)),
