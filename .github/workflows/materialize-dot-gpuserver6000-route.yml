@@ -80,7 +80,7 @@ jobs:
           )
 
           destinations = {
-              workflow: Path("patched/.github/workflows/dot-rope-cut3r-native-provider-v1.yml"),
+              workflow: Path("patched/workflow/dot-rope-cut3r-native-provider-v1.yml"),
               test: Path("patched/tests/test_trusted_self_hosted_validation_policy.py"),
               docs: Path("patched/docs/dot-rope-cut3r-native-provider-v1.md"),
           }
@@ -89,11 +89,11 @@ jobs:
               shutil.copyfile(source, destination)
           PY
           grep -F 'runs-on: [self-hosted, Linux, X64, gpuserver6000]' \
-            patched/.github/workflows/dot-rope-cut3r-native-provider-v1.yml
+            patched/workflow/dot-rope-cut3r-native-provider-v1.yml
           grep -F 'test "$RUNNER_NAME" = "workstation2"' \
-            patched/.github/workflows/dot-rope-cut3r-native-provider-v1.yml
+            patched/workflow/dot-rope-cut3r-native-provider-v1.yml
           grep -F 'DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/dot-rope' \
-            patched/.github/workflows/dot-rope-cut3r-native-provider-v1.yml
+            patched/workflow/dot-rope-cut3r-native-provider-v1.yml
       - name: Upload exact patched files
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
