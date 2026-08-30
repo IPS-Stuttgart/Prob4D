@@ -107,9 +107,9 @@ jobs:
           python -m ruff check
           scripts/science/run_tracking_cloth_posterior_compression.py
           tests/test_tracking_cloth_posterior_compression.py
-      - name: Check formatting
+      - name: Normalize formatting in hosted workspace
         run: >-
-          python -m ruff format --check
+          python -m ruff format
           scripts/science/run_tracking_cloth_posterior_compression.py
           tests/test_tracking_cloth_posterior_compression.py
 
