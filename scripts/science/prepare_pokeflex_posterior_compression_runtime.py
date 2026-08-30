@@ -83,8 +83,9 @@ _PATCHED_SOLVE = """        matrix = raw.reshape(self.dimension, -1)
         )
         result = (parallel + residual / self._variance).reshape(raw.shape)
 """
-_ORIGINAL_ARCHIVE_DISCOVERY = """    archives = sorted(dataset_root.glob(str(protocol["archive_glob"])))
-"""
+_ORIGINAL_ARCHIVE_DISCOVERY = (
+    '    archives = sorted(dataset_root.glob(str(protocol["archive_glob"])))\n'
+)
 _PATCHED_ARCHIVE_DISCOVERY = """    archives = sorted(
         path
         for path in dataset_root.rglob("*")
