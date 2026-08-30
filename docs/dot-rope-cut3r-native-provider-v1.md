@@ -23,11 +23,38 @@ templates, videos, BayesianPhysTwin outcomes, or Causal4D outcomes.
 ## Runtime qualification
 
 The historical CUT3R Python-RoPE source attempt is terminal and is not retried.
-A first self-hosted job copies the pinned checkout into an isolated workspace,
-builds the native CUDA RoPE extension, emits the existing content-bound runtime
-receipt, and runs a three-frame synthetic forward pass. The compiled extension
-and receipt are transferred as immutable Actions artifacts. The provider job
-must reproduce the same runtime artifact ID before opening a DOT image.
+A self-hosted provider job copies the pinned checkout into an isolated
+workspace, builds the native CUDA RoPE extension, emits the existing
+content-bound runtime receipt, and runs a three-frame synthetic forward pass.
+Only after that runtime smoke passes may the same marker-free job open the
+registered normal-view members and emit a sealed provider bundle. The separate
+evaluation job can open matching marker coordinates only when that bundle is
+present and has the registered `sealed-provider-predictions` disposition.
+
+## Execution route
+
+The reviewed control plane runs on the self-hosted label `gpuserver4090`, whose
+registered runner name is `workstation1`, and uses the official DOT V29 archive
+root:
+
+```text
+/mnt/seagate10tb/florianpfaff/datasets/dot
+```
+
+The earlier request run `33305718723` passed its hosted merged-main
+authorization but was assigned to `workstation2` under the stale
+`gpuserver6000` selector. Its exact-runner assertion failed before checkout,
+workspace creation, model loading, or dataset access; provider prediction and
+marker evaluation were skipped. The reroute changes only the trusted execution
+control plane and mount location. It does not change the scientific protocol,
+source roster, marker-access order, uncertainty methods, thresholds, or reserved
+sequence boundary.
+
+After the reroute is reviewed and merged, execution is requested by a new
+content-addressed change to only
+`protocols/execution_requests/dot_rope_cut3r_native_provider_v1.json`. The push
+workflow rejects forced pushes, new branches, multi-file request commits, an
+unbound protocol blob, or a request whose canonical identity is invalid.
 
 ## Provider comparison
 
