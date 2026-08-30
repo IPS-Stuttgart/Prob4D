@@ -9,7 +9,6 @@ from pathlib import Path
 
 import numpy as np
 
-
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts/science/run_pokeflex_posterior_compression_real_geometry.py"
 SPEC = importlib.util.spec_from_file_location("pokeflex_real_geometry_study", SCRIPT)
