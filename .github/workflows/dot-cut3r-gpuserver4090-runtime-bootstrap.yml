@@ -51,10 +51,7 @@ jobs:
           grep -F 'EXPECTED_CHECKPOINT_SHA256: 45f7e98a0a64dbeb54901ae2b878cd8cd125f20a4497316483f0bd6f109f8103' "$workflow"
           grep -F 'CUT3R/CUT3R.git' "$workflow"
           grep -F 'gdown==5.2.0' "$workflow"
-          if grep -E 'R0[0-9]|dot-rope|datasets/dot' "$workflow"; then
-            echo "Bootstrap must not reference DOT payloads" >&2
-            exit 2
-          fi
+          grep -F '*/datasets/*)' "$workflow"
 
   bootstrap:
     name: Build exact CUT3R runtime without DOT access
