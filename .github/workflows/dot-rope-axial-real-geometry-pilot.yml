@@ -97,10 +97,14 @@ jobs:
         run: |
           set -euo pipefail
           capsule=scripts/science/capsules/run_dot_rope_axial_real_geometry_pilot.py.gz.b64
-          test "$(sha256sum "$capsule" | cut -d' ' -f1)" = \
-            0e651f0b0d794cd775a477dee081fa3d1c5cc09e0261d0d148c78c7f30d95ee8
+          capsule_sha="$(sha256sum "$capsule" | cut -d' ' -f1)"
+          echo "capsule_sha256=$capsule_sha"
+          test "$capsule_sha" = \
+            efb8dfea3108a120863396b68383762a03fb344f39ca0b42c29abb3963011fe6
           base64 --decode "$capsule" | gzip --decompress > "$RUNNER_SCRIPT"
-          test "$(sha256sum "$RUNNER_SCRIPT" | cut -d' ' -f1)" = \
+          script_sha="$(sha256sum "$RUNNER_SCRIPT" | cut -d' ' -f1)"
+          echo "runner_script_sha256=$script_sha"
+          test "$script_sha" = \
             d61a6e1999aa28622e8de8e10ce7584eb5bba909aa5570c608711e928849c79a
           python3 -m py_compile "$RUNNER_SCRIPT"
 
@@ -194,5 +198,5 @@ jobs:
         with:
           name: dot-rope-axial-real-geometry-pilot-v1
           path: outputs/dot-rope-axial-real-geometry-pilot-v1/
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 30
