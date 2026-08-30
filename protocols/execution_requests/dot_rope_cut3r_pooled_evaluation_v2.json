@@ -1,0 +1,53 @@
+{
+  "archive": "R01-10.zip",
+  "base_evaluator_git_blob_sha1": "612c8ae61b0a64d464256a11992b46c486c88012",
+  "camera": "cam001",
+  "claim_boundary": "Source-development pooled-marker evaluation of the immutable CUT3R provider bundle from workflow run 33329701704 on DOT R01-R03 only. The hosted marker-support audit in workflow run 33338130219 established that the current columns-0-1 pixel-zero-based convention is feasible when support is pooled across the registered frames. No normal-view pixels are decoded during evaluation; R04-R70 remain unopened. This does not establish held-out transfer, independent calibration, BayesianPhysTwin benefit, Causal4D benefit, safety, or state of the art.",
+  "coordinate_columns": [
+    0,
+    1
+  ],
+  "coordinate_mode": "pixel-zero-based",
+  "execution_nonce": "2026-08-31-pooled-evaluation-after-hosted-audit-1",
+  "frames": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "marker_payloads_opened": true,
+  "marker_support_audit_decision": "current-convention-pooled-support-feasible",
+  "marker_support_audit_id": "2b045cf62d1a4e385987def7c36674490130216e6bceb4883b4d86e445ec6049",
+  "marker_support_audit_run_id": 33338130219,
+  "normal_view_pixels_opened": false,
+  "performance_metrics_authorized": true,
+  "preprocessing_transform": "cut3r-long-edge-resize-512-center-crop-multiple-of-16-pixel-centers",
+  "provider_artifact_name": "dot-rope-cut3r-sealed-provider-33329701704-1",
+  "provider_bundle_id": "952421d140731b2a6eb99df3cbd348653e04863fa457aaa490be31fe0b4c06a7",
+  "provider_request_id": "83cc26be92364fc7715d692b3bb966cf914fb9f911e0763823f2789480a00cf2",
+  "provider_revision": "7eb4867e36742d819c514fad21436d4f475b4bed",
+  "provider_run_id": 33329701704,
+  "request_id": "909aefd1f26f16bfff492ae36b24d6812291edeed907971f67672eacb60819cb",
+  "reserved_sequences": "R04-R70",
+  "schema": "prob4d.dot-rope-cut3r-pooled-evaluation-request",
+  "schema_version": 1,
+  "selected_coordinate_candidate": "columns-0-1:pixel-zero-based",
+  "source_protocol_git_blob_sha1": "eaf84956189015c35e53a521cf1b152ca813e680",
+  "source_protocol_id": "af6528f54699f3c9fb185764b029acd897a52e242e799d317e42710ee0f21c2c",
+  "source_protocol_path": "protocols/dot-rope-cut3r-native-provider-v1.json",
+  "source_sequences": [
+    "R01",
+    "R02",
+    "R03"
+  ],
+  "support_rule": {
+    "overlap_minimum_nonempty_frames": 2,
+    "overlap_minimum_total_common": 6,
+    "provider_truth_minimum_total": 6,
+    "score_minimum_total": 2
+  },
+  "target_payloads_opened": false
+}
