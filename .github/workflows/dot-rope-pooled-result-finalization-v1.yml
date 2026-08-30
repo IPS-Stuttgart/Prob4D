@@ -1,0 +1,310 @@
+name: DOT rope pooled-result provenance finalization v1
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/dot-rope-pooled-result-finalization-v1.yml"
+      - "scripts/science/finalize_dot_rope_pooled_result.py"
+      - "tests/test_finalize_dot_rope_pooled_result.py"
+      - "tests/test_dot_rope_pooled_result_finalization_workflow.py"
+  push:
+    branches: [main]
+    paths:
+      - "protocols/execution_requests/dot_rope_pooled_result_finalization_v1.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dot-rope-pooled-result-finalization-v1-${{ github.ref }}-${{ github.sha }}
+  cancel-in-progress: false
+
+env:
+  REQUEST_PATH: protocols/execution_requests/dot_rope_pooled_result_finalization_v1.json
+
+jobs:
+  contract:
+    name: Validate DOT result finalizer
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out reviewed revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          clean: true
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Validate finalizer and workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -e ".[dev]"
+          python -m pip check
+          python -m ruff check \
+            scripts/science/finalize_dot_rope_pooled_result.py \
+            tests/test_finalize_dot_rope_pooled_result.py \
+            tests/test_dot_rope_pooled_result_finalization_workflow.py
+          python -m ruff format --check \
+            scripts/science/finalize_dot_rope_pooled_result.py \
+            tests/test_finalize_dot_rope_pooled_result.py \
+            tests/test_dot_rope_pooled_result_finalization_workflow.py
+          python -m pytest -q \
+            tests/test_finalize_dot_rope_pooled_result.py \
+            tests/test_dot_rope_pooled_result_finalization_workflow.py \
+            tests/test_github_action_pins.py
+          python -m compileall -q scripts/science/finalize_dot_rope_pooled_result.py
+
+  authorize:
+    name: Authorize one immutable result-finalization request
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      request_id: ${{ steps.request.outputs.request_id }}
+      head_sha: ${{ steps.request.outputs.head_sha }}
+      source_run_id: ${{ steps.request.outputs.source_run_id }}
+      source_artifact_id: ${{ steps.request.outputs.source_artifact_id }}
+      source_artifact_name: ${{ steps.request.outputs.source_artifact_name }}
+      source_artifact_digest: ${{ steps.request.outputs.source_artifact_digest }}
+    steps:
+      - name: Check out exact merged revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+          clean: true
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Require exactly one non-forced request-file change
+        id: request
+        shell: bash
+        env:
+          EVENT_REF: ${{ github.ref }}
+          EVENT_BEFORE: ${{ github.event.before }}
+          EVENT_AFTER: ${{ github.event.after }}
+          EVENT_FORCED: ${{ github.event.forced }}
+          EVENT_DELETED: ${{ github.event.deleted }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_REF" = "refs/heads/main"
+          test "$EVENT_AFTER" = "$(/usr/bin/git rev-parse HEAD)"
+          test "$EVENT_FORCED" = "false"
+          test "$EVENT_DELETED" = "false"
+          test "$EVENT_BEFORE" != "0000000000000000000000000000000000000000"
+          mapfile -t changed < <(
+            /usr/bin/git diff --name-only "$EVENT_BEFORE" "$EVENT_AFTER" | sort
+          )
+          if [[ ${#changed[@]} -ne 1 || "${changed[0]}" != "$REQUEST_PATH" ]]; then
+            printf 'Expected only %s; changed paths were:\n' "$REQUEST_PATH" >&2
+            printf '  %s\n' "${changed[@]}" >&2
+            exit 2
+          fi
+          python -m pip install -e .
+          validation=$(
+            python scripts/science/finalize_dot_rope_pooled_result.py \
+              validate-request \
+              --request "$REQUEST_PATH"
+          )
+          VALIDATION="$validation" EVENT_AFTER="$EVENT_AFTER" REQUEST_PATH="$REQUEST_PATH" \
+            /usr/bin/python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          value = json.loads(os.environ["VALIDATION"])
+          request = json.loads(Path(os.environ["REQUEST_PATH"]).read_text(encoding="utf-8"))
+          outputs = {
+              "request_id": value["request_id"],
+              "head_sha": os.environ["EVENT_AFTER"],
+              "source_run_id": value["source_run_id"],
+              "source_artifact_id": value["source_artifact_id"],
+              "source_artifact_name": value["source_artifact_name"],
+              "source_artifact_digest": request["source_artifact_digest"],
+          }
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              for key, item in outputs.items():
+                  output.write(f"{key}={item}\n")
+          PY
+
+  finalize:
+    name: Finalize exact DOT pooled-result provenance
+    if: github.event_name == 'push'
+    needs: authorize
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      finalization_id: ${{ steps.result.outputs.finalization_id }}
+      finalized_evaluation_id: ${{ steps.result.outputs.finalized_evaluation_id }}
+      scientific_payload_id: ${{ steps.result.outputs.scientific_payload_id }}
+    steps:
+      - name: Initialize isolated finalization workspace
+        id: workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/prob4d-dot-result-finalization-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          /usr/bin/rm -rf -- "$root"
+          /usr/bin/mkdir -p "$root/source" "$root/final"
+          echo "root=$root" >> "$GITHUB_OUTPUT"
+      - name: Check out exact authorized revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.authorize.outputs.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+      - name: Verify clean exact checkout
+        shell: bash
+        env:
+          EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          test "$(/usr/bin/git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test -z "$(/usr/bin/git status --porcelain=v1 --untracked-files=all)"
+      - name: Set up scientific Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install the exact repository package
+        run: |
+          python -m pip install -e .
+          python -m pip check
+      - name: Verify exact source artifact metadata
+        shell: bash
+        env:
+          ARTIFACT_ID: ${{ needs.authorize.outputs.source_artifact_id }}
+          EXPECTED_NAME: ${{ needs.authorize.outputs.source_artifact_name }}
+          EXPECTED_DIGEST: ${{ needs.authorize.outputs.source_artifact_digest }}
+          EXPECTED_RUN_ID: ${{ needs.authorize.outputs.source_run_id }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          import urllib.request
+
+          url = (
+              f"https://api.github.com/repos/{os.environ['GITHUB_REPOSITORY']}"
+              f"/actions/artifacts/{os.environ['ARTIFACT_ID']}"
+          )
+          request = urllib.request.Request(
+              url,
+              headers={
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {os.environ['GH_TOKEN']}",
+                  "User-Agent": "Prob4D-result-finalizer/1",
+                  "X-GitHub-Api-Version": "2022-11-28",
+              },
+          )
+          with urllib.request.urlopen(request, timeout=60) as response:
+              value = json.load(response)
+          if int(value["id"]) != int(os.environ["ARTIFACT_ID"]):
+              raise SystemExit("source artifact ID changed")
+          if value["name"] != os.environ["EXPECTED_NAME"]:
+              raise SystemExit("source artifact name changed")
+          if value.get("digest") != os.environ["EXPECTED_DIGEST"]:
+              raise SystemExit("source artifact digest changed")
+          if value.get("expired") is not False:
+              raise SystemExit("source artifact expired")
+          workflow_run = value.get("workflow_run") or {}
+          if int(workflow_run.get("id", -1)) != int(os.environ["EXPECTED_RUN_ID"]):
+              raise SystemExit("source artifact workflow run changed")
+          print(json.dumps({"artifact_id": value["id"], "digest": value["digest"]}))
+          PY
+      - name: Download exact source evaluation artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ${{ needs.authorize.outputs.source_artifact_name }}
+          path: ${{ steps.workspace.outputs.root }}/source
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ needs.authorize.outputs.source_run_id }}
+      - name: Finalize metadata without dataset access or rescoring
+        shell: bash
+        env:
+          EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          PYTHONPATH="$GITHUB_WORKSPACE/src" \
+            python scripts/science/finalize_dot_rope_pooled_result.py \
+              finalize \
+              --request "$REQUEST_PATH" \
+              --source-root "$root/source" \
+              --output-dir "$root/final" \
+              --repository-revision "$EXPECTED_HEAD_SHA"
+      - name: Read finalized evidence identity
+        id: result
+        shell: bash
+        run: |
+          set -euo pipefail
+          receipt="${{ steps.workspace.outputs.root }}/final/finalization.json"
+          RECEIPT="$receipt" /usr/bin/python3 - <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          value = json.loads(Path(os.environ["RECEIPT"]).read_text(encoding="utf-8"))
+          if value.get("scientific_payload_unchanged") is not True:
+              raise SystemExit("scientific payload was not preserved")
+          if value.get("no_dataset_access") is not True or value.get("no_scores_recomputed") is not True:
+              raise SystemExit("finalization exceeded its metadata-only boundary")
+          for name in ("finalization_id", "finalized_evaluation_id", "scientific_payload_id"):
+              if re.fullmatch(r"[0-9a-f]{64}", value.get(name, "")) is None:
+                  raise SystemExit(f"invalid {name}")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              for name in ("finalization_id", "finalized_evaluation_id", "scientific_payload_id"):
+                  output.write(f"{name}={value[name]}\n")
+          PY
+      - name: Upload finalized content-addressed evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dot-rope-cut3r-pooled-finalized-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.workspace.outputs.root }}/final/
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    name: Publish finalized DOT pooled-result identity
+    if: always() && github.event_name == 'push'
+    needs: [authorize, finalize]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Write run summary
+        shell: bash
+        env:
+          FINALIZE_RESULT: ${{ needs.finalize.result }}
+          FINALIZATION_ID: ${{ needs.finalize.outputs.finalization_id }}
+          FINALIZED_EVALUATION_ID: ${{ needs.finalize.outputs.finalized_evaluation_id }}
+          SCIENTIFIC_PAYLOAD_ID: ${{ needs.finalize.outputs.scientific_payload_id }}
+        run: |
+          {
+            echo "## DOT pooled-result provenance finalization"
+            echo
+            echo "- finalization job: \`$FINALIZE_RESULT\`"
+            echo "- finalization ID: \`$FINALIZATION_ID\`"
+            echo "- finalized evaluation ID: \`$FINALIZED_EVALUATION_ID\`"
+            echo "- scientific payload ID: \`$SCIENTIFIC_PAYLOAD_ID\`"
+            echo
+            echo "No dataset was opened and no score was recomputed."
+          } >> "$GITHUB_STEP_SUMMARY"
