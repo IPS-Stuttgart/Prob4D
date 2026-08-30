@@ -36,7 +36,6 @@ jobs:
           echo '--- CUT3R source ---'
           test -d "$CUT3R_SOURCE/.git"
           git -C "$CUT3R_SOURCE" rev-parse HEAD
-          git -C "$CUT3R_SOURCE" status --porcelain=v1 --untracked-files=all | head -50
           sha256sum "$CUT3R_SOURCE/requirements.txt"
           echo '--- checkpoint ---'
           test -f "$CUT3R_CHECKPOINT"
