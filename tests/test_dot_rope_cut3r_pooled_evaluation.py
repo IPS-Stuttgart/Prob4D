@@ -32,9 +32,7 @@ def _request(module):
         "execution_nonce": "test-1",
         "frames": module.FRAMES,
         "marker_payloads_opened": True,
-        "marker_support_audit_decision": (
-            "current-convention-pooled-support-feasible"
-        ),
+        "marker_support_audit_decision": ("current-convention-pooled-support-feasible"),
         "marker_support_audit_id": "a" * 64,
         "marker_support_audit_run_id": 1,
         "normal_view_pixels_opened": False,
@@ -147,9 +145,7 @@ def test_pooled_pair_rejects_one_nonempty_frame(monkeypatch) -> None:
     module = _load_module()
     first = _fake_run("R01", "window_a", [3, 4, 5])
     second = _fake_run("R01", "window_b", [3, 4, 5])
-    frame_payloads = {
-        frame: (np.zeros((6, 2)), np.zeros((6, 3))) for frame in [3, 4, 5]
-    }
+    frame_payloads = {frame: (np.zeros((6, 2)), np.zeros((6, 3))) for frame in [3, 4, 5]}
 
     def sample(run, frame, coordinates_2d, coordinates_3d):
         del run, coordinates_2d
