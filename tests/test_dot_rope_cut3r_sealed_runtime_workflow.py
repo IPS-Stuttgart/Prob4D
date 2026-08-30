@@ -19,10 +19,7 @@ def test_workflow_is_request_bound_and_source_only() -> None:
     assert "\n  pull_request:" in text
     assert "\n  push:" in text
     assert "branches: [main]" in text
-    assert (
-        "protocols/execution_requests/dot_rope_cut3r_sealed_runtime_v1.json"
-        in text
-    )
+    assert "protocols/execution_requests/dot_rope_cut3r_sealed_runtime_v1.json" in text
     assert "pull_request_target:" not in text
     assert 'test "$EVENT_REF" = "refs/heads/main"' in text
     assert 'test "$EVENT_FORCED" = "false"' in text
@@ -40,26 +37,20 @@ def test_provider_binds_sealed_cuda_runtime_without_rebuilding() -> None:
 
     assert "runs-on: [self-hosted, Linux, X64, gpuserver4090]" in provider
     assert 'test "$RUNNER_NAME" = "workstation1"' in provider
-    assert (
-        "CUT3R_RUNTIME_ROOT: /home/github-runner/.cache/prob4d/cut3r-runtime-v1"
-        in text
-    )
+    assert "CUT3R_RUNTIME_ROOT: /home/github-runner/.cache/prob4d/cut3r-runtime-v1" in text
     assert (
         "CUT3R_RUNTIME_PYTHON: "
-        "/home/github-runner/.cache/prob4d/cut3r-runtime-v1/venv/bin/python"
-        in text
+        "/home/github-runner/.cache/prob4d/cut3r-runtime-v1/venv/bin/python" in text
     )
     assert (
         "CUT3R_RUNTIME_CHECKPOINT: "
         "/home/github-runner/.cache/prob4d/cut3r-runtime-v1/"
-        "cut3r_512_dpt_4_64.pth"
-        in text
+        "cut3r_512_dpt_4_64.pth" in text
     )
     assert "CUT3R_REVISION: 8bc15dc92a6d7fd92920b4ec81540d3dec7d3ecf" in text
     assert (
         "CUT3R_CHECKPOINT_SHA256: "
-        "45f7e98a0a64dbeb54901ae2b878cd8cd125f20a4497316483f0bd6f109f8103"
-        in text
+        "45f7e98a0a64dbeb54901ae2b878cd8cd125f20a4497316483f0bd6f109f8103" in text
     )
     assert "from dust3r.model import ARCroco3DStereo" in provider
     assert "torch_cuda_version" in provider
@@ -103,14 +94,6 @@ def test_self_hosted_jobs_are_read_only_and_artifacts_are_pinned() -> None:
         assert "persist-credentials: false" in job
 
     assert "runs-on: ubuntu-latest" in summarize
-    assert (
-        "actions/upload-artifact@"
-        "ea165f8d65b6e75b540449e92b4886f43607fa02"
-        in text
-    )
-    assert (
-        "actions/download-artifact@"
-        "d3f86a106a0bac45b974a628896c90dbdf5c8093"
-        in text
-    )
+    assert "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02" in text
+    assert "actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093" in text
     assert "if-no-files-found: error" in text
