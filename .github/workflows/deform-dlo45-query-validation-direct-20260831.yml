@@ -1,0 +1,429 @@
+name: Direct DEFORM DLO4 to DLO5 query validation 20260831
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/deform-dlo45-query-validation-direct-20260831.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: direct-deform-dlo45-query-validation-20260831
+  cancel-in-progress: false
+
+env:
+  DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/deform/data_set
+  PYTHONHASHSEED: "0"
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  authorize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      head_sha: ${{ steps.check.outputs.head_sha }}
+    steps:
+      - name: Check out exact pushed revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Require the one-shot workflow-file trigger
+        id: check
+        shell: bash
+        env:
+          EVENT_REF: ${{ github.ref }}
+          EVENT_BEFORE: ${{ github.event.before }}
+          EVENT_AFTER: ${{ github.event.after }}
+          EVENT_FORCED: ${{ github.event.forced }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_REF" = refs/heads/main
+          test "$EVENT_FORCED" = false
+          test "$EVENT_AFTER" = "$(git rev-parse HEAD)"
+          mapfile -t changed < <(git diff --name-only "$EVENT_BEFORE" "$EVENT_AFTER")
+          test ${#changed[@]} -eq 1
+          test "${changed[0]}" = .github/workflows/deform-dlo45-query-validation-direct-20260831.yml
+          echo "head_sha=$EVENT_AFTER" >> "$GITHUB_OUTPUT"
+
+  evaluate:
+    needs: authorize
+    runs-on: [self-hosted, Linux, X64, gpuserver4090]
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    steps:
+      - name: Require intended runner and dataset root
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_OS" = Linux
+          test "$RUNNER_ARCH" = X64
+          test "$RUNNER_NAME" = workstation1
+          test "$DATASET_ROOT" = /mnt/seagate10tb/florianpfaff/datasets/deform/data_set
+          test -d "$DATASET_ROOT"
+      - name: Create isolated runtime and evidence directory
+        id: workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${RUNNER_TEMP}/direct-deform-dlo45-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          rm -rf -- "$root"
+          mkdir -p "$root/evidence"
+          /usr/bin/python3 -m venv "$root/venv"
+          "$root/venv/bin/python" -m pip install --disable-pip-version-check --no-cache-dir \
+            "numpy>=1.24,<3" "scipy>=1.10,<2" "h5py>=3.8,<4"
+          echo "root=$root" >> "$GITHUB_OUTPUT"
+      - name: Fit on DLO4, seal, then evaluate DLO5
+        id: evaluation
+        continue-on-error: true
+        shell: bash
+        env:
+          HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          cat > "$root/evaluate.py" <<'PY'
+          from __future__ import annotations
+          import hashlib, itertools, json, math, os, re, sys, traceback
+          from collections import defaultdict
+          from pathlib import Path
+          import numpy as np
+
+          ROOT = Path(os.environ["DATASET_ROOT"]).absolute()
+          OUT = Path(os.environ["EVIDENCE_DIR"])
+          AGES = [0, 1, 2, 3]
+          HORIZONS = [3, 6, 9]
+          Z90 = 1.6448536269514722
+          EPS = 1e-12
+
+          def req(x, m):
+              if not bool(x):
+                  raise ValueError(m)
+
+          def sha(path):
+              h = hashlib.sha256()
+              with path.open("rb") as f:
+                  while b := f.read(1048576):
+                      h.update(b)
+              return h.hexdigest()
+
+          def atomic(path, value):
+              tmp = path.with_name("." + path.name + ".tmp")
+              tmp.write_text(json.dumps(value, indent=2, sort_keys=True, allow_nan=False) + "\n")
+              os.replace(tmp, path)
+
+          def find_domain(label):
+              found = [p for p in ROOT.rglob("*") if p.is_dir() and not p.is_symlink() and p.name.casefold() == label.casefold() and len(p.relative_to(ROOT).parts) <= 4]
+              req(len(found) == 1, f"expected one {label} directory, found {found}")
+              return found[0].resolve(strict=True)
+
+          def files(domain):
+              allowed = {".npy", ".npz", ".mat", ".h5", ".hdf5", ".csv", ".txt", ".json"}
+              values = [p for p in sorted(domain.rglob("*")) if p.is_file() and not p.is_symlink() and p.suffix.casefold() in allowed]
+              req(1 <= len(values) <= 200, f"unsupported file count in {domain}: {len(values)}")
+              return values
+
+          def h5(path):
+              import h5py
+              result = {}
+              with h5py.File(path, "r") as stream:
+                  def visit(name, item):
+                      if isinstance(item, h5py.Dataset) and item.size <= 100000000:
+                          result[name] = np.asarray(item)
+                  stream.visititems(visit)
+              return result
+
+          def load(path):
+              suffix = path.suffix.casefold()
+              if suffix == ".npy":
+                  return {"array": np.load(path, allow_pickle=False)}
+              if suffix == ".npz":
+                  with np.load(path, allow_pickle=False) as z:
+                      return {k: np.asarray(z[k]) for k in sorted(z.files)}
+              if suffix == ".mat":
+                  from scipy.io import loadmat
+                  try:
+                      return loadmat(path, squeeze_me=False, struct_as_record=False)
+                  except NotImplementedError:
+                      return h5(path)
+              if suffix in {".h5", ".hdf5"}:
+                  return h5(path)
+              if suffix in {".csv", ".txt"}:
+                  for d in (",", None, ";", "\t"):
+                      try:
+                          return {"array": np.loadtxt(path, delimiter=d)}
+                      except Exception:
+                          pass
+                  raise ValueError(f"cannot parse {path}")
+              if suffix == ".json":
+                  return json.loads(path.read_text())
+              raise ValueError(path)
+
+          def arrays(value, prefix="$", depth=0):
+              if depth > 10:
+                  return
+              if isinstance(value, np.ndarray):
+                  if value.dtype.kind in "biufc" and value.size:
+                      yield prefix, value
+                  elif value.dtype == object and value.size <= 10000:
+                      for i, v in enumerate(value.flat):
+                          yield from arrays(v, f"{prefix}[{i}]", depth + 1)
+                  return
+              if isinstance(value, dict):
+                  for k in sorted(value, key=str):
+                      if not str(k).startswith("__"):
+                          yield from arrays(value[k], f"{prefix}.{k}", depth + 1)
+                  return
+              if isinstance(value, (list, tuple)) and len(value) <= 10000:
+                  for i, v in enumerate(value):
+                      yield from arrays(v, f"{prefix}[{i}]", depth + 1)
+                  return
+              if hasattr(value, "__dict__"):
+                  yield from arrays(vars(value), prefix, depth + 1)
+
+          def key_score(key):
+              lower = key.lower()
+              good = {"ground": 30, "truth": 30, "position": 25, "point": 25, "node": 22, "dlo": 20, "state": 18, "traj": 18, "coord": 15}
+              bad = ("image", "rgb", "depth", "mask", "force", "torque")
+              return sum(v for k, v in good.items() if k in lower) - 40 * sum(k in lower for k in bad)
+
+          def trajectories(a, key):
+              a = np.squeeze(np.real(np.asarray(a))).astype(float, copy=False)
+              found = []
+              def add(p, transform):
+                  if p.ndim != 3 or p.shape[0] < 16 or p.shape[1] < 2 or p.shape[2] not in (2, 3) or p.shape[1] > 5000:
+                      return
+                  if np.mean(np.isfinite(p)) < 0.8:
+                      return
+                  score = key_score(key) + (25 if p.shape[2] == 3 else 12) + (20 if 3 <= p.shape[1] <= 256 else 0)
+                  found.append((score, transform, p))
+              if a.ndim == 2:
+                  r, c = a.shape
+                  for d in (3, 2):
+                      if r >= 16 and c % d == 0 and 2 <= c // d <= 5000:
+                          add(a.reshape(r, c // d, d), f"rowflat{d}")
+                      if c >= 16 and r % d == 0 and 2 <= r // d <= 5000:
+                          add(a.T.reshape(c, r // d, d), f"colflat{d}")
+              elif a.ndim >= 3:
+                  for ca, size in enumerate(a.shape):
+                      if size not in (2, 3):
+                          continue
+                      for ta, length in enumerate(a.shape):
+                          if ta == ca or length < 16:
+                              continue
+                          moved = np.moveaxis(a, (ta, ca), (0, -1))
+                          add(moved.reshape(moved.shape[0], -1, moved.shape[-1]), f"tensor{ta}_{ca}")
+              return found
+
+          def frames(a, key):
+              a = np.squeeze(np.real(np.asarray(a))).astype(float, copy=False)
+              if a.ndim != 2:
+                  return []
+              if a.shape[1] in (2, 3) and 2 <= a.shape[0] <= 5000:
+                  return [(key_score(key), "framerow", a)]
+              if a.shape[0] in (2, 3) and 2 <= a.shape[1] <= 5000:
+                  return [(key_score(key), "framecol", a.T)]
+              return []
+
+          def transform(a, code):
+              a = np.squeeze(np.real(np.asarray(a))).astype(float, copy=False)
+              if code.startswith("rowflat"):
+                  d = int(code[-1]); return a.reshape(a.shape[0], a.shape[1] // d, d)
+              if code.startswith("colflat"):
+                  d = int(code[-1]); return a.T.reshape(a.shape[1], a.shape[0] // d, d)
+              if code.startswith("tensor"):
+                  ta, ca = map(int, code[6:].split("_")); moved = np.moveaxis(a, (ta, ca), (0, -1)); return moved.reshape(moved.shape[0], -1, moved.shape[-1])
+              if code == "framerow": return a
+              if code == "framecol": return a.T
+              raise ValueError(code)
+
+          def discover(source_files, domain):
+              seq = defaultdict(list); frm = defaultdict(list)
+              for path in source_files:
+                  try:
+                      container = load(path)
+                  except Exception:
+                      continue
+                  for key, a in arrays(container):
+                      for score, code, p in trajectories(a, key):
+                          seq[(path.suffix.lower(), key, code)].append((score, path, p))
+                      for score, code, p in frames(a, key):
+                          frm[(path.suffix.lower(), key, code, tuple(p.shape))].append((score, path, p))
+              if seq:
+                  signature, rows = max(seq.items(), key=lambda x: (len({r[1] for r in x[1]}), np.mean([r[0] for r in x[1]]), x[0]))
+                  by_file = {}
+                  for row in rows:
+                      if row[1] not in by_file or row[0] > by_file[row[1]][0]: by_file[row[1]] = row
+                  selected = [by_file[p] for p in sorted(by_file)]
+                  adapter = {"mode": "sequence", "suffix": signature[0], "key": signature[1], "code": signature[2], "source_files": [str(r[1].relative_to(domain)) for r in selected], "source_sha256": {str(r[1].relative_to(domain)): sha(r[1]) for r in selected}}
+                  return adapter, [(str(r[1].relative_to(domain)), r[2]) for r in selected]
+              eligible = [(s, r) for s, r in frm.items() if len({x[1] for x in r}) >= 16]
+              req(eligible, "no DLO4 trajectory adapter found")
+              signature, rows = max(eligible, key=lambda x: (len({r[1] for r in x[1]}), np.mean([r[0] for r in x[1]]), x[0]))
+              by_file = {}
+              for row in rows:
+                  if row[1] not in by_file or row[0] > by_file[row[1]][0]: by_file[row[1]] = row
+              selected = [by_file[p] for p in sorted(by_file)]
+              shape = selected[0][2].shape
+              req(all(r[2].shape == shape for r in selected), "inconsistent source frame shape")
+              adapter = {"mode": "frames", "suffix": signature[0], "key": signature[1], "code": signature[2], "shape": list(shape), "source_files": [str(r[1].relative_to(domain)) for r in selected], "source_sha256": {str(r[1].relative_to(domain)): sha(r[1]) for r in selected}}
+              return adapter, [("DLO4-stack", np.stack([r[2] for r in selected]))]
+
+          def exact_array(container, key):
+              m = {k: a for k, a in arrays(container)}
+              req(key in m, f"frozen key missing: {key}")
+              return m[key]
+
+          def apply(target_files, domain, adapter):
+              matching = [p for p in target_files if p.suffix.lower() == adapter["suffix"]]
+              req(matching, "no DLO5 files match frozen suffix")
+              hashes = {}
+              if adapter["mode"] == "sequence":
+                  out = []
+                  for p in matching:
+                      q = transform(exact_array(load(p), adapter["key"]), adapter["code"])
+                      req(q.ndim == 3 and q.shape[0] >= 16, f"bad target trajectory {p}")
+                      name = str(p.relative_to(domain)); hashes[name] = sha(p); out.append((name, q))
+                  return out, hashes
+              frames_out = []
+              for p in matching:
+                  q = transform(exact_array(load(p), adapter["key"]), adapter["code"])
+                  if list(q.shape) == adapter["shape"]:
+                      name = str(p.relative_to(domain)); hashes[name] = sha(p); frames_out.append(q)
+              req(len(frames_out) >= 16, "insufficient target frames for frozen adapter")
+              return [("DLO5-stack", np.stack(frames_out))], hashes
+
+          def query(points):
+              c = np.nanmean(points, axis=1); centered = points - c[:, None, :]
+              radius = np.sqrt(np.nanmean(np.sum(centered * centered, axis=2), axis=1))
+              principal = []
+              for f in centered:
+                  g = f[np.all(np.isfinite(f), axis=1)]
+                  if len(g) < 2: principal.append(np.nan); continue
+                  v = np.linalg.eigvalsh((g.T @ g) / max(len(g) - 1, 1))[-1]
+                  principal.append(math.sqrt(max(float(v), EPS)))
+              floor = max(float(np.nanmedian(radius)) * 1e-9, EPS)
+              q = np.c_[c, np.log(np.maximum(radius, floor)), np.log(np.maximum(principal, floor))]
+              t = np.arange(len(q))
+              for d in range(q.shape[1]):
+                  ok = np.isfinite(q[:, d]); req(ok.sum() >= 4, "insufficient finite query"); q[:, d] = np.interp(t, t[ok], q[ok, d])
+              return q
+
+          def cases(sequences):
+              result = []
+              for unit, p in sequences:
+                  q = query(np.asarray(p))
+                  for h in HORIZONS:
+                      times = np.arange(max(AGES) + 2, len(q) - h)
+                      if len(times) > 400: times = times[np.unique(np.linspace(0, len(times) - 1, 400).astype(int))]
+                      for t in times:
+                          preds = []
+                          for a in AGES:
+                              s = t - a; preds.append(q[s] + (h + a) * (q[s] - q[s - 1]))
+                          result.append({"unit": unit, "h": h, "pred": np.stack(preds), "y": q[t + h]})
+              req(result, "no forecast cases")
+              return result
+
+          def weights(cov):
+              cov = (cov + cov.T) / 2
+              e, u = np.linalg.eigh(cov); floor = max(float(e.max()) * 1e-8, 1e-12)
+              inv = (u * (1 / np.maximum(e, floor))) @ u.T; one = np.ones(len(cov)); w = inv @ one / (one @ inv @ one)
+              return w, max(float(w @ cov @ w), EPS)
+
+          def wilson(k, n):
+              if n == 0: return 1.0
+              z = 1.959963984540054; p = k / n; den = 1 + z*z/n
+              return min(1.0, (p + z*z/(2*n) + z*math.sqrt(p*(1-p)/n + z*z/(4*n*n))) / den)
+
+          def crps(error, var):
+              sd = np.sqrt(np.maximum(var, EPS)); z = error / sd
+              cdf = .5 * (1 + np.vectorize(math.erf)(z / math.sqrt(2))); phi = np.exp(-z*z/2) / math.sqrt(2*math.pi)
+              return sd * (z * (2*cdf - 1) + 2*phi - 1/math.sqrt(math.pi))
+
+          def fit(source_cases):
+              fitted = {}
+              for h in HORIZONS:
+                  rows = [r for r in source_cases if r["h"] == h]; req(len(rows) >= 20, f"too few source cases h={h}")
+                  p = np.stack([r["pred"] for r in rows]); y = np.stack([r["y"] for r in rows]); bias = np.mean(y[:, None] - p, axis=0); pc = p + bias[None]; err = pc - y[:, None]
+                  dims = y.shape[1]; scale = np.maximum(np.std(err[:, 0], axis=0, ddof=1), EPS); covs=[]; wf=[]; wi=[]; vf=[]; vi=[]
+                  for d in range(dims):
+                      s = np.cov(err[:, :, d], rowvar=False, ddof=1); s = .85*s + .15*np.diag(np.diag(s)); s += np.eye(4)*max(np.trace(s)/4,1)*1e-10
+                      a, av = weights(s); b, bv = weights(np.diag(np.maximum(np.diag(s), EPS))); covs.append(s); wf.append(a); wi.append(b); vf.append(av); vi.append(bv)
+                  wf=np.asarray(wf); wi=np.asarray(wi); vf=np.asarray(vf); vi=np.asarray(vi); full=np.c_[[pc[:, :, d] @ wf[d] for d in range(dims)]]; full=full.T if full.shape != y.shape else full
+                  if full.shape != y.shape: full=np.stack([pc[:, :, d] @ wf[d] for d in range(dims)],axis=1)
+                  latest=pc[:,0]; l0=np.mean(((latest-y)/scale)**2,axis=1); lf=np.mean(((full-y)/scale)**2,axis=1); margin=max(float(np.median(l0))*.01,1e-12)
+                  disagreement=np.sqrt(np.mean(((pc-pc[:,:1])/scale[None,None])**2,axis=(1,2))); candidates=[]
+                  for th in sorted(set([0.,*np.quantile(disagreement,np.linspace(.1,1,10)).tolist()])):
+                      ok=disagreement<=th+1e-15; n=int(ok.sum()); k=int(np.sum(lf[ok]>l0[ok]+margin)) if n else 0; up=wilson(k,n); candidates.append((n/len(rows),th,n,k,up,n>=max(5,math.ceil(.1*len(rows))) and up<=.25))
+                  good=[x for x in candidates if x[-1]]; guard=max(good) if good else (0.,-1.,0,0,1.,False)
+                  latest_var=np.array([c[0,0] for c in covs]); calib={}
+                  for name,mean,var in [("latest",latest,latest_var),("independent",np.stack([pc[:,:,d]@wi[d] for d in range(dims)],axis=1),vi),("full",full,vf)]:
+                      ratio=np.abs(mean-y)/np.sqrt(np.maximum(var,EPS))[None]; calib[name]=np.clip((np.quantile(ratio,.9,axis=0)/Z90)**2,.25,25.)
+                  fitted[str(h)]={"bias":bias,"scale":scale,"wf":wf,"wi":wi,"vf":vf,"vi":vi,"latest_var":latest_var,"calib":calib,"guard":{"threshold":guard[1],"admissible":guard[-1],"source_acceptance":guard[0],"source_harm_upper":guard[4]},"margin":margin}
+              return fitted
+
+          def evaluate(target_cases, fitted):
+              rows=[]; exact=True
+              for r in target_cases:
+                  f=fitted[str(r["h"])]; pc=r["pred"]+f["bias"]; y=r["y"]; d=len(y); latest=pc[0]; indep=np.stack([pc[:,j]@f["wi"][j] for j in range(d)]); full=np.stack([pc[:,j]@f["wf"][j] for j in range(d)]); disagreement=float(np.sqrt(np.mean(((pc-pc[:1])/f["scale"][None])**2))); accepted=bool(f["guard"]["admissible"] and disagreement<=f["guard"]["threshold"]+1e-15)
+                  methods={"latest":(latest,f["latest_var"]*f["calib"]["latest"]),"independent":(indep,f["vi"]*f["calib"]["independent"]),"full":(full,f["vf"]*f["calib"]["full"])}; methods["guarded"]=methods["full"] if accepted else (methods["latest"][0].copy(),methods["latest"][1].copy())
+                  if not accepted: exact=exact and np.array_equal(methods["guarded"][0],methods["latest"][0]) and np.array_equal(methods["guarded"][1],methods["latest"][1])
+                  for name,(mean,var) in methods.items():
+                      e=(mean-y)/f["scale"]; nv=var/(f["scale"]**2); rows.append({"unit":r["unit"],"h":r["h"],"method":name,"accepted":accepted if name=="guarded" else None,"loss":float(np.mean(e*e)),"crps":float(np.mean(crps(e,nv))),"coverage":float(np.mean(np.abs(e)<=Z90*np.sqrt(nv))),"width":float(np.mean(2*Z90*np.sqrt(nv)))})
+              agg={}
+              for m in ["latest","independent","full","guarded"]:
+                  per=[]
+                  for u in sorted({r["unit"] for r in rows}):
+                      v=[r for r in rows if r["unit"]==u and r["method"]==m]; per.append({"unit":u,"rmse":math.sqrt(np.mean([x["loss"] for x in v])),"crps":float(np.mean([x["crps"] for x in v])),"coverage":float(np.mean([x["coverage"] for x in v])),"width":float(np.mean([x["width"] for x in v]))})
+                  agg[m]={"unit_count":len(per),"rmse":float(np.mean([x["rmse"] for x in per])),"crps":float(np.mean([x["crps"] for x in per])),"coverage_90":float(np.mean([x["coverage"] for x in per])),"width_90":float(np.mean([x["width"] for x in per])),"per_unit":per}
+              guarded=[r for r in rows if r["method"]=="guarded"]; accepted=[r for r in guarded if r["accepted"]]; latest={(r["unit"],r["h"]):[] for r in rows if r["method"]=="latest"}
+              for r in rows:
+                  if r["method"]=="latest": latest[(r["unit"],r["h"])].append(r["loss"])
+              harmful=0
+              for r in accepted:
+                  baseline=np.mean(latest[(r["unit"],r["h"])]); harmful += int(r["loss"]>baseline+fitted[str(r["h"])]["margin"])
+              guard={"accepted":len(accepted),"rejected":len(guarded)-len(accepted),"harmful":harmful,"harmful_fraction":harmful/max(len(accepted),1),"harmful_upper_95":wilson(harmful,len(accepted)),"exact_fallback":exact}
+              passed=bool(agg["guarded"]["rmse"]<=agg["latest"]["rmse"] and agg["guarded"]["crps"]<=agg["latest"]["crps"] and guard["accepted"]>0 and guard["harmful_upper_95"]<=.25 and exact)
+              return {"decision":"supports-guarded-correlation-aware-query-fusion" if passed else "negative-or-inconclusive-real-data-result","promotion_gate_passed":passed,"aggregate":agg,"guard":guard,"case_count":len(guarded)}
+
+          OUT.mkdir(parents=True, exist_ok=True)
+          base={"schema":"prob4d.direct-deform-dlo45-query-validation-v1","repository_revision":os.environ["HEAD_SHA"],"runner_name":os.environ["RUNNER_NAME"],"github_run_id":os.environ["GITHUB_RUN_ID"],"information_boundary":{"source":"DLO4","evaluation":"DLO5","source_opened":False,"source_lock_written":False,"evaluation_opened":False,"raw_data_uploaded":False}}
+          try:
+              req(ROOT.is_dir() and not ROOT.is_symlink(), "dataset root missing or symlinked")
+              d4=find_domain("DLO4"); d5=find_domain("DLO5"); f4=files(d4); f5=files(d5); target_names=[str(p.relative_to(d5)) for p in f5]
+              base["information_boundary"]["source_opened"]=True; adapter,s4=discover(f4,d4); c4=cases(s4); fitted=fit(c4)
+              lock={"schema":"prob4d.direct-deform-dlo45-source-lock-v1","adapter":adapter,"source_case_count":len(c4),"target_names_only":target_names,"query":"centroid plus log radius and principal extent","ages":AGES,"horizons":HORIZONS,"target_payload_opened":False}; lock["lock_id"]=hashlib.sha256(json.dumps(lock,sort_keys=True,separators=(",",":"),default=lambda x:x.tolist()).encode()).hexdigest(); atomic(OUT/"source-lock.json",lock); base["information_boundary"]["source_lock_written"]=True
+              s5,target_hashes=apply(f5,d5,adapter); base["information_boundary"]["evaluation_opened"]=True; result_eval=evaluate(cases(s5),fitted)
+              result={**base,"status":"success","dataset":{"root":str(ROOT),"source_files":len(f4),"target_files":len(f5),"source_sequences":len(s4),"target_sequences":len(s5),"adapter_mode":adapter["mode"],"target_sha256":target_hashes},"source_lock_id":lock["lock_id"],"evaluation":result_eval}; result["result_id"]=hashlib.sha256(json.dumps(result,sort_keys=True,separators=(",",":"),default=lambda x:x.tolist()).encode()).hexdigest(); atomic(OUT/"result.json",result)
+              a=result_eval["aggregate"]; g=result_eval["guard"]; lines=["# Direct DEFORM DLO4→DLO5 validation","",f"- Decision: `{result_eval['decision']}`",f"- Promotion gate: `{result_eval['promotion_gate_passed']}`",f"- Result ID: `{result['result_id']}`","","| Method | RMSE | CRPS | 90% coverage | 90% width |","|---|---:|---:|---:|---:|"]
+              for m in ["latest","independent","full","guarded"]: lines.append(f"| {m} | {a[m]['rmse']:.6g} | {a[m]['crps']:.6g} | {a[m]['coverage_90']:.4f} | {a[m]['width_90']:.6g} |")
+              lines += ["","## Guard","",f"- Accepted: `{g['accepted']}`",f"- Rejected/exact fallback: `{g['rejected']}`",f"- Harmful accepted fraction: `{g['harmful_fraction']}`",f"- Harmful upper 95%: `{g['harmful_upper_95']}`",f"- Exact fallback: `{g['exact_fallback']}`","","DLO4 was the sole source/calibration domain. DLO5 payloads were opened only after `source-lock.json` was written. This does not establish a learned-provider or gauge-identifiability claim.",""]; (OUT/"summary.md").write_text("\n".join(lines))
+          except BaseException as error:
+              failure={**base,"status":"technical-failure","error":f"{type(error).__name__}: {error}","traceback":traceback.format_exc()}; failure["result_id"]=hashlib.sha256(json.dumps(failure,sort_keys=True,separators=(",",":")).encode()).hexdigest(); atomic(OUT/"result.json",failure); (OUT/"summary.md").write_text(f"# Direct DEFORM DLO4→DLO5 validation\n\nTechnical failure: `{failure['error']}`\n") ; raise
+          PY
+          EVIDENCE_DIR="$root/evidence" "$root/venv/bin/python" "$root/evaluate.py"
+      - name: Upload aggregate evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: direct-deform-dlo45-query-validation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.workspace.outputs.root }}/evidence
+          if-no-files-found: error
+          retention-days: 30
+      - name: Publish summary
+        if: always()
+        shell: bash
+        run: |
+          test -f "${{ steps.workspace.outputs.root }}/evidence/summary.md" && \
+            cat "${{ steps.workspace.outputs.root }}/evidence/summary.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Preserve evaluator conclusion
+        if: always()
+        shell: bash
+        env:
+          OUTCOME: ${{ steps.evaluation.outcome }}
+        run: test "$OUTCOME" = success
