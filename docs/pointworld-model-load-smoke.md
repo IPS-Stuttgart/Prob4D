@@ -34,7 +34,7 @@ The request must bind the Git blob of
 Dataset access, prediction execution, provider residuals, and target outcomes
 must all remain explicitly unauthorized.
 
-## Staged paths on workstation2
+## Staged paths on gpuserver6000
 
 The frozen runner alias is:
 
@@ -59,5 +59,5 @@ repository-write permission.
 ## Claim boundary
 
 A passing result means only that these exact model assets can be initialized on
-workstation2. It is not PointWorld validation on Flat'n'Fold and carries no
+gpuserver6000. It is not PointWorld validation on Flat'n'Fold and carries no
 Prob4D, BayesianPhysTwin, Causal4D, accuracy, calibration, or safety claim.

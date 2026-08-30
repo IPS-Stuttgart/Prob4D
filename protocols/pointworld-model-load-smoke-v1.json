@@ -34,5 +34,5 @@
     "torch_cuda_version",
     "torch_version"
   ],
-  "claim_boundary": "This dataset-free smoke verifies only exact staged asset identity and complete PointWorld plus DINOv3 model initialization on workstation2. It executes no prediction, opens no dataset or residual, and establishes no PointWorld competence, Prob4D accuracy or calibration benefit, BayesianPhysTwin benefit, Causal4D benefit, or deployment-safety claim."
+  "claim_boundary": "This dataset-free smoke verifies only exact staged asset identity and complete PointWorld plus DINOv3 model initialization on gpuserver6000. It executes no prediction, opens no dataset or residual, and establishes no PointWorld competence, Prob4D accuracy or calibration benefit, BayesianPhysTwin benefit, Causal4D benefit, or deployment-safety claim."
 }

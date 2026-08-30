@@ -1,0 +1,25 @@
+{
+  "bootstrap_replicates": 2000,
+  "bootstrap_seed": 8302026,
+  "candidate_cost": 1.0,
+  "classification": "constructed-linear-Gaussian-mechanism-study",
+  "cloud_scale_m": 0.1,
+  "complement_noise_variance": 0.00025,
+  "ellipsoid_90_chi_square_df3": 6.251388631170325,
+  "episodes": 10000,
+  "global_only_noise_variance": 1e-06,
+  "history_noise_standard_deviation": 0.01,
+  "independent_unit": "synthetic episode, not coordinate or point",
+  "new_window_budget": 1,
+  "prior_standard_deviation": 0.05,
+  "provider_executed": false,
+  "query_point_in_cloud_radii": [
+    0.0,
+    0.02,
+    0.01
+  ],
+  "repeat_noise_correlation": 0.999,
+  "schema": "prob4d.conditional-query-design-study-v1",
+  "seed": 20260830,
+  "targets_opened": false
+}
