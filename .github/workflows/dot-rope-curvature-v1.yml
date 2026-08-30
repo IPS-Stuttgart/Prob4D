@@ -1,0 +1,201 @@
+# workflow-lifecycle: temporary
+# workflow-owner: IPS-Stuttgart maintainers
+name: DOT rope curvature inventory v1
+
+on:
+  pull_request:
+    branches:
+      - science/shared-gauge-curvature-v1
+      - main
+    paths:
+      - .github/workflows/dot-rope-curvature-v1.yml
+      - experiments/dot_rope_curvature_v1/**
+      - tests/test_dot_rope_inventory_v1.py
+  push:
+    branches:
+      - science/dot-rope-curvature-pilot-v1
+    paths:
+      - protocols/execution_requests/dot_rope_curvature_inventory_v1.json
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dot-rope-curvature-v1-${{ github.ref }}-${{ github.sha }}
+  cancel-in-progress: false
+
+env:
+  REQUEST_PATH: protocols/execution_requests/dot_rope_curvature_inventory_v1.json
+  DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/dot-rope
+  REQUIRED_RUNNER_LABEL: gpuserver6000
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+
+jobs:
+  contracts:
+    name: DOT rope target-closed contracts
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out proposed source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install focused validation tools
+        run: python -m pip install --no-cache-dir pytest ruff
+      - name: Validate inventory code and contracts
+        run: |
+          set -euo pipefail
+          python -m ruff check \
+            experiments/dot_rope_curvature_v1 \
+            tests/test_dot_rope_inventory_v1.py
+          python -m ruff format --check \
+            experiments/dot_rope_curvature_v1 \
+            tests/test_dot_rope_inventory_v1.py
+          python -m pytest -q tests/test_dot_rope_inventory_v1.py
+          python -m compileall -q experiments/dot_rope_curvature_v1
+
+  authorize:
+    name: Authorize target-closed inventory request
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      source_revision: ${{ steps.request.outputs.source_revision }}
+      execution_revision: ${{ steps.request.outputs.execution_revision }}
+      request_id: ${{ steps.request.outputs.request_id }}
+    steps:
+      - name: Check out exact request revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Require one non-forced request addition
+        id: request
+        shell: bash
+        env:
+          EVENT_BEFORE: ${{ github.event.before }}
+          EVENT_AFTER: ${{ github.event.after }}
+          EVENT_FORCED: ${{ github.event.forced }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = "IPS-Stuttgart/Prob4D"
+          test "$GITHUB_REF" = "refs/heads/science/dot-rope-curvature-pilot-v1"
+          test "$EVENT_FORCED" = "false"
+          test "$EVENT_BEFORE" != "0000000000000000000000000000000000000000"
+          test "$EVENT_AFTER" = "$(git rev-parse HEAD)"
+          mapfile -t changed < <(git diff --name-status "$EVENT_BEFORE" "$EVENT_AFTER")
+          printf 'Changed files:\n%s\n' "${changed[*]}"
+          test "${#changed[@]}" -eq 1
+          test "${changed[0]}" = $'A\t'"$REQUEST_PATH"
+          validation=$(
+            python experiments/dot_rope_curvature_v1/inventory.py validate-request \
+              --request "$REQUEST_PATH" \
+              --expected-source-revision "$EVENT_BEFORE"
+          )
+          request_id=$(
+            VALIDATION="$validation" python - <<'PY'
+          import json
+          import os
+
+          print(json.loads(os.environ["VALIDATION"])["request_id"])
+          PY
+          )
+          echo "source_revision=$EVENT_BEFORE" >> "$GITHUB_OUTPUT"
+          echo "execution_revision=$EVENT_AFTER" >> "$GITHUB_OUTPUT"
+          echo "request_id=$request_id" >> "$GITHUB_OUTPUT"
+
+  inventory:
+    name: Read-only DOT rope inventory / gpuserver6000
+    if: github.event_name == 'push'
+    needs: authorize
+    runs-on: [self-hosted, Linux, X64, gpuserver6000]
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - name: Require intended runner class and installed dataset
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_OS" = "Linux"
+          test "$RUNNER_ARCH" = "X64"
+          command -v python3 >/dev/null
+          test -d "$DATASET_ROOT"
+          test -r "$DATASET_ROOT"
+          printf 'Runner=%s OS=%s ARCH=%s required_label=%s\n' \
+            "$RUNNER_NAME" "$RUNNER_OS" "$RUNNER_ARCH" "$REQUIRED_RUNNER_LABEL"
+          python3 --version
+      - name: Initialize isolated scratch
+        id: workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/dot-rope-curvature-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          rm -rf -- "$root"
+          mkdir -p "$root/output" "$root/home" "$root/tmp"
+          echo "root=$root" >> "$GITHUB_OUTPUT"
+          {
+            echo "HOME=$root/home"
+            echo "TMPDIR=$root/tmp"
+            echo "DOT_OUTPUT=$root/output"
+          } >> "$GITHUB_ENV"
+      - name: Check out exact authorized revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.authorize.outputs.execution_revision }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify clean exact checkout
+        shell: bash
+        env:
+          EXPECTED_REVISION: ${{ needs.authorize.outputs.execution_revision }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_REVISION"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Inventory publisher archives without decoding members
+        shell: bash
+        env:
+          SOURCE_REVISION: ${{ needs.authorize.outputs.source_revision }}
+          EXECUTION_REVISION: ${{ needs.authorize.outputs.execution_revision }}
+        run: |
+          set -euo pipefail
+          python3 experiments/dot_rope_curvature_v1/inventory.py inventory \
+            --dataset-root "$DATASET_ROOT" \
+            --output "$DOT_OUTPUT" \
+            --request "$REQUEST_PATH" \
+            --source-revision "$SOURCE_REVISION" \
+            --execution-revision "$EXECUTION_REVISION"
+          cat "$DOT_OUTPUT/report.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload aggregate inventory evidence only
+        if: always() && env.DOT_OUTPUT != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dot-rope-inventory-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.DOT_OUTPUT }}/inventory.json
+            ${{ env.DOT_OUTPUT }}/archives.csv
+            ${{ env.DOT_OUTPUT }}/extensions.csv
+            ${{ env.DOT_OUTPUT }}/sequences.csv
+            ${{ env.DOT_OUTPUT }}/development_member_sample.txt
+            ${{ env.DOT_OUTPUT }}/report.md
+          if-no-files-found: error
+          retention-days: 90
+      - name: Remove isolated scratch
+        if: always()
+        shell: bash
+        run: |
+          if test -n "${{ steps.workspace.outputs.root }}"; then
+            rm -rf -- "${{ steps.workspace.outputs.root }}"
+          fi
