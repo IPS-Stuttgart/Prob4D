@@ -1,0 +1,145 @@
+name: Publish Tracking Cloth finite-orbit evidence v1
+
+on:
+  workflow_run:
+    workflows: ["Tracking Cloth finite-orbit real geometry v1"]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: publish-tracking-cloth-finite-orbit-${{ github.event.workflow_run.id }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish compact evidence in a reviewable pull request
+    if: >-
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.actor.login == 'FlorianPfaff'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RUN_ID: ${{ github.event.workflow_run.id }}
+      RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+      HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+      CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+    steps:
+      - name: Check out the exact evaluated revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.HEAD_SHA }}
+          fetch-depth: 0
+          persist-credentials: true
+          clean: true
+      - name: Download the compact self-hosted artifact
+        id: download
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/artifact"
+          gh run download "$RUN_ID" \
+            --repo "$GITHUB_REPOSITORY" \
+            --name "tracking-cloth-finite-orbit-real-v1-${RUN_ATTEMPT}" \
+            --dir "$RUNNER_TEMP/artifact"
+      - name: Construct a bounded evidence record
+        shell: bash
+        run: |
+          set -euo pipefail
+          destination="evidence/tracking-cloth/finite-orbit-real-v1/runs/${RUN_ID}-${RUN_ATTEMPT}"
+          mkdir -p "$destination"
+          python3 - "$RUNNER_TEMP/artifact" "$destination" <<'PY'
+          import hashlib
+          import json
+          import os
+          import shutil
+          import sys
+          from pathlib import Path
+
+          source = Path(sys.argv[1])
+          destination = Path(sys.argv[2])
+          allowed = {
+              "runtime.json",
+              "process-exit-code.txt",
+              "stdout.txt",
+              "stderr.txt",
+              "inventory.json",
+              "source_seal.json",
+              "result.json",
+              "summary.md",
+          }
+          copied = []
+          for path in sorted(source.rglob("*")) if source.exists() else []:
+              if not path.is_file() or path.name not in allowed:
+                  continue
+              target = destination / path.name
+              shutil.copy2(path, target)
+              copied.append({
+                  "name": path.name,
+                  "bytes": target.stat().st_size,
+                  "sha256": hashlib.sha256(target.read_bytes()).hexdigest(),
+              })
+          receipt = {
+              "schema": "prob4d.tracking-cloth-finite-orbit-publication.v1",
+              "workflow_run_id": int(os.environ["RUN_ID"]),
+              "workflow_run_attempt": int(os.environ["RUN_ATTEMPT"]),
+              "evaluated_revision": os.environ["HEAD_SHA"],
+              "workflow_conclusion": os.environ["CONCLUSION"],
+              "artifact_download_succeeded": bool(copied),
+              "files": copied,
+              "raw_dataset_payload_copied": False,
+          }
+          (destination / "publication.json").write_text(
+              json.dumps(receipt, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          if any(path.suffix.lower() in {".csv", ".zip"} for path in destination.rglob("*")):
+              raise SystemExit("raw dataset payload entered the publication directory")
+          PY
+      - name: Open an immutable evidence pull request
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch="evidence/tracking-cloth-finite-orbit-real-v1-${RUN_ID}-${RUN_ATTEMPT}"
+          git switch -c "$branch"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add evidence/tracking-cloth/finite-orbit-real-v1/runs
+          git commit -m "Record Tracking Cloth finite-orbit run ${RUN_ID}"
+          git push --set-upstream origin "$branch"
+          result_path="evidence/tracking-cloth/finite-orbit-real-v1/runs/${RUN_ID}-${RUN_ATTEMPT}/result.json"
+          status="technical-${CONCLUSION}"
+          if test -f "$result_path"; then
+            status=$(python3 - "$result_path" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          print(json.loads(Path(sys.argv[1]).read_text())["status"])
+          PY
+          )
+          fi
+          body=$(cat <<EOF
+          ## Immutable execution evidence
+
+          - source workflow run: ${RUN_ID}
+          - run attempt: ${RUN_ATTEMPT}
+          - evaluated revision: ${HEAD_SHA}
+          - workflow conclusion: ${CONCLUSION}
+          - retained result status: ${status}
+
+          This pull request contains only compact JSON, Markdown, and bounded text diagnostics. It contains no Tracking Cloth CSV or archive payload. The scientific claim remains limited to public real-trajectory geometry under the frozen controlled rank-deficient-factor protocol.
+          EOF
+          )
+          gh pr create \
+            --repo "$GITHUB_REPOSITORY" \
+            --base main \
+            --head "$branch" \
+            --title "Record Tracking Cloth finite-orbit run ${RUN_ID}: ${status}" \
+            --body "$body"
