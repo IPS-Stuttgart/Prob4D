@@ -1,0 +1,118 @@
+{
+  "archive": "R01-10.zip",
+  "camera": "cam001",
+  "claim_boundary": "Source-development marker-free-provider evidence on R01-R03 only. R04-R70 remain unopened. This experiment does not establish held-out transfer, real uncertainty calibration, BayesianPhysTwin benefit, Causal4D benefit, safety, or state of the art.",
+  "dataset_doi": "10.13021/ORC2020/XXLVXM",
+  "evaluation": {
+    "marker_sampling": "bilinear-output-grid-from-original-image-coordinates",
+    "metric_fit_a_frames": [
+      1,
+      2
+    ],
+    "metric_fit_b_frames": [
+      6,
+      7
+    ],
+    "overlap_frames": [
+      3,
+      4,
+      5
+    ],
+    "score_frames": [
+      6,
+      7
+    ],
+    "sim3_fit": "proper-umeyama-80-percent-iterative-trim"
+  },
+  "frames": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "information_boundary": {
+    "evaluation_stage_reads": "matching 2-D and 3-D marker payloads from R01-R03 only",
+    "evaluation_stage_requires_sealed_provider_bundle": true,
+    "provider_stage_forbids": [
+      "2-D marker payloads",
+      "3-D marker payloads",
+      "R04-R70 payloads",
+      "provider residuals",
+      "BayesianPhysTwin outcomes",
+      "Causal4D outcomes"
+    ],
+    "provider_stage_reads": "normal-view JPEG payloads from R01-R03 only",
+    "target_payloads_opened": false
+  },
+  "primary_endpoints": [
+    "continuous versus identity and estimated-Sim3 restarted stitching RMSE divided by rope span",
+    "fixed-mean normalized joint Gaussian NLL for eight registered uncertainty closures"
+  ],
+  "protocol_id": "af6528f54699f3c9fb185764b029acd897a52e242e799d317e42710ee0f21c2c",
+  "provider": {
+    "device": "cuda",
+    "image_size": 512,
+    "name": "CUT3R",
+    "native_rope_required": true,
+    "random_seed": 42,
+    "revisit": 1,
+    "update": true
+  },
+  "reserved_sequences": "R04-R70",
+  "schema": "prob4d.dot-rope-cut3r-native-provider-protocol",
+  "schema_version": 1,
+  "source_sequences": [
+    "R01",
+    "R02",
+    "R03"
+  ],
+  "uncertainty": {
+    "bootstrap_replicates": 256,
+    "bootstrap_seed": 20260830,
+    "means_held_fixed": true,
+    "methods": [
+      "local_first_order",
+      "axis_spherical_radial",
+      "scalar_inflation",
+      "pointwise_quadratic",
+      "shared_quadratic_curvature",
+      "dominant_rotation_orbit",
+      "tensor_gauss_hermite",
+      "cluster_bootstrap_fallback"
+    ],
+    "observation_noise_fraction": 0.02,
+    "orbit_nodes": 33,
+    "probe_count": 8,
+    "probe_radius_fraction_of_provider_span": 0.25,
+    "scalar_inflation": 4.0,
+    "tensor_gh_order": 3
+  },
+  "windows": {
+    "continuous": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "window_a": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "window_b": [
+      3,
+      4,
+      5,
+      6,
+      7
+    ]
+  }
+}
