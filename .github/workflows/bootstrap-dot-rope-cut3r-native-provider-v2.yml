@@ -1,0 +1,193 @@
+name: Bootstrap DOT rope CUT3R native provider v2
+
+on:
+  push:
+    branches: [research/dot-rope-cut3r-native-runtime-v1]
+    paths:
+      - ".github/requests/dot-cut3r-native-provider-bootstrap-v2/ready.json"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bootstrap-dot-rope-cut3r-native-provider-v2
+  cancel-in-progress: false
+
+jobs:
+  materialize:
+    if: >-
+      github.repository == 'IPS-Stuttgart/Prob4D' &&
+      github.ref == 'refs/heads/research/dot-rope-cut3r-native-runtime-v1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Check out exact materialization revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+      - name: Require one exact ready request
+        shell: bash
+        env:
+          EVENT_BEFORE: ${{ github.event.before }}
+          EVENT_AFTER: ${{ github.event.after }}
+          EVENT_FORCED: ${{ github.event.forced }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_FORCED" = "false"
+          test "$EVENT_AFTER" = "$(git rev-parse HEAD)"
+          mapfile -t changed < <(git diff --name-only "$EVENT_BEFORE" "$EVENT_AFTER" | sort)
+          test "${#changed[@]}" -eq 1
+          test "${changed[0]}" = ".github/requests/dot-cut3r-native-provider-bootstrap-v2/ready.json"
+      - name: Decode and inspect the reviewed capsule
+        shell: bash
+        run: |
+          set -euo pipefail
+          request=.github/requests/dot-cut3r-native-provider-bootstrap-v2
+          mapfile -t parts < <(find "$request" -maxdepth 1 -type f -name 'part-*.b64' | sort)
+          test "${#parts[@]}" -eq 6
+          cat "${parts[@]}" | tr -d '\r\n\t ' | base64 --decode \
+            > "$RUNNER_TEMP/dot-cut3r-bootstrap.tar.gz"
+          echo "6c76558a433a5440041ebd544b3680b4972c05ec968482bb99c0f13d9351e40e  $RUNNER_TEMP/dot-cut3r-bootstrap.tar.gz" \
+            | sha256sum --check --strict
+          ARCHIVE="$RUNNER_TEMP/dot-cut3r-bootstrap.tar.gz" python - <<'PY'
+          import os
+          import tarfile
+          from pathlib import PurePosixPath
+
+          expected = {
+              ".github/workflows/dot-rope-cut3r-native-provider-v1.yml",
+              "CHANGELOG.d/dot-rope-cut3r-native-provider-v1.md",
+              "docs/dot-rope-cut3r-native-provider-v1.md",
+              "protocols/dot-rope-cut3r-native-provider-v1.json",
+              "scripts/science/run_dot_rope_cut3r_native_provider.py",
+              "src/prob4d/dot_rope_cut3r_study.py",
+              "tests/test_dot_rope_cut3r_native_provider.py",
+          }
+          with tarfile.open(os.environ["ARCHIVE"], "r:gz") as archive:
+              members = archive.getmembers()
+              if {member.name for member in members} != expected:
+                  raise SystemExit("capsule member roster changed")
+              for member in members:
+                  path = PurePosixPath(member.name)
+                  if path.is_absolute() or ".." in path.parts or not member.isfile():
+                      raise SystemExit(f"unsafe capsule member: {member.name}")
+              archive.extractall(".", filter="data")
+          PY
+          mkdir -p .github/staged-workflows
+          cp .github/workflows/dot-rope-cut3r-native-provider-v1.yml \
+            .github/staged-workflows/dot-rope-cut3r-native-provider-v1.yml
+      - name: Allow-list the reviewed self-hosted workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("tests/test_trusted_self_hosted_validation_policy.py")
+          text = path.read_text(encoding="utf-8")
+          anchor = (
+              'DEFORM360_SOURCE_BUNDLE_AUDIT_WORKFLOW = '
+              'WORKFLOW_ROOT / "deform360-source-bundle-audit.yml"\n'
+          )
+          constant = (
+              'DOT_ROPE_CUT3R_NATIVE_PROVIDER_WORKFLOW = WORKFLOW_ROOT / '
+              '"dot-rope-cut3r-native-provider-v1.yml"\n'
+          )
+          if constant not in text:
+              if anchor not in text:
+                  raise SystemExit("policy constant anchor changed")
+              text = text.replace(anchor, anchor + constant, 1)
+          tuple_anchor = "    DEFORM360_SOURCE_BUNDLE_AUDIT_WORKFLOW,\n)"
+          tuple_value = (
+              "    DEFORM360_SOURCE_BUNDLE_AUDIT_WORKFLOW,\n"
+              "    DOT_ROPE_CUT3R_NATIVE_PROVIDER_WORKFLOW,\n)"
+          )
+          if "    DOT_ROPE_CUT3R_NATIVE_PROVIDER_WORKFLOW,\n" not in text:
+              if tuple_anchor not in text:
+                  raise SystemExit("policy tuple anchor changed")
+              text = text.replace(tuple_anchor, tuple_value, 1)
+          marker = "\ndef test_source_comparison_v2_issue_trigger_is_terminally_removed() -> None:\n"
+          function = r'''
+
+          def test_dot_rope_cut3r_provider_is_main_request_bound_and_stage_sealed() -> None:
+              text = DOT_ROPE_CUT3R_NATIVE_PROVIDER_WORKFLOW.read_text(encoding="utf-8")
+              assert "branches: [main]" in text
+              assert "dot_rope_cut3r_native_provider_v1.json" in text
+              assert "pull_request_target:" not in text
+              assert "runs-on: [self-hosted, Linux, X64, gpuserver6000]" in text
+              assert 'test "$RUNNER_NAME" = "gpuserver6000"' in text
+              assert "native-rope-extension.tar.gz" in text
+              assert "sealed-provider-predictions" in text
+              assert "complete-source-evaluation" in text
+              assert "R04-R70" in text
+              assert "secrets." not in text
+              assert "git push" not in text
+          '''
+          function = "\n".join(
+              line[10:] if line.startswith("          ") else line
+              for line in function.splitlines()
+          )
+          if "def test_dot_rope_cut3r_provider_is_main_request_bound_and_stage_sealed" not in text:
+              if marker not in text:
+                  raise SystemExit("policy function anchor changed")
+              text = text.replace(marker, function + marker, 1)
+          path.write_text(text, encoding="utf-8", newline="\n")
+          PY
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Format and validate all materialized files
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -e ".[dev]"
+          python -m ruff check --fix \
+            scripts/science/run_dot_rope_cut3r_native_provider.py \
+            src/prob4d/dot_rope_cut3r_study.py \
+            tests/test_dot_rope_cut3r_native_provider.py \
+            tests/test_trusted_self_hosted_validation_policy.py
+          python -m ruff format \
+            scripts/science/run_dot_rope_cut3r_native_provider.py \
+            src/prob4d/dot_rope_cut3r_study.py \
+            tests/test_dot_rope_cut3r_native_provider.py \
+            tests/test_trusted_self_hosted_validation_policy.py
+          python -m pytest -q \
+            tests/test_dot_rope_cut3r_native_provider.py \
+            tests/test_trusted_self_hosted_validation_policy.py \
+            tests/test_github_action_pins.py
+          python -m compileall -q \
+            scripts/science/run_dot_rope_cut3r_native_provider.py \
+            src/prob4d/dot_rope_cut3r_study.py
+      - name: Commit only ordinary files and the staged workflow blob
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          rm .github/workflows/dot-rope-cut3r-native-provider-v1.yml
+          git restore --worktree -- src/prob4d.egg-info 2>/dev/null || true
+          git rm -r .github/requests/dot-cut3r-native-provider-bootstrap-v2
+          git add \
+            .github/staged-workflows/dot-rope-cut3r-native-provider-v1.yml \
+            CHANGELOG.d/dot-rope-cut3r-native-provider-v1.md \
+            docs/dot-rope-cut3r-native-provider-v1.md \
+            protocols/dot-rope-cut3r-native-provider-v1.json \
+            scripts/science/run_dot_rope_cut3r_native_provider.py \
+            src/prob4d/dot_rope_cut3r_study.py \
+            tests/test_dot_rope_cut3r_native_provider.py \
+            tests/test_trusted_self_hosted_validation_policy.py
+          git diff --cached --name-only | grep -v '^\.github/workflows/'
+          test -z "$(git diff --cached --name-only | grep '^\.github/workflows/' || true)"
+          git diff --check
+          git config user.name "Florian Pfaff"
+          git config user.email "6773539+FlorianPfaff@users.noreply.github.com"
+          git commit -m "Materialize sealed DOT marker-free CUT3R experiment"
+          git remote set-url origin \
+            "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push origin HEAD:research/dot-rope-cut3r-native-runtime-v1
