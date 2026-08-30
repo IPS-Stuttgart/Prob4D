@@ -1,8 +1,8 @@
 """Source-only observability audit for official DEFORM DLO4/DLO5 trajectories.
 
-Only the public training split is opened.  The script reports the intrinsic
+Only the public training split is opened. The script reports the intrinsic
 centroid-normalized Sim(3) geometry spectrum for several fixed spatial and
-temporal supports.  It does not fit a provider, inspect evaluation trajectories,
+temporal supports. It does not fit a provider, inspect evaluation trajectories,
 or make a target-performance claim.
 """
 
@@ -12,6 +12,7 @@ import argparse
 import hashlib
 import json
 import math
+import pickle
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
@@ -74,11 +75,8 @@ def load_request(path: Path) -> dict[str, Any]:
 
 
 def load_trajectory(path: Path) -> np.ndarray:
-    try:
-        import pandas as pd
-    except ImportError as error:  # pragma: no cover - runner preflight owns this.
-        raise RuntimeError("pandas is required to load official DEFORM pickles") from error
-    loaded = pd.read_pickle(path)  # noqa: S301 - verified official public dataset.
+    with path.open("rb") as stream:
+        loaded = pickle.load(stream)  # noqa: S301 - verified official public dataset.
     array = np.asarray(loaded, dtype=np.float64).squeeze()
     if array.ndim != 3:
         raise ValueError(f"{path} has unsupported shape {array.shape}")
@@ -136,7 +134,9 @@ def geometry_spectrum(points: np.ndarray) -> tuple[np.ndarray, float, float]:
         raise ValueError("support carries no gauge information")
     normalized = np.maximum(eigenvalues / maximum, 0.0)
     singular_values = np.linalg.svd(centered, compute_uv=False)
-    line_ratio = float(singular_values[-1] / max(singular_values[0], np.finfo(float).eps))
+    line_ratio = float(
+        singular_values[-1] / max(singular_values[0], np.finfo(float).eps)
+    )
     return normalized, rho, line_ratio
 
 
@@ -176,7 +176,9 @@ def run(request: dict[str, Any]) -> dict[str, Any]:
         directory = root / dlo_type / "train"
         files = sorted(directory.glob("*.pkl"), key=lambda path: int(path.stem))
         if len(files) != 56:
-            raise ValueError(f"expected 56 official training files for {dlo_type}, found {len(files)}")
+            raise ValueError(
+                f"expected 56 official training files for {dlo_type}, found {len(files)}"
+            )
         for path in files:
             manifest.append(
                 {
@@ -230,7 +232,9 @@ def run(request: dict[str, Any]) -> dict[str, Any]:
             "lambda7_over_lambda1": quantiles(matrix[:, -1].tolist()),
             "lambda6_over_lambda1": quantiles(matrix[:, -2].tolist()),
             "cloud_radius_m": quantiles(radii[key]),
-            "smallest_to_largest_centered_singular_value": quantiles(line_ratios[key]),
+            "smallest_to_largest_centered_singular_value": quantiles(
+                line_ratios[key]
+            ),
             "rank_by_threshold": rank_rows,
         }
 
@@ -305,7 +309,11 @@ def main() -> None:
         encoding="utf-8",
     )
     write_summary(result, args.output_dir / "summary.md")
-    print(json.dumps({"result_id": result["result_id"], "output": str(args.output_dir)}))
+    print(
+        json.dumps(
+            {"result_id": result["result_id"], "output": str(args.output_dir)}
+        )
+    )
 
 
 if __name__ == "__main__":
