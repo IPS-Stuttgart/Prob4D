@@ -9,13 +9,15 @@
     "metadata_paths": [
       "raw-repository/raw/001-rope/metadata.json",
       "raw/001-rope/metadata.json"
-    ]
+    ],
+    "packed_point_cloud_template": "processed-repository/processed/001-rope/episode_{episode}/pcd_clean.tar"
   },
   "processed_source": {
-    "repository": "brownu/deform360",
-    "revision": "ed0dac064db74101b2f99e9f846aee4e1322d3d6",
+    "repository": "brownu/deform360_processed",
+    "revision": "e92deaf7e437e7e51ad464706ae647f522a279d9",
+    "published_layout": "packed-per-episode",
     "allow_patterns": [
-      "processed/001-rope/episode_*/pcd_clean/0000*.npz"
+      "processed/001-rope/episode_*/pcd_clean.tar"
     ]
   },
   "episode_split": {
@@ -64,7 +66,8 @@
   "information_boundary": {
     "target_used_for_fitting": false,
     "target_used_for_calibration": false,
-    "frames_are_independent_units": false
+    "frames_are_independent_units": false,
+    "mounted_source_mutated": false
   },
   "claim_boundary": "This is a within-object, held-out-episode real-data pilot for finite-orbit physical-query admission on released Deform360 rope geometry. It does not establish unseen-object transfer, learned-provider competence, calibrated deployment risk, BayesianPhysTwin or Causal4D benefit, or state of the art."
 }
