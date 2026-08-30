@@ -1,0 +1,15 @@
+{
+  "schema": "prob4d.self-hosted-experiment-request.v1",
+  "request_id": "pokeflex-incomplete-real-geometry-posterior-compression-v1",
+  "method_parent_revision": "3ff5188603bf99c93560fec68671b30e2f7b0daa",
+  "branch": "science/pokeflex-posterior-compression-real-geometry-v1",
+  "runner_labels": ["self-hosted", "gpuserver4090"],
+  "dataset_root": "/mnt/lexar4tb/pokeflex",
+  "dataset_state": "known-incomplete",
+  "reported_archive_count": 170,
+  "reported_size_gib_approx": 548,
+  "requested_action": "inventory all ZIP central directories and evaluate a deterministic bounded subset with supported real geometry",
+  "opens_or_repairs_prior_causal4d_pokeflex_target": false,
+  "provider_promotion_authorized": false,
+  "raw_data_publication_authorized": false
+}
