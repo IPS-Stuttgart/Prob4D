@@ -284,9 +284,15 @@ def run(request: dict[str, Any]) -> dict[str, Any]:
         "information_boundary": request["information_boundary"],
         "claim_boundary": [
             "Only official DLO4/DLO5 training trajectories were opened.",
-            "The audit measures real trajectory geometry and motion support, not learned-provider accuracy.",
+            (
+                "The audit measures real trajectory geometry and motion support, "
+                "not learned-provider accuracy."
+            ),
             "No evaluation file content, BayesianPhysTwin outcome, or Causal4D outcome was opened.",
-            "Any evaluation threshold must be frozen from this source-only artifact before evaluation access.",
+            (
+                "Any evaluation threshold must be frozen from this source-only "
+                "artifact before evaluation access."
+            ),
         ],
     }
     result["result_id"] = canonical_sha256(result)
