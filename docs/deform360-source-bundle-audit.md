@@ -18,7 +18,7 @@ open a held-out target.
 The runner may read directory entries and `lstat` metadata only. Dataset files
 are never opened. The implementation:
 
-- rejects a symlink as the source root;
+- rejects a symlink as the source root or `processed` root;
 - never follows symlinks below the root;
 - skips a path component before `stat` or descent when its normalized name
   contains `confirmation`, `fresh-validation`, `held-v8`, `shadow`, or `target`;
@@ -31,7 +31,7 @@ are never opened. The implementation:
 The checked protocol is
 [`protocols/deform360-source-bundle-audit-v1.json`](../protocols/deform360-source-bundle-audit-v1.json).
 Its content address binds the fixed root, runner label, forbidden tokens, limits,
-and all negative authorization flags.
+structured-census version, and all negative authorization flags.
 
 ## Trigger and authorization
 
@@ -62,10 +62,19 @@ A successful run uploads `result.json` and `summary.md`. The result contains:
 - explicit flags stating that no file content, prediction, residual, target, or
   dataset mutation was authorized.
 
-The independent statistical units and any final Deform360 source/calibration/
-target split are not defined by this inventory. Historical object exclusions
-must be resolved and a new protocol must be frozen before a fresh target is
-opened.
+The `processed_repository_census` section additionally records, without opening
+payload files:
+
+- the exact processed object directory roster;
+- the exact episode roster for each object;
+- object- and episode-level metadata counts and byte totals;
+- global filename and extension availability;
+- content-free episode layout signatures and examples; and
+- per-episode metadata signatures for detecting later repository drift.
+
+This census provides the units needed to define source and calibration cohorts.
+It does not itself label any object as fresh. Historical object exclusions must
+still be reconciled before a final target cohort is frozen or opened.
 
 ## Claim boundary
 
