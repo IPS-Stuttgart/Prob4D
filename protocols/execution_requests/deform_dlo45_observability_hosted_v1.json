@@ -4,7 +4,7 @@
     "DLO4",
     "DLO5"
   ],
-  "execution_attempt": 1,
+  "execution_attempt": 2,
   "execution_lane": "github-hosted-ubuntu-24.04",
   "frame_stride": 10,
   "information_boundary": {
@@ -25,7 +25,7 @@
     0.001,
     0.01
   ],
-  "request_id": "f32db6a8b59d1b6c027aea287956197aadee55291c5e0467fdddf2383065a596",
+  "request_id": "0b3ab977f874bc531e22c0a395932d2c2f4873afe5b48520f5127e856e39f948",
   "schema": "prob4d.deform-dlo45-observability-source-request",
   "schema_version": 1,
   "stage": "source-audit",
