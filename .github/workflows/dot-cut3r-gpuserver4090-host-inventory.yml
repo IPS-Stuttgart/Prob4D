@@ -34,10 +34,10 @@ jobs:
           set -euo pipefail
           workflow=.github/workflows/dot-cut3r-gpuserver4090-host-inventory.yml
           grep -F 'runs-on: [self-hosted, Linux, X64, gpuserver4090]' "$workflow"
-          grep -F 'EXPECTED_CUT3R_REVISION=8bc15dc92a6d7fd92920b4ec81540d3dec7d3ecf' "$workflow"
-          grep -F 'EXPECTED_CHECKPOINT_SHA256=45f7e98a0a64dbeb54901ae2b878cd8cd125f20a4497316483f0bd6f109f8103' "$workflow"
-          grep -F 'datasets/*' "$workflow"
-          ! grep -F 'R01-10.zip' "$workflow"
+          grep -F 'EXPECTED_CUT3R_REVISION = "8bc15dc92a6d7fd92920b4ec81540d3dec7d3ecf"' "$workflow"
+          grep -F 'EXPECTED_CHECKPOINT_SHA256 = "45f7e98a0a64dbeb54901ae2b878cd8cd125f20a4497316483f0bd6f109f8103"' "$workflow"
+          grep -F 'if current == excluded_dataset_root:' "$workflow"
+          grep -F 'dirnames[:] = []' "$workflow"
 
   inventory:
     name: Inventory CUT3R runtime without DOT access
@@ -46,103 +46,136 @@ jobs:
     runs-on: [self-hosted, Linux, X64, gpuserver4090]
     timeout-minutes: 30
     steps:
-      - name: Inspect bounded host roots only
+      - name: Inspect bounded non-dataset host roots
         shell: bash
         run: |
           set -euo pipefail
-          EXPECTED_CUT3R_REVISION=8bc15dc92a6d7fd92920b4ec81540d3dec7d3ecf
-          EXPECTED_CHECKPOINT_SHA256=45f7e98a0a64dbeb54901ae2b878cd8cd125f20a4497316483f0bd6f109f8103
-          report="${RUNNER_TEMP}/dot-cut3r-host-inventory.txt"
-          : > "$report"
-          {
-            echo "runner_name=$RUNNER_NAME"
-            echo "runner_os=$RUNNER_OS"
-            echo "runner_arch=$RUNNER_ARCH"
-            echo "expected_cut3r_revision=$EXPECTED_CUT3R_REVISION"
-            echo "expected_checkpoint_sha256=$EXPECTED_CHECKPOINT_SHA256"
-            echo "gpu_inventory_begin"
-            nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv,noheader || true
-            echo "gpu_inventory_end"
-            echo "filesystem_capacity_begin"
-            df -h /home/github-runner /mnt/seagate10tb 2>/dev/null || true
-            echo "filesystem_capacity_end"
-          } >> "$report"
+          REPORT="${RUNNER_TEMP}/dot-cut3r-host-inventory.txt" /usr/bin/python3 - <<'PY'
+          import hashlib
+          import os
+          import shutil
+          import stat
+          import subprocess
+          from pathlib import Path
 
-          roots=(
-            /mnt/corsair
-            /mnt/seagate10tb/florianpfaff
-            /home/github-runner
-            /home/florianpfaff
-            /home/florian
-            /opt
-          )
+          EXPECTED_CUT3R_REVISION = "8bc15dc92a6d7fd92920b4ec81540d3dec7d3ecf"
+          EXPECTED_CHECKPOINT_SHA256 = "45f7e98a0a64dbeb54901ae2b878cd8cd125f20a4497316483f0bd6f109f8103"
+          CHECKPOINT_NAME = "cut3r_512_dpt_4_64.pth"
+          report_path = Path(os.environ["REPORT"])
+          roots = [
+              Path("/mnt/corsair"),
+              Path("/mnt/seagate10tb/florianpfaff"),
+              Path("/home/github-runner"),
+              Path("/home/florianpfaff"),
+              Path("/home/florian"),
+              Path("/opt"),
+          ]
+          excluded_dataset_root = Path("/mnt/seagate10tb/florianpfaff/datasets")
 
-          sources="${RUNNER_TEMP}/cut3r-sources.txt"
-          checkpoints="${RUNNER_TEMP}/cut3r-checkpoints.txt"
-          pythons="${RUNNER_TEMP}/cut3r-pythons.txt"
-          : > "$sources"
-          : > "$checkpoints"
-          : > "$pythons"
+          lines = [
+              f"runner_name={os.environ.get('RUNNER_NAME', '')}",
+              f"runner_os={os.environ.get('RUNNER_OS', '')}",
+              f"runner_arch={os.environ.get('RUNNER_ARCH', '')}",
+              f"expected_cut3r_revision={EXPECTED_CUT3R_REVISION}",
+              f"expected_checkpoint_sha256={EXPECTED_CHECKPOINT_SHA256}",
+          ]
 
-          for root in "${roots[@]}"; do
-            [[ -d "$root" ]] || continue
-            if [[ "$root" == "/mnt/seagate10tb/florianpfaff" ]]; then
-              find "$root" -maxdepth 7 \
-                \( -path "$root/datasets" -o -path "$root/datasets/*" \) -prune -o \
-                -type d -name CUT3R -print 2>/dev/null >> "$sources" || true
-              find "$root" -maxdepth 8 \
-                \( -path "$root/datasets" -o -path "$root/datasets/*" \) -prune -o \
-                -type f -name cut3r_512_dpt_4_64.pth -print 2>/dev/null >> "$checkpoints" || true
-              find "$root" -maxdepth 7 \
-                \( -path "$root/datasets" -o -path "$root/datasets/*" \) -prune -o \
-                -type f -path '*/bin/python' -executable -print 2>/dev/null >> "$pythons" || true
-            else
-              find "$root" -maxdepth 7 -type d -name CUT3R -print 2>/dev/null >> "$sources" || true
-              find "$root" -maxdepth 8 -type f -name cut3r_512_dpt_4_64.pth -print 2>/dev/null >> "$checkpoints" || true
-              find "$root" -maxdepth 7 -type f -path '*/bin/python' -executable -print 2>/dev/null >> "$pythons" || true
-            fi
-          done
-          command -v python3 >> "$pythons" 2>/dev/null || true
-          command -v python >> "$pythons" 2>/dev/null || true
-          sort -u -o "$sources" "$sources"
-          sort -u -o "$checkpoints" "$checkpoints"
-          sort -u -o "$pythons" "$pythons"
+          try:
+              gpu = subprocess.run(
+                  ["nvidia-smi", "--query-gpu=name,driver_version,memory.total", "--format=csv,noheader"],
+                  check=False,
+                  capture_output=True,
+                  text=True,
+                  timeout=20,
+              )
+              lines += ["gpu_inventory_begin", gpu.stdout.strip(), "gpu_inventory_end"]
+          except Exception as exc:
+              lines += ["gpu_inventory_begin", f"error={type(exc).__name__}:{exc}", "gpu_inventory_end"]
 
-          echo "source_candidates_begin" >> "$report"
-          while IFS= read -r path; do
-            [[ -n "$path" ]] || continue
-            revision=not-a-git-checkout
-            if [[ -d "$path/.git" ]]; then
-              revision=$(git -C "$path" rev-parse HEAD 2>/dev/null || echo git-error)
-            fi
-            printf '%s\trevision=%s\texact=%s\n' \
-              "$path" "$revision" "$([[ "$revision" == "$EXPECTED_CUT3R_REVISION" ]] && echo yes || echo no)" \
-              >> "$report"
-          done < "$sources"
-          echo "source_candidates_end" >> "$report"
+          lines.append("filesystem_capacity_begin")
+          for path in (Path("/home/github-runner"), Path("/mnt/seagate10tb")):
+              if path.exists():
+                  usage = shutil.disk_usage(path)
+                  lines.append(
+                      f"path={path} total_gib={usage.total / 2**30:.1f} "
+                      f"free_gib={usage.free / 2**30:.1f}"
+                  )
+          lines.append("filesystem_capacity_end")
 
-          echo "checkpoint_candidates_begin" >> "$report"
-          checkpoint_count=0
-          while IFS= read -r path; do
-            [[ -n "$path" ]] || continue
-            checkpoint_count=$((checkpoint_count + 1))
-            [[ $checkpoint_count -le 20 ]] || break
-            digest=$(sha256sum "$path" | awk '{print $1}')
-            bytes=$(stat -c '%s' "$path")
-            printf '%s\tbytes=%s\tsha256=%s\texact=%s\n' \
-              "$path" "$bytes" "$digest" "$([[ "$digest" == "$EXPECTED_CHECKPOINT_SHA256" ]] && echo yes || echo no)" \
-              >> "$report"
-          done < "$checkpoints"
-          echo "checkpoint_candidates_end" >> "$report"
+          source_candidates: set[Path] = set()
+          checkpoint_candidates: set[Path] = set()
+          python_candidates: set[Path] = set()
 
-          echo "python_candidates_begin" >> "$report"
-          python_count=0
-          while IFS= read -r path; do
-            [[ -x "$path" ]] || continue
-            python_count=$((python_count + 1))
-            [[ $python_count -le 60 ]] || break
-            probe=$(
-              "$path" - <<'PY' 2>&1 || true
+          for root in roots:
+              if not root.is_dir():
+                  continue
+              for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
+                  current = Path(dirpath)
+                  if current == excluded_dataset_root:
+                      dirnames[:] = []
+                      continue
+                  try:
+                      depth = len(current.relative_to(root).parts)
+                  except ValueError:
+                      dirnames[:] = []
+                      continue
+                  if depth >= 8:
+                      dirnames[:] = []
+                  if current.name == "CUT3R":
+                      source_candidates.add(current)
+                  if CHECKPOINT_NAME in filenames:
+                      checkpoint_candidates.add(current / CHECKPOINT_NAME)
+                  if current.name == "bin" and "python" in filenames:
+                      candidate = current / "python"
+                      if os.access(candidate, os.X_OK):
+                          python_candidates.add(candidate)
+
+          for command in ("python3", "python"):
+              resolved = shutil.which(command)
+              if resolved:
+                  python_candidates.add(Path(resolved))
+
+          lines.append("source_candidates_begin")
+          for path in sorted(source_candidates):
+              revision = "not-a-git-checkout"
+              if (path / ".git").exists():
+                  result = subprocess.run(
+                      ["git", "-C", str(path), "rev-parse", "HEAD"],
+                      check=False,
+                      capture_output=True,
+                      text=True,
+                      timeout=10,
+                  )
+                  if result.returncode == 0:
+                      revision = result.stdout.strip()
+                  else:
+                      revision = "git-error"
+              lines.append(
+                  f"{path}\trevision={revision}\texact={'yes' if revision == EXPECTED_CUT3R_REVISION else 'no'}"
+              )
+          lines.append("source_candidates_end")
+
+          lines.append("checkpoint_candidates_begin")
+          for index, path in enumerate(sorted(checkpoint_candidates)):
+              if index >= 20:
+                  lines.append("checkpoint_scan_truncated=true")
+                  break
+              digest = hashlib.sha256()
+              try:
+                  with path.open("rb") as handle:
+                      for chunk in iter(lambda: handle.read(8 * 1024 * 1024), b""):
+                          digest.update(chunk)
+                  value = digest.hexdigest()
+                  size = path.stat().st_size
+                  lines.append(
+                      f"{path}\tbytes={size}\tsha256={value}\t"
+                      f"exact={'yes' if value == EXPECTED_CHECKPOINT_SHA256 else 'no'}"
+                  )
+              except Exception as exc:
+                  lines.append(f"{path}\terror={type(exc).__name__}:{exc}")
+          lines.append("checkpoint_candidates_end")
+
+          probe_source = r'''
           import sys
           print("version=" + sys.version.split()[0])
           try:
@@ -161,13 +194,29 @@ jobs:
               print("numpy_pillow=fail:" + type(exc).__name__ + ":" + str(exc).replace("\n", " ")[:240])
           else:
               print("numpy_pillow=ok")
-          PY
-            )
-            printf 'path=%s\n%s\n--\n' "$path" "$probe" >> "$report"
-          done < "$pythons"
-          echo "python_candidates_end" >> "$report"
+          '''
+          lines.append("python_candidates_begin")
+          for index, path in enumerate(sorted(python_candidates)):
+              if index >= 60:
+                  lines.append("python_scan_truncated=true")
+                  break
+              try:
+                  result = subprocess.run(
+                      [str(path), "-c", probe_source],
+                      check=False,
+                      capture_output=True,
+                      text=True,
+                      timeout=30,
+                  )
+                  output = (result.stdout + result.stderr).strip().replace("\r", "")
+                  lines.append(f"path={path}\nreturncode={result.returncode}\n{output}\n--")
+              except Exception as exc:
+                  lines.append(f"path={path}\nprobe_error={type(exc).__name__}:{exc}\n--")
+          lines.append("python_candidates_end")
 
-          cat "$report"
+          report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+          print(report_path.read_text(encoding="utf-8"))
+          PY
       - name: Upload inventory receipt
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
