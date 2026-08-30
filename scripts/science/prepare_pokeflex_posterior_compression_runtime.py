@@ -9,6 +9,15 @@ import json
 from pathlib import Path
 
 _EXPECTED_SOURCE_GIT_BLOB_SHA1 = "0a4169f95149644fb9d00fca877a67b2672da36e"
+_ORIGINAL_IMPORTS = """from dataclasses import dataclass
+from pathlib import Path, PurePosixPath
+from typing import Any, Iterable
+"""
+_PATCHED_IMPORTS = """from collections.abc import Iterable
+from dataclasses import dataclass
+from pathlib import Path, PurePosixPath
+from typing import Any
+"""
 _ORIGINAL_MODE_COLUMN = """        columns.append(
             np.concatenate(
                 [coefficient * mode_xyz for coefficient in coefficients]
@@ -122,6 +131,12 @@ def apply_repair(source_path: Path) -> dict[str, object]:
     text = raw.decode("utf-8")
     text = _replace_exactly_once(
         text,
+        _ORIGINAL_IMPORTS,
+        _PATCHED_IMPORTS,
+        "import-hygiene",
+    )
+    text = _replace_exactly_once(
+        text,
         _ORIGINAL_MODE_COLUMN,
         _PATCHED_MODE_COLUMN,
         "shape-repair",
@@ -151,6 +166,7 @@ def apply_repair(source_path: Path) -> dict[str, object]:
         "source_sha256": hashlib.sha256(raw).hexdigest(),
         "patched_sha256": hashlib.sha256(patched).hexdigest(),
         "repairs": [
+            "Move Iterable to collections.abc for current Python lint semantics.",
             (
                 "Flatten each learned spatial-mode trajectory column to the same "
                 "3N observation coordinate vector used by translation columns."
@@ -167,7 +183,7 @@ def apply_repair(source_path: Path) -> dict[str, object]:
             "symmetric query Schur complement with 1e-5 relative antisymmetry."
         ),
         "information_boundary": (
-            "Both repairs are applied and tested before the self-hosted job reads "
+            "All repairs are applied and tested before the self-hosted job reads "
             "any PokeFlex ZIP central directory or member payload."
         ),
     }
