@@ -1,0 +1,143 @@
+name: DOT pooled CUT3R evaluation gpuserver6000 v1
+
+on:
+  push:
+    branches: [science/dot-cut3r-pooled-eval-gpuserver6000-v1]
+    paths:
+      - ".github/workflows/dot-rope-cut3r-pooled-eval-gpuserver6000-v1.yml"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: dot-pooled-cut3r-gpuserver6000-${{ github.sha }}
+  cancel-in-progress: false
+
+env:
+  REQUEST_PATH: protocols/execution_requests/dot_rope_cut3r_pooled_evaluation_v2.json
+  DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/dot-rope
+  PROVIDER_RUN_ID: "33329701704"
+  PROVIDER_ARTIFACT_NAME: dot-rope-cut3r-sealed-provider-33329701704-1
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+
+jobs:
+  evaluate:
+    name: Evaluate sealed DOT predictions on gpuserver6000
+    if: >-
+      github.repository == 'IPS-Stuttgart/Prob4D' &&
+      github.actor == 'FlorianPfaff' &&
+      github.ref == 'refs/heads/science/dot-cut3r-pooled-eval-gpuserver6000-v1'
+    environment: trusted-self-hosted-validation
+    runs-on: [self-hosted, Linux, X64, gpuserver6000]
+    timeout-minutes: 120
+    steps:
+      - name: Initialize isolated evaluation workspace
+        id: workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${RUNNER_TEMP}/prob4d-dot-pooled-gpuserver6000-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          /usr/bin/rm -rf -- "$root"
+          /usr/bin/mkdir -p "$root/provider" "$root/evidence" "$root/home" "$root/tmp"
+          echo "root=$root" >> "$GITHUB_OUTPUT"
+          {
+            echo "HOME=$root/home"
+            echo "TMPDIR=$root/tmp"
+          } >> "$GITHUB_ENV"
+      - name: Require intended runner and complete source archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_NAME" = "workstation2"
+          test "$RUNNER_OS" = "Linux"
+          test "$RUNNER_ARCH" = "X64"
+          test -d "$DATASET_ROOT"
+          test ! -L "$DATASET_ROOT"
+          test -f "$DATASET_ROOT/R01-10.zip"
+          test -r "$DATASET_ROOT/R01-10.zip"
+      - name: Check out exact dispatched revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+      - name: Verify clean exact checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(/usr/bin/git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$(/usr/bin/git status --porcelain=v1 --untracked-files=all)"
+      - name: Set up bounded Python 3.12 runtime
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install exact numeric runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --no-cache-dir "pip==25.2" "numpy==2.2.6"
+          python -m pip install --no-cache-dir --no-deps -e .
+          python -m pip check
+      - name: Validate audited pooled-evaluation request
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/science/evaluate_dot_rope_cut3r_pooled.py \
+            validate-request \
+            --request "$REQUEST_PATH"
+      - name: Download exact sealed provider bundle
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ${{ env.PROVIDER_ARTIFACT_NAME }}
+          path: ${{ steps.workspace.outputs.root }}/provider
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.PROVIDER_RUN_ID }}
+      - name: Evaluate pooled marker support without image decoding
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          PYTHONPATH="$GITHUB_WORKSPACE/src" \
+            python scripts/science/evaluate_dot_rope_cut3r_pooled.py \
+              evaluate \
+              --request "$REQUEST_PATH" \
+              --dataset-root "$DATASET_ROOT" \
+              --provider-bundle "$root/provider/bundle" \
+              --output-dir "$root/evidence/result" \
+              --repository-revision "$GITHUB_SHA"
+      - name: Require complete source result and summarize
+        shell: bash
+        run: |
+          set -euo pipefail
+          result="${{ steps.workspace.outputs.root }}/evidence/result/result.json"
+          RESULT="$result" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          value = json.loads(Path(os.environ["RESULT"]).read_text(encoding="utf-8"))
+          if value.get("decision") != "complete-source-evaluation-pooled-marker-support":
+              raise SystemExit("pooled evaluator did not produce a complete source result")
+          print(json.dumps({
+              "evaluation_id": value["evaluation_id"],
+              "best_method": value["aggregate_methods"][0]["method"],
+              "aggregate_methods": value["aggregate_methods"],
+              "sequence_results": value["sequence_results"],
+          }, indent=2, sort_keys=True))
+          PY
+      - name: Upload complete pooled-evaluation evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dot-rope-cut3r-pooled-gpuserver6000-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.workspace.outputs.root }}/evidence/
+          if-no-files-found: error
+          retention-days: 30
