@@ -24,8 +24,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m py_compile .github/bootstrap/patch_dot_provider_runtime.py
+          python3 -m py_compile \
+            .github/bootstrap/patch_dot_provider_runtime.py \
+            .github/bootstrap/patch_dot_provider_runtime_evaluate.py
           python3 .github/bootstrap/patch_dot_provider_runtime.py
+          python3 .github/bootstrap/patch_dot_provider_runtime_evaluate.py
           python3 -m py_compile tests/test_trusted_self_hosted_validation_policy.py
           grep -F 'CUT3R_RUNTIME_PYTHON: /home/github-runner/.cache/prob4d/cut3r-runtime-v1/venv/bin/python' \
             .github/workflows/dot-rope-cut3r-native-provider-v1.yml
@@ -43,7 +46,8 @@ jobs:
           fi
           rm \
             .github/workflows/temp-patch-dot-provider-runtime.yml \
-            .github/bootstrap/patch_dot_provider_runtime.py
+            .github/bootstrap/patch_dot_provider_runtime.py \
+            .github/bootstrap/patch_dot_provider_runtime_evaluate.py
           git diff --check
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
@@ -51,6 +55,7 @@ jobs:
             .github/workflows/dot-rope-cut3r-native-provider-v1.yml \
             tests/test_trusted_self_hosted_validation_policy.py \
             .github/workflows/temp-patch-dot-provider-runtime.yml \
-            .github/bootstrap/patch_dot_provider_runtime.py
+            .github/bootstrap/patch_dot_provider_runtime.py \
+            .github/bootstrap/patch_dot_provider_runtime_evaluate.py
           git commit -m 'Bind DOT provider to sealed CUDA 12.6 runtime'
           git push origin HEAD:fix/dot-provider-bind-cu126-runtime
