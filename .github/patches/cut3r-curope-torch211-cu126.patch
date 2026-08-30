@@ -13,7 +13,7 @@ diff --git a/src/croco/models/curope/kernels.cu b/src/croco/models/curope/kernel
 diff --git a/src/croco/models/curope/setup.py b/src/croco/models/curope/setup.py
 --- a/src/croco/models/curope/setup.py
 +++ b/src/croco/models/curope/setup.py
-@@ -2,11 +2,11 @@
+@@ -2,11 +2,12 @@
  # Licensed under CC BY-NC-SA 4.0 (non-commercial use only).
  
  from setuptools import setup
