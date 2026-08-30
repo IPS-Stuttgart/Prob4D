@@ -52,7 +52,8 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          git diff --quiet
+          git diff --cached --quiet
           test "$(git -C external/DEFORM rev-parse HEAD)" = "$OFFICIAL_DEFORM_REVISION"
           test -d external/DEFORM/data_set/DLO4/train
           test -d external/DEFORM/data_set/DLO5/train
