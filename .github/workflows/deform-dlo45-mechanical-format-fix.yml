@@ -1,0 +1,88 @@
+name: DEFORM DLO4/DLO5 mechanical formatting fix
+
+on:
+  push:
+    branches:
+      - science/deform-dlo45-query-observability-real-v1
+    paths:
+      - protocols/execution_requests/deform_dlo45_mechanical_format_fix.trigger
+
+permissions:
+  contents: write
+
+concurrency:
+  group: deform-dlo45-mechanical-format-fix-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  format:
+    name: Apply pinned Ruff formatting only
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out exact triggering branch revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: science/deform-dlo45-query-observability-real-v1
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Apply only pinned Ruff fixes and formatting
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --no-cache-dir "ruff==0.16.1"
+          files=(
+            scripts/science/audit_deform_dlo45_local_segments_official_v2.py
+            scripts/science/audit_deform_dlo45_local_segments_v2.py
+            scripts/science/audit_deform_dlo45_observability_official_mirror_v1.py
+            scripts/science/audit_deform_dlo45_observability_v1.py
+            scripts/science/calibrate_deform_dlo45_query_gate_official_v1.py
+            scripts/science/calibrate_deform_dlo45_query_gate_v1.py
+            scripts/science/evaluate_deform_dlo45_query_observability_official_v1.py
+            scripts/science/evaluate_deform_dlo45_query_observability_v1.py
+          )
+          python -m ruff check --fix -- "${files[@]}"
+          python -m ruff format -- "${files[@]}"
+          python -m ruff check -- "${files[@]}"
+          python -m ruff format --check -- "${files[@]}"
+
+      - name: Verify only the registered Python files changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          allowed="$(mktemp)"
+          changed="$(mktemp)"
+          cat > "$allowed" <<'EOF'
+          scripts/science/audit_deform_dlo45_local_segments_official_v2.py
+          scripts/science/audit_deform_dlo45_local_segments_v2.py
+          scripts/science/audit_deform_dlo45_observability_official_mirror_v1.py
+          scripts/science/audit_deform_dlo45_observability_v1.py
+          scripts/science/calibrate_deform_dlo45_query_gate_official_v1.py
+          scripts/science/calibrate_deform_dlo45_query_gate_v1.py
+          scripts/science/evaluate_deform_dlo45_query_observability_official_v1.py
+          scripts/science/evaluate_deform_dlo45_query_observability_v1.py
+          EOF
+          git diff --name-only | LC_ALL=C sort -u > "$changed"
+          LC_ALL=C sort -u -o "$allowed" "$allowed"
+          diff -u "$allowed" "$changed"
+          test -z "$(git diff --name-only -- protocols evidence docs)"
+
+      - name: Commit the mechanical-only change to the experiment branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- scripts/science/
+          git diff --cached --quiet && {
+            echo "No formatting change remained to commit."
+            exit 0
+          }
+          git commit -m "Apply mechanical Ruff formatting to DLO evidence code"
+          git push origin HEAD:science/deform-dlo45-query-observability-real-v1
