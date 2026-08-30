@@ -1,0 +1,228 @@
+name: DOT rope axial real-geometry pilot (chunked capsule)
+
+on:
+  push:
+    branches:
+      - research/dot-rope-real-pilot-v1
+    paths:
+      - ".github/workflows/dot-rope-axial-real-geometry-pilot-chunked.yml"
+      - ".github/requests/dot-rope-axial-real-geometry-pilot-v1.json"
+      - "protocols/dot-rope-axial-real-geometry-pilot-v1.json"
+      - "scripts/science/capsules/dot-rope-axial-real-geometry-pilot/**"
+      - "src/prob4d/axial_gauge_moments.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dot-rope-axial-real-geometry-chunked-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DOT_ROPE_ROOT: /home/github-runner/.cache/workflows/dot-rope
+  OUTPUT_DIR: outputs/dot-rope-axial-real-geometry-pilot-v1
+  PYTHONUNBUFFERED: "1"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+jobs:
+  source-real-geometry-pilot:
+    name: R01-R03 source-only finite-angle stress test
+    runs-on: [self-hosted, gpuserver4090]
+    timeout-minutes: 30
+    steps:
+      - name: Check out exact research revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          clean: true
+
+      - name: Initialize runner-scoped temporary paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "DEPS_DIR=$RUNNER_TEMP/dot-rope-axial-pilot-deps" >> "$GITHUB_ENV"
+          echo "CAPSULE_B64=$RUNNER_TEMP/dot-rope-axial-pilot.b64" >> "$GITHUB_ENV"
+          echo "RUNNER_SCRIPT=$RUNNER_TEMP/run_dot_rope_axial_real_geometry_pilot.py" >> "$GITHUB_ENV"
+
+      - name: Verify request, protocol, mount, and information boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          request = json.loads(
+              Path('.github/requests/dot-rope-axial-real-geometry-pilot-v1.json').read_text()
+          )
+          protocol = json.loads(
+              Path('protocols/dot-rope-axial-real-geometry-pilot-v1.json').read_text()
+          )
+          assert request['schema'] == 'prob4d.self-hosted-request.v1'
+          assert request['request_id'] == 'dot-rope-source-real-geometry-2026-08-30-v1'
+          assert request['phase'] == protocol['phase'] == (
+              'source-real-geometry-controlled-gauge-pilot'
+          )
+          assert request['runner_labels'] == ['self-hosted', 'gpuserver4090']
+          assert request['read_only'] is True
+          assert request['source_sequences'] == protocol['source_roster']['sequences'] == [
+              'R01', 'R02', 'R03'
+          ]
+          assert request['reserved_payload_sequences'] == 'R04-R70'
+          assert protocol['source_roster']['reserved_payload_sequences'] == 'R04-R70'
+          assert protocol['source_roster']['allowed_archive'] == 'R01-10.zip'
+          assert protocol['information_boundary'] == {
+              'normal_view_images_read': False,
+              'uv_view_images_read': False,
+              'two_dimensional_coordinates_read': False,
+              'three_dimensional_coordinates_read': True,
+              'learned_provider_executed': False,
+              'real_provider_competence_claimed': False,
+              'reserved_sequence_payloads_read': False,
+              'bayesian_phystwin_executed': False,
+              'causal4d_executed': False,
+          }
+          root = Path(os.environ['DOT_ROPE_ROOT'])
+          assert root.is_symlink(), f'{root} must be the registered symlink'
+          resolved = root.resolve(strict=True)
+          assert resolved == Path('/mnt/seagate10tb/florianpfaff/datasets/dot-rope')
+          assert sum(path.stat().st_size for path in resolved.glob('*.zip')) == 9478165486
+          print({'logical_root': str(root), 'resolved_root': str(resolved)})
+          PY
+
+      - name: Reassemble and verify the reviewed execution capsule
+        shell: bash
+        run: |
+          set -euo pipefail
+          capsule_dir=scripts/science/capsules/dot-rope-axial-real-geometry-pilot
+          parts=(
+            part-00.b64 part-01.b64 part-02.b64 part-03.b64
+            part-04.b64 part-05.b64 part-06.b64 part-07.b64
+          )
+          expected=(
+            8bef33548baf5db4623673742135bad866c4909837ba138477e0f6fcfc418abd
+            26cd15ad7efbf122481ebec3439a3f08a19fd49ce2aeb9c6ee1d2bbe2e5b152d
+            7588a70268e7e0960f5658ca7696e13731d6edc677185b6d13171ae08ce87a0c
+            50150e744625b0c57fc4a330e5b45f8a48a2df654ce29677b903902e50325d6e
+            5b106df902f8434fc5633edffa507a678a99dd948ce40def2d82955bdf33a7cb
+            8b41e254784ee33d3a54473d83a3c9e5d063cd100f8d0d5580f6981e231f9b6b
+            66db96c10ed638956ce8227c8c1855f4b1bc30070ca34ddf3d93b9ecc9a7cef4
+            81e7095863e7cb5a8086a3114c0a2e7a017360d22ba0ca9da4286443f651ec9b
+          )
+          : > "$CAPSULE_B64"
+          for index in "${!parts[@]}"; do
+            part="$capsule_dir/${parts[$index]}"
+            actual="$(sha256sum "$part" | cut -d' ' -f1)"
+            echo "${parts[$index]} sha256=$actual"
+            test "$actual" = "${expected[$index]}"
+            tr -d '\r\n\t ' < "$part" >> "$CAPSULE_B64"
+          done
+          test "$(wc -c < "$CAPSULE_B64")" -eq 13008
+          combined_sha="$(sha256sum "$CAPSULE_B64" | cut -d' ' -f1)"
+          echo "combined_capsule_sha256=$combined_sha"
+          test "$combined_sha" = \
+            0e651f0b0d794cd775a477dee081fa3d1c5cc09e0261d0d148c78c7f30d95ee8
+          base64 --decode "$CAPSULE_B64" | gzip --decompress > "$RUNNER_SCRIPT"
+          script_sha="$(sha256sum "$RUNNER_SCRIPT" | cut -d' ' -f1)"
+          echo "runner_script_sha256=$script_sha"
+          test "$script_sha" = \
+            d61a6e1999aa28622e8de8e10ce7584eb5bba909aa5570c608711e928849c79a
+          python3 -m py_compile "$RUNNER_SCRIPT"
+
+      - name: Create an ephemeral pinned numerical environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "$DEPS_DIR"
+          python3 -m pip install \
+            --disable-pip-version-check \
+            --no-cache-dir \
+            --no-deps \
+            --target "$DEPS_DIR" \
+            "numpy==2.2.6"
+          PYTHONPATH="$DEPS_DIR:$GITHUB_WORKSPACE/src" python3 - <<'PY'
+          import numpy
+          from prob4d.axial_gauge_moments import AxialGaugeOrbit, CircularMoments2
+          assert numpy.__version__ == '2.2.6'
+          print({
+              'numpy': numpy.__version__,
+              'kernel': (AxialGaugeOrbit.__name__, CircularMoments2.__name__),
+          })
+          PY
+
+      - name: Execute the frozen source-only real-geometry pilot
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "$OUTPUT_DIR"
+          PYTHONPATH="$DEPS_DIR:$GITHUB_WORKSPACE/src" python3 "$RUNNER_SCRIPT" \
+            --protocol protocols/dot-rope-axial-real-geometry-pilot-v1.json \
+            --dataset-root "$DOT_ROPE_ROOT" \
+            --output-dir "$OUTPUT_DIR"
+
+      - name: Verify access custody and bounded result semantics
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH="$DEPS_DIR" python3 - <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          output = Path(os.environ['OUTPUT_DIR'])
+          result = json.loads((output / 'result.json').read_text())
+          custody = json.loads((output / 'accessed_members.json').read_text())
+          assert result['schema'] == 'prob4d.dot-rope-axial-real-geometry-result.v1'
+          assert result['evidence_kind'] == 'source-real-geometry-controlled-gauge-pilot'
+          assert result['dataset']['accessed_sequences'] == ['R01', 'R02', 'R03']
+          assert result['dataset']['reserved_payload_sequences'] == 'R04-R70'
+          assert result['protocol']['information_boundary']['learned_provider_executed'] is False
+          assert result['protocol']['information_boundary']['reserved_sequence_payloads_read'] is False
+          assert result['protocol']['information_boundary']['bayesian_phystwin_executed'] is False
+          assert result['protocol']['information_boundary']['causal4d_executed'] is False
+          assert custody['archive'] == 'R01-10.zip'
+          assert custody['reserved_payload_sequences'] == 'R04-R70'
+          expected = re.compile(
+              r'^R0[123]/coordinates/3d/frame(?:00000[1-9]|0000[1-9][0-9]|'
+              r'000[1-5][0-9]{2})_cam001[.]txt$'
+          )
+          assert len(custody['members']) == 180
+          assert all(expected.fullmatch(row['member']) for row in custody['members'])
+          assert result['dataset']['accessed_member_count'] == 180
+          assert result['geometry']['sampled_case_count'] > 0
+          assert result['numerical_closure']['maximum_mean_absolute_error_native'] < 1e-9
+          assert result['numerical_closure']['maximum_variance_absolute_error_native2'] < 1e-9
+          assert set(path.name for path in output.iterdir()) == {
+              'accessed_members.json',
+              'geometry_cases.csv',
+              'method_cases.csv',
+              'result.json',
+              'summary.md',
+          }
+          print({
+              'artifact_id': result['artifact_id'],
+              'sampled_cases': result['geometry']['sampled_case_count'],
+              'primary_cases': result['geometry']['primary_geometry_count'],
+              'diagnostic': result['primary_diagnostic'],
+          })
+          PY
+
+      - name: Publish bounded source-only summary
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f "$OUTPUT_DIR/summary.md" ]]; then
+            cat "$OUTPUT_DIR/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload derived evidence only
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: dot-rope-axial-real-geometry-pilot-v1
+          path: outputs/dot-rope-axial-real-geometry-pilot-v1/
+          if-no-files-found: warn
+          retention-days: 30
