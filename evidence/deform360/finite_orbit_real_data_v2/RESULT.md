@@ -47,3 +47,10 @@ This broader object-disjoint run does **not** validate nontrivial shared-orbit a
 ## Claim boundary
 
 Retrospective real measured Deform360 geometry evidence for a principal-axis C2 finite-orbit query-admission mechanism only; not fresh confirmation, learned-provider competence, BayesianPhysTwin or Causal4D benefit, deployment safety, or state of the art.
+
+## Paper-facing mirror
+
+The associated paper repository mirrors the compact result and records the
+permitted interpretation in
+[`evidence/crossrepo/deform360-finite-orbit-real-data-v2/README.md`](https://github.com/FlorianPfaff/BayesianPhysTwin-Paper/blob/main/evidence/crossrepo/deform360-finite-orbit-real-data-v2/README.md).
+The Prob4D files in this directory remain the authoritative execution record.
