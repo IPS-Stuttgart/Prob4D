@@ -4,7 +4,7 @@
     "DLO4",
     "DLO5"
   ],
-  "execution_attempt": 2,
+  "execution_attempt": 3,
   "frame_stride": 10,
   "information_boundary": {
     "bayesian_phystwin_outcomes_opened": false,
@@ -22,7 +22,7 @@
     0.001,
     0.01
   ],
-  "request_id": "150c9ebce7afc3624e14e48984dfbb1017d865205847b0116ed9be3c439b6fb0",
+  "request_id": "ef6d648c8239be5792551105749a2cfd87ced1e94b5bfdf0d9a3607badd537bc",
   "schema": "prob4d.deform-dlo45-observability-source-request",
   "schema_version": 1,
   "stage": "source-audit",
