@@ -133,7 +133,7 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
-      - name: Initialize isolated runtime and evidence root
+      - name: Initialize system-Python evidence root
         id: runtime
         shell: bash
         run: |
@@ -141,8 +141,7 @@ jobs:
           root="${RUNNER_TEMP:-/tmp}/pokeflex-posterior-compression-v1-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           rm -rf -- "$root"
           mkdir -p "$root"
-          python3 -m venv --system-site-packages "$root/venv"
-          "$root/venv/bin/python" - <<'PY' > "$root/runtime.json"
+          python3 - <<'PY' > "$root/runtime.json"
           import json
           import platform
           import sys
@@ -153,11 +152,11 @@ jobs:
               "python": platform.python_version(),
               "numpy": numpy.__version__,
               "executable": sys.executable,
+              "package_install_performed": False,
           }, indent=2, sort_keys=True))
           PY
           echo "root=$root" >> "$GITHUB_OUTPUT"
           echo "output=$root/evidence" >> "$GITHUB_OUTPUT"
-          echo "python=$root/venv/bin/python" >> "$GITHUB_OUTPUT"
       - name: Apply hash-bound pre-data shape repair
         run: |
           python3 scripts/science/prepare_pokeflex_posterior_compression_runtime.py \
@@ -173,7 +172,7 @@ jobs:
           set -euo pipefail
           output="${{ steps.runtime.outputs.output }}"
           set +e
-          PYTHONPATH=src "${{ steps.runtime.outputs.python }}" \
+          PYTHONPATH=src python3 \
             scripts/science/run_pokeflex_posterior_compression_real_geometry.py \
               --dataset-root "$POKEFLEX_ROOT" \
               --protocol protocols/pokeflex-posterior-compression-real-geometry-v1.json \
