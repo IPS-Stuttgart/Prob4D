@@ -5,7 +5,19 @@ from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-FROZEN_EXCEPTION = Path("scripts/science/build_cut3r_deform360_source_freeze.py")
+FROZEN_EXCEPTIONS = {
+    Path("scripts/science/build_cut3r_deform360_source_freeze.py"): Counter(
+        {"numpy-load-allows-pickle": 1}
+    ),
+    # The official DEFORM DLO4/DLO5 release consists of verified public NumPy
+    # array pickles. This source-only audit is path-bound to that checkout,
+    # hashes every opened file, validates the resulting numeric tensor shape
+    # and finiteness, and never opens the evaluation split. Keep the exception
+    # exact: any additional unsafe call or file must fail this policy test.
+    Path("scripts/science/audit_deform_dlo45_observability_v1.py"): Counter(
+        {"unrestricted-pickle-load": 1}
+    ),
+}
 
 
 def _literal_false(value: ast.expr) -> bool:
@@ -73,7 +85,7 @@ def _unsafe_calls(path: Path) -> Counter[str]:
     return result
 
 
-def test_unsafe_deserialization_is_confined_to_the_frozen_source_builder() -> None:
+def test_unsafe_deserialization_is_confined_to_frozen_scientific_inputs() -> None:
     actual: dict[Path, Counter[str]] = {}
     for source_root in (ROOT / "src" / "prob4d", ROOT / "scripts"):
         for path in sorted(source_root.rglob("*.py")):
@@ -81,6 +93,4 @@ def test_unsafe_deserialization_is_confined_to_the_frozen_source_builder() -> No
             if findings:
                 actual[path.relative_to(ROOT)] = findings
 
-    assert actual == {
-        FROZEN_EXCEPTION: Counter({"numpy-load-allows-pickle": 1}),
-    }
+    assert actual == FROZEN_EXCEPTIONS
