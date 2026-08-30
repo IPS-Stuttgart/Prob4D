@@ -413,6 +413,8 @@ def scan_source_root(
     )
     if decision != "source-bundle-present":
         return decision, inventory
+    if source_root != _CANONICAL_SOURCE_ROOT:
+        return decision, inventory
     census_decision, census = build_processed_repository_census(
         source_root,
         forbidden_tokens=forbidden_tokens,
