@@ -1,7 +1,0 @@
-{
-  "request": "dot-cut3r-native-provider-bootstrap-v3",
-  "capsule_sha256": "6c76558a433a5440041ebd544b3680b4972c05ec968482bb99c0f13d9351e40e",
-  "change_from_v2": "format-before-lint-only",
-  "data_access": "none",
-  "gpu_access": "none"
-}
