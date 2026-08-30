@@ -1,0 +1,362 @@
+name: DOT rope hosted pooled CUT3R evaluation v1
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/dot-rope-cut3r-pooled-evaluation-hosted-v1.yml"
+      - "scripts/science/evaluate_dot_rope_cut3r_pooled.py"
+      - "tests/test_dot_rope_cut3r_pooled_evaluation.py"
+      - "tests/test_dot_rope_cut3r_pooled_evaluation_hosted_workflow.py"
+  push:
+    branches: [main]
+    paths:
+      - "protocols/execution_requests/dot_rope_cut3r_pooled_evaluation_hosted_v1.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dot-rope-cut3r-pooled-evaluation-hosted-v1-${{ github.ref }}-${{ github.sha }}
+  cancel-in-progress: false
+
+env:
+  REQUEST_PATH: protocols/execution_requests/dot_rope_cut3r_pooled_evaluation_hosted_v1.json
+  ARCHIVE_NAME: R01-10.zip
+  ARCHIVE_MD5: ca546ff5f22c0279123ccb18509858ee
+  DATASET_API: https://dataverse.orc.gmu.edu/api/datasets/:persistentId/?persistentId=doi:10.13021/ORC2020/XXLVXM
+  DATAFILE_API_ROOT: https://dataverse.orc.gmu.edu/api/access/datafile
+
+jobs:
+  contract:
+    name: Validate hosted pooled DOT evaluator
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out reviewed revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          clean: true
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Validate evaluator and hosted workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -e ".[dev]"
+          python -m pip check
+          python -m ruff check \
+            scripts/science/evaluate_dot_rope_cut3r_pooled.py \
+            tests/test_dot_rope_cut3r_pooled_evaluation.py \
+            tests/test_dot_rope_cut3r_pooled_evaluation_hosted_workflow.py
+          python -m ruff format --check \
+            scripts/science/evaluate_dot_rope_cut3r_pooled.py \
+            tests/test_dot_rope_cut3r_pooled_evaluation.py \
+            tests/test_dot_rope_cut3r_pooled_evaluation_hosted_workflow.py
+          python -m pytest -q \
+            tests/test_dot_rope_cut3r_pooled_evaluation.py \
+            tests/test_dot_rope_cut3r_pooled_evaluation_hosted_workflow.py \
+            tests/test_github_action_pins.py
+          python -m compileall -q scripts/science/evaluate_dot_rope_cut3r_pooled.py
+
+  authorize:
+    name: Authorize one immutable hosted pooled-evaluation request
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      request_id: ${{ steps.request.outputs.request_id }}
+      head_sha: ${{ steps.request.outputs.head_sha }}
+      provider_run_id: ${{ steps.request.outputs.provider_run_id }}
+      provider_artifact_name: ${{ steps.request.outputs.provider_artifact_name }}
+    steps:
+      - name: Check out exact merged revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+          clean: true
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Require exactly one non-forced request-file change
+        id: request
+        shell: bash
+        env:
+          EVENT_REF: ${{ github.ref }}
+          EVENT_BEFORE: ${{ github.event.before }}
+          EVENT_AFTER: ${{ github.event.after }}
+          EVENT_FORCED: ${{ github.event.forced }}
+          EVENT_DELETED: ${{ github.event.deleted }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_REF" = "refs/heads/main"
+          test "$EVENT_AFTER" = "$(/usr/bin/git rev-parse HEAD)"
+          test "$EVENT_FORCED" = "false"
+          test "$EVENT_DELETED" = "false"
+          test "$EVENT_BEFORE" != "0000000000000000000000000000000000000000"
+          mapfile -t changed < <(
+            /usr/bin/git diff --name-only "$EVENT_BEFORE" "$EVENT_AFTER" | sort
+          )
+          if [[ ${#changed[@]} -ne 1 || "${changed[0]}" != "$REQUEST_PATH" ]]; then
+            printf 'Expected only %s; changed paths were:\n' "$REQUEST_PATH" >&2
+            printf '  %s\n' "${changed[@]}" >&2
+            exit 2
+          fi
+          python -m pip install -e .
+          validation=$(
+            python scripts/science/evaluate_dot_rope_cut3r_pooled.py \
+              validate-request \
+              --request "$REQUEST_PATH"
+          )
+          VALIDATION="$validation" EVENT_AFTER="$EVENT_AFTER" /usr/bin/python3 - <<'PY'
+          import json
+          import os
+
+          value = json.loads(os.environ["VALIDATION"])
+          outputs = {
+              "request_id": value["request_id"],
+              "head_sha": os.environ["EVENT_AFTER"],
+              "provider_run_id": value["provider_run_id"],
+              "provider_artifact_name": value["provider_artifact_name"],
+          }
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              for key, item in outputs.items():
+                  output.write(f"{key}={item}\n")
+          PY
+
+  evaluate:
+    name: Evaluate sealed DOT predictions on a hosted runner
+    if: github.event_name == 'push'
+    needs: authorize
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      decision: ${{ steps.result.outputs.decision }}
+      result_id: ${{ steps.result.outputs.result_id }}
+      best_method: ${{ steps.result.outputs.best_method }}
+    steps:
+      - name: Initialize isolated evaluation workspace
+        id: workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/prob4d-dot-hosted-pooled-evaluation-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          /usr/bin/rm -rf -- "$root"
+          /usr/bin/mkdir -p "$root/provider" "$root/dataset" "$root/evidence"
+          echo "root=$root" >> "$GITHUB_OUTPUT"
+          {
+            echo "PYTHONDONTWRITEBYTECODE=1"
+            echo "PYTHONHASHSEED=0"
+            echo "OMP_NUM_THREADS=1"
+            echo "OPENBLAS_NUM_THREADS=1"
+            echo "MKL_NUM_THREADS=1"
+          } >> "$GITHUB_ENV"
+      - name: Check out exact authorized revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.authorize.outputs.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+      - name: Verify clean exact checkout
+        shell: bash
+        env:
+          EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          test "$(/usr/bin/git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test -z "$(/usr/bin/git status --porcelain=v1 --untracked-files=all)"
+      - name: Set up scientific Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install the exact repository package
+        run: |
+          python -m pip install -e .
+          python -m pip check
+      - name: Download exact previously sealed provider bundle
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ${{ needs.authorize.outputs.provider_artifact_name }}
+          path: ${{ steps.workspace.outputs.root }}/provider
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ needs.authorize.outputs.provider_run_id }}
+      - name: Resolve official DOT archive identity
+        id: archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          DATASET_API="$DATASET_API" ARCHIVE_NAME="$ARCHIVE_NAME" \
+            ARCHIVE_MD5="$ARCHIVE_MD5" ROOT="$root" python - <<'PY'
+          import json
+          import os
+          import urllib.request
+          from pathlib import Path
+
+          request = urllib.request.Request(
+              os.environ["DATASET_API"],
+              headers={"User-Agent": "Prob4D-DOT-evaluation/1"},
+          )
+          with urllib.request.urlopen(request, timeout=60) as response:
+              metadata = json.load(response)
+          if metadata.get("status") != "OK":
+              raise SystemExit("Dataverse metadata request did not return OK")
+          files = metadata["data"]["latestVersion"]["files"]
+          matches = [
+              entry["dataFile"]
+              for entry in files
+              if entry.get("dataFile", {}).get("filename") == os.environ["ARCHIVE_NAME"]
+          ]
+          if len(matches) != 1:
+              raise SystemExit("official DOT metadata did not contain exactly one R01-10.zip")
+          data_file = matches[0]
+          checksum = data_file.get("checksum", {})
+          if checksum.get("type") != "MD5" or checksum.get("value", "").lower() != os.environ["ARCHIVE_MD5"]:
+              raise SystemExit("official DOT R01-10.zip checksum changed")
+          file_id = int(data_file["id"])
+          byte_count = int(data_file["filesize"])
+          receipt = {
+              "dataset_persistent_id": "doi:10.13021/ORC2020/XXLVXM",
+              "dataset_version": metadata["data"]["latestVersion"]["versionNumber"],
+              "filename": data_file["filename"],
+              "datafile_id": file_id,
+              "byte_count": byte_count,
+              "checksum": checksum,
+          }
+          Path(os.environ["ROOT"], "evidence", "official-archive-metadata.json").write_text(
+              json.dumps(receipt, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"datafile_id={file_id}\n")
+              output.write(f"byte_count={byte_count}\n")
+          PY
+      - name: Download and verify official R01-10.zip
+        shell: bash
+        env:
+          DATAFILE_ID: ${{ steps.archive.outputs.datafile_id }}
+          EXPECTED_BYTES: ${{ steps.archive.outputs.byte_count }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          archive="$root/dataset/$ARCHIVE_NAME"
+          curl --fail --location --retry 6 --retry-all-errors \
+            --connect-timeout 30 --output "$archive" \
+            "$DATAFILE_API_ROOT/$DATAFILE_ID"
+          test "$(stat -c %s "$archive")" = "$EXPECTED_BYTES"
+          printf '%s  %s\n' "$ARCHIVE_MD5" "$archive" | md5sum --check --strict
+      - name: Evaluate without decoding normal-view pixels
+        id: execute
+        continue-on-error: true
+        shell: bash
+        env:
+          EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          PYTHONPATH="$GITHUB_WORKSPACE/src" \
+            python scripts/science/evaluate_dot_rope_cut3r_pooled.py \
+              evaluate \
+              --request "$REQUEST_PATH" \
+              --dataset-root "$root/dataset" \
+              --provider-bundle "$root/provider/bundle" \
+              --output-dir "$root/evidence/result" \
+              --repository-revision "$EXPECTED_HEAD_SHA"
+      - name: Read content-addressed pooled result
+        id: result
+        if: always()
+        shell: bash
+        env:
+          EXECUTION_OUTCOME: ${{ steps.execute.outcome }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}/evidence/result"
+          ROOT="$root" EXECUTION_OUTCOME="$EXECUTION_OUTCOME" /usr/bin/python3 - <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          root = Path(os.environ["ROOT"])
+          completed = root / "result.json"
+          failed = root / "technical-failure.json"
+          if os.environ["EXECUTION_OUTCOME"] == "success" and completed.is_file():
+              value = json.loads(completed.read_text(encoding="utf-8"))
+              decision = value["decision"]
+              result_id = value["evaluation_id"]
+              best_method = value["aggregate_methods"][0]["method"]
+          elif failed.is_file():
+              value = json.loads(failed.read_text(encoding="utf-8"))
+              decision = value["decision"]
+              result_id = value["technical_result_id"]
+              best_method = "unavailable"
+          else:
+              raise SystemExit("pooled evaluator emitted no bounded result")
+          if re.fullmatch(r"[0-9a-f]{64}", result_id) is None:
+              raise SystemExit("pooled evaluator result identity is invalid")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"decision={decision}\n")
+              output.write(f"result_id={result_id}\n")
+              output.write(f"best_method={best_method}\n")
+          PY
+      - name: Upload bounded pooled-evaluation evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dot-rope-cut3r-pooled-evaluation-hosted-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.workspace.outputs.root }}/evidence/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Require a complete source evaluation
+        if: always()
+        shell: bash
+        env:
+          DECISION: ${{ steps.result.outputs.decision }}
+        run: |
+          set -euo pipefail
+          test "$DECISION" = "complete-source-evaluation-pooled-marker-support"
+
+  publish:
+    name: Publish hosted pooled DOT terminal decision
+    if: always() && github.event_name == 'push'
+    needs: [authorize, evaluate]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Write run summary
+        shell: bash
+        env:
+          EVALUATION_RESULT: ${{ needs.evaluate.result }}
+          DECISION: ${{ needs.evaluate.outputs.decision }}
+          RESULT_ID: ${{ needs.evaluate.outputs.result_id }}
+          BEST_METHOD: ${{ needs.evaluate.outputs.best_method }}
+        run: |
+          {
+            echo "## DOT rope hosted pooled CUT3R evaluation"
+            echo
+            echo "- evaluation job: \`$EVALUATION_RESULT\`"
+            echo "- decision: \`$DECISION\`"
+            echo "- result ID: \`$RESULT_ID\`"
+            echo "- best uncertainty method: \`$BEST_METHOD\`"
+            echo
+            echo "The official archive was checksum-verified. R01-R03 source markers were opened only after prediction sealing."
+            echo "No normal-view pixels were decoded in this stage; R04-R70 remained unopened."
+          } >> "$GITHUB_STEP_SUMMARY"
