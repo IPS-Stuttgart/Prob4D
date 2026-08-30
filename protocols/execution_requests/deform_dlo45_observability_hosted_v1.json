@@ -1,0 +1,59 @@
+{
+  "dataset_root": "external/DEFORM/data_set",
+  "dlo_types": [
+    "DLO4",
+    "DLO5"
+  ],
+  "execution_attempt": 1,
+  "execution_lane": "github-hosted-ubuntu-24.04",
+  "frame_stride": 10,
+  "information_boundary": {
+    "bayesian_phystwin_outcomes_opened": false,
+    "causal4d_outcomes_opened": false,
+    "evaluation_file_contents_opened": false,
+    "opened_split": "train",
+    "provider_predictions_opened": false
+  },
+  "official_repository": "roahmlab/DEFORM",
+  "official_revision": "b73b8b8ecc033caefa693fab7898741d4e6dbeff",
+  "rank_threshold_candidates": [
+    1e-08,
+    1e-07,
+    1e-06,
+    1e-05,
+    0.0001,
+    0.001,
+    0.01
+  ],
+  "request_id": "f32db6a8b59d1b6c027aea287956197aadee55291c5e0467fdddf2383065a596",
+  "schema": "prob4d.deform-dlo45-observability-source-request",
+  "schema_version": 1,
+  "stage": "source-audit",
+  "support_configs": [
+    {
+      "frame_span": 1,
+      "name": "local5-span1",
+      "vertex_mode": "local5"
+    },
+    {
+      "frame_span": 5,
+      "name": "local5-span5",
+      "vertex_mode": "local5"
+    },
+    {
+      "frame_span": 1,
+      "name": "interior-span1",
+      "vertex_mode": "interior"
+    },
+    {
+      "frame_span": 1,
+      "name": "full-span1",
+      "vertex_mode": "full"
+    },
+    {
+      "frame_span": 5,
+      "name": "full-span5",
+      "vertex_mode": "full"
+    }
+  ]
+}
