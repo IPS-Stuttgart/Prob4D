@@ -25,6 +25,30 @@ REQUEST_SCHEMA = "prob4d.deform-dlo45-observability-source-request"
 EXPECTED_ROOT = Path("/mnt/seagate10tb/florianpfaff/datasets/deform/data_set")
 
 
+class _RestrictedNumpyUnpickler(pickle.Unpickler):
+    """Load only the NumPy reconstruction globals used by official trajectories."""
+
+    _NUMPY_MULTIARRAY_MODULES = {
+        "numpy.core.multiarray",
+        "numpy._core.multiarray",
+    }
+
+    def find_class(self, module: str, name: str) -> Any:
+        if module == "numpy" and name == "ndarray":
+            return np.ndarray
+        if module == "numpy" and name == "dtype":
+            return np.dtype
+        if module in self._NUMPY_MULTIARRAY_MODULES and name in {
+            "_reconstruct",
+            "scalar",
+        }:
+            return getattr(np.core.multiarray, name)
+        raise pickle.UnpicklingError(f"forbidden pickle global: {module}.{name}")
+
+    def persistent_load(self, pid: object) -> Any:
+        raise pickle.UnpicklingError(f"persistent pickle ID is forbidden: {pid!r}")
+
+
 def canonical_sha256(value: dict[str, Any]) -> str:
     payload = json.dumps(
         value,
@@ -76,8 +100,11 @@ def load_request(path: Path) -> dict[str, Any]:
 
 def load_trajectory(path: Path) -> np.ndarray:
     with path.open("rb") as stream:
-        loaded = pickle.load(stream)  # noqa: S301 - verified official public dataset.
-    array = np.asarray(loaded, dtype=np.float64).squeeze()
+        loaded = _RestrictedNumpyUnpickler(stream).load()
+    array = np.asarray(loaded)
+    if array.dtype.hasobject:
+        raise ValueError(f"{path} contains an object-valued trajectory")
+    array = np.asarray(array, dtype=np.float64).squeeze()
     if array.ndim != 3:
         raise ValueError(f"{path} has unsupported shape {array.shape}")
     if array.shape[-1] == 3:
@@ -257,9 +284,9 @@ def run(request: dict[str, Any]) -> dict[str, Any]:
         "information_boundary": request["information_boundary"],
         "claim_boundary": [
             "Only official DLO4/DLO5 training trajectories were opened.",
-            "The audit measures real trajectory geometry and motion support, not learned-provider accuracy.",  # noqa: E501
+            "The audit measures real trajectory geometry and motion support, not learned-provider accuracy.",
             "No evaluation file content, BayesianPhysTwin outcome, or Causal4D outcome was opened.",
-            "Any evaluation threshold must be frozen from this source-only artifact before evaluation access.",  # noqa: E501
+            "Any evaluation threshold must be frozen from this source-only artifact before evaluation access.",
         ],
     }
     result["result_id"] = canonical_sha256(result)
