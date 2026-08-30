@@ -170,13 +170,9 @@ def test_inventory_enforces_exclusion_union_and_object_units(
         "101-test-object": 3,
         "102-other-object": 3,
     }
-    excluded = [
-        record for record in result["records"] if record["object_id"] == "001-rope"
-    ]
+    excluded = [record for record in result["records"] if record["object_id"] == "001-rope"]
     assert len(excluded) == 3
-    assert {record["reason"] for record in excluded} == {
-        "excluded-by-prior-evidence-union"
-    }
+    assert {record["reason"] for record in excluded} == {"excluded-by-prior-evidence-union"}
 
 
 def test_missing_archive_is_a_retained_ineligible_record(

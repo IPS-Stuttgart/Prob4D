@@ -21,8 +21,7 @@ PROFILE = "deform360-pcd-query-inventory-v1"
 ISSUE_NUMBER = 49
 EXPECTED_PROTOCOL_PATH = "protocols/deform360-pcd-query-inventory-v1.json"
 EXPECTED_SOURCE_ROOT = (
-    "/mnt/seagate10tb/florianpfaff/datasets/deform360/"
-    "processed-repository/processed"
+    "/mnt/seagate10tb/florianpfaff/datasets/deform360/processed-repository/processed"
 )
 EXPECTED_RUNNER_LABEL = "gpuserver4090"
 REQUIRED_ARCHIVE_NAME = "pcd_clean.tar"
@@ -126,9 +125,7 @@ def validate_protocol_record(record: dict[str, Any]) -> dict[str, Any]:
         record["minimum_eligible_episodes_per_object"],
         "minimum_eligible_episodes_per_object",
     )
-    _require_positive_int(
-        record["minimum_eligible_object_count"], "minimum_eligible_object_count"
-    )
+    _require_positive_int(record["minimum_eligible_object_count"], "minimum_eligible_object_count")
     limits = record["limits"]
     if not isinstance(limits, dict):
         raise InventoryContractError("limits must be an object")
@@ -366,9 +363,7 @@ def inventory_source_root(root: Path, protocol: dict[str, Any]) -> tuple[str, di
         episode_count = 0
         for episode_path in episode_paths:
             episode_metadata = episode_path.lstat()
-            if stat.S_ISLNK(episode_metadata.st_mode) or not stat.S_ISDIR(
-                episode_metadata.st_mode
-            ):
+            if stat.S_ISLNK(episode_metadata.st_mode) or not stat.S_ISDIR(episode_metadata.st_mode):
                 continue
             if EPISODE_RE.fullmatch(episode_path.name) is None:
                 continue
@@ -440,9 +435,7 @@ def inventory_source_root(root: Path, protocol: dict[str, Any]) -> tuple[str, di
         "object_episode_counts": dict(sorted(object_episode_counts.items())),
         "eligible_episode_counts": dict(sorted(eligible_episode_counts.items())),
         "records": records,
-        "metadata_manifest_sha256": hashlib.sha256(
-            _canonical_bytes(metadata_manifest)
-        ).hexdigest(),
+        "metadata_manifest_sha256": hashlib.sha256(_canonical_bytes(metadata_manifest)).hexdigest(),
     }
 
 
@@ -585,11 +578,7 @@ def main(argv: list[str] | None = None) -> int:
             json.dumps(result, indent=2, sort_keys=True) + "\n",
         )
         _write_no_clobber(arguments.summary, render_summary(result))
-        print(
-            json.dumps(
-                {"decision": result["decision"], "inventory_id": result["inventory_id"]}
-            )
-        )
+        print(json.dumps({"decision": result["decision"], "inventory_id": result["inventory_id"]}))
         return 0
     except InventoryContractError as error:
         print(f"Deform360 PCD inventory contract failure: {error}", file=os.sys.stderr)
