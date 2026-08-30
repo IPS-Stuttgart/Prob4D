@@ -3,12 +3,13 @@ from __future__ import annotations
 import importlib.util
 import tempfile
 from pathlib import Path
+from types import ModuleType
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts/science/run_dot_rope_cut3r_native_provider.py"
 
 
-def _load_script():
+def _load_script() -> ModuleType:
     spec = importlib.util.spec_from_file_location("dot_rope_cut3r_provider", SCRIPT)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
