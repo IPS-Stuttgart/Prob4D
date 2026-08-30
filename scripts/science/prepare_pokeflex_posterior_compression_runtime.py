@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Apply one hash-bound, pre-data PokeFlex diagnostic shape repair."""
+"""Apply hash-bound, pre-data repairs to the PokeFlex diagnostic copy."""
 
 from __future__ import annotations
 
@@ -9,17 +9,70 @@ import json
 from pathlib import Path
 
 _EXPECTED_SOURCE_GIT_BLOB_SHA1 = "0a4169f95149644fb9d00fca877a67b2672da36e"
-_ORIGINAL = """        columns.append(
+_ORIGINAL_MODE_COLUMN = """        columns.append(
             np.concatenate(
                 [coefficient * mode_xyz for coefficient in coefficients]
             )
         )
 """
-_PATCHED = """        columns.append(
+_PATCHED_MODE_COLUMN = """        columns.append(
             np.concatenate(
                 [coefficient * mode_xyz for coefficient in coefficients]
             ).reshape(-1)
         )
+"""
+_ORIGINAL_SOLVER_INITIALIZATION = """        self._variance = float(variance)
+        self._factor = z.reshape(self.dimension, z.shape[2]).copy()
+        scaled = self._factor / math.sqrt(self._variance)
+        core = np.eye(z.shape[2], dtype=np.float64) + scaled.T @ scaled
+        self._core = np.linalg.cholesky(0.5 * (core + core.T))
+"""
+_PATCHED_SOLVER_INITIALIZATION = """        self._variance = float(variance)
+        self._factor = z.reshape(self.dimension, z.shape[2]).copy()
+        basis, singular_values, _ = np.linalg.svd(
+            self._factor,
+            full_matrices=False,
+        )
+        if singular_values.size:
+            cutoff = (
+                np.finfo(float).eps
+                * max(self._factor.shape)
+                * singular_values[0]
+            )
+            retained = singular_values > cutoff
+            self._basis = basis[:, retained]
+            self._singular_values = singular_values[retained]
+        else:
+            self._basis = np.empty((self.dimension, 0), dtype=np.float64)
+            self._singular_values = np.empty(0, dtype=np.float64)
+"""
+_ORIGINAL_SOLVE = """        matrix = raw.reshape(self.dimension, -1)
+        base = matrix / self._variance
+        rhs = self._factor.T @ base
+        correction = self._factor @ np.linalg.solve(
+            self._core.T,
+            np.linalg.solve(self._core, rhs),
+        ) / self._variance
+        result = (base - correction).reshape(raw.shape)
+"""
+_PATCHED_SOLVE = """        matrix = raw.reshape(self.dimension, -1)
+        coefficients = self._basis.T @ matrix
+        projection = self._basis @ coefficients
+        residual = matrix - projection
+        residual_norm = np.linalg.norm(residual, axis=0)
+        matrix_norm = np.linalg.norm(matrix, axis=0)
+        roundoff = (
+            64.0
+            * np.finfo(float).eps
+            * max(self._factor.shape)
+            * np.maximum(matrix_norm, np.finfo(float).tiny)
+        )
+        residual[:, residual_norm <= roundoff] = 0.0
+        parallel = self._basis @ (
+            coefficients
+            / (self._variance + self._singular_values[:, None] ** 2)
+        )
+        result = (parallel + residual / self._variance).reshape(raw.shape)
 """
 
 
@@ -43,9 +96,17 @@ def _write_no_clobber(path: Path, payload: dict[str, object]) -> None:
     encoded = json.dumps(payload, indent=2, sort_keys=True) + "\n"
     path.parent.mkdir(parents=True, exist_ok=True)
     try:
-        path.write_text(encoded, encoding="utf-8", newline="\n")
-    except TypeError:
-        path.write_text(encoded, encoding="utf-8")
+        with path.open("x", encoding="utf-8", newline="\n") as stream:
+            stream.write(encoded)
+    except FileExistsError:
+        if path.read_text(encoding="utf-8") != encoded:
+            raise
+
+
+def _replace_exactly_once(text: str, original: str, patched: str, name: str) -> str:
+    if text.count(original) != 1 or patched in text:
+        raise RuntimeError(f"PokeFlex diagnostic {name} preimage changed")
+    return text.replace(original, patched, 1)
 
 
 def apply_repair(source_path: Path) -> dict[str, object]:
@@ -59,13 +120,29 @@ def apply_repair(source_path: Path) -> dict[str, object]:
     if source_blob != _EXPECTED_SOURCE_GIT_BLOB_SHA1:
         raise RuntimeError("PokeFlex diagnostic source bytes changed")
     text = raw.decode("utf-8")
-    if text.count(_ORIGINAL) != 1 or _PATCHED in text:
-        raise RuntimeError("PokeFlex diagnostic shape-repair preimage changed")
-    patched = text.replace(_ORIGINAL, _PATCHED, 1).encode("utf-8")
+    text = _replace_exactly_once(
+        text,
+        _ORIGINAL_MODE_COLUMN,
+        _PATCHED_MODE_COLUMN,
+        "shape-repair",
+    )
+    text = _replace_exactly_once(
+        text,
+        _ORIGINAL_SOLVER_INITIALIZATION,
+        _PATCHED_SOLVER_INITIALIZATION,
+        "solver-initialization",
+    )
+    text = _replace_exactly_once(
+        text,
+        _ORIGINAL_SOLVE,
+        _PATCHED_SOLVE,
+        "stable-solve",
+    )
+    patched = text.encode("utf-8")
     source.write_bytes(patched)
     record: dict[str, object] = {
-        "schema": "prob4d.pokeflex-posterior-compression-shape-repair.v1",
-        "schema_version": 1,
+        "schema": "prob4d.pokeflex-posterior-compression-predata-repair.v2",
+        "schema_version": 2,
         "status": "applied-before-real-data-access",
         "source_member": (
             "scripts/science/run_pokeflex_posterior_compression_real_geometry.py"
@@ -73,13 +150,24 @@ def apply_repair(source_path: Path) -> dict[str, object]:
         "source_git_blob_sha1": source_blob,
         "source_sha256": hashlib.sha256(raw).hexdigest(),
         "patched_sha256": hashlib.sha256(patched).hexdigest(),
-        "repair": (
-            "Flatten each learned spatial-mode trajectory column from "
-            "window-by-point-by-coordinate form to the same 3N observation "
-            "coordinate vector used by the translation columns."
+        "repairs": [
+            (
+                "Flatten each learned spatial-mode trajectory column to the same "
+                "3N observation coordinate vector used by translation columns."
+            ),
+            (
+                "Solve diagonal-plus-low-rank systems in the factor's orthonormal "
+                "singular subspace, retaining a separately solved orthogonal "
+                "residual and suppressing only representation-roundoff residuals."
+            ),
+        ],
+        "numerical_reason": (
+            "The first Woodbury implementation subtracted terms of order 1/R from "
+            "each other at the registered R=1e-8 floor, producing a theoretically "
+            "symmetric query Schur complement with 1e-5 relative antisymmetry."
         ),
         "information_boundary": (
-            "The repair is applied and tested before the self-hosted job reads "
+            "Both repairs are applied and tested before the self-hosted job reads "
             "any PokeFlex ZIP central directory or member payload."
         ),
     }
