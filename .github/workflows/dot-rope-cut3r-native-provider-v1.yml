@@ -260,22 +260,23 @@ jobs:
             "/opt/conda/envs"
           )
           for root in "${roots[@]}"; do
-            [[ -d "$root" ]] || continue
-            while IFS= read -r candidate; do
-              add_candidate "$candidate"
-            done < <(
-              find "$root" -mindepth 3 -maxdepth 3 -path '*/bin/python' -executable -print \
-                2>/dev/null | sort
-            )
+            if [[ -d "$root" ]]; then
+              while IFS= read -r candidate; do
+                add_candidate "$candidate"
+              done < <(
+                find "$root" -mindepth 3 -maxdepth 3 -path '*/bin/python' -executable -print \
+                  2>/dev/null | sort
+              )
+            fi
           done
           add_candidate "$(command -v python3 || true)"
           add_candidate "$(command -v python || true)"
 
           selected=""
           for candidate in "${candidates[@]}"; do
-            [[ -x "$candidate" ]] || continue
-            echo "::group::CUT3R interpreter candidate $candidate"
-            if "$candidate" - <<'PY'
+            if [[ -x "$candidate" ]]; then
+              echo "::group::CUT3R interpreter candidate $candidate"
+              if "$candidate" - <<'PY'
           import sys
           import numpy
           import PIL
@@ -289,14 +290,15 @@ jobs:
           else:
               raise SystemExit(1)
           PY
-            then
-              selected="$candidate"
-              echo "Selected $candidate"
+              then
+                selected="$candidate"
+                echo "Selected $candidate"
+                echo "::endgroup::"
+                break
+              fi
+              echo "Rejected $candidate"
               echo "::endgroup::"
-              break
             fi
-            echo "Rejected $candidate"
-            echo "::endgroup::"
           done
           test -n "$selected" || {
             echo "No retained CUDA CUT3R Python environment is usable" >&2
