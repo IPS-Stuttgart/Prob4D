@@ -311,9 +311,9 @@ def test_pointworld_model_load_smoke_is_main_request_bound_and_target_closed() -
     assert "source_protocol_git_blob_sha" in text
     assert "environment: trusted-self-hosted-validation" in text
     assert POINTWORLD_MODEL_LOAD_RUNNER_SELECTOR in text
-    assert 'test "$RUNNER_NAME" = "gpuserver6000"' in text
+    assert 'test "$RUNNER_NAME" = "workstation2"' in text
     assert "host-workstation2" not in text
-    assert 'test "$RUNNER_NAME" = "workstation2"' not in text
+    assert 'test "$RUNNER_NAME" = "gpuserver6000"' not in text
     assert 'test "$RUNNER_OS" = "Linux"' in text
     assert 'test "$RUNNER_ARCH" = "X64"' in text
     assert "command -v nvidia-smi" in text
