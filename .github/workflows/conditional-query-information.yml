@@ -1,0 +1,68 @@
+name: Conditional query information
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/conditional-query-information.yml"
+      - "src/prob4d/conditional_gauge_design.py"
+      - "src/prob4d/conditional_gauge_study.py"
+      - "src/prob4d/observable_gauge.py"
+      - "src/prob4d/query_observability.py"
+      - "tests/test_conditional_gauge_design.py"
+      - "tests/test_conditional_gauge_integration.py"
+      - "protocols/conditional-query-design-study-v1.json"
+      - "docs/conditional-query-information.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: conditional-query-information-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  conditional-information:
+    name: Conditional likelihood, query design, and observable-factor parity
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out exact revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install development environment
+        run: |
+          python -m pip install -e ".[dev]"
+          python -m pip install "numpy>=1.24,<2.3"
+      - name: Check source formatting
+        run: python -m ruff format --diff src/prob4d/conditional_gauge_{design,study}.py tests/test_conditional_gauge_{design,integration}.py
+      - name: Check source lint
+        if: ${{ !cancelled() }}
+        run: python -m ruff check src/prob4d/conditional_gauge_{design,study}.py tests/test_conditional_gauge_{design,integration}.py
+      - name: Check source typing
+        if: ${{ !cancelled() }}
+        run: python -m mypy src/prob4d/conditional_gauge_design.py src/prob4d/conditional_gauge_study.py
+      - name: Run conditional and existing observability tests
+        if: ${{ !cancelled() }}
+        run: |
+          python -m pytest -q tests/test_conditional_gauge_design.py tests/test_conditional_gauge_integration.py tests/test_observable_gauge.py tests/test_query_observability.py
+      - name: Reproduce complete controlled study
+        if: ${{ !cancelled() }}
+        run: |
+          python -m prob4d.conditional_gauge_study --output "$RUNNER_TEMP/conditional-query-result.json"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          from prob4d.conditional_gauge_study import PROTOCOL
+          assert json.loads(Path("protocols/conditional-query-design-study-v1.json").read_text()) == PROTOCOL
+          result = json.loads((Path(os.environ["RUNNER_TEMP"]) / "conditional-query-result.json").read_text())
+          assert result["maximum_kernel_vs_independent_dense_reference_error"] < 1e-10
+          print(json.dumps(result, indent=2, sort_keys=True))
+          PY
