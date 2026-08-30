@@ -17,7 +17,7 @@ The study is intentionally split.
    Archive member payloads and NumPy arrays remain unopened. The result records complete object/episode identities, frame-member support, unstable or malformed archives, and an explicit exclusion union for prior Deform360 evidence.
 2. **Frozen numerical evaluation.** After the inventory is retained, commit one exact object/episode roster, archive identities, development/calibration/evaluation roles, trajectory query, prediction horizons, estimators, guard, statistical units, and success rules. Only that later request may open selected `pcd_clean` arrays.
 
-A failed or insufficient inventory is a complete first-stage result. It cannot be repaired by silently dropping objects or reading arrays to choose an easier cohort.
+A failed or insufficient inventory is a complete first-stage result. It cannot be repaired by silently dropping objects or reading arrays to choose an easier cohort. A successful inventory authorizes protocol design only; it is not an accuracy or calibration result.
 
 ## Planned evaluation after inventory
 
