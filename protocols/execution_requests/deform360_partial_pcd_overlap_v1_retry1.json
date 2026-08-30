@@ -1,0 +1,14 @@
+{
+  "claim_boundary": "Development-only real-geometry evidence on the partial clean Deform360 subset on gpuserver6000. The calibration and evaluation sessions are separate physical objects, but the mounted dataset is incomplete and has prior development exposure. This result does not establish complete-dataset performance, fresh independent confirmation, learned-provider competence, BayesianPhysTwin benefit, Causal4D benefit, deployment safety, or state of the art.",
+  "dataset_mutation_authorized": false,
+  "evaluation_session_authorized": true,
+  "execution_authorized": true,
+  "numerical_arrays_authorized": true,
+  "profile": "deform360-partial-pcd-overlap-v1",
+  "protocol_git_blob_sha": "209323ec2d3ed528fd26027d0bae0a3705d99f4f",
+  "protocol_id": "faa77a28879a47b71e553b1cfc2d88822c98a8f7e05c8514f22a86f884aa1262",
+  "protocol_path": "protocols/deform360-partial-pcd-overlap-v1.json",
+  "request_id": "89ba8f3a6be7c82b0de5ebc94ec3a73b9bfa3b8f0feaad54b61dad240f522d06",
+  "schema": "prob4d.deform360-partial-pcd-overlap-request",
+  "schema_version": 1
+}
