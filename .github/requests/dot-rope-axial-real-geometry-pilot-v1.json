@@ -1,0 +1,24 @@
+{
+  "schema": "prob4d.self-hosted-request.v1",
+  "request_id": "dot-rope-source-real-geometry-2026-08-30-v1",
+  "phase": "source-real-geometry-controlled-gauge-pilot",
+  "dataset_doi": "10.13021/ORC2020/XXLVXM",
+  "dataset_path": "/home/github-runner/.cache/workflows/dot-rope",
+  "runner_labels": [
+    "self-hosted",
+    "gpuserver4090"
+  ],
+  "read_only": true,
+  "source_sequences": [
+    "R01",
+    "R02",
+    "R03"
+  ],
+  "reserved_payload_sequences": "R04-R70",
+  "requested_outputs": [
+    "derived real-geometry cases",
+    "controlled finite-angle method comparison",
+    "accessed-member custody record",
+    "machine-readable source-only result"
+  ]
+}
