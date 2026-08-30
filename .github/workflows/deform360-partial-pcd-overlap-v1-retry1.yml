@@ -1,0 +1,244 @@
+name: Deform360 partial PCD overlap development v1 retry 1
+
+on:
+  push:
+    branches: [science/deform360-partial-pcd-overlap-v1]
+    paths:
+      - "protocols/execution_requests/deform360_partial_pcd_overlap_v1_retry1.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deform360-partial-pcd-overlap-v1-retry1
+  cancel-in-progress: false
+
+env:
+  REQUEST_PATH: protocols/execution_requests/deform360_partial_pcd_overlap_v1_retry1.json
+  PROTOCOL_PATH: protocols/deform360-partial-pcd-overlap-v1.json
+  DATASET_ROOT: /mnt/lexar4tb/datasets/deform360
+  PYTHONHASHSEED: "0"
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONUNBUFFERED: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+
+jobs:
+  authorize:
+    name: Authorize isolated-runtime development retry
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      request_id: ${{ steps.request.outputs.request_id }}
+      head_sha: ${{ steps.request.outputs.head_sha }}
+    steps:
+      - name: Check out exact request revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+          clean: true
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Validate one-file request and frozen protocol
+        id: request
+        shell: bash
+        env:
+          EVENT_REF: ${{ github.ref }}
+          EVENT_BEFORE: ${{ github.event.before }}
+          EVENT_AFTER: ${{ github.event.after }}
+          EVENT_FORCED: ${{ github.event.forced }}
+          EVENT_DELETED: ${{ github.event.deleted }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_REF" = "refs/heads/science/deform360-partial-pcd-overlap-v1"
+          test "$EVENT_AFTER" = "$(/usr/bin/git rev-parse HEAD)"
+          test "$EVENT_FORCED" = "false"
+          test "$EVENT_DELETED" = "false"
+          test "$EVENT_BEFORE" != "0000000000000000000000000000000000000000"
+          mapfile -t changed < <(
+            /usr/bin/git diff --name-only "$EVENT_BEFORE" "$EVENT_AFTER" | sort
+          )
+          if [[ ${#changed[@]} -ne 1 || "${changed[0]}" != "$REQUEST_PATH" ]]; then
+            printf 'Expected only %s; changed paths were:\n' "$REQUEST_PATH" >&2
+            printf '  %s\n' "${changed[@]}" >&2
+            exit 2
+          fi
+          protocol_blob=$(/usr/bin/git rev-parse "$EVENT_AFTER:$PROTOCOL_PATH")
+          validation=$(
+            python scripts/science/evaluate_deform360_partial_pcd_overlap.py \
+              validate-request \
+              --protocol "$PROTOCOL_PATH" \
+              --request "$REQUEST_PATH" \
+              --protocol-git-blob-sha "$protocol_blob"
+          )
+          VALIDATION="$validation" EVENT_AFTER="$EVENT_AFTER" /usr/bin/python3 - <<'PY'
+          import json
+          import os
+
+          value = json.loads(os.environ["VALIDATION"])
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"request_id={value['request_id']}\n")
+              output.write(f"head_sha={os.environ['EVENT_AFTER']}\n")
+          PY
+
+  execute:
+    name: Evaluate partial Deform360 PCD in isolated venv on gpuserver6000
+    needs: authorize
+    environment: trusted-self-hosted-validation
+    runs-on: [self-hosted, Linux, X64, gpuserver6000]
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    outputs:
+      decision: ${{ steps.result.outputs.decision }}
+      result_id: ${{ steps.result.outputs.result_id }}
+    steps:
+      - name: Initialize isolated output workspace
+        id: workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${RUNNER_TEMP}/prob4d-deform360-partial-retry1-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          /usr/bin/rm -rf -- "$root"
+          /usr/bin/mkdir -p "$root/evidence" "$root/home" "$root/tmp"
+          echo "root=$root" >> "$GITHUB_OUTPUT"
+          {
+            echo "HOME=$root/home"
+            echo "TMPDIR=$root/tmp"
+          } >> "$GITHUB_ENV"
+      - name: Require the intended runner and reviewed partial subset
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_NAME" = "workstation2"
+          test "$RUNNER_OS" = "Linux"
+          test "$RUNNER_ARCH" = "X64"
+          test -d "$DATASET_ROOT"
+          test ! -L "$DATASET_ROOT"
+          test -d "$DATASET_ROOT/action-aligned-source-v1/002-rope-silk-ep0000/episode_0000/pcd_clean"
+          test -d "$DATASET_ROOT/action-aligned-source-v1/085-scarf-cloth-ep0001/episode_0000/pcd_clean"
+      - name: Check out exact authorized revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.authorize.outputs.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+      - name: Verify clean exact checkout
+        shell: bash
+        env:
+          EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          test "$(/usr/bin/git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test -z "$(/usr/bin/git status --porcelain=v1 --untracked-files=all)"
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Create uncontaminated numerical venv
+        id: runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          python -m venv "$root/venv"
+          "$root/venv/bin/python" -m pip install \
+            --disable-pip-version-check --quiet numpy==1.26.4
+          "$root/venv/bin/python" -m pip check
+          "$root/venv/bin/python" - <<'PY'
+          import numpy
+          if numpy.__version__ != "1.26.4":
+              raise SystemExit(numpy.__version__)
+          print(f"numpy={numpy.__version__}")
+          PY
+          echo "python=$root/venv/bin/python" >> "$GITHUB_OUTPUT"
+      - name: Run frozen source-to-object development evaluation
+        id: study
+        continue-on-error: true
+        shell: bash
+        env:
+          REQUEST_ID: ${{ needs.authorize.outputs.request_id }}
+          EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+          STUDY_PYTHON: ${{ steps.runtime.outputs.python }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          "$STUDY_PYTHON" scripts/science/evaluate_deform360_partial_pcd_overlap.py \
+            run \
+            --protocol "$PROTOCOL_PATH" \
+            --request-id "$REQUEST_ID" \
+            --dataset-root "$DATASET_ROOT" \
+            --repository-revision "$EXPECTED_HEAD_SHA" \
+            --output-dir "$root/evidence"
+      - name: Read retained result or technical failure
+        id: result
+        if: always()
+        shell: bash
+        env:
+          STUDY_OUTCOME: ${{ steps.study.outcome }}
+          REQUEST_ID: ${{ needs.authorize.outputs.request_id }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          result="$root/evidence/result.json"
+          if [[ "$STUDY_OUTCOME" == "success" && -f "$result" ]]; then
+            RESULT="$result" /usr/bin/python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          value = json.loads(Path(os.environ["RESULT"]).read_text(encoding="utf-8"))
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"decision={value['decision']}\n")
+              output.write(f"result_id={value['result_id']}\n")
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              summary.write(Path(os.environ["RESULT"]).with_name("summary.md").read_text())
+          PY
+          else
+            REQUEST_ID="$REQUEST_ID" STUDY_OUTCOME="$STUDY_OUTCOME" \
+              RESULT="$root/evidence/technical-failure.json" /usr/bin/python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          value = {
+              "schema": "prob4d.deform360-partial-pcd-overlap-technical-failure",
+              "schema_version": 1,
+              "request_id": os.environ["REQUEST_ID"],
+              "study_outcome": os.environ["STUDY_OUTCOME"],
+              "result_present": False,
+              "dataset_mutated": False,
+              "claim_authorized": False,
+          }
+          Path(os.environ["RESULT"]).write_text(
+              json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+          )
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write("decision=technical-failure\n")
+              output.write("result_id=unavailable\n")
+          PY
+          fi
+      - name: Upload compact evidence only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: deform360-partial-pcd-overlap-retry1-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.workspace.outputs.root }}/evidence/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Enforce a retained scientific disposition
+        if: always()
+        shell: bash
+        env:
+          DECISION: ${{ steps.result.outputs.decision }}
+        run: |
+          set -euo pipefail
+          test "$DECISION" = "development-positive" -o \
+            "$DECISION" = "development-negative"
