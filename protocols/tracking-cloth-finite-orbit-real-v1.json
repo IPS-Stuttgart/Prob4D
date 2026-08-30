@@ -1,0 +1,66 @@
+{
+  "schema": "prob4d.tracking-cloth-finite-orbit-real.v1",
+  "protocol_id": "tracking-cloth-finite-orbit-real-v1",
+  "dataset": {
+    "record_name": "Tracking Cloth Deformation",
+    "zenodo_record": "14644526",
+    "expected_csv_files": 120,
+    "expected_source_files": 64,
+    "expected_target_files": 56,
+    "source_aliases": {
+      "shake": ["shake", "shaking"],
+      "twist": ["twist", "twisting"]
+    },
+    "target_aliases": ["collision", "collisions", "collide", "colliding"]
+  },
+  "information_order": {
+    "marker_triplet_selected_from_source_only": true,
+    "source_categories": ["shake", "twist"],
+    "held_out_category": "collision",
+    "target_opened_only_after_source_seal": true,
+    "target_side_retuning_allowed": false
+  },
+  "geometry": {
+    "maximum_common_marker_count": 40,
+    "source_frames_per_recording": 12,
+    "target_frames_per_recording": 48,
+    "minimum_anchor_distance_mm": 20.0,
+    "minimum_probe_radius_mm": 5.0,
+    "minimum_target_cases": 1000,
+    "orbit_width_threshold_mm": 1.0
+  },
+  "controlled_factor": {
+    "representative_angle_rad": 0.0,
+    "hidden_angle_distribution": "deterministic-hash-uniform-minus-pi-pi",
+    "hidden_angle_seed": 20260831,
+    "observable_query": "probe axial coordinate relative to the source-selected anchor line",
+    "deceptive_query": "representative radial coordinate r*cos(theta)",
+    "fallback_radial_mean": 0.0,
+    "fallback_invariant_sigma_mm": 15.0,
+    "candidate_sigma_mm": 2.0
+  },
+  "inference": {
+    "group_unit": "recording-file",
+    "bootstrap_replicates": 5000,
+    "bootstrap_seed": 20260901,
+    "coverage_level": 0.9
+  },
+  "registered_criteria": {
+    "all_target_groups_contribute": true,
+    "minimum_invariant_acceptance": 0.99,
+    "minimum_radial_rejection": 0.99,
+    "minimum_local_radial_acceptance": 0.99,
+    "maximum_finite_orbit_harmful_accepted_radial": 0.0,
+    "minimum_local_harmful_radial_fraction": 0.25,
+    "require_exact_fallback": true,
+    "require_invariant_rmse_improvement": true
+  },
+  "claim_boundary": {
+    "public_real_geometry": true,
+    "controlled_rank_deficient_factor": true,
+    "learned_visual_provider": false,
+    "physical_state_identification": false,
+    "deployment_safety": false,
+    "state_of_the_art": false
+  }
+}
