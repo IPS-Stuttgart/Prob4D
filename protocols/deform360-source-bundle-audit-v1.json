@@ -19,13 +19,13 @@
   "metadata_access_authorized": true,
   "prediction_execution_authorized": false,
   "profile": "deform360-source-bundle-audit-v1",
-  "protocol_id": "70aa9a0ced4d537abd5848b3b405fbc23a1f272fa8e3ca3a7ee14de12231af50",
+  "protocol_id": "fe08a93348a22c69aa1a405cd2374ffb38891b3e237e5657a74dd6c8bbde25d5",
   "provider_residuals_authorized": false,
   "root_symlink_target_reporting_authorized": true,
   "runner_label": "gpuserver4090",
   "schema": "prob4d.deform360-source-bundle-audit-protocol",
   "schema_version": 1,
-  "source_root": "/home/github-runner/.cache/datasets/deform360-fresh-source-processed-v1-1a3f9b1",
+  "source_root": "/mnt/seagate10tb/florianpfaff/datasets/deform360/processed-repository",
   "target_outcomes_authorized": false,
   "target_payloads_authorized": false
 }

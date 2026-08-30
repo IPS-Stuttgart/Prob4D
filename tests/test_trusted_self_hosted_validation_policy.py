@@ -15,9 +15,7 @@ DOT_ROPE_CUT3R_NATIVE_PROVIDER_WORKFLOW = WORKFLOW_ROOT / "dot-rope-cut3r-native
 DOT_CUT3R_RUNTIME_BOOTSTRAP_WORKFLOW = (
     WORKFLOW_ROOT / "bootstrap-dot-cut3r-gpuserver4090-runtime.yml"
 )
-DOT_CUT3R_RUNTIME_COMPLETE_WORKFLOW = (
-    WORKFLOW_ROOT / "complete-dot-cut3r-cu126-runtime.yml"
-)
+DOT_CUT3R_RUNTIME_COMPLETE_WORKFLOW = WORKFLOW_ROOT / "complete-dot-cut3r-cu126-runtime.yml"
 CUT3R_RUNNER_SELECTOR = (
     "runs-on: [self-hosted, Linux, X64, nvidia-smi, "
     + "data-prob4d-deform360-source-v1, prob4d-cut3r]"

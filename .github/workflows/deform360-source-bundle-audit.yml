@@ -26,7 +26,7 @@ concurrency:
 env:
   REQUEST_PATH: protocols/execution_requests/deform360_source_bundle_audit_v1.json
   PROTOCOL_PATH: protocols/deform360-source-bundle-audit-v1.json
-  SOURCE_ROOT: /home/florianpfaff/deform360-fresh-source-processed-v1-1a3f9b1
+  SOURCE_ROOT: /mnt/seagate10tb/florianpfaff/datasets/deform360/processed-repository
   metadata_access_authorized: "true"
   file_content_reads_authorized: "false"
   prediction_execution_authorized: "false"
@@ -189,7 +189,7 @@ jobs:
           test "$(/usr/bin/git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
           test -z "$(/usr/bin/git status --porcelain=v1 --untracked-files=all)"
           test "$SOURCE_ROOT" = \
-            "/home/florianpfaff/deform360-fresh-source-processed-v1-1a3f9b1"
+            "/mnt/seagate10tb/florianpfaff/datasets/deform360/processed-repository"
           test "$metadata_access_authorized" = "true"
           test "$file_content_reads_authorized" = "false"
           test "$prediction_execution_authorized" = "false"

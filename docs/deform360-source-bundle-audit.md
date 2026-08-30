@@ -1,11 +1,11 @@
 # Deform360 processed source-bundle metadata audit
 
 This audit is the first source-only step toward a fresh real-provider study for
-Prob4D issue #49. It inventories the already staged processed source bundle on
+Prob4D issue #49. It inventories the canonical processed Deform360 repository on
 the self-hosted runner labelled `gpuserver4090`:
 
 ```text
-/home/florianpfaff/deform360-fresh-source-processed-v1-1a3f9b1
+/mnt/seagate10tb/florianpfaff/datasets/deform360/processed-repository
 ```
 
 The audit establishes whether the reviewed path is present, traversable, and

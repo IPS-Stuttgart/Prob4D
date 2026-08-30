@@ -82,7 +82,9 @@ def test_source_root_link_is_reported_without_resolution_or_traversal() -> None:
 def test_source_path_and_forbidden_boundaries_are_literal() -> None:
     text = WORKFLOW.read_text(encoding="utf-8")
 
-    assert ("SOURCE_ROOT: /home/florianpfaff/deform360-fresh-source-processed-v1-1a3f9b1") in text
+    assert (
+        "SOURCE_ROOT: /mnt/seagate10tb/florianpfaff/datasets/deform360/processed-repository"
+    ) in text
     assert "dataset_file_contents_opened" in text
     assert "follow symlinks" in text
     assert "target_payloads_opened" in text

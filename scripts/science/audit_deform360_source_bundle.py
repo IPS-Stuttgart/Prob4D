@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bind the Deform360 metadata audit to its reviewed physical source directory."""
+"""Bind the Deform360 metadata audit to the reviewed processed repository."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ if _SPEC is None or _SPEC.loader is None:
 _IMPLEMENTATION = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(_IMPLEMENTATION)
 _IMPLEMENTATION.EXPECTED_SOURCE_ROOT = Path(
-    "/home/github-runner/.cache/datasets/deform360-fresh-source-processed-v1-1a3f9b1"
+    "/mnt/seagate10tb/florianpfaff/datasets/deform360/processed-repository"
 )
 
 for _name in dir(_IMPLEMENTATION):
