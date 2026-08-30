@@ -1,0 +1,171 @@
+name: PokeFlex posterior compression real geometry v1
+
+on:
+  push:
+    branches:
+      - science/pokeflex-posterior-compression-real-geometry-v1
+    paths:
+      - .github/experiment-requests/pokeflex-posterior-compression-real-geometry-request-v1.json
+      - .github/workflows/pokeflex-posterior-compression-real-geometry-v1.yml
+      - protocols/pokeflex-posterior-compression-real-geometry-v1.json
+      - scripts/science/run_pokeflex_posterior_compression_real_geometry.py
+      - tests/test_pokeflex_posterior_compression_real_geometry.py
+      - src/prob4d/posterior_preserving_compression.py
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pokeflex-posterior-compression-real-geometry-v1
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+jobs:
+  hosted-preflight:
+    name: Hosted request and focused-test preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Verify fixed request and protocol boundary
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          request = json.loads(Path(
+              ".github/experiment-requests/"
+              "pokeflex-posterior-compression-real-geometry-request-v1.json"
+          ).read_text())
+          protocol = json.loads(Path(
+              "protocols/pokeflex-posterior-compression-real-geometry-v1.json"
+          ).read_text())
+          assert request["branch"] == (
+              "science/pokeflex-posterior-compression-real-geometry-v1"
+          )
+          assert request["runner_labels"] == ["self-hosted", "gpuserver4090"]
+          assert request["dataset_root"] == "/mnt/lexar4tb/pokeflex"
+          assert request["dataset_state"] == "known-incomplete"
+          assert request["opens_or_repairs_prior_causal4d_pokeflex_target"] is False
+          assert request["provider_promotion_authorized"] is False
+          assert protocol["dataset_state"] == "known-incomplete-local-mirror"
+          assert protocol["maximum_deep_archives"] == 24
+          assert protocol["opens_or_repairs_prior_causal4d_pokeflex_target"] is False
+          assert protocol["provider_promotion_authorized"] is False
+          PY
+      - name: Install lightweight development package
+        run: python -m pip install -e ".[dev]"
+      - name: Run focused parser and posterior-parity tests
+        run: >-
+          python -m pytest -q
+          tests/test_posterior_preserving_compression.py
+          tests/test_pokeflex_posterior_compression_real_geometry.py
+      - name: Lint new Python surfaces
+        run: >-
+          python -m ruff check
+          src/prob4d/posterior_preserving_compression.py
+          scripts/science/run_pokeflex_posterior_compression_real_geometry.py
+          tests/test_pokeflex_posterior_compression_real_geometry.py
+
+  evaluate-real-geometry:
+    name: Evaluate incomplete PokeFlex mirror on gpuserver4090
+    needs: hosted-preflight
+    if: >-
+      github.actor == 'FlorianPfaff' &&
+      github.repository == 'IPS-Stuttgart/Prob4D' &&
+      (github.event_name == 'workflow_dispatch' ||
+       github.ref_name == 'science/pokeflex-posterior-compression-real-geometry-v1')
+    runs-on: [self-hosted, gpuserver4090]
+    environment: trusted-self-hosted-validation
+    timeout-minutes: 240
+    steps:
+      - name: Record selected runner before checkout
+        run: |
+          printf 'runner_name=%s\nrunner_os=%s\nrunner_arch=%s\n' \
+            "$RUNNER_NAME" "$RUNNER_OS" "$RUNNER_ARCH"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          clean: true
+      - name: Verify exact checked-out revision
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git status --porcelain=v1
+      - name: Install lightweight package without resolving new dependencies
+        run: python3 -m pip install --no-deps -e .
+      - name: Run target-safe real-geometry diagnostic
+        id: evaluate
+        continue-on-error: true
+        env:
+          POKEFLEX_ROOT: /mnt/lexar4tb/pokeflex
+        run: |
+          output="${RUNNER_TEMP:-/tmp}/pokeflex-posterior-compression-v1-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          rm -rf "$output"
+          printf '%s\n' "$output" > "$RUNNER_TEMP/pokeflex-output-path.txt"
+          set +e
+          PYTHONPATH=src python3 \
+            scripts/science/run_pokeflex_posterior_compression_real_geometry.py \
+            --dataset-root "$POKEFLEX_ROOT" \
+            --protocol protocols/pokeflex-posterior-compression-real-geometry-v1.json \
+            --output-dir "$output" \
+            --source-revision "$GITHUB_SHA"
+          status=$?
+          set -e
+          printf '%s\n' "$status" > "$output/process-exit-code.txt"
+          exit 0
+      - name: Resolve output path
+        id: output
+        if: always()
+        run: |
+          output=$(cat "$RUNNER_TEMP/pokeflex-output-path.txt")
+          printf 'path=%s\n' "$output" >> "$GITHUB_OUTPUT"
+      - name: Upload compact inventory and diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: pokeflex-posterior-compression-real-geometry-v1-${{ github.run_attempt }}
+          path: ${{ steps.output.outputs.path }}
+          if-no-files-found: error
+          retention-days: 30
+      - name: Publish compact job summary
+        if: always()
+        run: |
+          output=$(cat "$RUNNER_TEMP/pokeflex-output-path.txt")
+          if test -f "$output/summary.md"; then
+            cat "$output/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Enforce an actual real-geometry evaluation
+        run: |
+          output=$(cat "$RUNNER_TEMP/pokeflex-output-path.txt")
+          python3 - "$output/result.json" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          result = json.loads(Path(sys.argv[1]).read_text())
+          if result["status"] != "evaluated-real-geometry":
+              raise SystemExit(
+                  "PokeFlex diagnostic did not reach an evaluable geometry: "
+                  + result["status"]
+              )
+          if not result.get("evaluations"):
+              raise SystemExit("no archive produced a retained evaluation")
+          summary = result["summary"]
+          if summary["maximum_full_vs_compressed_relative_gain_error"] > 1e-8:
+              raise SystemExit("full/compressed gain parity failed")
+          if summary["maximum_full_vs_compressed_relative_covariance_error"] > 1e-8:
+              raise SystemExit("full/compressed covariance parity failed")
+          PY
