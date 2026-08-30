@@ -1,0 +1,103 @@
+name: Materialize DOT gpuserver6000 route
+
+on:
+  push:
+    branches: [fix/dot-gpuserver6000-idle-retry-v2]
+    paths:
+      - ".github/workflows/materialize-dot-gpuserver6000-route.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact staging revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+      - name: Materialize the exact bounded patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import shutil
+
+          workflow = Path(".github/workflows/dot-rope-cut3r-native-provider-v1.yml")
+          test = Path("tests/test_trusted_self_hosted_validation_policy.py")
+          docs = Path("docs/dot-rope-cut3r-native-provider-v1.md")
+
+          def replace(path: Path, old: str, new: str, *, count: int | None = None) -> None:
+              text = path.read_text(encoding="utf-8")
+              observed = text.count(old)
+              if count is not None and observed != count:
+                  raise SystemExit(
+                      f"{path}: expected {count} occurrences of {old!r}, observed {observed}"
+                  )
+              if observed == 0:
+                  raise SystemExit(f"{path}: missing expected text {old!r}")
+              path.write_text(text.replace(old, new), encoding="utf-8", newline="\n")
+
+          replace(workflow, "gpuserver4090", "gpuserver6000")
+          replace(workflow, "workstation1", "workstation2", count=2)
+          replace(
+              workflow,
+              "DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/dot\n",
+              "DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/dot-rope\n",
+              count=1,
+          )
+          replace(
+              test,
+              '    assert "runs-on: [self-hosted, Linux, X64, gpuserver4090]" in text\n',
+              '    assert "runs-on: [self-hosted, Linux, X64, gpuserver6000]" in text\n',
+              count=1,
+          )
+          replace(
+              test,
+              '    assert \'test "$RUNNER_NAME" = "workstation1"\' in text\n',
+              '    assert \'test "$RUNNER_NAME" = "workstation2"\' in text\n',
+              count=1,
+          )
+          replace(
+              test,
+              '    assert "DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/dot" in text\n',
+              '    assert "DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/dot-rope" in text\n',
+              count=1,
+          )
+          replace(docs, "gpuserver4090", "gpuserver6000")
+          replace(docs, "workstation1", "workstation2")
+          replace(
+              docs,
+              "/mnt/seagate10tb/florianpfaff/datasets/dot\n",
+              "/mnt/seagate10tb/florianpfaff/datasets/dot-rope\n",
+              count=1,
+          )
+
+          destinations = {
+              workflow: Path("patched/.github/workflows/dot-rope-cut3r-native-provider-v1.yml"),
+              test: Path("patched/tests/test_trusted_self_hosted_validation_policy.py"),
+              docs: Path("patched/docs/dot-rope-cut3r-native-provider-v1.md"),
+          }
+          for source, destination in destinations.items():
+              destination.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copyfile(source, destination)
+          PY
+          grep -F 'runs-on: [self-hosted, Linux, X64, gpuserver6000]' \
+            patched/.github/workflows/dot-rope-cut3r-native-provider-v1.yml
+          grep -F 'test "$RUNNER_NAME" = "workstation2"' \
+            patched/.github/workflows/dot-rope-cut3r-native-provider-v1.yml
+          grep -F 'DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/dot-rope' \
+            patched/.github/workflows/dot-rope-cut3r-native-provider-v1.yml
+      - name: Upload exact patched files
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dot-gpuserver6000-route-patched-files
+          path: patched/
+          if-no-files-found: error
+          retention-days: 1
