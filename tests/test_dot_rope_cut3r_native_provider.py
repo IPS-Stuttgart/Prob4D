@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from prob4d.dot_rope_cut3r_study import (
     Sim3,
@@ -38,6 +39,15 @@ def test_protocol_has_canonical_identity_and_frozen_boundary() -> None:
     assert protocol["reserved_sequences"] == "R04-R70"
     assert protocol["frames"] == list(range(1, 8))
     assert protocol["uncertainty"]["means_held_fixed"] is True
+    assert protocol["evaluation"]["marker_support_policy"] == {
+        "policy_version": 2,
+        "minimum_valid_provider_truth_markers_per_frame": 3,
+        "minimum_common_provider_markers_per_frame": 3,
+        "rationale": (
+            "Three finite correspondences are the proper-Sim3 minimum; registered "
+            "overlap and metric-fit stages aggregate multiple fixed frame groups."
+        ),
+    }
 
 
 def test_request_validator_recomputes_identity(monkeypatch) -> None:
@@ -99,6 +109,96 @@ def test_coordinate_parser_and_bilinear_sampling() -> None:
     sampled, valid = bilinear_sample(field, np.asarray([[0.5, 0.5], [5.0, 5.0]]))
     np.testing.assert_allclose(sampled[0, 0], 3.0)
     assert valid.tolist() == [True, False]
+
+
+def _marker_test_run(frames: list[int]) -> dict[str, np.ndarray]:
+    height = 4
+    width = 4
+    rows, columns = np.mgrid[:height, :width]
+    point_map = np.stack(
+        (
+            columns.astype(np.float64),
+            rows.astype(np.float64),
+            np.ones((height, width), dtype=np.float64),
+        ),
+        axis=-1,
+    )
+    return {
+        "frames": np.asarray(frames, dtype=np.int64),
+        "points": np.repeat(point_map[None, ...], len(frames), axis=0),
+        "confidence": np.ones((len(frames), height, width), dtype=np.float64),
+        "original_sizes": np.repeat(
+            np.asarray([[width, height]], dtype=np.int64),
+            len(frames),
+            axis=0,
+        ),
+    }
+
+
+def _three_marker_payload() -> tuple[np.ndarray, np.ndarray]:
+    coordinates_2d = np.asarray(
+        [[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]],
+        dtype=np.float64,
+    )
+    coordinates_3d = np.asarray(
+        [[0.0, 0.0, 1.0], [1.0, 1.0, 1.0], [2.0, 2.0, 1.0]],
+        dtype=np.float64,
+    )
+    return coordinates_2d, coordinates_3d
+
+
+def test_three_valid_markers_are_sufficient_for_one_registered_frame() -> None:
+    module = _load_script()
+    run = _marker_test_run([1])
+    coordinates_2d, coordinates_3d = _three_marker_payload()
+
+    provider, truth, indices = module._sample_markers(
+        run,
+        1,
+        coordinates_2d,
+        coordinates_3d,
+    )
+
+    assert provider.shape == (3, 3)
+    np.testing.assert_array_equal(truth, coordinates_3d)
+    np.testing.assert_array_equal(indices, np.arange(3))
+
+
+def test_three_common_markers_per_frame_are_sufficient_for_overlap() -> None:
+    module = _load_script()
+    run = _marker_test_run([1, 2])
+    coordinates = _three_marker_payload()
+    frame_payloads = {1: coordinates, 2: coordinates}
+
+    source, target, groups = module._collect_pair(
+        run,
+        run,
+        frame_payloads,
+        [1, 2],
+    )
+
+    assert source.shape == (6, 3)
+    np.testing.assert_array_equal(source, target)
+    np.testing.assert_array_equal(groups, [1, 1, 1, 2, 2, 2])
+
+
+def test_fewer_than_three_valid_markers_fail_with_a_counted_reason() -> None:
+    module = _load_script()
+    run = _marker_test_run([1])
+    coordinates_2d = np.asarray(
+        [[0.0, 0.0], [1.0, 1.0], [-1.0, -1.0]],
+        dtype=np.float64,
+    )
+    coordinates_3d = np.asarray(
+        [[0.0, 0.0, 1.0], [1.0, 1.0, 1.0], [2.0, 2.0, 1.0]],
+        dtype=np.float64,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=r"frame 1 has 2 valid marker samples; need at least 3",
+    ):
+        module._sample_markers(run, 1, coordinates_2d, coordinates_3d)
 
 
 def test_registered_covariance_closures_are_psd_and_fixed_dimension() -> None:

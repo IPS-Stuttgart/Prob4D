@@ -42,6 +42,22 @@ PROVIDER_SCHEMA = "prob4d.dot-rope-cut3r-native-provider-bundle"
 EVALUATION_SCHEMA = "prob4d.dot-rope-cut3r-native-provider-evaluation"
 SCHEMA_VERSION = 1
 
+MINIMUM_VALID_MARKERS_PER_FRAME = 3
+MINIMUM_COMMON_MARKERS_PER_FRAME = 3
+MARKER_SUPPORT_POLICY: dict[str, object] = {
+    "policy_version": 2,
+    "minimum_valid_provider_truth_markers_per_frame": (
+        MINIMUM_VALID_MARKERS_PER_FRAME
+    ),
+    "minimum_common_provider_markers_per_frame": (
+        MINIMUM_COMMON_MARKERS_PER_FRAME
+    ),
+    "rationale": (
+        "Three finite correspondences are the proper-Sim3 minimum; registered "
+        "overlap and metric-fit stages aggregate multiple fixed frame groups."
+    ),
+}
+
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -151,6 +167,11 @@ def _load_protocol(path: Path) -> dict[str, Any]:
         "window_b": list(range(3, 8)),
     }:
         raise ValueError("frozen provider windows changed")
+    evaluation = protocol.get("evaluation")
+    if not isinstance(evaluation, dict):
+        raise ValueError("DOT CUT3R evaluation contract is missing")
+    if evaluation.get("marker_support_policy") != MARKER_SUPPORT_POLICY:
+        raise ValueError("frozen marker-support policy changed")
     return protocol
 
 
@@ -683,8 +704,12 @@ def _sample_markers(
         & np.isfinite(coordinates_3d[:count]).all(axis=1)
         & (sampled_confidence[:, 0] > 0.0)
     )
-    if np.count_nonzero(valid) < 6:
-        raise ValueError("fewer than six valid marker samples remain")
+    valid_count = int(np.count_nonzero(valid))
+    if valid_count < MINIMUM_VALID_MARKERS_PER_FRAME:
+        raise ValueError(
+            f"frame {frame} has {valid_count} valid marker samples; "
+            f"need at least {MINIMUM_VALID_MARKERS_PER_FRAME}"
+        )
     marker_indices = np.flatnonzero(valid)
     return (
         sampled_points[valid],
@@ -712,8 +737,11 @@ def _collect_pair(
             assume_unique=True,
             return_indices=True,
         )
-        if common.size < 6:
-            raise ValueError("fewer than six common provider markers remain")
+        if common.size < MINIMUM_COMMON_MARKERS_PER_FRAME:
+            raise ValueError(
+                f"frame {int(frame)} has {common.size} common provider markers; "
+                f"need at least {MINIMUM_COMMON_MARKERS_PER_FRAME}"
+            )
         sources.append(second_points[second_positions])
         targets.append(first_points[first_positions])
         groups.append(np.full(common.size, int(frame), dtype=np.int64))
