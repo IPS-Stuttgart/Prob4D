@@ -56,9 +56,7 @@ def main() -> int:
         args.expected_artifact_id is not None
         and receipt["artifact_id"] != args.expected_artifact_id
     ):
-        raise SystemExit(
-            "verified CUT3R runtime receipt differs from the frozen artifact ID"
-        )
+        raise SystemExit("verified CUT3R runtime receipt differs from the frozen artifact ID")
     _write_no_clobber(args.output, receipt)
     print(receipt["artifact_id"])
     return 0

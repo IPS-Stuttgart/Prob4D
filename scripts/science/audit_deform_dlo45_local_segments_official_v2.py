@@ -10,6 +10,5 @@ base.EXPECTED_ROOT = Path("external/DEFORM/data_set")
 
 import audit_deform_dlo45_local_segments_v2 as audit  # noqa: E402
 
-
 if __name__ == "__main__":
     audit.main()

@@ -14,9 +14,8 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-import numpy as np
-
 import audit_deform_dlo45_observability_v1 as base
+import numpy as np
 
 SCHEMA = "prob4d.deform-dlo45-local-segment-source-audit"
 SCHEMA_VERSION = 2
@@ -83,9 +82,7 @@ def _aggregate_spectra(
             "lambda7_over_lambda1": base.quantiles(matrix[:, -1].tolist()),
             "lambda6_over_lambda1": base.quantiles(matrix[:, -2].tolist()),
             "cloud_radius_m": base.quantiles(radii[key]),
-            "smallest_to_largest_centered_singular_value": base.quantiles(
-                line_ratios[key]
-            ),
+            "smallest_to_largest_centered_singular_value": base.quantiles(line_ratios[key]),
             "rank_by_threshold": ranks_by_threshold,
         }
     return groups
@@ -173,7 +170,7 @@ def run(request: dict[str, Any]) -> dict[str, Any]:
             "Only official DLO4/DLO5 training trajectories were opened.",
             "Sliding consecutive vertices emulate an outcome-blind local visibility mask.",
             "The result characterizes geometry only; it is not learned-provider competence.",
-            "No official evaluation trajectory, BayesianPhysTwin outcome, or Causal4D outcome was opened.",
+            "No official evaluation trajectory, BayesianPhysTwin outcome, or Causal4D outcome was opened.",  # noqa: E501
         ],
     }
     result["result_id"] = base.canonical_sha256(result)

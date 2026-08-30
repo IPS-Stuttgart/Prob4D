@@ -10,6 +10,5 @@ base.EXPECTED_ROOT = Path("external/DEFORM/data_set")
 
 import calibrate_deform_dlo45_query_gate_v1 as calibration  # noqa: E402
 
-
 if __name__ == "__main__":
     calibration.main()

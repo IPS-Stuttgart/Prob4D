@@ -15,9 +15,9 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
+import audit_deform_dlo45_observability_v1 as base
 import numpy as np
 
-import audit_deform_dlo45_observability_v1 as base
 from prob4d.observable_gauge import estimate_observable_sim3_factor
 from prob4d.query_observability import (
     evaluate_query_observability,
@@ -178,16 +178,10 @@ def run(request: dict[str, Any]) -> dict[str, Any]:
                             probe,
                         ),
                     )
-                    centroid_direct.append(
-                        centroid_report.direct_observability_fraction
-                    )
+                    centroid_direct.append(centroid_report.direct_observability_fraction)
                     probe_direct.append(probe_report.direct_observability_fraction)
-                    centroid_reduction.append(
-                        centroid_report.metric_variance_reduction_fraction
-                    )
-                    probe_reduction.append(
-                        probe_report.metric_variance_reduction_fraction
-                    )
+                    centroid_reduction.append(centroid_report.metric_variance_reduction_fraction)
+                    probe_reduction.append(probe_report.metric_variance_reduction_fraction)
                     cases_by_object[dlo_type] += 1
 
     if len(centroid_direct) < int(request["minimum_rank_six_cases"]):
@@ -199,12 +193,9 @@ def run(request: dict[str, Any]) -> dict[str, Any]:
         threshold = float(threshold)
         centroid_acceptance = float(np.mean(np.asarray(centroid_direct) >= threshold))
         probe_acceptance = float(np.mean(np.asarray(probe_direct) >= threshold))
-        qualifies = (
-            centroid_acceptance
-            >= float(request["minimum_centroid_acceptance_fraction"])
-            and probe_acceptance
-            <= float(request["maximum_probe_acceptance_fraction"])
-        )
+        qualifies = centroid_acceptance >= float(
+            request["minimum_centroid_acceptance_fraction"]
+        ) and probe_acceptance <= float(request["maximum_probe_acceptance_fraction"])
         candidates.append(
             {
                 "minimum_direct_observability_fraction": threshold,
@@ -230,9 +221,7 @@ def run(request: dict[str, Any]) -> dict[str, Any]:
         "stage": request["stage"],
         "request_id": request["request_id"],
         "source_geometry_result_id": request["source_geometry_result_id"],
-        "source_geometry_manifest_sha256": request[
-            "source_geometry_manifest_sha256"
-        ],
+        "source_geometry_manifest_sha256": request["source_geometry_manifest_sha256"],
         "dataset": {
             "name": "DEFORM",
             "objects": request["dlo_types"],
@@ -260,18 +249,12 @@ def run(request: dict[str, Any]) -> dict[str, Any]:
         "source_distributions": {
             "centroid_direct_observability_fraction": quantiles(centroid_direct),
             "off_axis_probe_direct_observability_fraction": quantiles(probe_direct),
-            "centroid_metric_variance_reduction_fraction": quantiles(
-                centroid_reduction
-            ),
-            "off_axis_probe_metric_variance_reduction_fraction": quantiles(
-                probe_reduction
-            ),
+            "centroid_metric_variance_reduction_fraction": quantiles(centroid_reduction),
+            "off_axis_probe_metric_variance_reduction_fraction": quantiles(probe_reduction),
         },
         "candidate_gates": candidates,
         "selection_rule": {
-            "minimum_centroid_acceptance_fraction": request[
-                "minimum_centroid_acceptance_fraction"
-            ],
+            "minimum_centroid_acceptance_fraction": request["minimum_centroid_acceptance_fraction"],
             "maximum_off_axis_probe_acceptance_fraction": request[
                 "maximum_probe_acceptance_fraction"
             ],
@@ -286,7 +269,7 @@ def run(request: dict[str, Any]) -> dict[str, Any]:
         "claim_boundary": [
             "The gate was selected from official DLO4/DLO5 training trajectories only.",
             "Known synthetic correspondence noise is applied to held-out real source geometries.",
-            "No official evaluation trajectory or downstream BayesianPhysTwin/Causal4D outcome was opened.",
+            "No official evaluation trajectory or downstream BayesianPhysTwin/Causal4D outcome was opened.",  # noqa: E501
             "The selected gate is frozen before any evaluation access.",
         ],
     }
@@ -308,10 +291,8 @@ def write_summary(result: dict[str, Any], path: Path) -> None:
     ]
     for row in result["candidate_gates"]:
         lines.append(
-            "- threshold={minimum_direct_observability_fraction}: centroid={centroid_acceptance_fraction:.3f}, "
-            "off-axis={off_axis_probe_acceptance_fraction:.3f}, qualifies={qualifies}".format(
-                **row
-            )
+            "- threshold={minimum_direct_observability_fraction}: centroid={centroid_acceptance_fraction:.3f}, "  # noqa: E501
+            "off-axis={off_axis_probe_acceptance_fraction:.3f}, qualifies={qualifies}".format(**row)
         )
     lines.extend(["", "## Source distributions", ""])
     for name, values in result["source_distributions"].items():

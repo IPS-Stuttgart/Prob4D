@@ -19,9 +19,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import audit_deform_dlo45_observability_v1 as base
 import numpy as np
 
-import audit_deform_dlo45_observability_v1 as base
 from prob4d.observable_gauge import (
     GaugeGaussianPosterior,
     estimate_observable_sim3_factor,
@@ -95,15 +95,12 @@ class MetricAccumulator:
         return {
             "count": self.count,
             "rmse_mm": float(
-                1000.0
-                * np.sqrt(self.squared_coordinate_error_sum / (3.0 * self.count))
+                1000.0 * np.sqrt(self.squared_coordinate_error_sum / (3.0 * self.count))
             ),
             "mean_gaussian_nll": self.nll_sum / self.count,
             "normalized_nees": self.nees_sum / (3.0 * self.count),
             "empirical_90pct_coverage": self.covered_90_count / self.count,
-            "mean_marginal_standard_deviation_mm": (
-                1000.0 * self.width_sum_m / self.count
-            ),
+            "mean_marginal_standard_deviation_mm": (1000.0 * self.width_sum_m / self.count),
             "harmful_fraction_vs_fallback": self.harmful_count / self.count,
             "accepted_fraction": self.accepted_count / self.count,
             "rejected_fraction": self.rejected_count / self.count,
@@ -174,9 +171,7 @@ def truth_transform(
     centroid = np.mean(segment, axis=0)
     tangent = segment[-1] - segment[0]
     tangent /= np.linalg.norm(tangent)
-    twist_min, twist_max = (
-        float(value) for value in request["absolute_twist_range_rad"]
-    )
+    twist_min, twist_max = (float(value) for value in request["absolute_twist_range_rad"])
     sign = -1.0 if generator.random() < 0.5 else 1.0
     twist = sign * generator.uniform(twist_min, twist_max)
     base_rotation = so3_exp(
@@ -186,9 +181,7 @@ def truth_transform(
         )
     )
     rotation = base_rotation @ so3_exp(tangent * twist)
-    scale = float(
-        np.exp(generator.normal(scale=float(request["log_scale_std"])))
-    )
+    scale = float(np.exp(generator.normal(scale=float(request["log_scale_std"]))))
     target_centroid = centroid + generator.normal(
         scale=float(request["translation_std_m"]),
         size=3,
@@ -298,17 +291,13 @@ def aggregate_groups(
                     ),
                     replicates=bootstrap_replicates,
                 )
-            fallback_rows = [
-                queries[query]["physical_fallback"]
-                for queries in group_rows.values()
-            ]
+            fallback_rows = [queries[query]["physical_fallback"] for queries in group_rows.values()]
             rmse_differences = [
                 float(fallback["rmse_mm"]) - float(row["rmse_mm"])
                 for fallback, row in zip(fallback_rows, rows, strict=True)
             ]
             nll_differences = [
-                float(fallback["mean_gaussian_nll"])
-                - float(row["mean_gaussian_nll"])
+                float(fallback["mean_gaussian_nll"]) - float(row["mean_gaussian_nll"])
                 for fallback, row in zip(fallback_rows, rows, strict=True)
             ]
             aggregate["paired_rmse_improvement_mm"] = mean_ci(
@@ -340,13 +329,8 @@ def run(request: dict[str, Any]) -> dict[str, Any]:
     gate = QueryObservabilityGate(**request["query_gate"])
 
     manifest_rows: list[dict[str, Any]] = []
-    group_accumulators: dict[
-        str, dict[str, dict[str, MetricAccumulator]]
-    ] = defaultdict(
-        lambda: {
-            query: {method: MetricAccumulator() for method in METHODS}
-            for query in QUERIES
-        }
+    group_accumulators: dict[str, dict[str, dict[str, MetricAccumulator]]] = defaultdict(
+        lambda: {query: {method: MetricAccumulator() for method in METHODS} for query in QUERIES}
     )
     direct_fractions: dict[str, list[float]] = {query: [] for query in QUERIES}
     factor_rank_counts: Counter[int] = Counter()
@@ -432,9 +416,7 @@ def run(request: dict[str, Any]) -> dict[str, Any]:
                     centroid = np.mean(segment, axis=0)
                     probe = (
                         centroid
-                        + probe_factor
-                        * factor.chart.cloud_scale
-                        * deterministic_normal(segment)
+                        + probe_factor * factor.chart.cloud_scale * deterministic_normal(segment)
                     )
                     query_points = {
                         "segment_centroid": centroid,
@@ -452,9 +434,7 @@ def run(request: dict[str, Any]) -> dict[str, Any]:
                             query_jacobian_local=jacobian,
                         )
                         decision = gate.evaluate(report)
-                        direct_fractions[query_name].append(
-                            report.direct_observability_fraction
-                        )
+                        direct_fractions[query_name].append(report.direct_observability_fraction)
                         true_query = np.asarray(
                             truth.transform_points(query_source),
                             dtype=np.float64,
@@ -481,10 +461,7 @@ def run(request: dict[str, Any]) -> dict[str, Any]:
                                 posterior,
                             )
                             error = true_query - mean
-                            harmful = (
-                                float(np.linalg.norm(error))
-                                > fallback_error_norm + 1e-12
-                            )
+                            harmful = float(np.linalg.norm(error)) > fallback_error_norm + 1e-12
                             if method == "physical_fallback":
                                 harmful = False
                             accepted = method not in {
@@ -517,24 +494,17 @@ def run(request: dict[str, Any]) -> dict[str, Any]:
     nonempty_groups = {
         group_id
         for group_id, queries in group_accumulators.items()
-        if all(
-            queries[query][method].count > 0
-            for query in QUERIES
-            for method in METHODS
-        )
+        if all(queries[query][method].count > 0 for query in QUERIES for method in METHODS)
     }
     if len(nonempty_groups) != expected_groups:
-        missing = sorted(
-            set(row["independent_group"] for row in manifest_rows) - nonempty_groups
-        )
+        missing = sorted(set(row["independent_group"] for row in manifest_rows) - nonempty_groups)
         raise ValueError(f"not every official evaluation file contributed cases: {missing}")
 
     group_rows: dict[str, dict[str, dict[str, dict[str, float | int]]]] = {}
     for group_id in sorted(nonempty_groups):
         group_rows[group_id] = {
             query: {
-                method: group_accumulators[group_id][query][method].finalize()
-                for method in METHODS
+                method: group_accumulators[group_id][query][method].finalize() for method in METHODS
             }
             for query in QUERIES
         }
@@ -550,9 +520,7 @@ def run(request: dict[str, Any]) -> dict[str, Any]:
     def metric(query: str, method: str, name: str) -> float:
         return float(aggregate[query][method][name]["mean"])
 
-    probe_rejections = 1.0 - metric(
-        "off_axis_probe", "query_aware", "accepted_fraction"
-    )
+    probe_rejections = 1.0 - metric("off_axis_probe", "query_aware", "accepted_fraction")
     criteria = {
         "all_28_official_evaluation_groups_contributed": len(group_rows) == 28,
         "at_least_1000_rank_six_cases": successful_cases >= 1000,
@@ -623,13 +591,10 @@ def run(request: dict[str, Any]) -> dict[str, Any]:
             "fit_failures": dict(sorted(fit_failures.items())),
             "cases_by_object": dict(sorted(cases_by_object.items())),
             "independent_groups": len(group_rows),
-            "mean_absolute_controlled_twist_rad": float(
-                np.mean(twist_magnitudes)
-            ),
+            "mean_absolute_controlled_twist_rad": float(np.mean(twist_magnitudes)),
         },
         "direct_observability": {
-            query: base.quantiles(values)
-            for query, values in direct_fractions.items()
+            query: base.quantiles(values) for query, values in direct_fractions.items()
         },
         "aggregate_equal_group_results": aggregate,
         "per_group_results": group_rows,
@@ -637,10 +602,10 @@ def run(request: dict[str, Any]) -> dict[str, Any]:
         "decision": "pass" if all(criteria.values()) else "bounded-or-negative",
         "information_boundary": request["information_boundary"],
         "claim_boundary": [
-            "The 28 official DLO4/DLO5 evaluation trajectories are held-out real geometry and independent file-level groups.",
-            "Known controlled Sim(3) gauges and correspondence noise provide exact ground truth on those real geometries.",
-            "The experiment does not establish learned visual-provider competence or end-to-end BayesianPhysTwin/Causal4D benefit.",
-            "No threshold, support, query, prior, comparator, or seed may be retuned on this opened evaluation result.",
+            "The 28 official DLO4/DLO5 evaluation trajectories are held-out real geometry and independent file-level groups.",  # noqa: E501
+            "Known controlled Sim(3) gauges and correspondence noise provide exact ground truth on those real geometries.",  # noqa: E501
+            "The experiment does not establish learned visual-provider competence or end-to-end BayesianPhysTwin/Causal4D benefit.",  # noqa: E501
+            "No threshold, support, query, prior, comparator, or seed may be retuned on this opened evaluation result.",  # noqa: E501
         ],
     }
     result["result_id"] = base.canonical_sha256(result)
@@ -680,8 +645,7 @@ def write_summary(result: dict[str, Any], path: Path) -> None:
         lines.append("")
     lines.extend(["## Registered criteria", ""])
     lines.extend(
-        f"- {'PASS' if passed else 'FAIL'} — {name}"
-        for name, passed in result["criteria"].items()
+        f"- {'PASS' if passed else 'FAIL'} — {name}" for name, passed in result["criteria"].items()
     )
     lines.extend(["", "## Claim boundary", ""])
     lines.extend(f"- {item}" for item in result["claim_boundary"])

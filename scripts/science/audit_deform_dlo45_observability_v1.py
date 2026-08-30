@@ -134,9 +134,7 @@ def geometry_spectrum(points: np.ndarray) -> tuple[np.ndarray, float, float]:
         raise ValueError("support carries no gauge information")
     normalized = np.maximum(eigenvalues / maximum, 0.0)
     singular_values = np.linalg.svd(centered, compute_uv=False)
-    line_ratio = float(
-        singular_values[-1] / max(singular_values[0], np.finfo(float).eps)
-    )
+    line_ratio = float(singular_values[-1] / max(singular_values[0], np.finfo(float).eps))
     return normalized, rho, line_ratio
 
 
@@ -232,9 +230,7 @@ def run(request: dict[str, Any]) -> dict[str, Any]:
             "lambda7_over_lambda1": quantiles(matrix[:, -1].tolist()),
             "lambda6_over_lambda1": quantiles(matrix[:, -2].tolist()),
             "cloud_radius_m": quantiles(radii[key]),
-            "smallest_to_largest_centered_singular_value": quantiles(
-                line_ratios[key]
-            ),
+            "smallest_to_largest_centered_singular_value": quantiles(line_ratios[key]),
             "rank_by_threshold": rank_rows,
         }
 
@@ -261,9 +257,9 @@ def run(request: dict[str, Any]) -> dict[str, Any]:
         "information_boundary": request["information_boundary"],
         "claim_boundary": [
             "Only official DLO4/DLO5 training trajectories were opened.",
-            "The audit measures real trajectory geometry and motion support, not learned-provider accuracy.",
+            "The audit measures real trajectory geometry and motion support, not learned-provider accuracy.",  # noqa: E501
             "No evaluation file content, BayesianPhysTwin outcome, or Causal4D outcome was opened.",
-            "Any evaluation threshold must be frozen from this source-only artifact before evaluation access.",
+            "Any evaluation threshold must be frozen from this source-only artifact before evaluation access.",  # noqa: E501
         ],
     }
     result["result_id"] = canonical_sha256(result)
@@ -309,11 +305,7 @@ def main() -> None:
         encoding="utf-8",
     )
     write_summary(result, args.output_dir / "summary.md")
-    print(
-        json.dumps(
-            {"result_id": result["result_id"], "output": str(args.output_dir)}
-        )
-    )
+    print(json.dumps({"result_id": result["result_id"], "output": str(args.output_dir)}))
 
 
 if __name__ == "__main__":
