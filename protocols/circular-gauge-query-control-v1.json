@@ -1,0 +1,52 @@
+{
+  "schema": "prob4d.circular-gauge-query-control",
+  "version": 1,
+  "evidence_class": "exploratory-analytic-and-synthetic-mechanism-control",
+  "date": "2026-08-30",
+  "independent_prospective_confirmation": false,
+  "selection_note": "The analytic counterexample was deliberately constructed before this reproducibility specification. It is not a preregistered empirical discovery or an unopened real-data test.",
+  "reviewed_prob4d_revision": "224d13dc9a93731ac5297b479eb1e121b3dbe659",
+  "radius_m": 0.1,
+  "phase_mean_rad": 0.0,
+  "phase_stddev_rad": 1.0,
+  "violation_below_m": 0.05,
+  "illustrative_risk_budget": 0.1,
+  "monte_carlo_samples": 200000,
+  "monte_carlo_seed": 20260830,
+  "uniform_dependence_seed": 20260831,
+  "gauss_hermite_orders": [3, 5, 9, 17, 33, 65, 129],
+  "tail_tolerance": 1e-12,
+  "shared_phase_control": {
+    "constraints": 5,
+    "single_constraint_probability": 0.1,
+    "repeated_constraint_budget": 0.2,
+    "disjoint_constraint_budget": 0.45
+  },
+  "baselines": [
+    "independent reimplementation of first-order Gaussian propagation",
+    "independent reimplementation of the documented rank-one two-point spherical-radial rule",
+    "Gauss-Hermite quadrature with every declared order retained",
+    "Gaussian matched to exact transformed mean and variance",
+    "exact shared-phase circular moments and arc probabilities"
+  ],
+  "information_boundary": {
+    "provider_model_loaded": false,
+    "real_source_data_opened": false,
+    "real_target_data_opened": false,
+    "historical_terminal_study_retried": false,
+    "bayesian_phystwin_inference_run": false,
+    "causal4d_inference_run": false
+  },
+  "unsupported_claims": [
+    "novelty of circular moments or wrapped-normal filtering",
+    "all sigma-point or quadrature rules fail",
+    "full nonlinear Sim(3) posterior solved",
+    "local rank deficiency proves a global circular symmetry",
+    "complete physical uncertainty or dynamics uncertainty propagated",
+    "real-provider competence",
+    "real-world calibrated uncertainty",
+    "downstream empirical improvement",
+    "robot-control safety",
+    "state of the art"
+  ]
+}
