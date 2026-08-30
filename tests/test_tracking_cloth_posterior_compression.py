@@ -9,7 +9,6 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-
 SCRIPT = (
     Path(__file__).resolve().parents[1]
     / "scripts"
