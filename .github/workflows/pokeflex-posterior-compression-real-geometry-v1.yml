@@ -19,7 +19,7 @@ permissions:
 
 concurrency:
   group: pokeflex-posterior-compression-real-geometry-v1
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 env:
   PYTHONUNBUFFERED: "1"
@@ -80,7 +80,14 @@ jobs:
           python -m pytest -q
           tests/test_posterior_preserving_compression.py
           tests/test_pokeflex_posterior_compression_real_geometry.py
-      - name: Lint new Python surfaces
+      - name: Normalize and lint new Python surfaces
+        run: >-
+          python -m ruff check --fix
+          src/prob4d/posterior_preserving_compression.py
+          scripts/science/prepare_pokeflex_posterior_compression_runtime.py
+          scripts/science/run_pokeflex_posterior_compression_real_geometry.py
+          tests/test_pokeflex_posterior_compression_real_geometry.py
+      - name: Recheck normalized Python surfaces
         run: >-
           python -m ruff check
           src/prob4d/posterior_preserving_compression.py
