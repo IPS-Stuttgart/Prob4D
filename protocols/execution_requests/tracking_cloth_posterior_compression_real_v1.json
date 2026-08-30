@@ -1,10 +1,10 @@
 {
   "schema": "prob4d.self-hosted-experiment-request.v1",
   "request_id": "tracking-cloth-posterior-compression-real-v1",
-  "request_sequence": 3,
+  "request_sequence": 4,
   "method_parent_revision": "fa54c7ce8d7c0903d1ee35e861173a9fa328e0d8",
   "branch": "science/tracking-cloth-posterior-compression-real-v1",
-  "runner_labels": ["self-hosted", "Linux", "X64", "gpuserver4090"],
+  "runner_labels": ["self-hosted", "gpuserver4090"],
   "dataset_root": "/home/github-runner/.cache/datasets/tracking-cloth-deformation-v1-zenodo-14644526",
   "dataset_state": "verified-complete-extracted",
   "expected_recording_count": 120,
