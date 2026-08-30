@@ -76,9 +76,7 @@ jobs:
           assert request["branch"] == (
               "science/tracking-cloth-posterior-compression-real-v1"
           )
-          assert request["runner_labels"] == [
-              "self-hosted", "Linux", "X64", "gpuserver4090"
-          ]
+          assert request["runner_labels"] == ["self-hosted", "gpuserver4090"]
           assert request["dataset_root"] == (
               "/home/github-runner/.cache/datasets/"
               "tracking-cloth-deformation-v1-zenodo-14644526"
@@ -122,7 +120,7 @@ jobs:
       (github.event_name == 'workflow_dispatch' ||
        github.ref_name == 'science/tracking-cloth-posterior-compression-real-v1')
     environment: trusted-self-hosted-validation
-    runs-on: [self-hosted, Linux, X64, gpuserver4090]
+    runs-on: [self-hosted, gpuserver4090]
     timeout-minutes: 120
     permissions:
       contents: read
