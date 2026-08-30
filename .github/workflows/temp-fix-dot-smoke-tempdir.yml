@@ -28,6 +28,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
+          import base64
           from pathlib import Path
 
           source_path = Path("scripts/science/run_dot_rope_cut3r_native_provider.py")
@@ -45,51 +46,7 @@ jobs:
           test_path = Path("tests/test_dot_rope_cut3r_smoke_tempdir.py")
           if test_path.exists():
               raise SystemExit("DOT runtime-smoke tempdir regression already exists")
-          test_path.write_text(
-              '''from __future__ import annotations
-
-import importlib.util
-import tempfile
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = ROOT / "scripts/science/run_dot_rope_cut3r_native_provider.py"
-
-
-def _load_script():
-    spec = importlib.util.spec_from_file_location("dot_rope_cut3r_provider", SCRIPT)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-def test_runtime_smoke_uses_an_uncreated_child_directory() -> None:
-    text = SCRIPT.read_text(encoding="utf-8")
-    assert '_make_synthetic_frames(\n                Path(temporary) / "frames", count=3' in text
-    assert "_make_synthetic_frames(Path(temporary), count=3)" not in text
-
-
-def test_synthetic_frames_are_created_inside_fresh_child_directory(tmp_path: Path) -> None:
-    module = _load_script()
-    with tempfile.TemporaryDirectory(dir=tmp_path, prefix="dot-cut3r-smoke-") as temporary:
-        root = Path(temporary)
-        destination = root / "frames"
-        assert root.is_dir()
-        assert not destination.exists()
-        paths = module._make_synthetic_frames(destination, count=3)
-
-        assert destination.is_dir()
-        assert [path.name for path in paths] == [
-            "synthetic-00.png",
-            "synthetic-01.png",
-            "synthetic-02.png",
-        ]
-        assert all(path.is_file() and path.parent == destination for path in paths)
-''',
-              encoding="utf-8",
-              newline="\n",
-          )
+          test_path.write_bytes(base64.b64decode("ZnJvbSBfX2Z1dHVyZV9fIGltcG9ydCBhbm5vdGF0aW9ucwoKaW1wb3J0IGltcG9ydGxpYi51dGlsCmltcG9ydCB0ZW1wZmlsZQpmcm9tIHBhdGhsaWIgaW1wb3J0IFBhdGgKClJPT1QgPSBQYXRoKF9fZmlsZV9fKS5yZXNvbHZlKCkucGFyZW50c1sxXQpTQ1JJUFQgPSBST09UIC8gInNjcmlwdHMvc2NpZW5jZS9ydW5fZG90X3JvcGVfY3V0M3JfbmF0aXZlX3Byb3ZpZGVyLnB5IgoKCmRlZiBfbG9hZF9zY3JpcHQoKToKICAgIHNwZWMgPSBpbXBvcnRsaWIudXRpbC5zcGVjX2Zyb21fZmlsZV9sb2NhdGlvbigiZG90X3JvcGVfY3V0M3JfcHJvdmlkZXIiLCBTQ1JJUFQpCiAgICBhc3NlcnQgc3BlYyBpcyBub3QgTm9uZSBhbmQgc3BlYy5sb2FkZXIgaXMgbm90IE5vbmUKICAgIG1vZHVsZSA9IGltcG9ydGxpYi51dGlsLm1vZHVsZV9mcm9tX3NwZWMoc3BlYykKICAgIHNwZWMubG9hZGVyLmV4ZWNfbW9kdWxlKG1vZHVsZSkKICAgIHJldHVybiBtb2R1bGUKCgpkZWYgdGVzdF9ydW50aW1lX3Ntb2tlX3VzZXNfYW5fdW5jcmVhdGVkX2NoaWxkX2RpcmVjdG9yeSgpIC0+IE5vbmU6CiAgICB0ZXh0ID0gU0NSSVBULnJlYWRfdGV4dChlbmNvZGluZz0idXRmLTgiKQogICAgYXNzZXJ0ICdfbWFrZV9zeW50aGV0aWNfZnJhbWVzKFxuICAgICAgICAgICAgICAgIFBhdGgodGVtcG9yYXJ5KSAvICJmcmFtZXMiLCBjb3VudD0zJyBpbiB0ZXh0CiAgICBhc3NlcnQgIl9tYWtlX3N5bnRoZXRpY19mcmFtZXMoUGF0aCh0ZW1wb3JhcnkpLCBjb3VudD0zKSIgbm90IGluIHRleHQKCgpkZWYgdGVzdF9zeW50aGV0aWNfZnJhbWVzX2FyZV9jcmVhdGVkX2luc2lkZV9mcmVzaF9jaGlsZF9kaXJlY3RvcnkodG1wX3BhdGg6IFBhdGgpIC0+IE5vbmU6CiAgICBtb2R1bGUgPSBfbG9hZF9zY3JpcHQoKQogICAgd2l0aCB0ZW1wZmlsZS5UZW1wb3JhcnlEaXJlY3RvcnkoZGlyPXRtcF9wYXRoLCBwcmVmaXg9ImRvdC1jdXQzci1zbW9rZS0iKSBhcyB0ZW1wb3Jhcnk6CiAgICAgICAgcm9vdCA9IFBhdGgodGVtcG9yYXJ5KQogICAgICAgIGRlc3RpbmF0aW9uID0gcm9vdCAvICJmcmFtZXMiCiAgICAgICAgYXNzZXJ0IHJvb3QuaXNfZGlyKCkKICAgICAgICBhc3NlcnQgbm90IGRlc3RpbmF0aW9uLmV4aXN0cygpCiAgICAgICAgcGF0aHMgPSBtb2R1bGUuX21ha2Vfc3ludGhldGljX2ZyYW1lcyhkZXN0aW5hdGlvbiwgY291bnQ9MykKCiAgICAgICAgYXNzZXJ0IGRlc3RpbmF0aW9uLmlzX2RpcigpCiAgICAgICAgYXNzZXJ0IFtwYXRoLm5hbWUgZm9yIHBhdGggaW4gcGF0aHNdID09IFsKICAgICAgICAgICAgInN5bnRoZXRpYy0wMC5wbmciLAogICAgICAgICAgICAic3ludGhldGljLTAxLnBuZyIsCiAgICAgICAgICAgICJzeW50aGV0aWMtMDIucG5nIiwKICAgICAgICBdCiAgICAgICAgYXNzZXJ0IGFsbChwYXRoLmlzX2ZpbGUoKSBhbmQgcGF0aC5wYXJlbnQgPT0gZGVzdGluYXRpb24gZm9yIHBhdGggaW4gcGF0aHMpCg=="))
 
           Path(".github/workflows/temp-fix-dot-smoke-tempdir.yml").unlink()
           PY
