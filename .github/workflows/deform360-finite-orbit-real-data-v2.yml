@@ -1,0 +1,224 @@
+name: Deform360 finite-orbit real-data pilot v2
+
+on:
+  push:
+    branches: [science/deform360-query-pilot-v1]
+    paths:
+      - "protocols/execution_requests/deform360_finite_orbit_real_data_v2.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deform360-finite-orbit-real-data-v2-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/deform360
+  PROTOCOL_JSON: protocols/deform360-finite-orbit-real-data-v2.json
+  REQUEST_JSON: protocols/execution_requests/deform360_finite_orbit_real_data_v2.json
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out exact requested revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Validate frozen request and implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/science/deform360-query-pilot-v1
+          mapfile -t changed < <(git diff --name-only HEAD^ HEAD)
+          test "${#changed[@]}" -eq 1
+          test "${changed[0]}" = "$REQUEST_JSON"
+          python -m py_compile \
+            scripts/science/materialize_deform360_trajectory_archives_v2.py \
+            scripts/science/evaluate_deform360_finite_orbit_v2.py \
+            scripts/science/evaluate_deform360_finite_orbit_v1.py
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          protocol = json.loads(Path(os.environ["PROTOCOL_JSON"]).read_text())
+          request = json.loads(Path(os.environ["REQUEST_JSON"]).read_text())
+          assert protocol["protocol_id"] == "deform360-finite-orbit-real-data-v2"
+          assert protocol["registered_before_numerical_target_access"] is True
+          assert len(protocol["object_roster"]) == 18
+          assert len({row["object_id"] for row in protocol["object_roster"]}) == 18
+          assert all(row["source_episode"] == 0 for row in protocol["object_roster"])
+          assert all(row["target_episode"] == 1 for row in protocol["object_roster"])
+          assert protocol["representation"]["minimum_supported_complete_object_pairs"] == 12
+          assert request["protocol_id"] == protocol["protocol_id"]
+          assert request["dataset_root"] == os.environ["DATASET_ROOT"]
+          assert request["runner_label"] == "gpuserver4090"
+          assert request["authorize_retrospective_target_scoring"] is True
+          assert request["paper_claim_authorized"] is False
+          PY
+
+  evaluate:
+    needs: contract
+    runs-on: [self-hosted, Linux, X64, gpuserver4090]
+    timeout-minutes: 240
+    steps:
+      - name: Check out exact evaluated revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Verify runner and mounted dataset
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_OS" = Linux
+          test "$RUNNER_ARCH" = X64
+          test -d "$DATASET_ROOT"
+          test -r "$DATASET_ROOT"
+          test ! -L "$DATASET_ROOT"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          echo "runner_name=$RUNNER_NAME"
+          echo "dataset_root=$DATASET_ROOT"
+          echo "revision=$GITHUB_SHA"
+      - name: Prepare isolated runtime and evidence locations
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/deform360-v2-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          venv="$root/venv"
+          materialized="$root/materialized"
+          output="$root/evidence"
+          rm -rf -- "$root"
+          mkdir -p "$materialized" "$output"
+          python3 -m venv "$venv"
+          "$venv/bin/python" -m pip install --disable-pip-version-check --no-cache-dir "numpy==2.2.6"
+          echo "V2_ROOT=$root" >> "$GITHUB_ENV"
+          echo "V2_PY=$venv/bin/python" >> "$GITHUB_ENV"
+          echo "V2_MATERIALIZED=$materialized" >> "$GITHUB_ENV"
+          echo "V2_OUTPUT=$output" >> "$GITHUB_ENV"
+      - name: Materialize frozen bounded trajectory carriers
+        id: materialize
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          "$V2_PY" scripts/science/materialize_deform360_trajectory_archives_v2.py \
+            --dataset-root "$DATASET_ROOT" \
+            --protocol "$PROTOCOL_JSON" \
+            --output-root "$V2_MATERIALIZED" \
+            --audit-output "$V2_OUTPUT/runtime_audit.json" \
+            --manifest-output "$V2_OUTPUT/materialization.json" \
+            2>&1 | tee "$V2_OUTPUT/materialization.log"
+      - name: Execute object-disjoint finite-orbit evaluation
+        id: evaluate
+        if: steps.materialize.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          "$V2_PY" scripts/science/evaluate_deform360_finite_orbit_v2.py \
+            --dataset-root "$V2_MATERIALIZED" \
+            --audit "$V2_OUTPUT/runtime_audit.json" \
+            --protocol "$PROTOCOL_JSON" \
+            --output-dir "$V2_OUTPUT" \
+            --horizons 1 2 4 \
+            --min-frames 24 \
+            --min-points 100 \
+            --max-frames 64 \
+            --min-anisotropy 1.10 \
+            --tail-fraction 0.05 \
+            --orbit-tolerance 0.05 \
+            --advantage-margin 0.0 \
+            --harm-margin 0.01 \
+            --minimum-object-pairs 12 \
+            --bootstrap-repetitions 10000 \
+            --seed 20260831 \
+            2>&1 | tee "$V2_OUTPUT/evaluation.log"
+      - name: Bind execution identity and validate retained result
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if test ! -f "$V2_OUTPUT/summary.json"; then
+            "$V2_PY" - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          output = Path(os.environ["V2_OUTPUT"])
+          failure = {
+              "schema": "prob4d.deform360-finite-orbit-real-data-result",
+              "schema_version": 2,
+              "protocol_id": "deform360-finite-orbit-real-data-v2",
+              "decision": "technical-negative",
+              "paper_claim_authorized": False,
+              "fresh_confirmation_authorized": False,
+              "github_sha": os.environ.get("GITHUB_SHA", "unknown"),
+              "github_run_id": os.environ.get("GITHUB_RUN_ID", "unknown"),
+              "runner_name": os.environ.get("RUNNER_NAME", "unknown"),
+              "error": "materialization or evaluation ended before summary publication",
+          }
+          canonical = json.dumps(failure, sort_keys=True, separators=(",", ":")).encode()
+          failure["result_id"] = hashlib.sha256(canonical).hexdigest()
+          output.mkdir(parents=True, exist_ok=True)
+          (output / "summary.json").write_text(json.dumps(failure, indent=2, sort_keys=True) + "\n")
+          (output / "REPORT.md").write_text("# Deform360 finite-orbit real-data pilot v2\n\nDecision: **technical-negative**\n")
+          PY
+          fi
+          {
+            echo "github_repository=$GITHUB_REPOSITORY"
+            echo "github_revision=$GITHUB_SHA"
+            echo "github_run_id=$GITHUB_RUN_ID"
+            echo "github_run_attempt=$GITHUB_RUN_ATTEMPT"
+            echo "runner_name=$RUNNER_NAME"
+            echo "mounted_dataset_root=$DATASET_ROOT"
+            echo "protocol_sha256=$(sha256sum "$PROTOCOL_JSON" | cut -d' ' -f1)"
+            echo "materializer_sha256=$(sha256sum scripts/science/materialize_deform360_trajectory_archives_v2.py | cut -d' ' -f1)"
+            echo "evaluator_v2_sha256=$(sha256sum scripts/science/evaluate_deform360_finite_orbit_v2.py | cut -d' ' -f1)"
+            echo "evaluator_v1_sha256=$(sha256sum scripts/science/evaluate_deform360_finite_orbit_v1.py | cut -d' ' -f1)"
+            echo "materialization_outcome=${{ steps.materialize.outcome }}"
+            echo "evaluation_outcome=${{ steps.evaluate.outcome }}"
+          } > "$V2_OUTPUT/execution_identity.txt"
+          "$V2_PY" - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          summary = json.loads((Path(os.environ["V2_OUTPUT"]) / "summary.json").read_text())
+          assert summary["protocol_id"] == "deform360-finite-orbit-real-data-v2"
+          assert summary["decision"] in {
+              "support-negative",
+              "technical-negative",
+              "completed-retrospective-real-data-pilot",
+          }
+          assert summary["paper_claim_authorized"] is False
+          if summary["decision"] == "completed-retrospective-real-data-pilot":
+              assert summary["supported_object_pairs"] >= 12
+              assert summary["target_results"]
+          print(json.dumps(summary, indent=2, sort_keys=True))
+          PY
+          cat "$V2_OUTPUT/REPORT.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload complete evidence bundle
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        with:
+          name: deform360-finite-orbit-real-data-v2-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.V2_OUTPUT }}
+          if-no-files-found: error
+          retention-days: 90
+      - name: Remove private scratch
+        if: always()
+        shell: bash
+        run: rm -rf -- "$V2_ROOT"
+      - name: Preserve execution failure as a failed run
+        if: steps.materialize.outcome == 'failure' || steps.evaluate.outcome == 'failure'
+        shell: bash
+        run: exit 1
