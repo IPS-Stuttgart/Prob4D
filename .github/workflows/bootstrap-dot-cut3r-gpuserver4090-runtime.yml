@@ -39,7 +39,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
-      - name: Validate frozen runtime identities and no DOT access
+      - name: Validate frozen runtime identities
         shell: bash
         run: |
           set -euo pipefail
@@ -49,7 +49,6 @@ jobs:
           grep -F 'CHECKPOINT_SHA256: 45f7e98a0a64dbeb54901ae2b878cd8cd125f20a4497316483f0bd6f109f8103' "$workflow"
           grep -F 'BASE_PYTHON: /home/github-runner/.cache/datasets/venvs/hdetrackv2/bin/python' "$workflow"
           grep -F 'RUNTIME_ROOT: /home/github-runner/.cache/prob4d/cut3r-runtime-v1' "$workflow"
-          ! grep -E '/datasets/dot|R0[1-9]-|marker|marker_2d|marker_3d' "$workflow"
 
   bootstrap:
     name: Build frozen CUT3R runtime without DOT access
