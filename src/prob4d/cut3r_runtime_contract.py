@@ -6,6 +6,7 @@ import hashlib
 import importlib
 import importlib.machinery
 import json
+import os
 import sys
 from collections.abc import Mapping
 from pathlib import Path
@@ -24,6 +25,16 @@ _REQUIRED_SOURCE_MEMBERS = (
     _CUROPE_ROOT / "setup.py",
     _CROCO_ROOT / "models/pos_embed.py",
 )
+_PINNED_NATIVE_ROPE_ARTIFACT_ID = (
+    "849467fdc817ae1f2019e0163172deb8da6c9f502815f374d69c677d2c5c3241"
+)
+_PINNED_CUT3R_CHECKPOINT_SHA256 = (
+    "45f7e98a0a64dbeb54901ae2b878cd8cd125f20a4497316483f0bd6f109f8103"
+)
+_CUT3R_CHECKPOINT_ENV = "CUT3R_RUNTIME_CHECKPOINT"
+_TORCH_FORCE_WEIGHTS_ONLY_LOAD_ENV = "TORCH_FORCE_WEIGHTS_ONLY_LOAD"
+_TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD_ENV = "TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD"
+_TRUTHY_ENV_VALUES = frozenset({"1", "y", "yes", "true"})
 
 
 class Cut3RRuntimeContractError(RuntimeError):
@@ -46,6 +57,51 @@ def _sha256(path: Path) -> str:
         for block in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def _truthy_environment_value(value: str | None) -> bool:
+    return value is not None and value.strip().lower() in _TRUTHY_ENV_VALUES
+
+
+def _activate_pinned_checkpoint_compatibility(runtime_artifact_id: str) -> None:
+    """Enable legacy loading only for the sealed native runtime/checkpoint pair.
+
+    PyTorch 2.6 and newer default ``torch.load`` to ``weights_only=True`` when a
+    call site omits that argument. The frozen CUT3R loader predates this change
+    and its pinned checkpoint contains an OmegaConf ``DictConfig``. PyTorch's
+    documented process-level override is therefore enabled only after both the
+    native runtime identity and the checkpoint content identity match.
+    """
+
+    if runtime_artifact_id != _PINNED_NATIVE_ROPE_ARTIFACT_ID:
+        return
+    raw_checkpoint = os.environ.get(_CUT3R_CHECKPOINT_ENV)
+    if raw_checkpoint is None:
+        return
+    try:
+        checkpoint = Path(raw_checkpoint).expanduser().resolve(strict=True)
+    except FileNotFoundError as error:
+        raise Cut3RRuntimeContractError(
+            "pinned CUT3R checkpoint path does not exist"
+        ) from error
+    if not checkpoint.is_file():
+        raise Cut3RRuntimeContractError(
+            "pinned CUT3R checkpoint path is not a regular file"
+        )
+    if _sha256(checkpoint) != _PINNED_CUT3R_CHECKPOINT_SHA256:
+        raise Cut3RRuntimeContractError(
+            "CUT3R checkpoint differs from the frozen SHA-256 identity"
+        )
+    if _truthy_environment_value(os.environ.get(_TORCH_FORCE_WEIGHTS_ONLY_LOAD_ENV)):
+        raise Cut3RRuntimeContractError(
+            "conflicting PyTorch weights-only checkpoint policy is active"
+        )
+    existing = os.environ.get(_TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD_ENV)
+    if existing is not None and not _truthy_environment_value(existing):
+        raise Cut3RRuntimeContractError(
+            "PyTorch legacy checkpoint policy has a conflicting value"
+        )
+    os.environ[_TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD_ENV] = "1"
 
 
 def _checkout_member(checkout: Path, relative: Path, *, label: str) -> Path:
@@ -135,7 +191,9 @@ def require_compiled_cut3r_rope(checkout: Path) -> dict[str, Any]:
 
     This function is intentionally called before importing ``dust3r.model``. CUT3R
     otherwise silently permits a Python RoPE fallback, which is not an admissible
-    runtime for the provider comparison.
+    runtime for the provider comparison. For the one frozen runtime/checkpoint
+    pair, it also activates PyTorch's documented compatibility mode before
+    ``torch`` is imported.
     """
 
     try:
@@ -196,6 +254,7 @@ def require_compiled_cut3r_rope(checkout: Path) -> dict[str, Any]:
         "sources": _source_records(resolved_checkout),
     }
     receipt["artifact_id"] = hashlib.sha256(_canonical_json(receipt)).hexdigest()
+    _activate_pinned_checkpoint_compatibility(str(receipt["artifact_id"]))
     return receipt
 
 
