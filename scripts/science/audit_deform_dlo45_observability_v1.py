@@ -15,7 +15,7 @@ import math
 import pickle
 from collections import defaultdict
 from pathlib import Path
-from typing import Any
+from typing import Any, BinaryIO
 
 import numpy as np
 
@@ -23,6 +23,30 @@ SCHEMA = "prob4d.deform-dlo45-observability-source-audit"
 SCHEMA_VERSION = 1
 REQUEST_SCHEMA = "prob4d.deform-dlo45-observability-source-request"
 EXPECTED_ROOT = Path("/mnt/seagate10tb/florianpfaff/datasets/deform/data_set")
+
+
+class PrimitiveOnlyUnpickler(pickle.Unpickler):
+    """Reject all pickle globals and persistent references.
+
+    The pinned DEFORM trajectory files contain only nested primitive Python
+    containers and floating-point scalars. No executable global is required.
+    """
+
+    def find_class(self, module: str, name: str) -> Any:
+        raise pickle.UnpicklingError(
+            f"global object {module}.{name} is not allowed in DEFORM trajectories"
+        )
+
+    def persistent_load(self, pid: object) -> Any:
+        raise pickle.UnpicklingError(
+            f"persistent ID {pid!r} is not allowed in DEFORM trajectories"
+        )
+
+
+def load_primitive_pickle(stream: BinaryIO) -> Any:
+    """Load a primitive-only pickle while rejecting executable globals."""
+
+    return PrimitiveOnlyUnpickler(stream).load()
 
 
 def canonical_sha256(value: dict[str, Any]) -> str:
@@ -76,7 +100,7 @@ def load_request(path: Path) -> dict[str, Any]:
 
 def load_trajectory(path: Path) -> np.ndarray:
     with path.open("rb") as stream:
-        loaded = pickle.load(stream)  # noqa: S301 - verified official public dataset.
+        loaded = load_primitive_pickle(stream)
     array = np.asarray(loaded, dtype=np.float64).squeeze()
     if array.ndim != 3:
         raise ValueError(f"{path} has unsupported shape {array.shape}")
