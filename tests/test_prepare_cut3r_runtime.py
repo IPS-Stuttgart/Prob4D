@@ -23,11 +23,11 @@ def _configure_fixture(monkeypatch, module, tmp_path: Path) -> tuple[Path, Path,
     model_path = checkout / "src/dust3r/model.py"
     model_path.parent.mkdir(parents=True)
     source = (
-        "import torch\n\n"
-        "def load_model(model_path):\n"
-        '    ckpt = torch.load(model_path, map_location="cpu")\n'
-        "    return ckpt\n"
-    ).encode("utf-8")
+        b"import torch\n\n"
+        b"def load_model(model_path):\n"
+        b'    ckpt = torch.load(model_path, map_location="cpu")\n'
+        b"    return ckpt\n"
+    )
     model_path.write_bytes(source)
 
     checkpoint = tmp_path / "model.pth"
