@@ -1,0 +1,20 @@
+name: Cancel obsolete DOT staged run
+
+on:
+  push:
+    branches: [science/dot-gpuserver6000-direct-v1]
+    paths:
+      - ".github/workflows/cancel-obsolete-dot-staged-run-v1.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dot-cut3r-staged-gpuserver6000-48a3db7cf37ecb78abd2ec74ee8aded2d1cb79c1
+  cancel-in-progress: true
+
+jobs:
+  cancel-obsolete:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo 'Cancelling the queued run with the obsolete seal-field assertion.'
