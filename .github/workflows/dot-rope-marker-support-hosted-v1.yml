@@ -1,0 +1,341 @@
+name: DOT rope hosted marker-support audit v1
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/dot-rope-marker-support-hosted-v1.yml"
+      - "scripts/science/audit_dot_rope_marker_support.py"
+      - "tests/test_dot_rope_marker_support_audit.py"
+      - "tests/test_dot_rope_marker_support_hosted_workflow.py"
+  push:
+    branches: [main]
+    paths:
+      - "protocols/execution_requests/dot_rope_marker_support_hosted_v1.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dot-rope-marker-support-hosted-v1-${{ github.ref }}-${{ github.sha }}
+  cancel-in-progress: false
+
+env:
+  REQUEST_PATH: protocols/execution_requests/dot_rope_marker_support_hosted_v1.json
+  ARCHIVE_NAME: R01-10.zip
+  ARCHIVE_MD5: ca546ff5f22c0279123ccb18509858ee
+  DATASET_API: https://dataverse.orc.gmu.edu/api/datasets/:persistentId/?persistentId=doi:10.13021/ORC2020/XXLVXM
+  DATAFILE_API_ROOT: https://dataverse.orc.gmu.edu/api/access/datafile
+
+jobs:
+  contract:
+    name: Validate hosted DOT marker-audit control plane
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out reviewed revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          clean: true
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Validate audit source and hosted workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -e ".[dev]"
+          python -m pip check
+          python -m ruff check \
+            scripts/science/audit_dot_rope_marker_support.py \
+            tests/test_dot_rope_marker_support_audit.py \
+            tests/test_dot_rope_marker_support_hosted_workflow.py
+          python -m ruff format --check \
+            scripts/science/audit_dot_rope_marker_support.py \
+            tests/test_dot_rope_marker_support_audit.py \
+            tests/test_dot_rope_marker_support_hosted_workflow.py
+          python -m pytest -q \
+            tests/test_dot_rope_marker_support_audit.py \
+            tests/test_dot_rope_marker_support_hosted_workflow.py \
+            tests/test_github_action_pins.py
+          python -m compileall -q scripts/science/audit_dot_rope_marker_support.py
+
+  authorize:
+    name: Authorize one immutable hosted marker-support request
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      request_id: ${{ steps.request.outputs.request_id }}
+      head_sha: ${{ steps.request.outputs.head_sha }}
+      provider_run_id: ${{ steps.request.outputs.provider_run_id }}
+      provider_artifact_name: ${{ steps.request.outputs.provider_artifact_name }}
+    steps:
+      - name: Check out exact merged revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+          clean: true
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Require exactly one non-forced request-file change
+        id: request
+        shell: bash
+        env:
+          EVENT_REF: ${{ github.ref }}
+          EVENT_BEFORE: ${{ github.event.before }}
+          EVENT_AFTER: ${{ github.event.after }}
+          EVENT_FORCED: ${{ github.event.forced }}
+          EVENT_DELETED: ${{ github.event.deleted }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_REF" = "refs/heads/main"
+          test "$EVENT_AFTER" = "$(/usr/bin/git rev-parse HEAD)"
+          test "$EVENT_FORCED" = "false"
+          test "$EVENT_DELETED" = "false"
+          test "$EVENT_BEFORE" != "0000000000000000000000000000000000000000"
+          mapfile -t changed < <(
+            /usr/bin/git diff --name-only "$EVENT_BEFORE" "$EVENT_AFTER" | sort
+          )
+          if [[ ${#changed[@]} -ne 1 || "${changed[0]}" != "$REQUEST_PATH" ]]; then
+            printf 'Expected only %s; changed paths were:\n' "$REQUEST_PATH" >&2
+            printf '  %s\n' "${changed[@]}" >&2
+            exit 2
+          fi
+          python -m pip install -e .
+          validation=$(
+            python scripts/science/audit_dot_rope_marker_support.py \
+              validate-request \
+              --request "$REQUEST_PATH"
+          )
+          VALIDATION="$validation" EVENT_AFTER="$EVENT_AFTER" /usr/bin/python3 - <<'PY'
+          import json
+          import os
+
+          value = json.loads(os.environ["VALIDATION"])
+          outputs = {
+              "request_id": value["request_id"],
+              "head_sha": os.environ["EVENT_AFTER"],
+              "provider_run_id": value["provider_run_id"],
+              "provider_artifact_name": value["provider_artifact_name"],
+          }
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              for key, item in outputs.items():
+                  output.write(f"{key}={item}\n")
+          PY
+
+  audit:
+    name: Audit official DOT marker support on a hosted runner
+    if: github.event_name == 'push'
+    needs: authorize
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      decision: ${{ steps.result.outputs.decision }}
+      audit_id: ${{ steps.result.outputs.audit_id }}
+      feasible_candidate_count: ${{ steps.result.outputs.feasible_candidate_count }}
+      selected_candidate: ${{ steps.result.outputs.selected_candidate }}
+    steps:
+      - name: Initialize isolated audit workspace
+        id: workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/prob4d-dot-hosted-marker-audit-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          /usr/bin/rm -rf -- "$root"
+          /usr/bin/mkdir -p "$root/provider" "$root/dataset" "$root/evidence"
+          echo "root=$root" >> "$GITHUB_OUTPUT"
+      - name: Check out exact authorized revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.authorize.outputs.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+      - name: Verify clean exact checkout
+        shell: bash
+        env:
+          EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          test "$(/usr/bin/git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test -z "$(/usr/bin/git status --porcelain=v1 --untracked-files=all)"
+      - name: Set up scientific Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install the exact repository package
+        run: |
+          python -m pip install -e .
+          python -m pip check
+      - name: Download exact previously sealed provider bundle
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ${{ needs.authorize.outputs.provider_artifact_name }}
+          path: ${{ steps.workspace.outputs.root }}/provider
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ needs.authorize.outputs.provider_run_id }}
+      - name: Resolve official DOT archive identity
+        id: archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          DATASET_API="$DATASET_API" ARCHIVE_NAME="$ARCHIVE_NAME" \
+            ARCHIVE_MD5="$ARCHIVE_MD5" ROOT="$root" python - <<'PY'
+          import json
+          import os
+          import urllib.request
+          from pathlib import Path
+
+          request = urllib.request.Request(
+              os.environ["DATASET_API"],
+              headers={"User-Agent": "Prob4D-DOT-audit/1"},
+          )
+          with urllib.request.urlopen(request, timeout=60) as response:
+              metadata = json.load(response)
+          if metadata.get("status") != "OK":
+              raise SystemExit("Dataverse metadata request did not return OK")
+          files = metadata["data"]["latestVersion"]["files"]
+          matches = [
+              entry["dataFile"]
+              for entry in files
+              if entry.get("dataFile", {}).get("filename") == os.environ["ARCHIVE_NAME"]
+          ]
+          if len(matches) != 1:
+              raise SystemExit("official DOT metadata did not contain exactly one R01-10.zip")
+          data_file = matches[0]
+          checksum = data_file.get("checksum", {})
+          if checksum.get("type") != "MD5" or checksum.get("value", "").lower() != os.environ["ARCHIVE_MD5"]:
+              raise SystemExit("official DOT R01-10.zip checksum changed")
+          file_id = int(data_file["id"])
+          byte_count = int(data_file["filesize"])
+          receipt = {
+              "dataset_persistent_id": "doi:10.13021/ORC2020/XXLVXM",
+              "dataset_version": metadata["data"]["latestVersion"]["versionNumber"],
+              "filename": data_file["filename"],
+              "datafile_id": file_id,
+              "byte_count": byte_count,
+              "checksum": checksum,
+          }
+          Path(os.environ["ROOT"], "evidence", "official-archive-metadata.json").write_text(
+              json.dumps(receipt, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"datafile_id={file_id}\n")
+              output.write(f"byte_count={byte_count}\n")
+          PY
+      - name: Download and verify official R01-10.zip
+        shell: bash
+        env:
+          DATAFILE_ID: ${{ steps.archive.outputs.datafile_id }}
+          EXPECTED_BYTES: ${{ steps.archive.outputs.byte_count }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          archive="$root/dataset/$ARCHIVE_NAME"
+          curl --fail --location --retry 6 --retry-all-errors \
+            --connect-timeout 30 --output "$archive" \
+            "$DATAFILE_API_ROOT/$DATAFILE_ID"
+          test "$(stat -c %s "$archive")" = "$EXPECTED_BYTES"
+          printf '%s  %s\n' "$ARCHIVE_MD5" "$archive" | md5sum --check --strict
+      - name: Audit marker support without computing performance
+        shell: bash
+        env:
+          EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          PYTHONPATH="$GITHUB_WORKSPACE/src" \
+            python scripts/science/audit_dot_rope_marker_support.py \
+              audit \
+              --request "$REQUEST_PATH" \
+              --dataset-root "$root/dataset" \
+              --provider-bundle "$root/provider/bundle" \
+              --output "$root/evidence/result.json" \
+              --repository-revision "$EXPECTED_HEAD_SHA"
+      - name: Read content-addressed audit result
+        id: result
+        shell: bash
+        run: |
+          set -euo pipefail
+          result="${{ steps.workspace.outputs.root }}/evidence/result.json"
+          RESULT="$result" /usr/bin/python3 - <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          value = json.loads(Path(os.environ["RESULT"]).read_text(encoding="utf-8"))
+          allowed = {
+              "current-convention-pooled-support-feasible",
+              "current-convention-support-sufficient",
+              "alternative-coordinate-convention-required",
+              "coordinate-convention-ambiguous",
+              "source-marker-support-negative",
+          }
+          if value.get("decision") not in allowed:
+              raise SystemExit("marker-support audit has no terminal decision")
+          audit_id = value.get("audit_id")
+          if not isinstance(audit_id, str) or re.fullmatch(r"[0-9a-f]{64}", audit_id) is None:
+              raise SystemExit("marker-support audit identity is invalid")
+          selected = value.get("selected_candidate") or "unavailable"
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"decision={value['decision']}\n")
+              output.write(f"audit_id={audit_id}\n")
+              output.write(f"feasible_candidate_count={value['feasible_candidate_count']}\n")
+              output.write(f"selected_candidate={selected}\n")
+          PY
+      - name: Upload bounded marker-support evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dot-rope-marker-support-hosted-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.workspace.outputs.root }}/evidence/
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    name: Publish hosted marker-support terminal decision
+    if: always() && github.event_name == 'push'
+    needs: [authorize, audit]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Write run summary
+        shell: bash
+        env:
+          AUDIT_RESULT: ${{ needs.audit.result }}
+          DECISION: ${{ needs.audit.outputs.decision }}
+          AUDIT_ID: ${{ needs.audit.outputs.audit_id }}
+          FEASIBLE_CANDIDATE_COUNT: ${{ needs.audit.outputs.feasible_candidate_count }}
+          SELECTED_CANDIDATE: ${{ needs.audit.outputs.selected_candidate }}
+        run: |
+          {
+            echo "## DOT rope hosted marker-support audit"
+            echo
+            echo "- audit job: \`$AUDIT_RESULT\`"
+            echo "- decision: \`$DECISION\`"
+            echo "- audit ID: \`$AUDIT_ID\`"
+            echo "- feasible registered hypotheses: \`$FEASIBLE_CANDIDATE_COUNT\`"
+            echo "- selected candidate: \`$SELECTED_CANDIDATE\`"
+            echo
+            echo "The official archive was checksum-verified. No normal-view pixels were decoded; R04-R70 remained unopened; no performance metric was computed."
+          } >> "$GITHUB_STEP_SUMMARY"
