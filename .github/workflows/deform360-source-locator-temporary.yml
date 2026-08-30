@@ -1,0 +1,73 @@
+name: Temporary Deform360 processed-source locator
+
+on:
+  push:
+    branches: [science/deform360-rope-query-pilot-v1]
+    paths:
+      - ".github/workflows/deform360-source-locator-temporary.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  locate:
+    runs-on: [self-hosted, Linux, X64, gpuserver4090]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Query public Hub identities and mounted names
+        shell: bash
+        env:
+          DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/deform360
+          HF_HUB_DISABLE_PROGRESS_BARS: "1"
+        run: |
+          set -euo pipefail
+          venv="$RUNNER_TEMP/deform360-source-locator-$GITHUB_RUN_ID"
+          rm -rf -- "$venv"
+          python3 -m venv "$venv"
+          "$venv/bin/python" -m pip install --disable-pip-version-check --no-cache-dir \
+            "huggingface_hub==0.34.4"
+          "$venv/bin/python" - <<'PY'
+          from pathlib import Path
+          from huggingface_hub import HfApi
+
+          api = HfApi()
+          for repository in (
+              "brownu/deform360_processed",
+              "brownu/deform360",
+              "liuyibing/deform360",
+          ):
+              print(f"=== HUB {repository} ===")
+              try:
+                  info = api.dataset_info(repository)
+                  print("sha", info.sha)
+                  print("private", info.private)
+                  refs = api.list_repo_refs(repository, repo_type="dataset")
+                  print("branches", [(item.name, item.ref, item.target_commit) for item in refs.branches])
+                  print("tags", [(item.name, item.ref, item.target_commit) for item in refs.tags])
+                  tree = list(api.list_repo_tree(repository, repo_type="dataset", recursive=False))
+                  print("top_level", [(item.path, type(item).__name__) for item in tree[:100]])
+              except Exception as exc:
+                  print("ERROR", type(exc).__name__, str(exc))
+
+          root = Path("/mnt/seagate10tb/florianpfaff/datasets/deform360")
+          print("=== LOCAL ROOT ===")
+          print("root", root.resolve())
+          print("top_level", sorted(path.name for path in root.iterdir())[:200])
+          patterns = (
+              "**/001-rope/**/pcd_clean/*.npz",
+              "**/001-rope/**/robot/*.npz",
+              "**/001-rope/**/robot/*.npy",
+              "**/001-rope/metadata.json",
+          )
+          for pattern in patterns:
+              matches = []
+              for path in root.glob(pattern):
+                  matches.append(str(path.relative_to(root)))
+                  if len(matches) >= 30:
+                      break
+              print("pattern", pattern, "matches", matches)
+          PY
+          rm -rf -- "$venv"
