@@ -1,0 +1,111 @@
+name: Temporary exact DOT smoke tempdir repair
+
+on:
+  push:
+    branches: [fix/dot-cut3r-smoke-tempdir]
+    paths:
+      - .github/workflows/temp-fix-dot-smoke-tempdir.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: >-
+      github.repository == 'IPS-Stuttgart/Prob4D' &&
+      github.actor == 'FlorianPfaff' &&
+      github.ref == 'refs/heads/fix/dot-cut3r-smoke-tempdir'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact repair branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: fix/dot-cut3r-smoke-tempdir
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Apply exact source repair and regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          source_path = Path("scripts/science/run_dot_rope_cut3r_native_provider.py")
+          source = source_path.read_text(encoding="utf-8")
+          old = "            frame_paths = _make_synthetic_frames(Path(temporary), count=3)\n"
+          new = (
+              "            frame_paths = _make_synthetic_frames(\n"
+              "                Path(temporary) / \"frames\", count=3\n"
+              "            )\n"
+          )
+          if source.count(old) != 1 or new in source:
+              raise SystemExit("DOT runtime-smoke tempdir preimage changed")
+          source_path.write_text(source.replace(old, new, 1), encoding="utf-8", newline="\n")
+
+          test_path = Path("tests/test_dot_rope_cut3r_smoke_tempdir.py")
+          if test_path.exists():
+              raise SystemExit("DOT runtime-smoke tempdir regression already exists")
+          test_path.write_text(
+              '''from __future__ import annotations
+
+import importlib.util
+import tempfile
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+SCRIPT = ROOT / "scripts/science/run_dot_rope_cut3r_native_provider.py"
+
+
+def _load_script():
+    spec = importlib.util.spec_from_file_location("dot_rope_cut3r_provider", SCRIPT)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_runtime_smoke_uses_an_uncreated_child_directory() -> None:
+    text = SCRIPT.read_text(encoding="utf-8")
+    assert '_make_synthetic_frames(\n                Path(temporary) / "frames", count=3' in text
+    assert "_make_synthetic_frames(Path(temporary), count=3)" not in text
+
+
+def test_synthetic_frames_are_created_inside_fresh_child_directory(tmp_path: Path) -> None:
+    module = _load_script()
+    with tempfile.TemporaryDirectory(dir=tmp_path, prefix="dot-cut3r-smoke-") as temporary:
+        root = Path(temporary)
+        destination = root / "frames"
+        assert root.is_dir()
+        assert not destination.exists()
+        paths = module._make_synthetic_frames(destination, count=3)
+
+        assert destination.is_dir()
+        assert [path.name for path in paths] == [
+            "synthetic-00.png",
+            "synthetic-01.png",
+            "synthetic-02.png",
+        ]
+        assert all(path.is_file() and path.parent == destination for path in paths)
+''',
+              encoding="utf-8",
+              newline="\n",
+          )
+
+          Path(".github/workflows/temp-fix-dot-smoke-tempdir.yml").unlink()
+          PY
+          python3 -m py_compile \
+            scripts/science/run_dot_rope_cut3r_native_provider.py \
+            tests/test_dot_rope_cut3r_smoke_tempdir.py
+      - name: Commit exact repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            scripts/science/run_dot_rope_cut3r_native_provider.py \
+            tests/test_dot_rope_cut3r_smoke_tempdir.py \
+            .github/workflows/temp-fix-dot-smoke-tempdir.yml
+          git diff --cached --check
+          git commit -m "Fix DOT CUT3R smoke temporary frame directory"
+          git push origin HEAD:fix/dot-cut3r-smoke-tempdir
