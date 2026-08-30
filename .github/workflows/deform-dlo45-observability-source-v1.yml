@@ -19,6 +19,8 @@ env:
   REQUEST_PATH: protocols/execution_requests/deform_dlo45_observability_source_v1.json
   OUTPUT_DIR: outputs/deform-dlo45-observability-source-v1
   DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/deform/data_set
+  RETAINED_CUT3R_PYTHON: ${{ vars.CUT3R_PYTHON }}
+  RETAINED_CUT3R_CHECKOUT: ${{ vars.CUT3R_CHECKOUT }}
   PYTHONHASHSEED: "0"
   PYTHONUNBUFFERED: "1"
   PYTHONDONTWRITEBYTECODE: "1"
@@ -50,19 +52,32 @@ jobs:
           test -d "$DATASET_ROOT/DLO5/train"
           test -f "$REQUEST_PATH"
 
-      - name: Select a retained NumPy and pandas interpreter
+      - name: Select retained scientific interpreter
         id: python
         shell: bash
         run: |
           set -euo pipefail
-          candidates=(
-            /home/florianpfaff/miniconda3/bin/python
-            /home/florianpfaff/anaconda3/bin/python
-            /home/florianpfaff/conda/bin/python
-            /home/github-runner/miniconda3/bin/python
-            /home/github-runner/anaconda3/bin/python
-            /opt/conda/bin/python
-          )
+          candidates=("")
+          add_candidate() {
+            local candidate="${1:-}"
+            [[ -n "$candidate" ]] || return 0
+            local existing
+            for existing in "${candidates[@]}"; do
+              [[ "$existing" != "$candidate" ]] || return 0
+            done
+            candidates+=("$candidate")
+          }
+
+          add_candidate "${RETAINED_CUT3R_PYTHON:-}"
+          if [[ -n "${RETAINED_CUT3R_CHECKOUT:-}" ]]; then
+            add_candidate "$RETAINED_CUT3R_CHECKOUT/.venv/bin/python"
+          fi
+          add_candidate /home/florianpfaff/miniconda3/bin/python
+          add_candidate /home/florianpfaff/anaconda3/bin/python
+          add_candidate /home/github-runner/miniconda3/bin/python
+          add_candidate /home/github-runner/anaconda3/bin/python
+          add_candidate /opt/conda/bin/python
+
           roots=(
             /home/florianpfaff/conda_envs
             /home/florianpfaff/miniconda3/envs
@@ -79,22 +94,28 @@ jobs:
           for root in "${roots[@]}"; do
             if [[ -d "$root" ]]; then
               while IFS= read -r candidate; do
-                candidates+=("$candidate")
-              done < <(find "$root" -mindepth 3 -maxdepth 3 -path '*/bin/python' -executable -print 2>/dev/null | sort)
+                add_candidate "$candidate"
+              done < <(
+                find "$root" -mindepth 3 -maxdepth 3 \
+                  -path '*/bin/python' -executable -print 2>/dev/null | sort
+              )
             fi
           done
-          candidates+=("$(command -v python3 || true)" "$(command -v python || true)")
+          add_candidate "$(command -v python3 || true)"
+          add_candidate "$(command -v python || true)"
+
           selected=""
           for candidate in "${candidates[@]}"; do
             [[ -x "$candidate" ]] || continue
             echo "::group::Interpreter candidate $candidate"
             if "$candidate" - <<'PY'
+          import pickle
           import sys
           import numpy
-          import pandas
+
           print("python", sys.version.split()[0])
           print("numpy", numpy.__version__)
-          print("pandas", pandas.__version__)
+          print("pickle", pickle.format_version)
           PY
             then
               selected="$candidate"
@@ -106,11 +127,12 @@ jobs:
             echo "::endgroup::"
           done
           test -n "$selected" || {
-            echo "No retained interpreter with NumPy and pandas was found" >&2
+            echo "No retained interpreter with NumPy was found" >&2
             exit 2
           }
           echo "python=$selected" >> "$GITHUB_OUTPUT"
-          "$selected" -m py_compile scripts/science/audit_deform_dlo45_observability_v1.py
+          "$selected" -m py_compile \
+            scripts/science/audit_deform_dlo45_observability_v1.py
 
       - name: Run source-only real-geometry audit
         shell: bash
@@ -130,7 +152,9 @@ jobs:
           import json
           from pathlib import Path
 
-          result = json.loads(Path("outputs/deform-dlo45-observability-source-v1/result.json").read_text())
+          result = json.loads(
+              Path("outputs/deform-dlo45-observability-source-v1/result.json").read_text()
+          )
           assert result["stage"] == "source-audit"
           assert result["dataset"]["opened_split"] == "train"
           assert result["dataset"]["manifest"]["file_count"] == 112
