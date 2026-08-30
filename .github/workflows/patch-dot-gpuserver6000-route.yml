@@ -1,0 +1,105 @@
+name: Patch DOT gpuserver6000 route
+
+on:
+  push:
+    branches: [fix/dot-gpuserver6000-idle-retry-v1]
+    paths:
+      - ".github/workflows/patch-dot-gpuserver6000-route.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact staging revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+          clean: true
+      - name: Restore the DOT execution route to gpuserver6000
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_all(path: str, old: str, new: str) -> None:
+              target = Path(path)
+              text = target.read_text(encoding="utf-8")
+              if old not in text:
+                  raise SystemExit(f"missing expected text in {path}: {old!r}")
+              updated = text.replace(old, new)
+              if old in updated:
+                  raise SystemExit(f"replacement incomplete in {path}: {old!r}")
+              target.write_text(updated, encoding="utf-8")
+
+          workflow = ".github/workflows/dot-rope-cut3r-native-provider-v1.yml"
+          replace_all(workflow, "gpuserver4090", "gpuserver6000")
+          replace_all(workflow, "workstation1", "workstation2")
+          replace_all(
+              workflow,
+              "DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/dot\n",
+              "DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/dot-rope\n",
+          )
+
+          test_path = "tests/test_trusted_self_hosted_validation_policy.py"
+          replace_all(
+              test_path,
+              '    assert "runs-on: [self-hosted, Linux, X64, gpuserver4090]" in text\n',
+              '    assert "runs-on: [self-hosted, Linux, X64, gpuserver6000]" in text\n',
+          )
+          replace_all(
+              test_path,
+              '    assert \'test "$RUNNER_NAME" = "workstation1"\' in text\n',
+              '    assert \'test "$RUNNER_NAME" = "workstation2"\' in text\n',
+          )
+          replace_all(
+              test_path,
+              '    assert "DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/dot" in text\n',
+              '    assert "DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/dot-rope" in text\n',
+          )
+
+          docs = "docs/dot-rope-cut3r-native-provider-v1.md"
+          replace_all(docs, "gpuserver4090", "gpuserver6000")
+          replace_all(docs, "workstation1", "workstation2")
+          replace_all(
+              docs,
+              "/mnt/seagate10tb/florianpfaff/datasets/dot\n",
+              "/mnt/seagate10tb/florianpfaff/datasets/dot-rope\n",
+          )
+          replace_all(
+              docs,
+              "The reroute changes only the trusted execution\ncontrol plane and mount location.",
+              "The identity correction changes only the trusted execution\ncontrol plane and mount location.",
+          )
+          replace_all(
+              docs,
+              "After the reroute is reviewed and merged, execution is requested",
+              "After the identity correction is reviewed and merged, execution is requested",
+          )
+          PY
+          git diff --check
+          git diff --exit-code -- .github/workflows/patch-dot-gpuserver6000-route.yml
+          grep -F 'runs-on: [self-hosted, Linux, X64, gpuserver6000]' \
+            .github/workflows/dot-rope-cut3r-native-provider-v1.yml
+          grep -F 'test "$RUNNER_NAME" = "workstation2"' \
+            .github/workflows/dot-rope-cut3r-native-provider-v1.yml
+          grep -F 'DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/dot-rope' \
+            .github/workflows/dot-rope-cut3r-native-provider-v1.yml
+      - name: Commit the bounded route correction to the staging branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            .github/workflows/dot-rope-cut3r-native-provider-v1.yml \
+            tests/test_trusted_self_hosted_validation_policy.py \
+            docs/dot-rope-cut3r-native-provider-v1.md
+          git commit -m "Restore DOT execution to gpuserver6000"
+          git push origin HEAD:fix/dot-gpuserver6000-idle-retry-v1
