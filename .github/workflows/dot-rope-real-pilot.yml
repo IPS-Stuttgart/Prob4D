@@ -75,33 +75,63 @@ jobs:
           assert sum(path.stat().st_size for path in resolved.glob('*.zip')) == 9478165486
           print({'logical_root': str(root), 'resolved_root': str(resolved)})
           PY
-          python3 - <<'PY'
-          import numpy
+
+      - name: Record available Python environments without installing software
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$OUTPUT_ROOT/inventory"
+          {
+            echo "system_python=$(command -v python3)"
+            python3 --version
+            python3 -m pip --version || true
+            echo "python_candidates:"
+            for candidate in \
+              /usr/bin/python3 \
+              /usr/local/bin/python3 \
+              /home/florianpfaff/miniconda3/bin/python \
+              /home/florianpfaff/anaconda3/bin/python \
+              /opt/conda/bin/python; do
+              if [[ -x "$candidate" ]]; then
+                "$candidate" - <<'PY' || true
+          import importlib.util
           import sys
-          print({'python': sys.version, 'numpy': numpy.__version__})
+          print({
+              'executable': sys.executable,
+              'version': sys.version.split()[0],
+              'numpy': bool(importlib.util.find_spec('numpy')),
+              'scipy': bool(importlib.util.find_spec('scipy')),
+              'cv2': bool(importlib.util.find_spec('cv2')),
+              'torch': bool(importlib.util.find_spec('torch')),
+          })
           PY
+              fi
+            done
+          } | tee "$OUTPUT_ROOT/inventory/python-environments.txt"
 
       - name: Inspect ZIP layout without extraction
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf "$OUTPUT_ROOT"
+          rm -rf "$OUTPUT_ROOT/inventory/layout"
           python3 scripts/science/inspect_dot_rope_archives.py \
             --dataset-root "$DOT_ROPE_ROOT" \
-            --output-dir "$OUTPUT_ROOT/inventory"
+            --output-dir "$OUTPUT_ROOT/inventory/layout"
 
       - name: Summarize discovered structure
         if: always()
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -f "$OUTPUT_ROOT/inventory/inventory.json" ]]; then
+          if [[ -f "$OUTPUT_ROOT/inventory/layout/inventory.json" ]]; then
             python3 - <<'PY' | tee "$OUTPUT_ROOT/inventory/summary.txt"
           import json
           import os
           from pathlib import Path
 
-          report = json.loads(Path(os.environ['OUTPUT_ROOT'], 'inventory', 'inventory.json').read_text())
+          report = json.loads(
+              Path(os.environ['OUTPUT_ROOT'], 'inventory', 'layout', 'inventory.json').read_text()
+          )
           print('artifact_id:', report['artifact_id'])
           print('filesystem_bytes:', report['dataset']['filesystem_bytes'])
           print('uncompressed_bytes:', report['dataset']['uncompressed_bytes'])
