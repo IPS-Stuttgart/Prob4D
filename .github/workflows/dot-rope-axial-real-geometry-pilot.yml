@@ -22,8 +22,6 @@ concurrency:
 env:
   DOT_ROPE_ROOT: /home/github-runner/.cache/workflows/dot-rope
   OUTPUT_DIR: outputs/dot-rope-axial-real-geometry-pilot-v1
-  DEPS_DIR: ${{ runner.temp }}/dot-rope-axial-pilot-deps
-  RUNNER_SCRIPT: ${{ runner.temp }}/run_dot_rope_axial_real_geometry_pilot.py
   PYTHONUNBUFFERED: "1"
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
 
@@ -38,6 +36,13 @@ jobs:
         with:
           persist-credentials: false
           clean: true
+
+      - name: Initialize runner-scoped temporary paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "DEPS_DIR=$RUNNER_TEMP/dot-rope-axial-pilot-deps" >> "$GITHUB_ENV"
+          echo "RUNNER_SCRIPT=$RUNNER_TEMP/run_dot_rope_axial_real_geometry_pilot.py" >> "$GITHUB_ENV"
 
       - name: Verify request, protocol, mount, and information boundary
         shell: bash
