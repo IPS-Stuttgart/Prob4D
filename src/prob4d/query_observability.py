@@ -97,16 +97,25 @@ def _supported_variance_ratio(
     prior_covariance: FloatArray,
     posterior_covariance: FloatArray,
 ) -> float:
-    eigenvalues, eigenvectors = np.linalg.eigh(prior_covariance)
+    # These covariances are expressed in the declared output metric. A shared
+    # normalization makes support independent of absolute units; an epsilon
+    # floor on the unscaled eigenvalues can erase an unresolved query.
+    scale = float(np.max(np.abs(prior_covariance), initial=0.0))
+    if not np.isfinite(scale):
+        raise ValueError("diagnostic query covariance must be finite")
+    if scale == 0.0:
+        return 0.0
+    normalized_prior = prior_covariance / scale
+    normalized_posterior = posterior_covariance / scale
+    eigenvalues, eigenvectors = np.linalg.eigh(normalized_prior)
     maximum = float(np.max(eigenvalues, initial=0.0))
-    threshold = max(maximum * 1e-10, np.finfo(np.float64).eps)
-    supported = eigenvalues > threshold
+    supported = eigenvalues > maximum * 1e-10
     if not np.any(supported):
         return 0.0
     whitener = (
         eigenvectors[:, supported] / np.sqrt(eigenvalues[supported])
     ).T
-    relative = whitener @ posterior_covariance @ whitener.T
+    relative = whitener @ normalized_posterior @ whitener.T
     relative = 0.5 * (relative + relative.T)
     maximum_ratio = float(np.max(np.linalg.eigvalsh(relative), initial=0.0))
     if maximum_ratio > 1.0 + 1e-8:
@@ -365,6 +374,8 @@ def evaluate_query_observability(
             name="query_metric",
         )
     )
+    if metric.shape != (query_jacobian.shape[0], query_jacobian.shape[0]):
+        raise ValueError("query_metric must match the query dimension")
     prior_information = np.linalg.solve(prior, np.eye(7))
     posterior_information = prior_information + factor.information_matrix
     posterior = np.linalg.solve(posterior_information, np.eye(7))
@@ -381,14 +392,26 @@ def evaluate_query_observability(
 
     metric_sqrt = np.linalg.cholesky(metric).T
     metric_jacobian = metric_sqrt @ query_jacobian
+    jacobian_scale = float(np.max(np.abs(metric_jacobian), initial=0.0))
+    if not np.isfinite(jacobian_scale):
+        raise ValueError("metric-weighted query Jacobian must be finite")
+    # This means local first-order insensitivity, not global invariance of a
+    # nonlinear query. Small nonzero sensitivities must not become invariant
+    # solely because the output units or metric scale changed.
+    gauge_invariant = not bool(np.any(query_jacobian))
+    if jacobian_scale == 0.0:
+        if not gauge_invariant:
+            raise ValueError("nonzero metric-weighted query Jacobian underflowed")
+        normalized_jacobian = metric_jacobian
+    else:
+        normalized_jacobian = metric_jacobian / jacobian_scale
     observable_energy = float(
-        np.sum((metric_jacobian @ factor.observable_basis) ** 2)
+        np.sum((normalized_jacobian @ factor.observable_basis) ** 2)
     )
     nullspace_energy = float(
-        np.sum((metric_jacobian @ factor.nullspace_basis) ** 2)
+        np.sum((normalized_jacobian @ factor.nullspace_basis) ** 2)
     )
     total_energy = observable_energy + nullspace_energy
-    gauge_invariant = bool(total_energy <= np.finfo(np.float64).eps)
     if gauge_invariant:
         direct_fraction = 1.0
         nullspace_fraction = 0.0
@@ -396,11 +419,29 @@ def evaluate_query_observability(
         direct_fraction = observable_energy / total_energy
         nullspace_fraction = nullspace_energy / total_energy
 
-    prior_trace = float(np.trace(metric @ prior_query))
-    posterior_trace = float(np.trace(metric @ posterior_query))
-    if prior_trace <= np.finfo(np.float64).eps:
+    # Rank/support decisions must use the same metric as direct observability.
+    # Under q_new = A q and M_new = A^{-T} M A^{-1}, these metric-space
+    # covariances differ only by orthogonal congruence and a common scale.
+    metric_prior_query = _symmetric_positive_semidefinite(
+        normalized_jacobian @ prior @ normalized_jacobian.T,
+        name="metric_prior_query_covariance",
+    )
+    metric_posterior_query = _symmetric_positive_semidefinite(
+        normalized_jacobian @ posterior @ normalized_jacobian.T,
+        name="metric_posterior_query_covariance",
+    )
+    covariance_scale = float(np.max(np.abs(metric_prior_query), initial=0.0))
+    if not np.isfinite(covariance_scale):
+        raise ValueError("metric-weighted prior query covariance must be finite")
+    if covariance_scale == 0.0:
+        if not gauge_invariant:
+            raise ValueError("nonzero prior query covariance underflowed")
         trace_reduction = 0.0
     else:
+        prior_trace = float(np.trace(metric_prior_query / covariance_scale))
+        posterior_trace = float(
+            np.trace(metric_posterior_query / covariance_scale)
+        )
         trace_reduction = float(
             np.clip((prior_trace - posterior_trace) / prior_trace, 0.0, 1.0)
         )
@@ -415,8 +456,8 @@ def evaluate_query_observability(
         posterior_query_covariance=posterior_query,
         metric_variance_reduction_fraction=trace_reduction,
         worst_supported_variance_ratio=_supported_variance_ratio(
-            prior_query,
-            posterior_query,
+            metric_prior_query,
+            metric_posterior_query,
         ),
         gauge_invariant_query=gauge_invariant,
     )
