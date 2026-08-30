@@ -91,6 +91,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          branch="science/deform360-query-pilot-v1"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add "$RESULT_JSON" "$RESULT_MD"
@@ -98,4 +99,12 @@ jobs:
             exit 0
           fi
           git commit -m "evidence: retain Deform360 carrier audit ${GITHUB_RUN_ID} [skip ci]"
-          git push origin "HEAD:science/deform360-query-pilot-v1"
+          for attempt in 1 2 3; do
+            if git push origin "HEAD:${branch}"; then
+              exit 0
+            fi
+            git fetch origin "${branch}"
+            git rebase "origin/${branch}"
+          done
+          echo "failed to retain audit after three push attempts" >&2
+          exit 1
