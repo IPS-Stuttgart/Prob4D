@@ -1,0 +1,22 @@
+name: Cancel DOT staging for custody correction
+
+on:
+  push:
+    branches: [science/dot-gpuserver6000-direct-v1]
+    paths:
+      - ".github/workflows/cancel-dot-staging-custody-fix.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dot-gpuserver6000-stage-runtime-data-v1
+  cancel-in-progress: true
+
+jobs:
+  cancel-and-record:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Record custody-preserving cancellation
+        run: |
+          echo 'Cancelling the earlier staging run before any archive-wide CRC payload read.'
