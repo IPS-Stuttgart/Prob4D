@@ -80,7 +80,7 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 2
           persist-credentials: false
-      - name: Require one non-forced request addition
+      - name: Require one non-forced request addition or revision
         id: request
         shell: bash
         env:
@@ -97,7 +97,10 @@ jobs:
           mapfile -t changed < <(git diff --name-status "$EVENT_BEFORE" "$EVENT_AFTER")
           printf 'Changed files:\n%s\n' "${changed[*]}"
           test "${#changed[@]}" -eq 1
-          test "${changed[0]}" = $'A\t'"$REQUEST_PATH"
+          case "${changed[0]}" in
+            $'A\t'"$REQUEST_PATH"|$'M\t'"$REQUEST_PATH") ;;
+            *) echo "Expected an added or modified $REQUEST_PATH" >&2; exit 2 ;;
+          esac
           validation=$(
             python experiments/dot_rope_curvature_v1/inventory.py validate-request \
               --request "$REQUEST_PATH" \
@@ -119,7 +122,7 @@ jobs:
     name: Read-only DOT rope inventory / gpuserver6000
     if: github.event_name == 'push'
     needs: authorize
-    runs-on: [self-hosted, Linux, X64, gpuserver6000]
+    runs-on: [self-hosted, gpuserver6000]
     timeout-minutes: 60
     permissions:
       contents: read
