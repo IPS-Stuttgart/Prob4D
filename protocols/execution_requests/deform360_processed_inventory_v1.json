@@ -1,0 +1,8 @@
+{
+  "schema": "prob4d.deform360-processed-archive-inventory-request-v1",
+  "request_id": "deform360-processed-inventory-v1-20260831",
+  "dataset_root": "/mnt/seagate10tb/florianpfaff/datasets/deform360",
+  "runner_label": "gpuserver4090",
+  "array_values_authorized": false,
+  "target_scoring_authorized": false
+}

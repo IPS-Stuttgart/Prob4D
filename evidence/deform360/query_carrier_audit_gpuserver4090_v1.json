@@ -1,0 +1,4325 @@
+{
+  "access_boundary": {
+    "array_values_opened": false,
+    "dataset_mutated": false,
+    "directory_and_file_names_opened": true,
+    "file_sizes_opened": true,
+    "hdf5_values_opened": false,
+    "media_decoded": false,
+    "npy_npz_headers_opened": true,
+    "pickle_values_opened": false,
+    "small_json_opened": true,
+    "target_scored": false
+  },
+  "audit_id": "cf6c696141b3c201165a6b4b45fd85337df22c806776a475ae509737353b1c71",
+  "dataset_root": "/mnt/seagate10tb/florianpfaff/datasets/deform360",
+  "github_run_id": "33335005322",
+  "github_sha": "05d416424ebba6e55f227672bdc8f15da1c221bb",
+  "runner_name": "workstation1",
+  "schema": "prob4d.deform360-query-carrier-audit",
+  "schema_version": 1,
+  "units": [
+    {
+      "episode": 3,
+      "extensions": {
+        ".json": 12,
+        ".mp4": 3,
+        ".npy": 1,
+        ".ply": 2,
+        ".png": 1,
+        ".tar": 3,
+        ".txt": 1
+      },
+      "files": 23,
+      "object_id": "038-mat-cloth",
+      "ranked_candidates": [
+        {
+          "bytes": 45445120,
+          "candidate_score": 1,
+          "path": "processed-repository/processed/038-mat-cloth/episode_3/pcd_clean.tar",
+          "suffix": ".tar"
+        },
+        {
+          "bytes": 84392,
+          "candidate_score": 1,
+          "path": "processed-repository/processed/038-mat-cloth/episode_3/robot/opening_dists.png",
+          "suffix": ".png"
+        },
+        {
+          "bytes": 68101,
+          "candidate_score": 1,
+          "header": {
+            "container": "npy",
+            "dtype": "|O",
+            "fortran_order": false,
+            "shape": [],
+            "values_opened": false,
+            "version": [
+              1,
+              0
+            ]
+          },
+          "path": "processed-repository/processed/038-mat-cloth/episode_3/robot/robot.npy",
+          "suffix": ".npy"
+        },
+        {
+          "bytes": 1425636,
+          "candidate_score": 1,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/038-mat-cloth/episode_3/tactile.mp4",
+          "suffix": ".mp4"
+        },
+        {
+          "bytes": 2273143,
+          "candidate_score": 1,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/038-mat-cloth/episode_3/tracking_video.mp4",
+          "suffix": ".mp4"
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/038-mat-cloth/episode_0/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "a7606857e2292859fd8fa78f708a1705296d076066f4caf27f61ecad3b4ab6fa",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3579,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/038-mat-cloth/episode_1/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3579,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "86e2b8145ad90158df654b021e8acc14426fb9c0dc44581f6aff9ad89d6f2e3a",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/038-mat-cloth/episode_2/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "212f566f11263ce53e8066015e2480589b6133d26e4b371e0119704abef0f12a",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 597678080,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/038-mat-cloth/episode_3/cameras.tar",
+          "suffix": ".tar"
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/038-mat-cloth/episode_3/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "c87bdd7d7e324a0a704d0040387166ad63f50a5224e20b20798e999e4d7ca8b0",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 11165,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/038-mat-cloth/episode_3/metric_params_refined_undistorted.txt",
+          "suffix": ".txt"
+        },
+        {
+          "bytes": 188595,
+          "candidate_score": 0,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/038-mat-cloth/episode_3/render_4dgs.mp4",
+          "suffix": ".mp4"
+        },
+        {
+          "bytes": 329809920,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/038-mat-cloth/episode_3/splatfacto.tar",
+          "suffix": ".tar"
+        },
+        {
+          "bytes": 58,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/038-mat-cloth/episode_3/split.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 58,
+            "container": "json",
+            "keys": [
+              "frame_len",
+              "test",
+              "train"
+            ],
+            "sha256": "e53882636d9cd5670bf4a699fe53341b8c7cafcad4c44852b75e2909f2209347",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 104098,
+          "candidate_score": 0,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/038-mat-cloth/episode_3/start_obj_pcd.ply",
+          "suffix": ".ply"
+        },
+        {
+          "bytes": 802694,
+          "candidate_score": 0,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/038-mat-cloth/episode_3/visual_hull_simple_full.ply",
+          "suffix": ".ply"
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/038-mat-cloth/episode_4/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "5f876d065928e4d907af0f0b616164fa8e5e92833b75f75940c28590f0034556",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/038-mat-cloth/episode_5/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "eb85e11c4307d0b44a0c8e0e46152098a0c188debdabe067304f77de9b70245c",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/038-mat-cloth/episode_6/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "1ac92a93c49266325e795ad19f6d416bf3b31559d8539e8932239dcfae733c53",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/038-mat-cloth/episode_7/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "2f26476f75d60d93f23f2f1288234665d7c60fba8d0421e34ec101c444b97a4a",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3579,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/038-mat-cloth/episode_8/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3579,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "9aaa6d0b02112a2b24728b98225c9c9970cd2373bf6397d7cde02d272d59fcd1",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/038-mat-cloth/episode_9/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "a25db2f43260c20fdb9fe843c2300dd1a5e4c7aaa7a63e161e60964c13fb644a",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 769,
+          "candidate_score": 0,
+          "path": "raw-repository/raw/038-mat-cloth/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 769,
+            "container": "json",
+            "keys": [
+              "object",
+              "sam_prompt",
+              "sequences"
+            ],
+            "sha256": "f3016c509c39b1f16ea7fa18c86f3575cbc681e27dd8c90fd8b91c76853a0326",
+            "top_level_type": "dict"
+          }
+        }
+      ],
+      "role": "source",
+      "stratum": "sheet",
+      "truncated": false
+    },
+    {
+      "episode": 9,
+      "extensions": {
+        ".json": 12,
+        ".mp4": 3,
+        ".npy": 1,
+        ".ply": 2,
+        ".png": 1,
+        ".tar": 3,
+        ".txt": 1
+      },
+      "files": 23,
+      "object_id": "038-mat-cloth",
+      "ranked_candidates": [
+        {
+          "bytes": 87418880,
+          "candidate_score": 1,
+          "path": "processed-repository/processed/038-mat-cloth/episode_9/pcd_clean.tar",
+          "suffix": ".tar"
+        },
+        {
+          "bytes": 111913,
+          "candidate_score": 1,
+          "path": "processed-repository/processed/038-mat-cloth/episode_9/robot/opening_dists.png",
+          "suffix": ".png"
+        },
+        {
+          "bytes": 189453,
+          "candidate_score": 1,
+          "header": {
+            "container": "npy",
+            "dtype": "|O",
+            "fortran_order": false,
+            "shape": [],
+            "values_opened": false,
+            "version": [
+              1,
+              0
+            ]
+          },
+          "path": "processed-repository/processed/038-mat-cloth/episode_9/robot/robot.npy",
+          "suffix": ".npy"
+        },
+        {
+          "bytes": 2466992,
+          "candidate_score": 1,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/038-mat-cloth/episode_9/tactile.mp4",
+          "suffix": ".mp4"
+        },
+        {
+          "bytes": 2611078,
+          "candidate_score": 1,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/038-mat-cloth/episode_9/tracking_video.mp4",
+          "suffix": ".mp4"
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/038-mat-cloth/episode_0/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "a7606857e2292859fd8fa78f708a1705296d076066f4caf27f61ecad3b4ab6fa",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3579,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/038-mat-cloth/episode_1/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3579,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "86e2b8145ad90158df654b021e8acc14426fb9c0dc44581f6aff9ad89d6f2e3a",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/038-mat-cloth/episode_2/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "212f566f11263ce53e8066015e2480589b6133d26e4b371e0119704abef0f12a",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/038-mat-cloth/episode_3/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "c87bdd7d7e324a0a704d0040387166ad63f50a5224e20b20798e999e4d7ca8b0",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/038-mat-cloth/episode_4/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "5f876d065928e4d907af0f0b616164fa8e5e92833b75f75940c28590f0034556",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/038-mat-cloth/episode_5/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "eb85e11c4307d0b44a0c8e0e46152098a0c188debdabe067304f77de9b70245c",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/038-mat-cloth/episode_6/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "1ac92a93c49266325e795ad19f6d416bf3b31559d8539e8932239dcfae733c53",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/038-mat-cloth/episode_7/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "2f26476f75d60d93f23f2f1288234665d7c60fba8d0421e34ec101c444b97a4a",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3579,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/038-mat-cloth/episode_8/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3579,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "9aaa6d0b02112a2b24728b98225c9c9970cd2373bf6397d7cde02d272d59fcd1",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 819845120,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/038-mat-cloth/episode_9/cameras.tar",
+          "suffix": ".tar"
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/038-mat-cloth/episode_9/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "a25db2f43260c20fdb9fe843c2300dd1a5e4c7aaa7a63e161e60964c13fb644a",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 11165,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/038-mat-cloth/episode_9/metric_params_refined_undistorted.txt",
+          "suffix": ".txt"
+        },
+        {
+          "bytes": 280192,
+          "candidate_score": 0,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/038-mat-cloth/episode_9/render_4dgs.mp4",
+          "suffix": ".mp4"
+        },
+        {
+          "bytes": 360673280,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/038-mat-cloth/episode_9/splatfacto.tar",
+          "suffix": ".tar"
+        },
+        {
+          "bytes": 58,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/038-mat-cloth/episode_9/split.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 58,
+            "container": "json",
+            "keys": [
+              "frame_len",
+              "test",
+              "train"
+            ],
+            "sha256": "052b78cdb57d75ecaa878b2b88f29112727df06667c2f3ae6bec649a338ab4ec",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 145393,
+          "candidate_score": 0,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/038-mat-cloth/episode_9/start_obj_pcd.ply",
+          "suffix": ".ply"
+        },
+        {
+          "bytes": 751529,
+          "candidate_score": 0,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/038-mat-cloth/episode_9/visual_hull_simple_full.ply",
+          "suffix": ".ply"
+        },
+        {
+          "bytes": 769,
+          "candidate_score": 0,
+          "path": "raw-repository/raw/038-mat-cloth/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 769,
+            "container": "json",
+            "keys": [
+              "object",
+              "sam_prompt",
+              "sequences"
+            ],
+            "sha256": "f3016c509c39b1f16ea7fa18c86f3575cbc681e27dd8c90fd8b91c76853a0326",
+            "top_level_type": "dict"
+          }
+        }
+      ],
+      "role": "target",
+      "stratum": "sheet",
+      "truncated": false
+    },
+    {
+      "episode": 8,
+      "extensions": {
+        ".json": 5
+      },
+      "files": 5,
+      "object_id": "038-black-bag-cloth",
+      "ranked_candidates": [
+        {
+          "bytes": 3581,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/038-black-bag-cloth/episode_0/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3581,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "f8eea82308380fad78c9b55b66b60d60cb4b0f33c3dc04112554e29630549acb",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/038-black-bag-cloth/episode_1/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "6f90fbbfeb892c1c9d7173da1b8156d6985f392cdf4e81f6a7e9d6cda01f192d",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/038-black-bag-cloth/episode_2/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "09858a7ccbb7cab4d855c59b9c31c72d3f0f247d78d5475ab8ff70dd18d6827b",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3579,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/038-black-bag-cloth/episode_3/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3579,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "6d2a9caf1443e6433418beb16de721bb8e4b2b0d82593619a406c3c5cc696bae",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 750,
+          "candidate_score": 0,
+          "path": "raw-repository/raw/038-black-bag-cloth/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 750,
+            "container": "json",
+            "keys": [
+              "object",
+              "sam_prompt",
+              "sequences"
+            ],
+            "sha256": "9ffd0ffd4339ac020f249c5e8023f4be6cd06216114c3b45d80e2939fc1eb400",
+            "top_level_type": "dict"
+          }
+        }
+      ],
+      "role": "source",
+      "stratum": "sheet",
+      "truncated": false
+    },
+    {
+      "episode": 5,
+      "extensions": {
+        ".json": 5
+      },
+      "files": 5,
+      "object_id": "038-black-bag-cloth",
+      "ranked_candidates": [
+        {
+          "bytes": 3581,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/038-black-bag-cloth/episode_0/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3581,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "f8eea82308380fad78c9b55b66b60d60cb4b0f33c3dc04112554e29630549acb",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/038-black-bag-cloth/episode_1/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "6f90fbbfeb892c1c9d7173da1b8156d6985f392cdf4e81f6a7e9d6cda01f192d",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/038-black-bag-cloth/episode_2/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "09858a7ccbb7cab4d855c59b9c31c72d3f0f247d78d5475ab8ff70dd18d6827b",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3579,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/038-black-bag-cloth/episode_3/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3579,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "6d2a9caf1443e6433418beb16de721bb8e4b2b0d82593619a406c3c5cc696bae",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 750,
+          "candidate_score": 0,
+          "path": "raw-repository/raw/038-black-bag-cloth/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 750,
+            "container": "json",
+            "keys": [
+              "object",
+              "sam_prompt",
+              "sequences"
+            ],
+            "sha256": "9ffd0ffd4339ac020f249c5e8023f4be6cd06216114c3b45d80e2939fc1eb400",
+            "top_level_type": "dict"
+          }
+        }
+      ],
+      "role": "target",
+      "stratum": "sheet",
+      "truncated": false
+    },
+    {
+      "episode": 8,
+      "extensions": {
+        ".json": 12,
+        ".mp4": 3,
+        ".npy": 1,
+        ".ply": 2,
+        ".png": 1,
+        ".tar": 3,
+        ".txt": 1
+      },
+      "files": 23,
+      "object_id": "087-plastic-bag-blue-cloth",
+      "ranked_candidates": [
+        {
+          "bytes": 67317760,
+          "candidate_score": 1,
+          "path": "processed-repository/processed/087-plastic-bag-blue-cloth/episode_8/pcd_clean.tar",
+          "suffix": ".tar"
+        },
+        {
+          "bytes": 112786,
+          "candidate_score": 1,
+          "path": "processed-repository/processed/087-plastic-bag-blue-cloth/episode_8/robot/opening_dists.png",
+          "suffix": ".png"
+        },
+        {
+          "bytes": 154637,
+          "candidate_score": 1,
+          "header": {
+            "container": "npy",
+            "dtype": "|O",
+            "fortran_order": false,
+            "shape": [],
+            "values_opened": false,
+            "version": [
+              1,
+              0
+            ]
+          },
+          "path": "processed-repository/processed/087-plastic-bag-blue-cloth/episode_8/robot/robot.npy",
+          "suffix": ".npy"
+        },
+        {
+          "bytes": 2562887,
+          "candidate_score": 1,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/087-plastic-bag-blue-cloth/episode_8/tactile.mp4",
+          "suffix": ".mp4"
+        },
+        {
+          "bytes": 6102529,
+          "candidate_score": 1,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/087-plastic-bag-blue-cloth/episode_8/tracking_video.mp4",
+          "suffix": ".mp4"
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/087-plastic-bag-blue-cloth/episode_0/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "b5791eb75835ab94f7021627ee48dadceb833b47bc484845cf9cd92608cb81ec",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/087-plastic-bag-blue-cloth/episode_1/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "4c592bd1025e19ee43611be8d2024f4a8ccc83381b7ea487eafa4481f8c614c6",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/087-plastic-bag-blue-cloth/episode_2/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "757384e48e35e49742997d68a23a007c5018fbd5f1564419850f0aaccbb6340f",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/087-plastic-bag-blue-cloth/episode_3/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "7b7b057fa466dfdbf19daba23bcd3c639abeb03398eba834824fdc6a4ed05138",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/087-plastic-bag-blue-cloth/episode_4/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "676ecd18baa1bd8de4d76dfd944bd95eeb1b44c66611fccee7f728ba1f9eae3e",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3581,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/087-plastic-bag-blue-cloth/episode_5/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3581,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "7fa209901089a3a385b06bdf9711720cb8bf423d505b527b122ec42a7e82c2d4",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3581,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/087-plastic-bag-blue-cloth/episode_6/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3581,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "3807bfc5e17c8b37af8f6e0c3581fb77633f0dc6af693134ef40fa33dfa03ac1",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/087-plastic-bag-blue-cloth/episode_7/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "ffe3170ef04e98950e69fed011e81072a49f066adaa037ee6b2c83458d078bf0",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 1346273280,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/087-plastic-bag-blue-cloth/episode_8/cameras.tar",
+          "suffix": ".tar"
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/087-plastic-bag-blue-cloth/episode_8/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "aefae97ef6b0d87f517b8c5877049593d6d85f92dc176cbc00ac9b0220d9e41a",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 11165,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/087-plastic-bag-blue-cloth/episode_8/metric_params_refined_undistorted.txt",
+          "suffix": ".txt"
+        },
+        {
+          "bytes": 1872173,
+          "candidate_score": 0,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/087-plastic-bag-blue-cloth/episode_8/render_4dgs.mp4",
+          "suffix": ".mp4"
+        },
+        {
+          "bytes": 2783344640,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/087-plastic-bag-blue-cloth/episode_8/splatfacto.tar",
+          "suffix": ".tar"
+        },
+        {
+          "bytes": 58,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/087-plastic-bag-blue-cloth/episode_8/split.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 58,
+            "container": "json",
+            "keys": [
+              "frame_len",
+              "test",
+              "train"
+            ],
+            "sha256": "74495d7b381173064c839a504130998a67592170e528567035855d23fc80853c",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 134098,
+          "candidate_score": 0,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/087-plastic-bag-blue-cloth/episode_8/start_obj_pcd.ply",
+          "suffix": ".ply"
+        },
+        {
+          "bytes": 1443659,
+          "candidate_score": 0,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/087-plastic-bag-blue-cloth/episode_8/visual_hull_simple_full.ply",
+          "suffix": ".ply"
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/087-plastic-bag-blue-cloth/episode_9/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "be75fc3d3a613aacfc2cdb6d56e93a04237861e30262a2f3f7fc753f0a468047",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 796,
+          "candidate_score": 0,
+          "path": "raw-repository/raw/087-plastic-bag-blue-cloth/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 796,
+            "container": "json",
+            "keys": [
+              "object",
+              "sam_prompt",
+              "sequences"
+            ],
+            "sha256": "2fa3de738a9dc93a77b5e37e11df66e724de6b0c4c57c1874bbbc8bec9cb7f2f",
+            "top_level_type": "dict"
+          }
+        }
+      ],
+      "role": "source",
+      "stratum": "sheet",
+      "truncated": false
+    },
+    {
+      "episode": 3,
+      "extensions": {
+        ".json": 12,
+        ".mp4": 3,
+        ".npy": 1,
+        ".ply": 2,
+        ".png": 1,
+        ".tar": 3,
+        ".txt": 1
+      },
+      "files": 23,
+      "object_id": "087-plastic-bag-blue-cloth",
+      "ranked_candidates": [
+        {
+          "bytes": 97996800,
+          "candidate_score": 1,
+          "path": "processed-repository/processed/087-plastic-bag-blue-cloth/episode_3/pcd_clean.tar",
+          "suffix": ".tar"
+        },
+        {
+          "bytes": 84174,
+          "candidate_score": 1,
+          "path": "processed-repository/processed/087-plastic-bag-blue-cloth/episode_3/robot/opening_dists.png",
+          "suffix": ".png"
+        },
+        {
+          "bytes": 105989,
+          "candidate_score": 1,
+          "header": {
+            "container": "npy",
+            "dtype": "|O",
+            "fortran_order": false,
+            "shape": [],
+            "values_opened": false,
+            "version": [
+              1,
+              0
+            ]
+          },
+          "path": "processed-repository/processed/087-plastic-bag-blue-cloth/episode_3/robot/robot.npy",
+          "suffix": ".npy"
+        },
+        {
+          "bytes": 2698679,
+          "candidate_score": 1,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/087-plastic-bag-blue-cloth/episode_3/tactile.mp4",
+          "suffix": ".mp4"
+        },
+        {
+          "bytes": 10908064,
+          "candidate_score": 1,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/087-plastic-bag-blue-cloth/episode_3/tracking_video.mp4",
+          "suffix": ".mp4"
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/087-plastic-bag-blue-cloth/episode_0/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "b5791eb75835ab94f7021627ee48dadceb833b47bc484845cf9cd92608cb81ec",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/087-plastic-bag-blue-cloth/episode_1/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "4c592bd1025e19ee43611be8d2024f4a8ccc83381b7ea487eafa4481f8c614c6",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/087-plastic-bag-blue-cloth/episode_2/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "757384e48e35e49742997d68a23a007c5018fbd5f1564419850f0aaccbb6340f",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 1439672320,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/087-plastic-bag-blue-cloth/episode_3/cameras.tar",
+          "suffix": ".tar"
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/087-plastic-bag-blue-cloth/episode_3/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "7b7b057fa466dfdbf19daba23bcd3c639abeb03398eba834824fdc6a4ed05138",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 11165,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/087-plastic-bag-blue-cloth/episode_3/metric_params_refined_undistorted.txt",
+          "suffix": ".txt"
+        },
+        {
+          "bytes": 2013652,
+          "candidate_score": 0,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/087-plastic-bag-blue-cloth/episode_3/render_4dgs.mp4",
+          "suffix": ".mp4"
+        },
+        {
+          "bytes": 2291496960,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/087-plastic-bag-blue-cloth/episode_3/splatfacto.tar",
+          "suffix": ".tar"
+        },
+        {
+          "bytes": 58,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/087-plastic-bag-blue-cloth/episode_3/split.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 58,
+            "container": "json",
+            "keys": [
+              "frame_len",
+              "test",
+              "train"
+            ],
+            "sha256": "c1f46f186e29538d2aba7ebee7740c09dea1f11b5f496f02571682eae2b8d05d",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 142948,
+          "candidate_score": 0,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/087-plastic-bag-blue-cloth/episode_3/start_obj_pcd.ply",
+          "suffix": ".ply"
+        },
+        {
+          "bytes": 834479,
+          "candidate_score": 0,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/087-plastic-bag-blue-cloth/episode_3/visual_hull_simple_full.ply",
+          "suffix": ".ply"
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/087-plastic-bag-blue-cloth/episode_4/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "676ecd18baa1bd8de4d76dfd944bd95eeb1b44c66611fccee7f728ba1f9eae3e",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3581,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/087-plastic-bag-blue-cloth/episode_5/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3581,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "7fa209901089a3a385b06bdf9711720cb8bf423d505b527b122ec42a7e82c2d4",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3581,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/087-plastic-bag-blue-cloth/episode_6/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3581,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "3807bfc5e17c8b37af8f6e0c3581fb77633f0dc6af693134ef40fa33dfa03ac1",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/087-plastic-bag-blue-cloth/episode_7/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "ffe3170ef04e98950e69fed011e81072a49f066adaa037ee6b2c83458d078bf0",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/087-plastic-bag-blue-cloth/episode_8/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "aefae97ef6b0d87f517b8c5877049593d6d85f92dc176cbc00ac9b0220d9e41a",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/087-plastic-bag-blue-cloth/episode_9/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "be75fc3d3a613aacfc2cdb6d56e93a04237861e30262a2f3f7fc753f0a468047",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 796,
+          "candidate_score": 0,
+          "path": "raw-repository/raw/087-plastic-bag-blue-cloth/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 796,
+            "container": "json",
+            "keys": [
+              "object",
+              "sam_prompt",
+              "sequences"
+            ],
+            "sha256": "2fa3de738a9dc93a77b5e37e11df66e724de6b0c4c57c1874bbbc8bec9cb7f2f",
+            "top_level_type": "dict"
+          }
+        }
+      ],
+      "role": "target",
+      "stratum": "sheet",
+      "truncated": false
+    },
+    {
+      "episode": 6,
+      "extensions": {
+        ".json": 1
+      },
+      "files": 1,
+      "object_id": "144-jar-opener-cloth",
+      "ranked_candidates": [
+        {
+          "bytes": 782,
+          "candidate_score": 0,
+          "path": "raw-repository/raw/144-jar-opener-cloth/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 782,
+            "container": "json",
+            "keys": [
+              "object",
+              "sam_prompt",
+              "sequences"
+            ],
+            "sha256": "7c9ada68b2f39c661d0a3c6af2a09688237b406e65fc10c7c2db32d0213dfc60",
+            "top_level_type": "dict"
+          }
+        }
+      ],
+      "role": "source",
+      "stratum": "sheet",
+      "truncated": false
+    },
+    {
+      "episode": 2,
+      "extensions": {
+        ".json": 1
+      },
+      "files": 1,
+      "object_id": "144-jar-opener-cloth",
+      "ranked_candidates": [
+        {
+          "bytes": 782,
+          "candidate_score": 0,
+          "path": "raw-repository/raw/144-jar-opener-cloth/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 782,
+            "container": "json",
+            "keys": [
+              "object",
+              "sam_prompt",
+              "sequences"
+            ],
+            "sha256": "7c9ada68b2f39c661d0a3c6af2a09688237b406e65fc10c7c2db32d0213dfc60",
+            "top_level_type": "dict"
+          }
+        }
+      ],
+      "role": "target",
+      "stratum": "sheet",
+      "truncated": false
+    },
+    {
+      "episode": 2,
+      "extensions": {
+        ".json": 10,
+        ".mp4": 3,
+        ".npy": 1,
+        ".ply": 2,
+        ".png": 1,
+        ".tar": 3,
+        ".txt": 1
+      },
+      "files": 21,
+      "object_id": "072-cotton-clohesline",
+      "ranked_candidates": [
+        {
+          "bytes": 24299520,
+          "candidate_score": 1,
+          "path": "processed-repository/processed/072-cotton-clohesline/episode_2/pcd_clean.tar",
+          "suffix": ".tar"
+        },
+        {
+          "bytes": 82647,
+          "candidate_score": 1,
+          "path": "processed-repository/processed/072-cotton-clohesline/episode_2/robot/opening_dists.png",
+          "suffix": ".png"
+        },
+        {
+          "bytes": 75781,
+          "candidate_score": 1,
+          "header": {
+            "container": "npy",
+            "dtype": "|O",
+            "fortran_order": false,
+            "shape": [],
+            "values_opened": false,
+            "version": [
+              1,
+              0
+            ]
+          },
+          "path": "processed-repository/processed/072-cotton-clohesline/episode_2/robot/robot.npy",
+          "suffix": ".npy"
+        },
+        {
+          "bytes": 1565798,
+          "candidate_score": 1,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/072-cotton-clohesline/episode_2/tactile.mp4",
+          "suffix": ".mp4"
+        },
+        {
+          "bytes": 516236,
+          "candidate_score": 1,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/072-cotton-clohesline/episode_2/tracking_video.mp4",
+          "suffix": ".mp4"
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/072-cotton-clohesline/episode_0/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "55235301606fc126c0e1e0a07a28ef0bedaf42144f774660659409ba22a28b26",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/072-cotton-clohesline/episode_1/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "01d83c059f004808f79fe3efa5cc847c5a614161682061dbcca59fa95cd58d1f",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 555601920,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/072-cotton-clohesline/episode_2/cameras.tar",
+          "suffix": ".tar"
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/072-cotton-clohesline/episode_2/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "2be2ac773e111eb3e18600ae31ebd9f41483db52f5a15c46817fc956a022d97b",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 11165,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/072-cotton-clohesline/episode_2/metric_params_refined_undistorted.txt",
+          "suffix": ".txt"
+        },
+        {
+          "bytes": 164295,
+          "candidate_score": 0,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/072-cotton-clohesline/episode_2/render_4dgs.mp4",
+          "suffix": ".mp4"
+        },
+        {
+          "bytes": 211404800,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/072-cotton-clohesline/episode_2/splatfacto.tar",
+          "suffix": ".tar"
+        },
+        {
+          "bytes": 58,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/072-cotton-clohesline/episode_2/split.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 58,
+            "container": "json",
+            "keys": [
+              "frame_len",
+              "test",
+              "train"
+            ],
+            "sha256": "f9b95c477ed4ec902562d56b0d7082c70c68af39e86c9c3c3103db6686f72a1d",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 49498,
+          "candidate_score": 0,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/072-cotton-clohesline/episode_2/start_obj_pcd.ply",
+          "suffix": ".ply"
+        },
+        {
+          "bytes": 1566180,
+          "candidate_score": 0,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/072-cotton-clohesline/episode_2/visual_hull_simple_full.ply",
+          "suffix": ".ply"
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/072-cotton-clohesline/episode_3/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "ad7cdfbc0e54be23d331d01794a99a9b56b4fc061d99631271ea27524b5a335f",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/072-cotton-clohesline/episode_5/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "a9480d7ad2f053036e8b353175d1cfeb4019c0f2a496c12853590f92161fd72a",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3581,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/072-cotton-clohesline/episode_6/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3581,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "c377a0227da245c40f97b071c244f2cf784d220f1707b62b8070a37f26183dd1",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3581,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/072-cotton-clohesline/episode_7/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3581,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "9df83ef5319dafa7f1b06ac9a3a36796e2c5a4327734cb6c69c639709164d7ce",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/072-cotton-clohesline/episode_9/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "476adb53b2e77bc1442c7340cd994e568d1ccb1d6dd031abdb0527b00178b5cc",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 780,
+          "candidate_score": 0,
+          "path": "raw-repository/raw/072-cotton-clohesline/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 780,
+            "container": "json",
+            "keys": [
+              "object",
+              "sam_prompt",
+              "sequences"
+            ],
+            "sha256": "11a1b742baf9bef68879ef076bbf0496381ff5906a6f0b7cd2a9581117595053",
+            "top_level_type": "dict"
+          }
+        }
+      ],
+      "role": "source",
+      "stratum": "volumetric",
+      "truncated": false
+    },
+    {
+      "episode": 0,
+      "extensions": {
+        ".json": 10,
+        ".mp4": 3,
+        ".npy": 1,
+        ".ply": 2,
+        ".png": 1,
+        ".tar": 3,
+        ".txt": 1
+      },
+      "files": 21,
+      "object_id": "072-cotton-clohesline",
+      "ranked_candidates": [
+        {
+          "bytes": 32071680,
+          "candidate_score": 1,
+          "path": "processed-repository/processed/072-cotton-clohesline/episode_0/pcd_clean.tar",
+          "suffix": ".tar"
+        },
+        {
+          "bytes": 77365,
+          "candidate_score": 1,
+          "path": "processed-repository/processed/072-cotton-clohesline/episode_0/robot/opening_dists.png",
+          "suffix": ".png"
+        },
+        {
+          "bytes": 93957,
+          "candidate_score": 1,
+          "header": {
+            "container": "npy",
+            "dtype": "|O",
+            "fortran_order": false,
+            "shape": [],
+            "values_opened": false,
+            "version": [
+              1,
+              0
+            ]
+          },
+          "path": "processed-repository/processed/072-cotton-clohesline/episode_0/robot/robot.npy",
+          "suffix": ".npy"
+        },
+        {
+          "bytes": 2029059,
+          "candidate_score": 1,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/072-cotton-clohesline/episode_0/tactile.mp4",
+          "suffix": ".mp4"
+        },
+        {
+          "bytes": 735306,
+          "candidate_score": 1,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/072-cotton-clohesline/episode_0/tracking_video.mp4",
+          "suffix": ".mp4"
+        },
+        {
+          "bytes": 684124160,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/072-cotton-clohesline/episode_0/cameras.tar",
+          "suffix": ".tar"
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/072-cotton-clohesline/episode_0/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "55235301606fc126c0e1e0a07a28ef0bedaf42144f774660659409ba22a28b26",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 11165,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/072-cotton-clohesline/episode_0/metric_params_refined_undistorted.txt",
+          "suffix": ".txt"
+        },
+        {
+          "bytes": 184636,
+          "candidate_score": 0,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/072-cotton-clohesline/episode_0/render_4dgs.mp4",
+          "suffix": ".mp4"
+        },
+        {
+          "bytes": 272107520,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/072-cotton-clohesline/episode_0/splatfacto.tar",
+          "suffix": ".tar"
+        },
+        {
+          "bytes": 58,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/072-cotton-clohesline/episode_0/split.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 58,
+            "container": "json",
+            "keys": [
+              "frame_len",
+              "test",
+              "train"
+            ],
+            "sha256": "3d9657ca88f60041e9f690ff3dde3ecd7d6f7577b4f8d053b9807796210c0cd6",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 51988,
+          "candidate_score": 0,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/072-cotton-clohesline/episode_0/start_obj_pcd.ply",
+          "suffix": ".ply"
+        },
+        {
+          "bytes": 1854075,
+          "candidate_score": 0,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/072-cotton-clohesline/episode_0/visual_hull_simple_full.ply",
+          "suffix": ".ply"
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/072-cotton-clohesline/episode_1/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "01d83c059f004808f79fe3efa5cc847c5a614161682061dbcca59fa95cd58d1f",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/072-cotton-clohesline/episode_2/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "2be2ac773e111eb3e18600ae31ebd9f41483db52f5a15c46817fc956a022d97b",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/072-cotton-clohesline/episode_3/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "ad7cdfbc0e54be23d331d01794a99a9b56b4fc061d99631271ea27524b5a335f",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/072-cotton-clohesline/episode_5/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "a9480d7ad2f053036e8b353175d1cfeb4019c0f2a496c12853590f92161fd72a",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3581,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/072-cotton-clohesline/episode_6/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3581,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "c377a0227da245c40f97b071c244f2cf784d220f1707b62b8070a37f26183dd1",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3581,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/072-cotton-clohesline/episode_7/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3581,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "9df83ef5319dafa7f1b06ac9a3a36796e2c5a4327734cb6c69c639709164d7ce",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/072-cotton-clohesline/episode_9/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "476adb53b2e77bc1442c7340cd994e568d1ccb1d6dd031abdb0527b00178b5cc",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 780,
+          "candidate_score": 0,
+          "path": "raw-repository/raw/072-cotton-clohesline/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 780,
+            "container": "json",
+            "keys": [
+              "object",
+              "sam_prompt",
+              "sequences"
+            ],
+            "sha256": "11a1b742baf9bef68879ef076bbf0496381ff5906a6f0b7cd2a9581117595053",
+            "top_level_type": "dict"
+          }
+        }
+      ],
+      "role": "target",
+      "stratum": "volumetric",
+      "truncated": false
+    },
+    {
+      "episode": 8,
+      "extensions": {
+        ".json": 12,
+        ".mp4": 3,
+        ".npy": 1,
+        ".ply": 2,
+        ".png": 1,
+        ".tar": 3,
+        ".txt": 1
+      },
+      "files": 23,
+      "object_id": "102-stress-ball",
+      "ranked_candidates": [
+        {
+          "bytes": 9799680,
+          "candidate_score": 1,
+          "path": "processed-repository/processed/102-stress-ball/episode_8/pcd_clean.tar",
+          "suffix": ".tar"
+        },
+        {
+          "bytes": 108879,
+          "candidate_score": 1,
+          "path": "processed-repository/processed/102-stress-ball/episode_8/robot/opening_dists.png",
+          "suffix": ".png"
+        },
+        {
+          "bytes": 162317,
+          "candidate_score": 1,
+          "header": {
+            "container": "npy",
+            "dtype": "|O",
+            "fortran_order": false,
+            "shape": [],
+            "values_opened": false,
+            "version": [
+              1,
+              0
+            ]
+          },
+          "path": "processed-repository/processed/102-stress-ball/episode_8/robot/robot.npy",
+          "suffix": ".npy"
+        },
+        {
+          "bytes": 1837846,
+          "candidate_score": 1,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/102-stress-ball/episode_8/tactile.mp4",
+          "suffix": ".mp4"
+        },
+        {
+          "bytes": 662679,
+          "candidate_score": 1,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/102-stress-ball/episode_8/tracking_video.mp4",
+          "suffix": ".mp4"
+        },
+        {
+          "bytes": 3579,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/102-stress-ball/episode_0/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3579,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "da4f51039845a248182ff9035fb3547cc337232f15ac140eccd3340fa80fea38",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3579,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/102-stress-ball/episode_1/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3579,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "d4370cf4eb3396cb4be76817fbe662a01c572e80ad50b3510bc6feeebac924f9",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3579,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/102-stress-ball/episode_2/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3579,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "3ba676ff937e7f1bc9e68955472caa3d5009ac0e1877e260f98b9e2234b7317d",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3579,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/102-stress-ball/episode_3/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3579,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "636f1c1b85bc50a810bdfbb7d64ccb6bed872b31cceb175c221ee48577cb195d",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3579,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/102-stress-ball/episode_4/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3579,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "5331c563314b763234803b87ab32accb39a2b6993d9d5524b225262b3a50ae28",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/102-stress-ball/episode_5/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "49a5ed52348285058d1359c0659fedceef92a83baa939ff02e947dbcdd7ef63c",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/102-stress-ball/episode_6/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "0be0cc36f0fabab04f150de948b3a03fd1cc5efdb544ca2cefa45404f8324103",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3579,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/102-stress-ball/episode_7/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3579,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "c71108efc294e34f631c61a385387c59a48e636ed2ff2d015c96359c71c395e0",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 636200960,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/102-stress-ball/episode_8/cameras.tar",
+          "suffix": ".tar"
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/102-stress-ball/episode_8/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "493fed68678e808f7605d9cfeb9ba8d10fccec8cd597fdfd7c3b49581ac85293",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 11165,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/102-stress-ball/episode_8/metric_params_refined_undistorted.txt",
+          "suffix": ".txt"
+        },
+        {
+          "bytes": 68388,
+          "candidate_score": 0,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/102-stress-ball/episode_8/render_4dgs.mp4",
+          "suffix": ".mp4"
+        },
+        {
+          "bytes": 51281920,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/102-stress-ball/episode_8/splatfacto.tar",
+          "suffix": ".tar"
+        },
+        {
+          "bytes": 58,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/102-stress-ball/episode_8/split.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 58,
+            "container": "json",
+            "keys": [
+              "frame_len",
+              "test",
+              "train"
+            ],
+            "sha256": "8e8b0b4ef9557ff138ebfefc88216b549872899624e1ada82b3d93b8316fbc1e",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 16798,
+          "candidate_score": 0,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/102-stress-ball/episode_8/start_obj_pcd.ply",
+          "suffix": ".ply"
+        },
+        {
+          "bytes": 1105469,
+          "candidate_score": 0,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/102-stress-ball/episode_8/visual_hull_simple_full.ply",
+          "suffix": ".ply"
+        },
+        {
+          "bytes": 3581,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/102-stress-ball/episode_9/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3581,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "a8fead63135290658e976bdd4eeb1ef775a9c1ab67b2c7ac26d8e38843dde989",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 748,
+          "candidate_score": 0,
+          "path": "raw-repository/raw/102-stress-ball/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 748,
+            "container": "json",
+            "keys": [
+              "object",
+              "sam_prompt",
+              "sequences"
+            ],
+            "sha256": "2a9a2913b2c361869271f99217b84184891f02c64aad39c7d352aa164a516bbd",
+            "top_level_type": "dict"
+          }
+        }
+      ],
+      "role": "source",
+      "stratum": "volumetric",
+      "truncated": false
+    },
+    {
+      "episode": 6,
+      "extensions": {
+        ".json": 12,
+        ".mp4": 3,
+        ".npy": 1,
+        ".ply": 2,
+        ".png": 1,
+        ".tar": 3,
+        ".txt": 1
+      },
+      "files": 23,
+      "object_id": "102-stress-ball",
+      "ranked_candidates": [
+        {
+          "bytes": 9451520,
+          "candidate_score": 1,
+          "path": "processed-repository/processed/102-stress-ball/episode_6/pcd_clean.tar",
+          "suffix": ".tar"
+        },
+        {
+          "bytes": 110839,
+          "candidate_score": 1,
+          "path": "processed-repository/processed/102-stress-ball/episode_6/robot/opening_dists.png",
+          "suffix": ".png"
+        },
+        {
+          "bytes": 135181,
+          "candidate_score": 1,
+          "header": {
+            "container": "npy",
+            "dtype": "|O",
+            "fortran_order": false,
+            "shape": [],
+            "values_opened": false,
+            "version": [
+              1,
+              0
+            ]
+          },
+          "path": "processed-repository/processed/102-stress-ball/episode_6/robot/robot.npy",
+          "suffix": ".npy"
+        },
+        {
+          "bytes": 1915400,
+          "candidate_score": 1,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/102-stress-ball/episode_6/tactile.mp4",
+          "suffix": ".mp4"
+        },
+        {
+          "bytes": 607074,
+          "candidate_score": 1,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/102-stress-ball/episode_6/tracking_video.mp4",
+          "suffix": ".mp4"
+        },
+        {
+          "bytes": 3579,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/102-stress-ball/episode_0/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3579,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "da4f51039845a248182ff9035fb3547cc337232f15ac140eccd3340fa80fea38",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3579,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/102-stress-ball/episode_1/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3579,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "d4370cf4eb3396cb4be76817fbe662a01c572e80ad50b3510bc6feeebac924f9",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3579,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/102-stress-ball/episode_2/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3579,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "3ba676ff937e7f1bc9e68955472caa3d5009ac0e1877e260f98b9e2234b7317d",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3579,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/102-stress-ball/episode_3/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3579,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "636f1c1b85bc50a810bdfbb7d64ccb6bed872b31cceb175c221ee48577cb195d",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3579,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/102-stress-ball/episode_4/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3579,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "5331c563314b763234803b87ab32accb39a2b6993d9d5524b225262b3a50ae28",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/102-stress-ball/episode_5/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "49a5ed52348285058d1359c0659fedceef92a83baa939ff02e947dbcdd7ef63c",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 550952960,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/102-stress-ball/episode_6/cameras.tar",
+          "suffix": ".tar"
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/102-stress-ball/episode_6/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "0be0cc36f0fabab04f150de948b3a03fd1cc5efdb544ca2cefa45404f8324103",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 11165,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/102-stress-ball/episode_6/metric_params_refined_undistorted.txt",
+          "suffix": ".txt"
+        },
+        {
+          "bytes": 89111,
+          "candidate_score": 0,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/102-stress-ball/episode_6/render_4dgs.mp4",
+          "suffix": ".mp4"
+        },
+        {
+          "bytes": 51742720,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/102-stress-ball/episode_6/splatfacto.tar",
+          "suffix": ".tar"
+        },
+        {
+          "bytes": 58,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/102-stress-ball/episode_6/split.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 58,
+            "container": "json",
+            "keys": [
+              "frame_len",
+              "test",
+              "train"
+            ],
+            "sha256": "6e086ee87b90f1e5caaa2d3713a5bbb6c002a11e9c3f658a884cc7fde93ac156",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 19633,
+          "candidate_score": 0,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/102-stress-ball/episode_6/start_obj_pcd.ply",
+          "suffix": ".ply"
+        },
+        {
+          "bytes": 932864,
+          "candidate_score": 0,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/102-stress-ball/episode_6/visual_hull_simple_full.ply",
+          "suffix": ".ply"
+        },
+        {
+          "bytes": 3579,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/102-stress-ball/episode_7/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3579,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "c71108efc294e34f631c61a385387c59a48e636ed2ff2d015c96359c71c395e0",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/102-stress-ball/episode_8/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "493fed68678e808f7605d9cfeb9ba8d10fccec8cd597fdfd7c3b49581ac85293",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3581,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/102-stress-ball/episode_9/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3581,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "a8fead63135290658e976bdd4eeb1ef775a9c1ab67b2c7ac26d8e38843dde989",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 748,
+          "candidate_score": 0,
+          "path": "raw-repository/raw/102-stress-ball/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 748,
+            "container": "json",
+            "keys": [
+              "object",
+              "sam_prompt",
+              "sequences"
+            ],
+            "sha256": "2a9a2913b2c361869271f99217b84184891f02c64aad39c7d352aa164a516bbd",
+            "top_level_type": "dict"
+          }
+        }
+      ],
+      "role": "target",
+      "stratum": "volumetric",
+      "truncated": false
+    },
+    {
+      "episode": 6,
+      "extensions": {
+        ".json": 11,
+        ".mp4": 3,
+        ".npy": 1,
+        ".ply": 2,
+        ".png": 1,
+        ".tar": 3,
+        ".txt": 1
+      },
+      "files": 22,
+      "object_id": "053-squeezer",
+      "ranked_candidates": [
+        {
+          "bytes": 13639680,
+          "candidate_score": 1,
+          "path": "processed-repository/processed/053-squeezer/episode_6/pcd_clean.tar",
+          "suffix": ".tar"
+        },
+        {
+          "bytes": 107387,
+          "candidate_score": 1,
+          "path": "processed-repository/processed/053-squeezer/episode_6/robot/opening_dists.png",
+          "suffix": ".png"
+        },
+        {
+          "bytes": 125962,
+          "candidate_score": 1,
+          "header": {
+            "container": "npy",
+            "dtype": "|O",
+            "fortran_order": false,
+            "shape": [],
+            "values_opened": false,
+            "version": [
+              1,
+              0
+            ]
+          },
+          "path": "processed-repository/processed/053-squeezer/episode_6/robot/robot.npy",
+          "suffix": ".npy"
+        },
+        {
+          "bytes": 2075080,
+          "candidate_score": 1,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/053-squeezer/episode_6/tactile.mp4",
+          "suffix": ".mp4"
+        },
+        {
+          "bytes": 745962,
+          "candidate_score": 1,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/053-squeezer/episode_6/tracking_video.mp4",
+          "suffix": ".mp4"
+        },
+        {
+          "bytes": 3579,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/053-squeezer/episode_0/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3579,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "1a2945835a6872ac4ff2c6d474b3778a62b40ec04b243f14ba5d2c461933b8a4",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3579,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/053-squeezer/episode_1/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3579,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "ef021c244550c18f65c1ffb8f10c266b91250c578a5687d0a8085512562ee235",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3579,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/053-squeezer/episode_3/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3579,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "a1ce16e06c0f19d4c2ebd810bd4d75ca863bb1dbaa358255a121660136c63a76",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3579,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/053-squeezer/episode_4/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3579,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "8a4b0eda27915ed3d07a89c7c58f734ddbfe4fac0e1553e45697583ccbb1ff9d",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/053-squeezer/episode_5/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "3a07f3922b1486bf68ab75ab2058496003118a5c6a1917aa8273e891a889a2ba",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 512665600,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/053-squeezer/episode_6/cameras.tar",
+          "suffix": ".tar"
+        },
+        {
+          "bytes": 3579,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/053-squeezer/episode_6/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3579,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "54befaa7dcb7287cb230beba6c4f39b0ab59c5112451e21cc62b2eda0f305ea5",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 11165,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/053-squeezer/episode_6/metric_params_refined_undistorted.txt",
+          "suffix": ".txt"
+        },
+        {
+          "bytes": 121640,
+          "candidate_score": 0,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/053-squeezer/episode_6/render_4dgs.mp4",
+          "suffix": ".mp4"
+        },
+        {
+          "bytes": 78192640,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/053-squeezer/episode_6/splatfacto.tar",
+          "suffix": ".tar"
+        },
+        {
+          "bytes": 57,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/053-squeezer/episode_6/split.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 57,
+            "container": "json",
+            "keys": [
+              "frame_len",
+              "test",
+              "train"
+            ],
+            "sha256": "e3d33461942adc9b46e80356cd0e180a703c3e0c2df837fc6d07faf12d0a3574",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 32338,
+          "candidate_score": 0,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/053-squeezer/episode_6/start_obj_pcd.ply",
+          "suffix": ".ply"
+        },
+        {
+          "bytes": 732044,
+          "candidate_score": 0,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/053-squeezer/episode_6/visual_hull_simple_full.ply",
+          "suffix": ".ply"
+        },
+        {
+          "bytes": 3579,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/053-squeezer/episode_7/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3579,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "f4e92b10fd90eb3fe7fc106b9de50473f06cac5efe769b6667310313a6a9c9fc",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3579,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/053-squeezer/episode_8/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3579,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "9d516056a2a9258da9f7129ff69cdf641d6ac47b35fcdce45002c7ac3b8131e5",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3581,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/053-squeezer/episode_9/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3581,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "405772dc33d8aa6057c9b489a8184e4875836bfc3ae978d60078fab744fe4c9f",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 782,
+          "candidate_score": 0,
+          "path": "raw-repository/raw/053-squeezer/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 782,
+            "container": "json",
+            "keys": [
+              "object",
+              "sam_prompt",
+              "sequences"
+            ],
+            "sha256": "3a902988143d6fe93b78f855fa0ff8e789c931defd32c72527090952e8fab49f",
+            "top_level_type": "dict"
+          }
+        }
+      ],
+      "role": "source",
+      "stratum": "volumetric",
+      "truncated": false
+    },
+    {
+      "episode": 4,
+      "extensions": {
+        ".json": 11,
+        ".mp4": 3,
+        ".npy": 1,
+        ".ply": 2,
+        ".png": 1,
+        ".tar": 3,
+        ".txt": 1
+      },
+      "files": 22,
+      "object_id": "053-squeezer",
+      "ranked_candidates": [
+        {
+          "bytes": 11345920,
+          "candidate_score": 1,
+          "path": "processed-repository/processed/053-squeezer/episode_4/pcd_clean.tar",
+          "suffix": ".tar"
+        },
+        {
+          "bytes": 76478,
+          "candidate_score": 1,
+          "path": "processed-repository/processed/053-squeezer/episode_4/robot/opening_dists.png",
+          "suffix": ".png"
+        },
+        {
+          "bytes": 56066,
+          "candidate_score": 1,
+          "header": {
+            "container": "npy",
+            "dtype": "|O",
+            "fortran_order": false,
+            "shape": [],
+            "values_opened": false,
+            "version": [
+              1,
+              0
+            ]
+          },
+          "path": "processed-repository/processed/053-squeezer/episode_4/robot/robot.npy",
+          "suffix": ".npy"
+        },
+        {
+          "bytes": 1182689,
+          "candidate_score": 1,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/053-squeezer/episode_4/tactile.mp4",
+          "suffix": ".mp4"
+        },
+        {
+          "bytes": 547264,
+          "candidate_score": 1,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/053-squeezer/episode_4/tracking_video.mp4",
+          "suffix": ".mp4"
+        },
+        {
+          "bytes": 3579,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/053-squeezer/episode_0/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3579,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "1a2945835a6872ac4ff2c6d474b3778a62b40ec04b243f14ba5d2c461933b8a4",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3579,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/053-squeezer/episode_1/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3579,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "ef021c244550c18f65c1ffb8f10c266b91250c578a5687d0a8085512562ee235",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3579,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/053-squeezer/episode_3/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3579,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "a1ce16e06c0f19d4c2ebd810bd4d75ca863bb1dbaa358255a121660136c63a76",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 427776000,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/053-squeezer/episode_4/cameras.tar",
+          "suffix": ".tar"
+        },
+        {
+          "bytes": 3579,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/053-squeezer/episode_4/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3579,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "8a4b0eda27915ed3d07a89c7c58f734ddbfe4fac0e1553e45697583ccbb1ff9d",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 11165,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/053-squeezer/episode_4/metric_params_refined_undistorted.txt",
+          "suffix": ".txt"
+        },
+        {
+          "bytes": 91302,
+          "candidate_score": 0,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/053-squeezer/episode_4/render_4dgs.mp4",
+          "suffix": ".mp4"
+        },
+        {
+          "bytes": 63805440,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/053-squeezer/episode_4/splatfacto.tar",
+          "suffix": ".tar"
+        },
+        {
+          "bytes": 57,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/053-squeezer/episode_4/split.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 57,
+            "container": "json",
+            "keys": [
+              "frame_len",
+              "test",
+              "train"
+            ],
+            "sha256": "ca611943588232f40f85fafdcae6c5873ccfa861c0b233abe97b0a7150b72747",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 30808,
+          "candidate_score": 0,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/053-squeezer/episode_4/start_obj_pcd.ply",
+          "suffix": ".ply"
+        },
+        {
+          "bytes": 654689,
+          "candidate_score": 0,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/053-squeezer/episode_4/visual_hull_simple_full.ply",
+          "suffix": ".ply"
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/053-squeezer/episode_5/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "3a07f3922b1486bf68ab75ab2058496003118a5c6a1917aa8273e891a889a2ba",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3579,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/053-squeezer/episode_6/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3579,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "54befaa7dcb7287cb230beba6c4f39b0ab59c5112451e21cc62b2eda0f305ea5",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3579,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/053-squeezer/episode_7/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3579,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "f4e92b10fd90eb3fe7fc106b9de50473f06cac5efe769b6667310313a6a9c9fc",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3579,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/053-squeezer/episode_8/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3579,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "9d516056a2a9258da9f7129ff69cdf641d6ac47b35fcdce45002c7ac3b8131e5",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3581,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/053-squeezer/episode_9/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3581,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "405772dc33d8aa6057c9b489a8184e4875836bfc3ae978d60078fab744fe4c9f",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 782,
+          "candidate_score": 0,
+          "path": "raw-repository/raw/053-squeezer/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 782,
+            "container": "json",
+            "keys": [
+              "object",
+              "sam_prompt",
+              "sequences"
+            ],
+            "sha256": "3a902988143d6fe93b78f855fa0ff8e789c931defd32c72527090952e8fab49f",
+            "top_level_type": "dict"
+          }
+        }
+      ],
+      "role": "target",
+      "stratum": "volumetric",
+      "truncated": false
+    },
+    {
+      "episode": 9,
+      "extensions": {
+        ".json": 12,
+        ".mp4": 3,
+        ".npy": 1,
+        ".ply": 2,
+        ".png": 1,
+        ".tar": 3,
+        ".txt": 1
+      },
+      "files": 23,
+      "object_id": "063-flower",
+      "ranked_candidates": [
+        {
+          "bytes": 37816320,
+          "candidate_score": 1,
+          "path": "processed-repository/processed/063-flower/episode_9/pcd_clean.tar",
+          "suffix": ".tar"
+        },
+        {
+          "bytes": 108287,
+          "candidate_score": 1,
+          "path": "processed-repository/processed/063-flower/episode_9/robot/opening_dists.png",
+          "suffix": ".png"
+        },
+        {
+          "bytes": 153101,
+          "candidate_score": 1,
+          "header": {
+            "container": "npy",
+            "dtype": "|O",
+            "fortran_order": false,
+            "shape": [],
+            "values_opened": false,
+            "version": [
+              1,
+              0
+            ]
+          },
+          "path": "processed-repository/processed/063-flower/episode_9/robot/robot.npy",
+          "suffix": ".npy"
+        },
+        {
+          "bytes": 2242420,
+          "candidate_score": 1,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/063-flower/episode_9/tactile.mp4",
+          "suffix": ".mp4"
+        },
+        {
+          "bytes": 2234730,
+          "candidate_score": 1,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/063-flower/episode_9/tracking_video.mp4",
+          "suffix": ".mp4"
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/063-flower/episode_0/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "b9d9e94376f9b8560d03cf13ec3b4b4496c76a7689778cb5600f345273511b74",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/063-flower/episode_1/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "5387488fcab5014fe1a648cbf9e6d0da4d832d3e8fa71414cf44d7b3bbf38fdb",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/063-flower/episode_2/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "b0d75b9e3957f41238a5e63e4a5b2f122ab00e47c09db9c2dcc948b82428b9c0",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3579,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/063-flower/episode_3/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3579,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "162512bbb8071d937053c06571f1ff487ab8a9b36bc56898570caa6317e6cac9",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/063-flower/episode_4/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "b835042cd1c988676f53227259977c3ba4697032f7a36df13094e803403ae93d",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3581,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/063-flower/episode_5/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3581,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "58420cd405aa976701f2e87f9f4f091429b06c32bc983ed94b7edb1795d55622",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/063-flower/episode_6/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "60dcab66b45366e944640a3f63a76821530f361e2b97ffe5746132975cb9493f",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3581,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/063-flower/episode_7/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3581,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "fa1653190f945b9f051bd85a2b118e0f1fd6ce7b90796f6f119f9da2d78a8d4a",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3579,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/063-flower/episode_8/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3579,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "c04fa8b859c5df79e3b4c926e6e82717358fcb581d867b70dd311029c0010d16",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 754667520,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/063-flower/episode_9/cameras.tar",
+          "suffix": ".tar"
+        },
+        {
+          "bytes": 3581,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/063-flower/episode_9/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3581,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "97c200d1b879fffce91e7b4aa6da4d9e9992e9aab37f67a67d14d3597f89921e",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 11165,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/063-flower/episode_9/metric_params_refined_undistorted.txt",
+          "suffix": ".txt"
+        },
+        {
+          "bytes": 405962,
+          "candidate_score": 0,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/063-flower/episode_9/render_4dgs.mp4",
+          "suffix": ".mp4"
+        },
+        {
+          "bytes": 273121280,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/063-flower/episode_9/splatfacto.tar",
+          "suffix": ".tar"
+        },
+        {
+          "bytes": 59,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/063-flower/episode_9/split.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 59,
+            "container": "json",
+            "keys": [
+              "frame_len",
+              "test",
+              "train"
+            ],
+            "sha256": "ce20825cb7479e8a1b088e69dcc6e87445c0619f9b4caccbe6e9f8b44c2602aa",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 74383,
+          "candidate_score": 0,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/063-flower/episode_9/start_obj_pcd.ply",
+          "suffix": ".ply"
+        },
+        {
+          "bytes": 732854,
+          "candidate_score": 0,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/063-flower/episode_9/visual_hull_simple_full.ply",
+          "suffix": ".ply"
+        },
+        {
+          "bytes": 783,
+          "candidate_score": 0,
+          "path": "raw-repository/raw/063-flower/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 783,
+            "container": "json",
+            "keys": [
+              "object",
+              "sam_prompt",
+              "sequences"
+            ],
+            "sha256": "b503e3b7bee3d359b757b1a327954534cc8589b69a6f52dae78f4b2737a0fac9",
+            "top_level_type": "dict"
+          }
+        }
+      ],
+      "role": "source",
+      "stratum": "volumetric",
+      "truncated": false
+    },
+    {
+      "episode": 7,
+      "extensions": {
+        ".json": 12,
+        ".mp4": 3,
+        ".npy": 1,
+        ".ply": 2,
+        ".png": 1,
+        ".tar": 3,
+        ".txt": 1
+      },
+      "files": 23,
+      "object_id": "063-flower",
+      "ranked_candidates": [
+        {
+          "bytes": 37795840,
+          "candidate_score": 1,
+          "path": "processed-repository/processed/063-flower/episode_7/pcd_clean.tar",
+          "suffix": ".tar"
+        },
+        {
+          "bytes": 107772,
+          "candidate_score": 1,
+          "path": "processed-repository/processed/063-flower/episode_7/robot/opening_dists.png",
+          "suffix": ".png"
+        },
+        {
+          "bytes": 144397,
+          "candidate_score": 1,
+          "header": {
+            "container": "npy",
+            "dtype": "|O",
+            "fortran_order": false,
+            "shape": [],
+            "values_opened": false,
+            "version": [
+              1,
+              0
+            ]
+          },
+          "path": "processed-repository/processed/063-flower/episode_7/robot/robot.npy",
+          "suffix": ".npy"
+        },
+        {
+          "bytes": 1757329,
+          "candidate_score": 1,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/063-flower/episode_7/tactile.mp4",
+          "suffix": ".mp4"
+        },
+        {
+          "bytes": 2251492,
+          "candidate_score": 1,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/063-flower/episode_7/tracking_video.mp4",
+          "suffix": ".mp4"
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/063-flower/episode_0/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "b9d9e94376f9b8560d03cf13ec3b4b4496c76a7689778cb5600f345273511b74",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/063-flower/episode_1/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "5387488fcab5014fe1a648cbf9e6d0da4d832d3e8fa71414cf44d7b3bbf38fdb",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/063-flower/episode_2/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "b0d75b9e3957f41238a5e63e4a5b2f122ab00e47c09db9c2dcc948b82428b9c0",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3579,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/063-flower/episode_3/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3579,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "162512bbb8071d937053c06571f1ff487ab8a9b36bc56898570caa6317e6cac9",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/063-flower/episode_4/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "b835042cd1c988676f53227259977c3ba4697032f7a36df13094e803403ae93d",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3581,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/063-flower/episode_5/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3581,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "58420cd405aa976701f2e87f9f4f091429b06c32bc983ed94b7edb1795d55622",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3580,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/063-flower/episode_6/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3580,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "60dcab66b45366e944640a3f63a76821530f361e2b97ffe5746132975cb9493f",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 692756480,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/063-flower/episode_7/cameras.tar",
+          "suffix": ".tar"
+        },
+        {
+          "bytes": 3581,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/063-flower/episode_7/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3581,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "fa1653190f945b9f051bd85a2b118e0f1fd6ce7b90796f6f119f9da2d78a8d4a",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 11165,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/063-flower/episode_7/metric_params_refined_undistorted.txt",
+          "suffix": ".txt"
+        },
+        {
+          "bytes": 266104,
+          "candidate_score": 0,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/063-flower/episode_7/render_4dgs.mp4",
+          "suffix": ".mp4"
+        },
+        {
+          "bytes": 239073280,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/063-flower/episode_7/splatfacto.tar",
+          "suffix": ".tar"
+        },
+        {
+          "bytes": 59,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/063-flower/episode_7/split.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 59,
+            "container": "json",
+            "keys": [
+              "frame_len",
+              "test",
+              "train"
+            ],
+            "sha256": "bb472b635d18cd6ce8d7941c554a996586eb467662c7a6b3c82882db64c8324c",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 79543,
+          "candidate_score": 0,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/063-flower/episode_7/start_obj_pcd.ply",
+          "suffix": ".ply"
+        },
+        {
+          "bytes": 626759,
+          "candidate_score": 0,
+          "inspection": "listed-only",
+          "path": "processed-repository/processed/063-flower/episode_7/visual_hull_simple_full.ply",
+          "suffix": ".ply"
+        },
+        {
+          "bytes": 3579,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/063-flower/episode_8/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3579,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "c04fa8b859c5df79e3b4c926e6e82717358fcb581d867b70dd311029c0010d16",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 3581,
+          "candidate_score": 0,
+          "path": "processed-repository/processed/063-flower/episode_9/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 3581,
+            "container": "json",
+            "keys": [
+              "WH",
+              "cameras",
+              "end_frame",
+              "fps",
+              "frame_num",
+              "intrinsics",
+              "start_frame"
+            ],
+            "sha256": "97c200d1b879fffce91e7b4aa6da4d9e9992e9aab37f67a67d14d3597f89921e",
+            "top_level_type": "dict"
+          }
+        },
+        {
+          "bytes": 783,
+          "candidate_score": 0,
+          "path": "raw-repository/raw/063-flower/metadata.json",
+          "suffix": ".json",
+          "summary": {
+            "bytes": 783,
+            "container": "json",
+            "keys": [
+              "object",
+              "sam_prompt",
+              "sequences"
+            ],
+            "sha256": "b503e3b7bee3d359b757b1a327954534cc8589b69a6f52dae78f4b2737a0fac9",
+            "top_level_type": "dict"
+          }
+        }
+      ],
+      "role": "target",
+      "stratum": "volumetric",
+      "truncated": false
+    }
+  ]
+}
