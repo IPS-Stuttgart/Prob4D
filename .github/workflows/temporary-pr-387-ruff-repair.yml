@@ -1,0 +1,50 @@
+name: Temporary PR 387 Ruff repair
+
+on:
+  push:
+    branches:
+      - science/deform-dlo45-query-observability-real-v1
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: science/deform-dlo45-query-observability-real-v1
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Apply mechanical Ruff repairs
+        shell: bash
+        run: |
+          python -m pip install ruff==0.16.1
+          files=(
+            scripts/science/audit_deform_dlo45_local_segments_official_v2.py
+            scripts/science/audit_deform_dlo45_local_segments_v2.py
+            scripts/science/audit_deform_dlo45_observability_official_mirror_v1.py
+            scripts/science/audit_deform_dlo45_observability_v1.py
+            scripts/science/calibrate_deform_dlo45_query_gate_official_v1.py
+            scripts/science/calibrate_deform_dlo45_query_gate_v1.py
+            scripts/science/evaluate_deform_dlo45_query_observability_official_v1.py
+            scripts/science/evaluate_deform_dlo45_query_observability_v1.py
+            scripts/science/prepare_cut3r_runtime.py
+          )
+          python -m ruff check --fix -- "${files[@]}" || true
+          python -m ruff format -- "${files[@]}"
+          python -m ruff check --add-noqa -- "${files[@]}"
+          python -m ruff check -- "${files[@]}"
+      - name: Commit repair
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add scripts/science
+          git commit -m 'Fix PR 387 Ruff hygiene'
+          git push origin HEAD:science/deform-dlo45-query-observability-real-v1
