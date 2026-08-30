@@ -137,11 +137,11 @@ jobs:
           echo "source_protocol_git_blob_sha=$source_blob" >> "$GITHUB_OUTPUT"
 
   execute:
-    name: Load PointWorld on workstation2
+    name: Load PointWorld on gpuserver6000
     if: github.event_name == 'push'
     needs: authorize
     environment: trusted-self-hosted-validation
-    runs-on: [self-hosted, host-workstation2]
+    runs-on: [self-hosted, gpuserver6000]
     timeout-minutes: 180
     permissions:
       contents: read
@@ -160,7 +160,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$RUNNER_NAME" = "workstation2"
+          test "$RUNNER_NAME" = "gpuserver6000"
           test "$RUNNER_OS" = "Linux"
           test "$RUNNER_ARCH" = "X64"
           command -v nvidia-smi >/dev/null
