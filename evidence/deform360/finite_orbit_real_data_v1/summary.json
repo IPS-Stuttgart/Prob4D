@@ -1,0 +1,37 @@
+{
+  "claim_boundary": "Retrospective real measured Deform360 geometry evidence for a principal-axis C2 finite-orbit query-admission mechanism only; not fresh confirmation, learned-provider competence, BayesianPhysTwin or Causal4D benefit, deployment safety, or state of the art.",
+  "dataset_audit_sha256": "ec402031371b68616e6b303612f978a90a3c464c1347e0a54985068206eb9338",
+  "dataset_root": "/mnt/seagate10tb/florianpfaff/datasets/deform360",
+  "decision": "support-negative",
+  "fresh_confirmation_authorized": false,
+  "github_run_id": "33335075412",
+  "github_sha": "16279a450233e64280a0ca6d23527fe10281d57c",
+  "paired_object_ids": [],
+  "paper_claim_authorized": false,
+  "parameters": {
+    "advantage_margin": 0.0,
+    "bootstrap_repetitions": 10000,
+    "harm_margin": 0.01,
+    "horizons": [
+      1,
+      2,
+      4
+    ],
+    "min_anisotropy": 1.1,
+    "orbit_tolerance": 0.05,
+    "seed": 20260831,
+    "tail_fraction": 0.05
+  },
+  "protocol_id": "deform360-finite-orbit-real-data-v1",
+  "protocol_sha256": "0b2f211fb57b3991f3867203d68af5340ef20502394daf910d8750f668212ec2",
+  "result_id": "2b31315124db19df38ff3f4135c52ee75eb65e39dd29b0be0aa6f16b029983a3",
+  "runner_name": "workstation1",
+  "schema": "prob4d.deform360-finite-orbit-real-data-result",
+  "schema_version": 1,
+  "support_reasons": [
+    "only 0 complete source/target object pairs; require 4"
+  ],
+  "supported_object_pairs": 0,
+  "supported_sequences": 0,
+  "target_results": []
+}
