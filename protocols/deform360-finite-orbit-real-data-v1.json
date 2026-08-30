@@ -1,0 +1,95 @@
+{
+  "protocol_id": "deform360-finite-orbit-real-data-v1",
+  "schema_version": 1,
+  "registered_before_numerical_target_access": true,
+  "evidence_class": "public-real-data-retrospective-development-pilot",
+  "dataset": {
+    "name": "Deform360",
+    "runner_root": "/mnt/seagate10tb/florianpfaff/datasets/deform360",
+    "mutation_authorized": false
+  },
+  "roster_source": {
+    "identity": "deform360-query-validation-readiness-v1",
+    "objects": [
+      {"object_id": "038-mat-cloth", "source_episode": 3, "target_episode": 9, "stratum": "sheet"},
+      {"object_id": "038-black-bag-cloth", "source_episode": 8, "target_episode": 5, "stratum": "sheet"},
+      {"object_id": "087-plastic-bag-blue-cloth", "source_episode": 8, "target_episode": 3, "stratum": "sheet"},
+      {"object_id": "144-jar-opener-cloth", "source_episode": 6, "target_episode": 2, "stratum": "sheet"},
+      {"object_id": "072-cotton-clohesline", "source_episode": 2, "target_episode": 0, "stratum": "volumetric"},
+      {"object_id": "102-stress-ball", "source_episode": 8, "target_episode": 6, "stratum": "volumetric"},
+      {"object_id": "053-squeezer", "source_episode": 6, "target_episode": 4, "stratum": "volumetric"},
+      {"object_id": "063-flower", "source_episode": 9, "target_episode": 7, "stratum": "volumetric"}
+    ]
+  },
+  "information_order": {
+    "carrier_audit_must_be_target_closed": true,
+    "carrier_selection_may_use_paths_headers_shapes_and_geometry_support_but_not_forecast_error": true,
+    "method_thresholds_are_fixed_in_this_protocol": true,
+    "result_is_not_fresh_confirmation": true
+  },
+  "representation": {
+    "accepted_carriers": ["npy", "npz", "hdf5", "ordered-ply-sequence", "ordered-pcd-sequence", "ordered-obj-sequence"],
+    "pickle_execution_forbidden": true,
+    "media_decoding_forbidden": true,
+    "principal_axis_tail_fraction": 0.05,
+    "minimum_median_anisotropy": 1.10,
+    "minimum_frames": 8,
+    "minimum_points_per_frame": 8,
+    "maximum_frames": 600
+  },
+  "statistical_design": {
+    "unit": "complete object identity",
+    "frames_are_repeated_measurements": true,
+    "outer_design": "leave-one-object-out target evaluation",
+    "within_outer_fold": "source episodes of remaining objects are deterministically divided into fit and two calibration objects",
+    "minimum_complete_source_target_object_pairs": 4,
+    "bootstrap_repetitions": 10000,
+    "bootstrap_seed": 20260831
+  },
+  "candidate": {
+    "mean": "source-fitted damped constant-velocity forecast of the unordered principal-axis endpoint pair",
+    "damping_range": [0.0, 1.5],
+    "horizons_frames": [1, 2, 4]
+  },
+  "fallback": {
+    "mean": "exact endpoint-pair persistence",
+    "rejection_behavior": "reuse exact fallback query prediction"
+  },
+  "finite_ambiguity": {
+    "group": "C2 endpoint permutation",
+    "queries": {
+      "span_change": "orbit invariant",
+      "centroid_axis_progress": "orbit invariant",
+      "named_endpoint_axis_progress": "orbit sensitive"
+    },
+    "orbit_diameter_tolerance_in_current_spans": 0.05
+  },
+  "comparison_arms": [
+    "fallback",
+    "ungated_candidate",
+    "local_canonical",
+    "independent_orbit",
+    "shared_orbit"
+  ],
+  "calibration": {
+    "shared_orbit_bound": "object-level lower 10 percent order statistic of paired fallback-minus-candidate absolute-error advantage",
+    "independent_orbit_bound": "object-level lower 10 percent fallback error minus upper 90 percent candidate error",
+    "advantage_margin": 0.0
+  },
+  "endpoints": {
+    "primary": [
+      "object-balanced normalized absolute physical-query error",
+      "object-balanced regret relative to exact fallback",
+      "harmful accepted-update rate",
+      "acceptance rate",
+      "worst-object regret"
+    ],
+    "harm_margin_in_current_spans": 0.01
+  },
+  "decision_values": [
+    "completed-retrospective-real-data-pilot",
+    "support-negative",
+    "technical-negative"
+  ],
+  "claim_boundary": "The experiment may support only retrospective real measured-geometry evidence for the registered C2 finite-orbit query-admission mechanism. It cannot establish fresh confirmation, learned-provider competence, BayesianPhysTwin or Causal4D benefit, prospective safety, or state of the art."
+}

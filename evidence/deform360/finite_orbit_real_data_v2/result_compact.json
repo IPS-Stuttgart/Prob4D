@@ -1,0 +1,177 @@
+{
+  "artifact_id": 9738929881,
+  "artifact_sha256": "be60bce5ffb6b6fdfc720a5a88f6d49477d2d5f5c77d3c3a2e51c960c8238e21",
+  "claim_boundary": "Retrospective real measured Deform360 geometry evidence for a principal-axis C2 finite-orbit query-admission mechanism only; not fresh confirmation, learned-provider competence, BayesianPhysTwin or Causal4D benefit, deployment safety, or state of the art.",
+  "decision": "completed-retrospective-real-data-pilot",
+  "github_revision": "7ef009324cda282e30e994df47393d0d37ffb49a",
+  "github_run_id": 33335597467,
+  "materialization_id": "6b7ff40856ab5db5438ccce9dda9af851121eed4e91426fe24d530e90b09bc4c",
+  "paired_object_ids": [
+    "001-rope",
+    "002-rope-silk",
+    "003-cable",
+    "004-rubber-band",
+    "005-thread",
+    "042-necktie-cloth",
+    "067-paracord",
+    "068-nylon-rope",
+    "069-jump-rope",
+    "072-cotton-clohesline",
+    "073-shoelace",
+    "077-hemp-rope",
+    "079-chain-metal",
+    "080-wool",
+    "081-stripe-rope",
+    "088-snake"
+  ],
+  "paper_claim_authorized": false,
+  "primary_rows": [
+    {
+      "ci95_high": 0.0010934889918160287,
+      "ci95_low": -0.0009356003917393861,
+      "fallback_error": 0.008301252723495356,
+      "horizon": 1,
+      "query": "span_change",
+      "shared_acceptance": 0.0,
+      "shared_regret": 0.0,
+      "ungated_error": 0.008225559508214887,
+      "ungated_harmful_rate": 0.02620967741935484,
+      "ungated_regret": -7.569321528046859e-05
+    },
+    {
+      "ci95_high": 0.0020547686249622805,
+      "ci95_low": -0.000739176479278433,
+      "fallback_error": 0.015762552365548348,
+      "horizon": 2,
+      "query": "span_change",
+      "shared_acceptance": 0.0,
+      "shared_regret": 0.0,
+      "ungated_error": 0.016263962189794808,
+      "ungated_harmful_rate": 0.0471311475409836,
+      "ungated_regret": 0.00050140982424646
+    },
+    {
+      "ci95_high": 0.004646037840043342,
+      "ci95_low": 0.00027844789909288947,
+      "fallback_error": 0.029750274195422366,
+      "horizon": 4,
+      "query": "span_change",
+      "shared_acceptance": 0.0,
+      "shared_regret": 0.0,
+      "ungated_error": 0.03213342005618647,
+      "ungated_harmful_rate": 0.07415254237288135,
+      "ungated_regret": 0.002383145860764104
+    },
+    {
+      "ci95_high": 0.0002315540253681894,
+      "ci95_low": -0.0005961689490252017,
+      "fallback_error": 0.004963194378239459,
+      "horizon": 1,
+      "query": "centroid_axis_progress",
+      "shared_acceptance": 0.0,
+      "shared_regret": 0.0,
+      "ungated_error": 0.004744068560911136,
+      "ungated_harmful_rate": 0.017137096774193547,
+      "ungated_regret": -0.00021912581732832367
+    },
+    {
+      "ci95_high": 0.00040385062949700224,
+      "ci95_low": -0.0010076089867962234,
+      "fallback_error": 0.009725133514735203,
+      "horizon": 2,
+      "query": "centroid_axis_progress",
+      "shared_acceptance": 0.0,
+      "shared_regret": 0.0,
+      "ungated_error": 0.009351816696731536,
+      "ungated_harmful_rate": 0.02663934426229508,
+      "ungated_regret": -0.00037331681800366475
+    },
+    {
+      "ci95_high": 0.0011984879114759377,
+      "ci95_low": -0.00100625046074021,
+      "fallback_error": 0.01923300917900545,
+      "horizon": 4,
+      "query": "centroid_axis_progress",
+      "shared_acceptance": 0.0,
+      "shared_regret": 0.0,
+      "ungated_error": 0.01917160010648602,
+      "ungated_harmful_rate": 0.04025423728813559,
+      "ungated_regret": -6.140907251943214e-05
+    },
+    {
+      "ci95_high": 0.0003776210847356708,
+      "ci95_low": -0.0012969672673097227,
+      "fallback_error": 0.009726028106319222,
+      "horizon": 1,
+      "query": "named_endpoint_axis_progress",
+      "shared_acceptance": 0.0,
+      "shared_regret": 0.0,
+      "ungated_error": 0.009246614220643507,
+      "ungated_harmful_rate": 0.024193548387096774,
+      "ungated_regret": -0.00047941388567571456
+    },
+    {
+      "ci95_high": 0.00058726498168293,
+      "ci95_low": -0.0020619268667653066,
+      "fallback_error": 0.01921885176036899,
+      "horizon": 2,
+      "query": "named_endpoint_axis_progress",
+      "shared_acceptance": 0.0,
+      "shared_regret": 0.0,
+      "ungated_error": 0.018443076086831545,
+      "ungated_harmful_rate": 0.03278688524590164,
+      "ungated_regret": -0.0007757756735374474
+    },
+    {
+      "ci95_high": 0.0017978523900717914,
+      "ci95_low": -0.0019588476725297533,
+      "fallback_error": 0.038460377223681355,
+      "horizon": 4,
+      "query": "named_endpoint_axis_progress",
+      "shared_acceptance": 0.0,
+      "shared_regret": 0.0,
+      "ungated_error": 0.03825081882918029,
+      "ungated_harmful_rate": 0.05296610169491525,
+      "ungated_regret": -0.0002095583945010611
+    }
+  ],
+  "protocol_id": "deform360-finite-orbit-real-data-v2",
+  "requested_objects": 18,
+  "result_id": "5700a8d643b97898263800195a75fbf5a587165fa28ce2f70c4397f7c89f4117",
+  "runner_name": "workstation1",
+  "schema": "prob4d.deform360-finite-orbit-real-data-result-compact-v2",
+  "selective_result": {
+    "independent_orbit_accepted_cells": 0,
+    "local_canonical_accepted_cells": 0,
+    "registered_cells": 9,
+    "shared_orbit_accepted_cells": 0,
+    "shared_orbit_regret_vs_fallback": 0.0,
+    "shared_orbit_target_window_acceptance": 0.0
+  },
+  "successful_materialized_units": 36,
+  "supported_object_pairs": 16,
+  "supported_sequences": 34,
+  "ungated_aggregate": {
+    "cells_with_ci_entirely_negative": 0,
+    "cells_with_ci_entirely_positive": 1,
+    "cells_with_positive_mean_regret": 2,
+    "equal_cell_mean_regret_vs_fallback": 7.669586757382796e-05,
+    "harmful_window_rate": 0.03766025641025641,
+    "target_windows": 8736,
+    "window_weighted_mean_regret_vs_fallback": 6.796234723858253e-05
+  },
+  "unsupported_units": [
+    {
+      "episode": 1,
+      "object_id": "075-leather",
+      "reason": "geometry-unsupported",
+      "role": "target"
+    },
+    {
+      "episode": 0,
+      "object_id": "078-fishing-line",
+      "reason": "geometry-unsupported",
+      "role": "source"
+    }
+  ]
+}

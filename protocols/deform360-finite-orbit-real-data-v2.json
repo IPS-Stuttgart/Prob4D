@@ -1,0 +1,101 @@
+{
+  "schema": "prob4d.deform360-finite-orbit-real-data-protocol",
+  "schema_version": 2,
+  "protocol_id": "deform360-finite-orbit-real-data-v2",
+  "registered_before_numerical_target_access": true,
+  "dataset": {
+    "name": "Deform360",
+    "runner_root": "/mnt/seagate10tb/florianpfaff/datasets/deform360",
+    "processed_inventory_id": "207e96c5366a497add56349eabdd6df70dd35da2120422803360d33f1db5c242",
+    "processed_inventory_artifact_sha256": "8dd0ee8ec3c351a1dcdd9f4bb40d32ae6a65fe256aa860bbab7e75e9dbec9f4c",
+    "processed_inventory_run_id": 33335159771,
+    "processed_inventory_accessed_values": false
+  },
+  "cohort_definition": {
+    "selection_basis": "source-visible object names and presence of episodes 0 and 1 in the target-closed processed-archive inventory",
+    "intended_support": "deformable linear or elongated objects for which an unordered principal-axis endpoint abstraction is physically meaningful",
+    "source_episode_policy": "episode_0",
+    "target_episode_policy": "episode_1",
+    "target_object_use": "leave-one-object-out; no source episode from the held-out object enters fitting or calibration"
+  },
+  "object_roster": [
+    {"object_id": "001-rope", "source_episode": 0, "target_episode": 1},
+    {"object_id": "002-rope-silk", "source_episode": 0, "target_episode": 1},
+    {"object_id": "003-cable", "source_episode": 0, "target_episode": 1},
+    {"object_id": "004-rubber-band", "source_episode": 0, "target_episode": 1},
+    {"object_id": "005-thread", "source_episode": 0, "target_episode": 1},
+    {"object_id": "042-necktie-cloth", "source_episode": 0, "target_episode": 1},
+    {"object_id": "067-paracord", "source_episode": 0, "target_episode": 1},
+    {"object_id": "068-nylon-rope", "source_episode": 0, "target_episode": 1},
+    {"object_id": "069-jump-rope", "source_episode": 0, "target_episode": 1},
+    {"object_id": "072-cotton-clohesline", "source_episode": 0, "target_episode": 1},
+    {"object_id": "073-shoelace", "source_episode": 0, "target_episode": 1},
+    {"object_id": "075-leather", "source_episode": 0, "target_episode": 1},
+    {"object_id": "077-hemp-rope", "source_episode": 0, "target_episode": 1},
+    {"object_id": "078-fishing-line", "source_episode": 0, "target_episode": 1},
+    {"object_id": "079-chain-metal", "source_episode": 0, "target_episode": 1},
+    {"object_id": "080-wool", "source_episode": 0, "target_episode": 1},
+    {"object_id": "081-stripe-rope", "source_episode": 0, "target_episode": 1},
+    {"object_id": "088-snake", "source_episode": 0, "target_episode": 1}
+  ],
+  "materialization": {
+    "source_container": "processed-repository/processed/<object>/episode_<episode>/pcd_clean.tar",
+    "member_selection": "at most 64 evenly spaced regular six-digit NPZ members in natural order",
+    "maximum_frames_per_episode": 64,
+    "minimum_frames_per_episode": 24,
+    "maximum_points_per_frame": 4096,
+    "minimum_points_per_frame": 100,
+    "maximum_npz_member_bytes": 16777216,
+    "point_array_preference": "pts, otherwise the largest numeric finite Nx3 array",
+    "point_subsampling": "deterministic evenly spaced source indices",
+    "pickle_allowed": false,
+    "media_decoding_allowed": false,
+    "mounted_dataset_mutation_allowed": false
+  },
+  "representation": {
+    "state": "unordered principal-axis endpoint pair",
+    "gauge_group": "C2 endpoint permutation",
+    "tail_fraction": 0.05,
+    "minimum_median_anisotropy": 1.1,
+    "minimum_supported_complete_object_pairs": 12
+  },
+  "prediction": {
+    "candidate": "object-disjoint source-fitted damped constant-velocity endpoint forecast",
+    "fallback": "exact persistence",
+    "horizons_frames": [1, 2, 4]
+  },
+  "calibration": {
+    "folding": "deterministic leave-one-object-out",
+    "calibration_objects": "approximately one third of non-target supported objects, at least three",
+    "fit_objects": "remaining non-target supported objects, at least two",
+    "target_used_for_fitting": false,
+    "target_used_for_calibration": false
+  },
+  "evaluation": {
+    "queries": [
+      "span_change",
+      "centroid_axis_progress",
+      "named_endpoint_axis_progress"
+    ],
+    "arms": [
+      "fallback",
+      "ungated_candidate",
+      "local_canonical",
+      "independent_orbit",
+      "shared_orbit"
+    ],
+    "advantage_margin_normalized": 0.0,
+    "orbit_tolerance_normalized": 0.05,
+    "harm_margin_normalized": 0.01,
+    "bootstrap_seed": 20260831,
+    "bootstrap_repetitions": 10000,
+    "independent_unit": "complete object identity",
+    "frames_are_independent_units": false
+  },
+  "decision_rule": {
+    "support_negative": "fewer than 12 complete source/target object pairs survive the frozen representation gate",
+    "technical_negative": "the frozen workflow or strict bounded loader cannot complete",
+    "completed": "all registered metrics are reported without post-target retuning"
+  },
+  "claim_boundary": "Retrospective real measured Deform360 geometry evidence for an object-disjoint principal-axis C2 finite-orbit query-admission mechanism only; not fresh confirmation, learned-provider competence, BayesianPhysTwin or Causal4D benefit, deployment safety, or state of the art."
+}
