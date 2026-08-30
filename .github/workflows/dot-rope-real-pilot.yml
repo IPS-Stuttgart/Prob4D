@@ -1,0 +1,128 @@
+name: DOT rope real-data pilot
+
+on:
+  push:
+    branches:
+      - research/dot-rope-real-pilot-v1
+    paths:
+      - ".github/workflows/dot-rope-real-pilot.yml"
+      - ".github/requests/dot-rope-real-pilot-v1.json"
+      - "protocols/dot-rope-real-pilot-v1.json"
+      - "scripts/science/inspect_dot_rope_archives.py"
+      - "scripts/science/run_dot_rope_axial_pilot.py"
+      - "src/prob4d/axial_gauge_moments.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dot-rope-real-pilot-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DOT_ROPE_ROOT: /home/github-runner/.cache/workflows/dot-rope
+  OUTPUT_ROOT: outputs/dot-rope-real-pilot-v1
+  PYTHONUNBUFFERED: "1"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+jobs:
+  archive-layout-inventory:
+    name: Read-only archive layout on gpuserver4090
+    runs-on: [self-hosted, gpuserver4090]
+    timeout-minutes: 90
+    steps:
+      - name: Check out exact research revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          clean: true
+
+      - name: Verify trusted request and dataset mount
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          request = json.loads(Path('.github/requests/dot-rope-real-pilot-v1.json').read_text())
+          protocol = json.loads(Path('protocols/dot-rope-real-pilot-v1.json').read_text())
+          assert request == {
+              'schema': 'prob4d.self-hosted-request.v1',
+              'request_id': 'dot-rope-layout-inventory-2026-08-30-v1',
+              'phase': 'archive-layout-inventory',
+              'dataset_doi': '10.13021/ORC2020/XXLVXM',
+              'dataset_path': '/home/github-runner/.cache/workflows/dot-rope',
+              'runner_labels': ['self-hosted', 'gpuserver4090'],
+              'read_only': True,
+              'requested_outputs': [
+                  'archive layout',
+                  'candidate truth files',
+                  'small metadata previews',
+                  'array headers',
+              ],
+          }
+          assert protocol['phase'] == 'archive-layout-inventory'
+          assert protocol['runner']['dataset_mutation'] is False
+          assert protocol['runner']['archive_extraction'] is False
+          root = Path(os.environ['DOT_ROPE_ROOT'])
+          assert root.is_symlink(), f'{root} must be the registered symlink'
+          resolved = root.resolve(strict=True)
+          assert resolved == Path('/mnt/seagate10tb/florianpfaff/datasets/dot-rope')
+          assert resolved.is_dir()
+          assert sum(path.stat().st_size for path in resolved.glob('*.zip')) == 9478165486
+          print({'logical_root': str(root), 'resolved_root': str(resolved)})
+          PY
+          python3 - <<'PY'
+          import numpy
+          import sys
+          print({'python': sys.version, 'numpy': numpy.__version__})
+          PY
+
+      - name: Inspect ZIP layout without extraction
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "$OUTPUT_ROOT"
+          python3 scripts/science/inspect_dot_rope_archives.py \
+            --dataset-root "$DOT_ROPE_ROOT" \
+            --output-dir "$OUTPUT_ROOT/inventory"
+
+      - name: Summarize discovered structure
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -f "$OUTPUT_ROOT/inventory/inventory.json" ]]; then
+            python3 - <<'PY' | tee "$OUTPUT_ROOT/inventory/summary.txt"
+          import json
+          import os
+          from pathlib import Path
+
+          report = json.loads(Path(os.environ['OUTPUT_ROOT'], 'inventory', 'inventory.json').read_text())
+          print('artifact_id:', report['artifact_id'])
+          print('filesystem_bytes:', report['dataset']['filesystem_bytes'])
+          print('uncompressed_bytes:', report['dataset']['uncompressed_bytes'])
+          print('candidate_member_count:', report['candidate_member_count'])
+          print('text_preview_count:', report['text_preview_count'])
+          print('array_header_count:', report['array_header_count'])
+          print('extensions:')
+          for key, value in list(report['global_extensions'].items())[:30]:
+              print(f'  {key}: {value}')
+          print('top prefixes:')
+          for key, value in list(report['global_top_prefixes'].items())[:30]:
+              print(f'  {key}: {value}')
+          PY
+            cat "$OUTPUT_ROOT/inventory/summary.txt" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload read-only inventory evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: dot-rope-layout-inventory-v1
+          path: outputs/dot-rope-real-pilot-v1/inventory/
+          if-no-files-found: error
+          retention-days: 30
