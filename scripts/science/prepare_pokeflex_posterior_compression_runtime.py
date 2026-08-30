@@ -83,6 +83,14 @@ _PATCHED_SOLVE = """        matrix = raw.reshape(self.dimension, -1)
         )
         result = (parallel + residual / self._variance).reshape(raw.shape)
 """
+_ORIGINAL_ARCHIVE_DISCOVERY = """    archives = sorted(dataset_root.glob(str(protocol["archive_glob"])))
+"""
+_PATCHED_ARCHIVE_DISCOVERY = """    archives = sorted(
+        path
+        for path in dataset_root.rglob("*")
+        if path.is_file() and path.suffix.lower() == ".zip"
+    )
+"""
 
 
 def _git_blob_sha1(payload: bytes) -> str:
@@ -153,6 +161,12 @@ def apply_repair(source_path: Path) -> dict[str, object]:
         _PATCHED_SOLVE,
         "stable-solve",
     )
+    text = _replace_exactly_once(
+        text,
+        _ORIGINAL_ARCHIVE_DISCOVERY,
+        _PATCHED_ARCHIVE_DISCOVERY,
+        "case-insensitive-recursive-archive-discovery",
+    )
     patched = text.encode("utf-8")
     source.write_bytes(patched)
     record: dict[str, object] = {
@@ -175,6 +189,10 @@ def apply_repair(source_path: Path) -> dict[str, object]:
                 "Solve diagonal-plus-low-rank systems in the factor's orthonormal "
                 "singular subspace, retaining a separately solved orthogonal "
                 "residual and suppressing only representation-roundoff residuals."
+            ),
+            (
+                "Inventory ZIP files recursively with a case-insensitive suffix "
+                "test so the known mirror layout is not mistaken for an empty root."
             ),
         ],
         "numerical_reason": (
