@@ -1,0 +1,168 @@
+name: Collect direct DLO45 validation result 20260831
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/collect-direct-dlo45-result-20260831.yml"
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TARGET_WORKFLOW_NAME: Direct DEFORM DLO4 to DLO5 query validation 20260831
+      EVIDENCE_BRANCH: evidence/direct-deform-dlo45-20260831
+      EVIDENCE_ROOT: evidence/direct-deform-dlo45-20260831
+    steps:
+      - name: Check out current main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Locate completed direct validation run
+        id: locate
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_id=""
+          for _ in $(seq 1 180); do
+            runs=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?event=push&branch=main&per_page=100")
+            run_id=$(RUNS="$runs" python3 - <<'PY'
+          import json, os
+          rows = [
+              row
+              for row in json.loads(os.environ["RUNS"]).get("workflow_runs", [])
+              if row.get("name") == os.environ["TARGET_WORKFLOW_NAME"]
+              and row.get("status") == "completed"
+          ]
+          rows.sort(key=lambda row: row.get("created_at", ""), reverse=True)
+          print(rows[0]["id"] if rows else "")
+          PY
+            )
+            [[ -n "$run_id" ]] && break
+            sleep 5
+          done
+          test -n "$run_id"
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+      - name: Download sanitized aggregate artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf collected
+          mkdir -p collected/archive collected/content
+          run_id="${{ steps.locate.outputs.run_id }}"
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}" > collected/workflow-run.json
+          artifacts=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts?per_page=100")
+          artifact_id=$(ARTIFACTS="$artifacts" python3 - <<'PY'
+          import json, os
+          rows = [
+              row
+              for row in json.loads(os.environ["ARTIFACTS"]).get("artifacts", [])
+              if row.get("name", "").startswith("direct-deform-dlo45-query-validation-")
+              and not row.get("expired", False)
+          ]
+          rows.sort(key=lambda row: row.get("created_at", ""), reverse=True)
+          print(rows[0]["id"] if rows else "")
+          PY
+          )
+          test -n "$artifact_id"
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}/zip" \
+            > collected/archive/evidence.zip
+          unzip -q collected/archive/evidence.zip -d collected/content
+          test -f collected/content/result.json
+          test -f collected/content/summary.md
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          result = json.loads(Path("collected/content/result.json").read_text())
+          if result.get("schema") != "prob4d.direct-deform-dlo45-query-validation-v1":
+              raise SystemExit("unexpected result schema")
+          boundary = result.get("information_boundary", {})
+          if boundary.get("raw_data_uploaded") is not False:
+              raise SystemExit("raw-data boundary changed")
+          Path("collected/artifact-metadata.json").write_text(
+              json.dumps(
+                  {
+                      "workflow_run_id": int("${{ steps.locate.outputs.run_id }}"),
+                      "artifact_id": int("""%s"""),
+                      "result_id": result.get("result_id"),
+                      "status": result.get("status"),
+                      "decision": result.get("evaluation", {}).get("decision"),
+                      "promotion_gate_passed": result.get("evaluation", {}).get(
+                          "promotion_gate_passed"
+                      ),
+                  },
+                  indent=2,
+                  sort_keys=True,
+              )
+              + "\n"
+          )
+          PY
+        env:
+          # Filled from the shell variable before Python through a literal replacement below.
+          PYTHONUNBUFFERED: "1"
+      - name: Normalize collector metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_id="${{ steps.locate.outputs.run_id }}"
+          artifacts=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts?per_page=100")
+          artifact_id=$(ARTIFACTS="$artifacts" python3 - <<'PY'
+          import json, os
+          rows = [r for r in json.loads(os.environ["ARTIFACTS"])["artifacts"] if r["name"].startswith("direct-deform-dlo45-query-validation-") and not r["expired"]]
+          rows.sort(key=lambda r: r["created_at"], reverse=True)
+          print(rows[0]["id"])
+          PY
+          )
+          RUN_ID="$run_id" ARTIFACT_ID="$artifact_id" python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          result = json.loads(Path("collected/content/result.json").read_text())
+          Path("collected/artifact-metadata.json").write_text(
+              json.dumps(
+                  {
+                      "workflow_run_id": int(os.environ["RUN_ID"]),
+                      "artifact_id": int(os.environ["ARTIFACT_ID"]),
+                      "result_id": result.get("result_id"),
+                      "status": result.get("status"),
+                      "decision": result.get("evaluation", {}).get("decision"),
+                      "promotion_gate_passed": result.get("evaluation", {}).get("promotion_gate_passed"),
+                  },
+                  indent=2,
+                  sort_keys=True,
+              ) + "\n"
+          )
+          PY
+      - name: Publish deterministic evidence branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "$EVIDENCE_ROOT"
+          mkdir -p "$EVIDENCE_ROOT"
+          cp collected/content/result.json "$EVIDENCE_ROOT/result.json"
+          cp collected/content/summary.md "$EVIDENCE_ROOT/summary.md"
+          cp collected/workflow-run.json "$EVIDENCE_ROOT/workflow-run.json"
+          cp collected/artifact-metadata.json "$EVIDENCE_ROOT/artifact-metadata.json"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$EVIDENCE_BRANCH"
+          git add "$EVIDENCE_ROOT"
+          git commit -m "Retain direct DEFORM DLO4-to-DLO5 validation result"
+          git push --force origin "HEAD:${EVIDENCE_BRANCH}"
+      - name: Upload collector copy
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: collected-direct-deform-dlo45-result-${{ steps.locate.outputs.run_id }}
+          path: |
+            collected/content/result.json
+            collected/content/summary.md
+            collected/workflow-run.json
+            collected/artifact-metadata.json
+          retention-days: 30
