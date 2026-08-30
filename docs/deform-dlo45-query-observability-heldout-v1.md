@@ -1,6 +1,26 @@
 # DEFORM DLO4/DLO5 held-out query-observability result
 
-Status: **registered held-out public-real-geometry result; all registered criteria passed**.
+Status: **bounded positive mechanism result with a negative covariance-calibration finding; all registered mechanism criteria passed**.
+
+## Result classification
+
+This is **not an overall negative result**. The preregistered scientific question
+was whether a rank-deficient factor can be used selectively for a downstream
+query that does not depend on its unresolved gauge direction, while reverting
+exactly to the physical fallback for a gauge-sensitive query. That question was
+answered positively on all 28 held-out trajectory groups.
+
+The experiment simultaneously establishes negative boundaries:
+
+- the accepted centroid-query covariance is underdispersed and is not calibrated;
+- unconditional use of the observable subspace is unsafe for the off-axis query;
+- artificial full-rank completion can look accurate under RMSE while being
+  catastrophically overconfident under NLL, coverage, and NEES; and
+- the evidence does not justify a deployment-safety or learned-provider claim.
+
+Accordingly, the paper-level classification is **positive selective-use evidence
+with a negative calibration result**, rather than either an unqualified success
+or a wholly negative experiment.
 
 This note records the immutable result of the source-frozen query-aware
 observability experiment. It does not authorize post-open calibration, threshold
