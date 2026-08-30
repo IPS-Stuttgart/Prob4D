@@ -12,6 +12,12 @@ CUT3R_SOURCE_COMPARISON_V2_WORKFLOW = WORKFLOW_ROOT / "cut3r-source-comparison-v
 POINTWORLD_MODEL_LOAD_SMOKE_WORKFLOW = WORKFLOW_ROOT / "pointworld-model-load-smoke.yml"
 DEFORM360_SOURCE_BUNDLE_AUDIT_WORKFLOW = WORKFLOW_ROOT / "deform360-source-bundle-audit.yml"
 DOT_ROPE_CUT3R_NATIVE_PROVIDER_WORKFLOW = WORKFLOW_ROOT / "dot-rope-cut3r-native-provider-v1.yml"
+DOT_CUT3R_RUNTIME_BOOTSTRAP_WORKFLOW = (
+    WORKFLOW_ROOT / "bootstrap-dot-cut3r-gpuserver4090-runtime.yml"
+)
+DOT_CUT3R_RUNTIME_COMPLETE_WORKFLOW = (
+    WORKFLOW_ROOT / "complete-dot-cut3r-cu126-runtime.yml"
+)
 CUT3R_RUNNER_SELECTOR = (
     "runs-on: [self-hosted, Linux, X64, nvidia-smi, "
     + "data-prob4d-deform360-source-v1, prob4d-cut3r]"
@@ -26,6 +32,8 @@ TRUSTED_SELF_HOSTED_WORKFLOWS = (
     POINTWORLD_MODEL_LOAD_SMOKE_WORKFLOW,
     DEFORM360_SOURCE_BUNDLE_AUDIT_WORKFLOW,
     DOT_ROPE_CUT3R_NATIVE_PROVIDER_WORKFLOW,
+    DOT_CUT3R_RUNTIME_BOOTSTRAP_WORKFLOW,
+    DOT_CUT3R_RUNTIME_COMPLETE_WORKFLOW,
 )
 REMOVED_TEMPORARY_WORKFLOWS = (
     WORKFLOW_ROOT / "issue-49-protected-cohort-inventory.yml",
@@ -355,6 +363,27 @@ def test_dot_rope_cut3r_provider_is_main_request_bound_and_stage_sealed() -> Non
     assert "R04-R70" in text
     assert "secrets." not in text
     assert "git push" not in text
+
+
+def test_dot_cut3r_runtime_workflows_are_target_closed_and_patch_bound() -> None:
+    bootstrap = DOT_CUT3R_RUNTIME_BOOTSTRAP_WORKFLOW.read_text(encoding="utf-8")
+    complete = DOT_CUT3R_RUNTIME_COMPLETE_WORKFLOW.read_text(encoding="utf-8")
+
+    for text in (bootstrap, complete):
+        assert "runs-on: [self-hosted, Linux, X64, gpuserver4090]" in text
+        assert 'test "$RUNNER_NAME" = "workstation1"' in text
+        assert "environment: trusted-self-hosted-validation" in text
+        assert "DATASET_ROOT" not in text
+        assert "/mnt/seagate10tb/florianpfaff/datasets/dot" not in text
+        assert "secrets." not in text
+        assert "git push" not in text
+
+    assert "CUDA_HOME: /usr/local/cuda" in complete
+    assert "torch==2.11.0 torchvision==0.26.0" in complete
+    assert "cut3r-curope-torch211-cu126.patch" in complete
+    assert "EXPECTED_CUROPE_KERNELS_BLOB" in complete
+    assert "EXPECTED_CUROPE_SETUP_BLOB" in complete
+    assert "compatibility-patch-receipt.json" in complete
 
 
 def test_source_comparison_v2_issue_trigger_is_terminally_removed() -> None:
