@@ -51,17 +51,36 @@ jobs:
             echo "HOME=$root/home"
             echo "TMPDIR=$root/tmp"
           } >> "$GITHUB_ENV"
-      - name: Require intended runner and complete source archive
+      - name: Resolve intended runner and complete source archive
         shell: bash
         run: |
           set -euo pipefail
           test "$RUNNER_NAME" = "workstation2"
           test "$RUNNER_OS" = "Linux"
           test "$RUNNER_ARCH" = "X64"
-          test -d "$DATASET_ROOT"
-          test ! -L "$DATASET_ROOT"
-          test -f "$DATASET_ROOT/R01-10.zip"
-          test -r "$DATASET_ROOT/R01-10.zip"
+          requested="$DATASET_ROOT"
+          resolved=$(/usr/bin/readlink -f -- "$requested" 2>/dev/null || true)
+          if [[ -z "$resolved" || ! -f "$resolved/R01-10.zip" ]]; then
+            for candidate in \
+              /mnt/seagate10tb/florianpfaff/datasets/dot-rope \
+              /mnt/seagate10tb/florianpfaff/datasets/dot \
+              /mnt/lexar4tb/datasets/dot-rope \
+              /mnt/lexar4tb/datasets/dot; do
+              candidate_resolved=$(/usr/bin/readlink -f -- "$candidate" 2>/dev/null || true)
+              if [[ -n "$candidate_resolved" && -f "$candidate_resolved/R01-10.zip" ]]; then
+                resolved="$candidate_resolved"
+                break
+              fi
+            done
+          fi
+          printf 'requested dataset root: %s\n' "$requested"
+          printf 'resolved dataset root: %s\n' "$resolved"
+          test -n "$resolved"
+          test -d "$resolved"
+          test -f "$resolved/R01-10.zip"
+          test -r "$resolved/R01-10.zip"
+          /usr/bin/ls -ld -- "$requested" "$resolved" "$resolved/R01-10.zip" || true
+          echo "DATASET_ROOT=$resolved" >> "$GITHUB_ENV"
       - name: Check out exact dispatched revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
