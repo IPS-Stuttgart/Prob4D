@@ -86,11 +86,27 @@ _PATCHED_SOLVE = """        matrix = raw.reshape(self.dimension, -1)
 _ORIGINAL_ARCHIVE_DISCOVERY = (
     '    archives = sorted(dataset_root.glob(str(protocol["archive_glob"])))\n'
 )
-_PATCHED_ARCHIVE_DISCOVERY = """    archives = sorted(
-        path
-        for path in dataset_root.rglob("*")
-        if path.is_file() and path.suffix.lower() == ".zip"
-    )
+_PATCHED_ARCHIVE_DISCOVERY = """    archives = []
+    pending_directories = [dataset_root]
+    visited_directories = set()
+    while pending_directories:
+        directory = pending_directories.pop()
+        stat_result = directory.stat()
+        directory_identity = (stat_result.st_dev, stat_result.st_ino)
+        if directory_identity in visited_directories:
+            continue
+        visited_directories.add(directory_identity)
+        with os.scandir(directory) as entries:
+            for entry in entries:
+                candidate = Path(entry.path)
+                if entry.is_dir(follow_symlinks=True):
+                    pending_directories.append(candidate)
+                elif (
+                    entry.is_file(follow_symlinks=True)
+                    and candidate.suffix.lower() == ".zip"
+                ):
+                    archives.append(candidate)
+    archives.sort()
 """
 
 
@@ -166,7 +182,7 @@ def apply_repair(source_path: Path) -> dict[str, object]:
         text,
         _ORIGINAL_ARCHIVE_DISCOVERY,
         _PATCHED_ARCHIVE_DISCOVERY,
-        "case-insensitive-recursive-archive-discovery",
+        "cycle-safe-symlink-following-archive-discovery",
     )
     patched = text.encode("utf-8")
     source.write_bytes(patched)
@@ -192,8 +208,8 @@ def apply_repair(source_path: Path) -> dict[str, object]:
                 "residual and suppressing only representation-roundoff residuals."
             ),
             (
-                "Inventory ZIP files recursively with a case-insensitive suffix "
-                "test so the known mirror layout is not mistaken for an empty root."
+                "Inventory ZIP files through regular and symlinked directories with "
+                "cycle-safe inode tracking and a case-insensitive suffix test."
             ),
         ],
         "numerical_reason": (
