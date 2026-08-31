@@ -3,9 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-WORKFLOW = (
-    ROOT / ".github" / "workflows" / "dot-rope-cut3r-heldout-confirmation-v1.yml"
-)
+WORKFLOW = ROOT / ".github" / "workflows" / "dot-rope-cut3r-heldout-confirmation-v1.yml"
 
 
 def test_confirmation_workflow_is_single_request_triggered_and_stage_sealed() -> None:
