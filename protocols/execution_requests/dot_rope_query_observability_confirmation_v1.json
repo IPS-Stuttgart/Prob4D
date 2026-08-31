@@ -1,0 +1,14 @@
+{
+  "schema": "prob4d.dot-rope-query-observability-confirmation-request",
+  "schema_version": 1,
+  "source_calibration_authorized": true,
+  "confirmation_normal_view_prediction_authorized": true,
+  "source_marker_evaluation_authorized": true,
+  "confirmation_marker_evaluation_authorized": true,
+  "confirmation_sequences": ["R04", "R05", "R06", "R07", "R08", "R09", "R10"],
+  "retained_sequences": "R11-R70",
+  "post_confirmation_retuning_permitted": false,
+  "bayesian_phystwin_executed": false,
+  "causal4d_executed": false,
+  "claim_boundary": "One-shot marker-free CUT3R prediction with marker-indexed evaluation. R01-R03 alone freeze support, rank, admission, and covariance inflation. R04-R10 are confirmation; R11-R70 remain unopened. No post-confirmation retuning, BayesianPhysTwin execution, or Causal4D execution is authorized."
+}
