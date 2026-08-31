@@ -60,10 +60,10 @@ def test_only_provider_job_uses_the_protected_gpu_runner() -> None:
     provider = _job(text, "provider", "seal")
     seal = _job(text, "seal", "evaluate")
     evaluate = _job(text, "evaluate", "publish")
-    selector = "runs-on: [self-hosted, Linux, X64, gpuserver4090]"
+    selector = "runs-on: [self-hosted, gpuserver6000]"
     assert selector in provider
     assert "environment: trusted-self-hosted-validation" in provider
-    assert 'test "$RUNNER_NAME" = "workstation1"' in provider
+    assert 'test "$RUNNER_NAME" = "workstation2"' in provider
     assert "ref: ${{ needs.authorize.outputs.head_sha }}" in provider
     assert "persist-credentials: false" in provider
     assert "contents: write" not in provider
@@ -83,6 +83,9 @@ def test_archive_and_information_boundaries_are_explicit() -> None:
     provider = _job(text, "provider", "seal")
     seal = _job(text, "seal", "evaluate")
     evaluate = _job(text, "evaluate", "publish")
+    assert "Resolve, download, and verify official R11-R30 archives" in provider
+    assert "--continue-at -" in provider
+    assert "Build and attest native CUT3R RoPE in an isolated checkout" in provider
     assert "Predict R11-R30 from normal-view images only" in provider
     assert "two_dimensional_markers_opened" in provider
     assert "three_dimensional_markers_opened" in provider
