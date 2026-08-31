@@ -1,0 +1,6 @@
+{
+  "executable": "/home/github-runner/.cache/datasets/venvs/hdetrackv2/bin/python",
+  "numpy": "2.2.6",
+  "package_install_performed": false,
+  "python": "3.10.12"
+}

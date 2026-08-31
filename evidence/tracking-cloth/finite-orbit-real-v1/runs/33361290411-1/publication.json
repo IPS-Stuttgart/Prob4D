@@ -1,0 +1,31 @@
+{
+  "artifact_download_succeeded": true,
+  "evaluated_revision": "8c33cb5755d0380b12337e2483220021f5c65bee",
+  "files": [
+    {
+      "bytes": 2,
+      "name": "process-exit-code.txt",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865"
+    },
+    {
+      "bytes": 167,
+      "name": "runtime.json",
+      "sha256": "c3d3f2610fb748d3896168a8b7b5dc50770b82f9e4b685b678c288861725d6ec"
+    },
+    {
+      "bytes": 1123,
+      "name": "stderr.txt",
+      "sha256": "d50c08e8f35cb7cde0e4b767e66f01ec57eb1bed08f8c3553acb5ac6dcee4695"
+    },
+    {
+      "bytes": 0,
+      "name": "stdout.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "raw_dataset_payload_copied": false,
+  "schema": "prob4d.tracking-cloth-finite-orbit-publication.v1",
+  "workflow_conclusion": "failure",
+  "workflow_run_attempt": 1,
+  "workflow_run_id": 33361290411
+}
