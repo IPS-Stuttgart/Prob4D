@@ -1,0 +1,22 @@
+{
+  "claim_boundary": "Metadata-only provenance finalization of the completed hosted DOT R01-R03 pooled-marker CUT3R source evaluation. No DOT dataset path is opened and no score, covariance, provider prediction, method ranking, or scientific payload is recomputed. R04-R70 remain unopened. This does not establish held-out transfer, independent calibration, BayesianPhysTwin benefit, Causal4D benefit, deployment safety, or state of the art.",
+  "execution_nonce": "2026-08-31-dot-pooled-result-finalization-1",
+  "marker_support_audit_id": "260a155d3b54d8385020cf2f9b404f6dfcd49218798412bf5b2cbceb6af8de37",
+  "no_dataset_access": true,
+  "no_scores_recomputed": true,
+  "pooled_request_id": "2237e47f9abacb1e0b7db267f40e2c4b1914881fd479f566fe973cad313f2a78",
+  "provider_artifact_name": "dot-rope-cut3r-sealed-provider-33329701704-1",
+  "provider_bundle_id": "952421d140731b2a6eb99df3cbd348653e04863fa457aaa490be31fe0b4c06a7",
+  "provider_request_id": "83cc26be92364fc7715d692b3bb966cf914fb9f911e0763823f2789480a00cf2",
+  "provider_run_id": 33329701704,
+  "request_id": "05d7c8d3989fb2647f6ea8db491d80525f912ed30bf24296392d45c4376394da",
+  "schema": "prob4d.dot-rope-pooled-result-finalization-request",
+  "schema_version": 1,
+  "scientific_payload_id": "56eb9ad3694d8e7565ab844b00e3ee7de37a0ba4b8bb47bbaf0e4b674cb8d970",
+  "source_artifact_digest": "sha256:0ce70e6f0f252a5eb921a339964723428446cab361d9d65a8aed0cda5c4c9427",
+  "source_artifact_id": 9739735578,
+  "source_artifact_name": "dot-rope-cut3r-pooled-evaluation-hosted-33338311316-1",
+  "source_head_sha": "977f83c6b958432585cb0fdb18b0127de545470b",
+  "source_run_id": 33338311316,
+  "source_unfinalized_evaluation_id": "ec86014b945b5f0d7e0d1fc8e38e5976acfb5efc7ef92fc816714c1cc5b60e09"
+}
