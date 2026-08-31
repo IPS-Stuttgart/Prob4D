@@ -56,12 +56,8 @@ def test_confirmation_marker_evaluation_is_hosted_and_frozen() -> None:
 
     assert "runs-on: ubuntu-latest" in evaluation
     assert "actions: read" in evaluation
-    verify_index = evaluation.index(
-        "Verify provider seal before downloading marker archive"
-    )
-    download_index = evaluation.index(
-        "Download and verify official R01-R10 marker archive"
-    )
+    verify_index = evaluation.index("Verify provider seal before downloading marker archive")
+    download_index = evaluation.index("Download and verify official R01-R10 marker archive")
     assert verify_index < download_index
     assert "Evaluate the frozen alpha and comparators" in evaluation
     assert "ca546ff5f22c0279123ccb18509858ee" in text
