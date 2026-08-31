@@ -63,14 +63,14 @@ jobs:
           path.write_text(text, encoding="utf-8")
           PY
 
-      - name: Exercise the exact allow-list policy
+      - name: Exercise the exact pytest-facing allow-list policy
         shell: bash
         run: |
           set -euo pipefail
           /usr/bin/python3 - <<'PY'
           import runpy
 
-          namespace = runpy.run_path("tests/_trusted_self_hosted_validation_policy_base.py")
+          namespace = runpy.run_path("tests/test_trusted_self_hosted_validation_policy.py")
           namespace["test_only_reviewed_protected_workflows_can_use_self_hosted_runners"]()
           PY
 
