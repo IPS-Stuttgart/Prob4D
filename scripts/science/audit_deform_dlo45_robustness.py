@@ -221,9 +221,9 @@ def audit(result: Mapping[str, Any], protocol: Mapping[str, Any]) -> dict[str, A
         },
         "claim_boundary": protocol["claim_boundary"],
     }
+    output["per_group_sha256"] = hashlib.sha256(canonical(rows)).hexdigest()
     payload = dict(output)
     output["audit_id"] = hashlib.sha256(canonical(payload)).hexdigest()
-    output["per_group_sha256"] = hashlib.sha256(canonical(rows)).hexdigest()
     output["rows"] = rows
     return output
 
