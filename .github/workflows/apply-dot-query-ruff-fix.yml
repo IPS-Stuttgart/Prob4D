@@ -34,10 +34,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = "2bb71e7e64b8c4b0376b694b8e12f75bf5fc6b1e"
+          test "$(git rev-parse HEAD^)" = "cb918a05bb490987c86a61a218dae4e91bc7ff86"
           test "$(git hash-object scripts/science/run_dot_rope_query_selective_heldout.py)" = "afcf43562f70053269c5a8e7c2ace2a209bcf519"
-          git apply --check tools/dot-query-ruff.patch
-          git apply tools/dot-query-ruff.patch
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("scripts/science/run_dot_rope_query_selective_heldout.py")
+          old = '    if set((factor.get("queries") or {})) != set(QUERIES):\n'
+          new = '    if set(factor.get("queries") or {}) != set(QUERIES):\n'
+          text = path.read_text(encoding="utf-8")
+          if text.count(old) != 1:
+              raise SystemExit("Ruff preimage changed")
+          path.write_text(text.replace(old, new), encoding="utf-8", newline="\n")
+          PY
           rm tools/dot-query-ruff.patch
           python3 -m py_compile scripts/science/run_dot_rope_query_selective_heldout.py
           git diff --check
