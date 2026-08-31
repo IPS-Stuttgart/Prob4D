@@ -1,0 +1,66 @@
+name: Patch DOT held-out workflow policy
+
+on:
+  push:
+    branches: [science/dot-cut3r-heldout-confirmation-v1]
+    paths:
+      - ".github/workflows/patch-dot-heldout-policy.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: science/dot-cut3r-heldout-confirmation-v1
+          fetch-depth: 0
+      - name: Add reviewed held-out workflow to explicit allowlist
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("tests/test_trusted_self_hosted_validation_policy.py")
+          text = path.read_text(encoding="utf-8")
+          definition_anchor = (
+              'DOT_ROPE_CUT3R_SEALED_RUNTIME_WORKFLOW = WORKFLOW_ROOT / '
+              '"dot-rope-cut3r-sealed-runtime-v1.yml"\n'
+              'DOT_ROPE_MARKER_SUPPORT_AUDIT_WORKFLOW = WORKFLOW_ROOT / '
+              '"dot-rope-marker-support-audit-v1.yml"\n'
+          )
+          definition_replacement = (
+              'DOT_ROPE_CUT3R_SEALED_RUNTIME_WORKFLOW = WORKFLOW_ROOT / '
+              '"dot-rope-cut3r-sealed-runtime-v1.yml"\n'
+              'DOT_ROPE_CUT3R_HELDOUT_CONFIRMATION_WORKFLOW = (\n'
+              '    WORKFLOW_ROOT / "dot-rope-cut3r-heldout-confirmation-v1.yml"\n'
+              ')\n'
+              'DOT_ROPE_MARKER_SUPPORT_AUDIT_WORKFLOW = WORKFLOW_ROOT / '
+              '"dot-rope-marker-support-audit-v1.yml"\n'
+          )
+          tuple_anchor = (
+              '    DOT_ROPE_CUT3R_SEALED_RUNTIME_WORKFLOW,\n'
+              '    DOT_ROPE_MARKER_SUPPORT_AUDIT_WORKFLOW,\n'
+          )
+          tuple_replacement = (
+              '    DOT_ROPE_CUT3R_SEALED_RUNTIME_WORKFLOW,\n'
+              '    DOT_ROPE_CUT3R_HELDOUT_CONFIRMATION_WORKFLOW,\n'
+              '    DOT_ROPE_MARKER_SUPPORT_AUDIT_WORKFLOW,\n'
+          )
+          if text.count(definition_anchor) != 1 or text.count(tuple_anchor) != 1:
+              raise SystemExit("trusted self-hosted allowlist anchors changed")
+          text = text.replace(definition_anchor, definition_replacement, 1)
+          text = text.replace(tuple_anchor, tuple_replacement, 1)
+          path.write_text(text, encoding="utf-8", newline="\n")
+          PY
+          git diff --check
+          git diff -- tests/test_trusted_self_hosted_validation_policy.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/test_trusted_self_hosted_validation_policy.py
+          git commit -m "Allowlist reviewed DOT held-out self-hosted workflow"
+          git push origin HEAD:science/dot-cut3r-heldout-confirmation-v1
