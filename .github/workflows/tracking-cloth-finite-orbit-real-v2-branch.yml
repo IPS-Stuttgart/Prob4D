@@ -1,0 +1,293 @@
+name: Tracking Cloth finite-orbit real geometry v2 branch evaluation
+
+on:
+  push:
+    branches:
+      - science/tracking-cloth-taxonomy-fix-v1
+    paths:
+      - protocols/execution_requests/tracking_cloth_finite_orbit_real_v2.json
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tracking-cloth-finite-orbit-real-v2-${{ github.ref }}-${{ github.sha }}
+  cancel-in-progress: false
+
+env:
+  REQUEST_PATH: protocols/execution_requests/tracking_cloth_finite_orbit_real_v2.json
+  PROTOCOL_PATH: protocols/tracking-cloth-finite-orbit-real-v2.json
+  DATASET_ROOT: /home/github-runner/.cache/datasets/tracking-cloth-deformation-v1-zenodo-14644526
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+
+jobs:
+  contract:
+    name: Validate taxonomy-only v2 capsule
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    outputs:
+      head_sha: ${{ steps.identity.outputs.head_sha }}
+      protocol_blob: ${{ steps.identity.outputs.protocol_blob }}
+    steps:
+      - name: Check out exact triggering revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+          clean: true
+
+      - name: Verify one request-file trigger and frozen identities
+        id: identity
+        shell: bash
+        env:
+          EVENT_BEFORE: ${{ github.event.before }}
+          EVENT_AFTER: ${{ github.event.after }}
+          EVENT_FORCED: ${{ github.event.forced }}
+          EVENT_DELETED: ${{ github.event.deleted }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_AFTER" = "$(git rev-parse HEAD)"
+          test "$EVENT_FORCED" = "false"
+          test "$EVENT_DELETED" = "false"
+          test "$EVENT_BEFORE" != "0000000000000000000000000000000000000000"
+          mapfile -t changed < <(git diff --name-only "$EVENT_BEFORE" "$EVENT_AFTER" | sort)
+          if [[ ${#changed[@]} -ne 1 || "${changed[0]}" != "$REQUEST_PATH" ]]; then
+            printf 'Expected only %s; changed paths were:\n' "$REQUEST_PATH" >&2
+            printf '  %s\n' "${changed[@]}" >&2
+            exit 2
+          fi
+          test -f "$REQUEST_PATH"
+          test -f "$PROTOCOL_PATH"
+          test ! -L "$REQUEST_PATH"
+          test ! -L "$PROTOCOL_PATH"
+          echo "head_sha=$EVENT_AFTER" >> "$GITHUB_OUTPUT"
+          echo "protocol_blob=$(git rev-parse "$EVENT_AFTER:$PROTOCOL_PATH")" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Validate request, taxonomy provenance, and unchanged science
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check -e ".[dev]"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          request = json.loads(Path(os.environ["REQUEST_PATH"]).read_text())
+          protocol = json.loads(Path(os.environ["PROTOCOL_PATH"]).read_text())
+          v1 = json.loads(Path(
+              "protocols/tracking-cloth-finite-orbit-real-v1.json"
+          ).read_text())
+          assert request["schema"] == "prob4d.self-hosted-experiment-request.v1"
+          assert request["protocol_id"] == "tracking-cloth-finite-orbit-real-v2"
+          assert request["dataset_root"] == os.environ["DATASET_ROOT"]
+          assert request["runner_labels"] == [
+              "self-hosted", "Linux", "X64", "gpuserver4090"
+          ]
+          assert request["opens_interaction_outcomes"] is True
+          assert request["target_side_retuning_allowed"] is False
+          assert request["raw_data_publication_authorized"] is False
+          assert protocol["schema"] == "prob4d.tracking-cloth-finite-orbit-real.v1"
+          assert protocol["protocol_id"] == request["protocol_id"]
+          assert protocol["dataset"]["publisher_scenario_counts"] == {
+              "collision_with_table": 16,
+              "free_hanging_shake_or_twist": 64,
+              "hitting": 4,
+              "self_collision": 36,
+          }
+          assert protocol["dataset"]["expected_source_files"] == 64
+          assert protocol["dataset"]["expected_target_files"] == 56
+          assert protocol["taxonomy_provenance"]["csv_contents_opened_before_v2_freeze"] is False
+          assert protocol["taxonomy_provenance"]["scientific_outcomes_opened_before_v2_freeze"] is False
+          assert protocol["geometry"] == v1["geometry"]
+          assert protocol["controlled_factor"] == v1["controlled_factor"]
+          assert protocol["inference"] == v1["inference"]
+          assert protocol["registered_criteria"] == v1["registered_criteria"]
+          assert protocol["claim_boundary"] == v1["claim_boundary"]
+          PY
+          python -m ruff check \
+            scripts/science/inventory_tracking_cloth_taxonomy_v1.py \
+            tests/test_tracking_cloth_finite_orbit_taxonomy_v2.py
+          python -m ruff format --check \
+            scripts/science/inventory_tracking_cloth_taxonomy_v1.py \
+            tests/test_tracking_cloth_finite_orbit_taxonomy_v2.py
+          python -m pytest -q \
+            tests/test_tracking_cloth_finite_orbit_real_v1.py \
+            tests/test_tracking_cloth_finite_orbit_taxonomy_v2.py
+
+  evaluate:
+    name: Evaluate 56 held-out interaction recordings on gpuserver4090
+    needs: contract
+    environment: trusted-self-hosted-validation
+    runs-on: [self-hosted, Linux, X64, gpuserver4090]
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    steps:
+      - name: Bind intended runner and complete dataset
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_NAME" = "workstation1"
+          test "$RUNNER_OS" = "Linux"
+          test "$RUNNER_ARCH" = "X64"
+          test -d "$DATASET_ROOT"
+          test "$(find "$DATASET_ROOT" -type f -iname '*.csv' -printf '.' | wc -c)" -eq 120
+
+      - name: Check out exact authorized revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.contract.outputs.head_sha }}
+          persist-credentials: false
+          clean: true
+
+      - name: Verify exact source and protocol identity
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ needs.contract.outputs.head_sha }}
+          EXPECTED_PROTOCOL_BLOB: ${{ needs.contract.outputs.protocol_blob }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git rev-parse "HEAD:$PROTOCOL_PATH")" = "$EXPECTED_PROTOCOL_BLOB"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Select retained NumPy runtime
+        id: runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          candidates=(
+            /home/github-runner/.cache/datasets/venvs/bpt-gpu/bin/python
+            /home/github-runner/.cache/datasets/venvs/hdetrackv2/bin/python
+            /home/github-runner/.cache/workflows/venvs/bpt-gpu/bin/python
+            python3
+          )
+          selected=""
+          for candidate in "${candidates[@]}"; do
+            if command -v "$candidate" >/dev/null 2>&1 && \
+               "$candidate" -c 'import numpy; print(numpy.__version__)' >/dev/null 2>&1; then
+              selected=$(command -v "$candidate")
+              break
+            fi
+          done
+          test -n "$selected"
+          root="${RUNNER_TEMP}/tracking-cloth-finite-orbit-v2-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          rm -rf -- "$root"
+          mkdir -p "$root/evidence"
+          echo "python=$selected" >> "$GITHUB_OUTPUT"
+          echo "root=$root" >> "$GITHUB_OUTPUT"
+          "$selected" - <<'PY' > "$root/runtime.json"
+          import json
+          import platform
+          import sys
+          import numpy
+
+          print(json.dumps({
+              "python": platform.python_version(),
+              "executable": sys.executable,
+              "numpy": numpy.__version__,
+              "package_install_performed": False,
+          }, indent=2, sort_keys=True))
+          PY
+
+      - name: Execute source-sealed held-out v2 evaluation
+        id: experiment
+        continue-on-error: true
+        shell: bash
+        env:
+          PYTHON_BIN: ${{ steps.runtime.outputs.python }}
+          OUTPUT_DIR: ${{ steps.runtime.outputs.root }}/evidence
+        run: |
+          set -euo pipefail
+          set +e
+          "$PYTHON_BIN" scripts/science/run_tracking_cloth_finite_orbit_real_v1.py \
+            --dataset-root "$DATASET_ROOT" \
+            --protocol "$PROTOCOL_PATH" \
+            --output-dir "$OUTPUT_DIR" \
+            --source-revision "$GITHUB_SHA" \
+            > "${{ steps.runtime.outputs.root }}/stdout.txt" \
+            2> "${{ steps.runtime.outputs.root }}/stderr.txt"
+          status=$?
+          set -e
+          printf '%s\n' "$status" > "${{ steps.runtime.outputs.root }}/process-exit-code.txt"
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Reject accidental raw-data output
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.runtime.outputs.root }}"
+          if find "$root" -type f \( -iname '*.csv' -o -iname '*.zip' \) -print -quit | grep -q .; then
+            echo "Raw dataset payload appeared in the evidence root" >&2
+            exit 3
+          fi
+
+      - name: Upload compact evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: tracking-cloth-finite-orbit-real-v2-${{ github.sha }}
+          path: ${{ steps.runtime.outputs.root }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish compact result summary
+        if: always()
+        shell: bash
+        run: |
+          summary="${{ steps.runtime.outputs.root }}/evidence/summary.md"
+          if test -f "$summary"; then
+            cat "$summary" >> "$GITHUB_STEP_SUMMARY"
+          else
+            printf 'Evaluation did not produce summary.md.\n\n' >> "$GITHUB_STEP_SUMMARY"
+            if test -f "${{ steps.runtime.outputs.root }}/stderr.txt"; then
+              printf '```text\n' >> "$GITHUB_STEP_SUMMARY"
+              tail -n 100 "${{ steps.runtime.outputs.root }}/stderr.txt" >> "$GITHUB_STEP_SUMMARY"
+              printf '\n```\n' >> "$GITHUB_STEP_SUMMARY"
+            fi
+          fi
+
+      - name: Enforce registered scientific result
+        shell: bash
+        env:
+          RESULT_PATH: ${{ steps.runtime.outputs.root }}/evidence/result.json
+          PROCESS_EXIT: ${{ steps.experiment.outputs.exit_code }}
+        run: |
+          set -euo pipefail
+          test "$PROCESS_EXIT" = "0"
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          result = json.loads(Path(os.environ["RESULT_PATH"]).read_text())
+          assert result["status"] == "evaluated-real-geometry-passed"
+          assert result["classification"] == {
+              "counts": {"collision": 56, "shake": 32, "twist": 32},
+              "mode": "declared-aliases",
+          }
+          assert result["aggregate"]["target_groups"] == 56
+          assert result["aggregate"]["total_cases"] >= 1000
+          failed = [name for name, passed in result["criteria"].items() if not passed]
+          if failed:
+              raise SystemExit("registered criteria failed: " + ", ".join(failed))
+          assert result["claim_boundary"]["learned_visual_provider"] is False
+          print(result["result_id"])
+          PY
