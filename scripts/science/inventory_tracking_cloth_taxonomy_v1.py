@@ -10,7 +10,6 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
-
 _GENERIC_TOKENS = {
     "csv",
     "data",
@@ -29,10 +28,7 @@ def _tokens(text: str) -> set[str]:
     return {
         token
         for token in re.split(r"[^a-z0-9]+", text.lower())
-        if token
-        and token not in _GENERIC_TOKENS
-        and not token.isdigit()
-        and len(token) >= 3
+        if token and token not in _GENERIC_TOKENS and not token.isdigit() and len(token) >= 3
     }
 
 

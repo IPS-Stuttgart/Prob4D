@@ -8,7 +8,6 @@ from types import ModuleType
 
 import pytest
 
-
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts/science/run_tracking_cloth_finite_orbit_real_v1.py"
 PROTOCOL_V1 = ROOT / "protocols/tracking-cloth-finite-orbit-real-v1.json"
