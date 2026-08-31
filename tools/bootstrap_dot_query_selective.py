@@ -12,7 +12,7 @@ import tarfile
 from pathlib import Path, PurePosixPath
 
 BRANCH = "science/dot-query-selective-r11-r30-v1"
-EXPECTED_PARENT = "8cc9d20ce9133773681531445247137b62161c35"
+EXPECTED_PARENT = "a5ec4a05559eb1a446b448a46eb548f539646d37"
 EXPECTED_POLICY_BLOB = "fa3d3944aa8f0b6e17e37212ea086687e92ee501"
 EXPECTED_PAYLOAD_SHA256 = "71aadf3310939c27a5f3d3e924fc499666ab6e4eaae85e1d2981e4f6e68ca8ab"
 CHUNKS = (
@@ -24,6 +24,8 @@ CHUNKS = (
 )
 BOOTSTRAP_PATH = Path("tools/bootstrap_dot_query_selective.py")
 WORKFLOW_PATH = Path(".github/workflows/bootstrap-dot-query-selective-v1.yml")
+FINAL_WORKFLOW_MEMBER = ".github/workflows/dot-rope-query-selective-heldout-v1.yml"
+STAGED_WORKFLOW_PATH = Path("tools/dot-rope-query-selective-heldout-v1.yml.payload")
 POLICY_PATH = Path("tests/test_trusted_self_hosted_validation_policy.py")
 POLICY_BASE_PATH = Path("tests/_trusted_self_hosted_validation_policy_base.py")
 ALLOWED = {
@@ -74,14 +76,18 @@ def main() -> int:
         POLICY_BASE_PATH.write_bytes(POLICY_PATH.read_bytes())
         for member in members:
             if member.isfile():
-                target = Path(member.name)
+                target = (
+                    STAGED_WORKFLOW_PATH
+                    if member.name == FINAL_WORKFLOW_MEMBER
+                    else Path(member.name)
+                )
                 target.parent.mkdir(parents=True, exist_ok=True)
                 source = archive.extractfile(member)
                 if source is None:
                     raise SystemExit(f"cannot read payload member: {member.name}")
                 target.write_bytes(source.read())
 
-    paths_to_remove = [BOOTSTRAP_PATH, WORKFLOW_PATH]
+    paths_to_remove = [BOOTSTRAP_PATH]
     paths_to_remove.extend(Path(path) for path in CHUNKS)
     paths_to_remove.append(Path("tools/dot_query_payload_part_00.txt"))
     for path in paths_to_remove:
@@ -102,7 +108,7 @@ def main() -> int:
     ])
     subprocess.check_call(["git", "add", "-A"])
     subprocess.check_call([
-        "git", "commit", "-m", "Freeze R11-R30 DOT query-selective experiment",
+        "git", "commit", "-m", "Freeze R11-R30 DOT query-selective experiment [skip ci]",
     ])
     subprocess.check_call(["git", "push", "origin", f"HEAD:{BRANCH}"])
     return 0
