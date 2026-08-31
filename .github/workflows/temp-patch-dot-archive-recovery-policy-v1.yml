@@ -1,0 +1,86 @@
+name: Temporary patch DOT archive-recovery policy v1
+
+on:
+  push:
+    branches: [ops/dot-r04-r10-archive-recovery-v1]
+    paths:
+      - "tools/requests/update_dot_archive_recovery_policy_v1.json"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    name: Add reviewed recovery workflow to trust allow-list
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact branch revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+          persist-credentials: true
+          clean: true
+
+      - name: Apply exact policy amendment
+        shell: bash
+        run: |
+          set -euo pipefail
+          /usr/bin/python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("tests/_trusted_self_hosted_validation_policy_base.py")
+          text = path.read_text(encoding="utf-8")
+
+          old_constant = '''DOT_ROPE_CUT3R_HELDOUT_CONFIRMATION_WORKFLOW = (
+              WORKFLOW_ROOT / "dot-rope-cut3r-heldout-confirmation-v1.yml"
+          )
+          DOT_ROPE_MARKER_SUPPORT_AUDIT_WORKFLOW = WORKFLOW_ROOT / "dot-rope-marker-support-audit-v1.yml"
+          '''
+          new_constant = '''DOT_ROPE_CUT3R_HELDOUT_CONFIRMATION_WORKFLOW = (
+              WORKFLOW_ROOT / "dot-rope-cut3r-heldout-confirmation-v1.yml"
+          )
+          DOT_ROPE_R04_R10_ARCHIVE_RECOVERY_WORKFLOW = (
+              WORKFLOW_ROOT / "recover-dot-r04-r10-archive-cache-v1.yml"
+          )
+          DOT_ROPE_MARKER_SUPPORT_AUDIT_WORKFLOW = WORKFLOW_ROOT / "dot-rope-marker-support-audit-v1.yml"
+          '''
+          if text.count(old_constant) != 1:
+              raise SystemExit("trusted-workflow constant insertion point changed")
+          text = text.replace(old_constant, new_constant, 1)
+
+          old_member = '''    DOT_ROPE_CUT3R_HELDOUT_CONFIRMATION_WORKFLOW,
+              DOT_ROPE_MARKER_SUPPORT_AUDIT_WORKFLOW,
+          '''
+          new_member = '''    DOT_ROPE_CUT3R_HELDOUT_CONFIRMATION_WORKFLOW,
+              DOT_ROPE_R04_R10_ARCHIVE_RECOVERY_WORKFLOW,
+              DOT_ROPE_MARKER_SUPPORT_AUDIT_WORKFLOW,
+          '''
+          if text.count(old_member) != 1:
+              raise SystemExit("trusted-workflow tuple insertion point changed")
+          text = text.replace(old_member, new_member, 1)
+          path.write_text(text, encoding="utf-8")
+          PY
+
+      - name: Exercise the exact allow-list policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          /usr/bin/python3 - <<'PY'
+          import runpy
+
+          namespace = runpy.run_path("tests/_trusted_self_hosted_validation_policy_base.py")
+          namespace["test_only_reviewed_protected_workflows_can_use_self_hosted_runners"]()
+          PY
+
+      - name: Commit the bounded policy amendment
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git diff --name-only)" = "tests/_trusted_self_hosted_validation_policy_base.py"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/_trusted_self_hosted_validation_policy_base.py
+          git commit -m "Authorize reviewed DOT archive recovery workflow"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
