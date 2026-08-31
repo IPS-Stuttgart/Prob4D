@@ -11,7 +11,21 @@
       "shake": ["shake", "shaking"],
       "twist": ["twist", "twisting"]
     },
-    "target_aliases": ["collision", "collisions", "collide", "colliding"]
+    "target_aliases": [
+      "collision",
+      "collisions",
+      "collide",
+      "colliding",
+      "table",
+      "stick",
+      "hitting"
+    ],
+    "target_scenario_counts": {
+      "table_collision": 16,
+      "stick_hitting": 4,
+      "self_collision": 36
+    },
+    "classification_note": "The 56 held-out collision-family recordings comprise all three collision scenarios documented by the public dataset. Filename aliases are metadata-only and were extended after a failed run identified 20 unclassified files; no trajectory values or target outcomes were inspected."
   },
   "information_order": {
     "marker_triplet_selected_from_source_only": true,
