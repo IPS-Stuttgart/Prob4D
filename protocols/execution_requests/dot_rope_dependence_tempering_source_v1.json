@@ -1,0 +1,18 @@
+{
+  "claim_boundary": "Authorize only source dependence-strength calibration on already-open DOT R01-R03 using the immutable provider bundle. R04-R70 remain unopened; no confirmation, held-out transfer, reconstruction, BayesianPhysTwin, Causal4D, safety, or state-of-the-art claim is authorized.",
+  "confirmation_payloads_opened": false,
+  "protocol_git_blob_sha": "b20eef2f3002f0074cbc588c0476e312b0d31ad0",
+  "protocol_path": "protocols/dot-rope-dependence-tempering-source-v1.json",
+  "provider_artifact_name": "dot-rope-cut3r-sealed-provider-33329701704-1",
+  "provider_run_id": 33329701704,
+  "request_id": "3ba482779ad1a886d910e5c7835e7099b10ee427e69c0957b2b477bcf0e2a339",
+  "reserved_sequences": "R04-R70",
+  "schema": "prob4d.dot-rope-dependence-tempering-source-request",
+  "schema_version": 1,
+  "source_calibration_authorized": true,
+  "source_sequences": [
+    "R01",
+    "R02",
+    "R03"
+  ]
+}
