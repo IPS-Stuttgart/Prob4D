@@ -14,6 +14,9 @@ DEFORM360_SOURCE_BUNDLE_AUDIT_WORKFLOW = WORKFLOW_ROOT / "deform360-source-bundl
 DOT_ROPE_CUT3R_NATIVE_PROVIDER_WORKFLOW = WORKFLOW_ROOT / "dot-rope-cut3r-native-provider-v1.yml"
 DOT_ROPE_CUT3R_SEALED_RUNTIME_WORKFLOW = WORKFLOW_ROOT / "dot-rope-cut3r-sealed-runtime-v1.yml"
 DOT_ROPE_MARKER_SUPPORT_AUDIT_WORKFLOW = WORKFLOW_ROOT / "dot-rope-marker-support-audit-v1.yml"
+TRACKING_CLOTH_QUERY_PORTFOLIO_WORKFLOW = (
+    WORKFLOW_ROOT / "tracking-cloth-query-portfolio-v1.yml"
+)
 DOT_CUT3R_RUNTIME_BOOTSTRAP_WORKFLOW = (
     WORKFLOW_ROOT / "bootstrap-dot-cut3r-gpuserver4090-runtime.yml"
 )
@@ -34,6 +37,7 @@ TRUSTED_SELF_HOSTED_WORKFLOWS = (
     DOT_ROPE_CUT3R_NATIVE_PROVIDER_WORKFLOW,
     DOT_ROPE_CUT3R_SEALED_RUNTIME_WORKFLOW,
     DOT_ROPE_MARKER_SUPPORT_AUDIT_WORKFLOW,
+    TRACKING_CLOTH_QUERY_PORTFOLIO_WORKFLOW,
     DOT_CUT3R_RUNTIME_BOOTSTRAP_WORKFLOW,
     DOT_CUT3R_RUNTIME_COMPLETE_WORKFLOW,
 )
@@ -81,6 +85,32 @@ def test_only_reviewed_protected_workflows_can_use_self_hosted_runners() -> None
         assert "ci/self-hosted-" not in text, path
         assert "SELF_HOSTED_RECOVERY" not in text, path
     assert offenders == []
+
+
+def test_tracking_cloth_query_portfolio_is_branch_bound_and_read_only() -> None:
+    text = TRACKING_CLOTH_QUERY_PORTFOLIO_WORKFLOW.read_text(encoding="utf-8")
+
+    assert "\n  push:" in text
+    assert "science/tracking-cloth-query-portfolio-v1" in text
+    assert "protocols/execution_requests/tracking_cloth_query_portfolio_v1.json" in text
+    assert "pull_request_target:" not in text
+    assert "environment: trusted-self-hosted-validation" in text
+    assert "runs-on: [self-hosted, Linux, X64, gpuserver4090]" in text
+    assert 'test "$RUNNER_NAME" = "workstation1"' in text
+    assert 'test "$RUNNER_OS" = "Linux"' in text
+    assert 'test "$RUNNER_ARCH" = "X64"' in text
+    assert (
+        "DATASET_ROOT: /home/github-runner/.cache/datasets/"
+        "tracking-cloth-deformation-v1-zenodo-14644526"
+    ) in text
+    assert "permissions:\n  contents: read" in text
+    assert "contents: write" not in text
+    assert "pull-requests: write" not in text
+    assert "persist-credentials: false" in text
+    assert "raw_data_publication_authorized" in text
+    assert "Reject accidental raw-data output" in text
+    assert "secrets." not in text
+    assert "git push" not in text
 
 
 def test_trusted_workflow_is_manual_main_bound_and_exact_sha_authorized() -> None:
