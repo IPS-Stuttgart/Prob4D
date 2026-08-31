@@ -1,0 +1,80 @@
+{
+  "archive": "R01-10.zip",
+  "archive_md5": "ca546ff5f22c0279123ccb18509858ee",
+  "bandwidth_mbps": [
+    10,
+    100,
+    1000
+  ],
+  "benchmark_batch_size": 4096,
+  "claim_boundary": {
+    "bayesian_phystwin_benefit_claimed": false,
+    "causal4d_benefit_claimed": false,
+    "clustered_bootstrap_sim3_covariance": true,
+    "deployment_calibration_claimed": false,
+    "frozen_source_dependence_strength": true,
+    "heldout_transfer_claimed": false,
+    "measured_cut3r_provider_geometry": true,
+    "provider_inference_rerun": false,
+    "r04_r70_opened": false,
+    "source_only_r01_r03": true,
+    "state_of_the_art_claimed": false
+  },
+  "comparators": [
+    "full measured tempered shared factor",
+    "posterior-preserving query factor",
+    "direct joint-query gain and posterior covariance cache",
+    "positive-definite complete-joint spectral approximation under the factor-plus-projection raw byte budget"
+  ],
+  "coordinate_columns": [
+    0,
+    1
+  ],
+  "coordinate_mode": "pixel-zero-based",
+  "dataset_doi": "10.13021/ORC2020/XXLVXM",
+  "dependence_calibration_id": "943339ac864fda04cc59081bc81a605576b3c90bf0aa996aea00b00335cfc0c7",
+  "dependence_semantics": "sqrt-alpha shared latent factor plus independent diagonal remainder preserving every marginal variance",
+  "dependence_strength": 0.85,
+  "factor_eigenvalue_relative_tolerance": 1e-12,
+  "monte_carlo_seed": 20260901,
+  "observation_noise_fraction": 0.02,
+  "parity_relative_tolerance": 1e-09,
+  "payload_accounting": {
+    "cached_message_preferred_for_one_immutable_query_or_nonresident_model_blocks": true,
+    "compressed_npz_wire_bytes_reported": true,
+    "primary": "compressed materialized factor plus latent projection versus direct joint-query gain and posterior covariance, with observation diagonal, query prior, cross covariance, and means resident",
+    "projection_only_reported": true,
+    "self_contained_factor_reported": true
+  },
+  "pooled_evaluator_git_blob_sha1": "6195e70997f0e9582251c08772b1e423a3062ad6",
+  "pooled_evaluator_path": "scripts/science/evaluate_dot_rope_cut3r_pooled.py",
+  "probe_count": 8,
+  "protocol_id": "9b171a0b54e96a22f50e8d271721581c351fec73c0543dbf4428fc176d73a74f",
+  "provider_artifact_name": "dot-rope-cut3r-sealed-provider-33329701704-1",
+  "provider_artifact_sha256": "565667959ca697c744a57528cd21308d0f040127bcb9296a4b8e9138b5c521c6",
+  "provider_bundle_id": "952421d140731b2a6eb99df3cbd348653e04863fa457aaa490be31fe0b4c06a7",
+  "provider_request_id": "83cc26be92364fc7715d692b3bb966cf914fb9f911e0763823f2789480a00cf2",
+  "provider_revision": "7eb4867e36742d819c514fad21436d4f475b4bed",
+  "provider_run_id": 33329701704,
+  "query_counts": [
+    1,
+    2,
+    4,
+    8
+  ],
+  "query_selection": "deterministic evenly spaced registered off-axis probes",
+  "rank_relative_tolerance": 1e-12,
+  "required_maximum_relative_parity_error": 1e-07,
+  "reserved_sequences": "R04-R70",
+  "schema": "prob4d.dot-rope-cut3r-measured-querybank.v1",
+  "schema_version": 1,
+  "source_protocol_git_blob_sha1": "eaf84956189015c35e53a521cf1b152ca813e680",
+  "source_protocol_id": "af6528f54699f3c9fb185764b029acd897a52e242e799d317e42710ee0f21c2c",
+  "source_protocol_path": "protocols/dot-rope-cut3r-native-provider-v1.json",
+  "source_sequences": [
+    "R01",
+    "R02",
+    "R03"
+  ],
+  "timing_repeats": 21
+}
