@@ -1,0 +1,40 @@
+name: Bootstrap reviewed DOT query-selective experiment capsule
+
+on:
+  push:
+    branches: [science/dot-query-selective-r11-r30-v1]
+    paths:
+      - ".github/workflows/bootstrap-dot-query-selective-v1.yml"
+      - "tools/bootstrap_dot_query_selective.py"
+      - "tools/dot_query_payload_*.txt"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bootstrap-dot-query-selective-r11-r30-v1
+  cancel-in-progress: false
+
+jobs:
+  materialize:
+    if: >-
+      github.repository == 'IPS-Stuttgart/Prob4D' &&
+      github.actor == 'FlorianPfaff' &&
+      github.ref == 'refs/heads/science/dot-query-selective-r11-r30-v1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out exact bootstrap revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: true
+          clean: true
+      - name: Materialize reviewed experiment and self-remove
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          python3 tools/bootstrap_dot_query_selective.py
