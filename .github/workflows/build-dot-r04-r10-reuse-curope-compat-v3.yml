@@ -1,0 +1,87 @@
+name: Build DOT R04-R10 reusable cuRoPE compatibility wiring v3
+
+on:
+  push:
+    branches: [fix/dot-r04-r10-reuse-curope-compat-v1]
+    paths:
+      - ".github/workflows/build-dot-r04-r10-reuse-curope-compat-v3.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Reapply validated wiring and commit source-controlled files
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: fix/dot-r04-r10-reuse-curope-compat-v1
+          fetch-depth: 0
+          persist-credentials: true
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Execute the exact previously validated transformation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          source_path = Path(
+              ".github/workflows/build-dot-r04-r10-reuse-curope-compat-v1.yml"
+          )
+          lines = source_path.read_text(encoding="utf-8").splitlines()
+          start = next(
+              index
+              for index, line in enumerate(lines)
+              if line == "          python - <<'PYGEN'"
+          )
+          end = next(
+              index
+              for index in range(start + 1, len(lines))
+              if lines[index] == "          PYGEN"
+          )
+          body = lines[start + 1 : end]
+          if any(line and not line.startswith("          ") for line in body):
+              raise SystemExit("validated transformation indentation changed")
+          program = "\n".join(line[10:] if line else "" for line in body) + "\n"
+          exec(compile(program, "validated-heldout-curope-wiring", "exec"), {})
+          PY
+
+      - name: Revalidate and commit the workflow plus regression test
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -e ".[dev]"
+          python -m ruff format tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py
+          python -m ruff check tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py
+          python -m pytest -q \
+            tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py \
+            tests/test_trusted_self_hosted_validation_policy.py \
+            tests/test_github_action_pins.py
+          python -m compileall -q tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py
+          git diff --check
+
+          scientific=(
+            .github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml
+            tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py
+          )
+          git add -- "${scientific[@]}"
+          staged=$(git diff --cached --name-only | sort)
+          expected=$(printf '%s\n' "${scientific[@]}" | sort)
+          if [[ "$staged" != "$expected" ]]; then
+            diff -u <(printf '%s\n' "$expected") <(printf '%s\n' "$staged")
+            exit 2
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Reuse audited cuRoPE compatibility in held-out provider"
+          git push origin HEAD:fix/dot-r04-r10-reuse-curope-compat-v1
