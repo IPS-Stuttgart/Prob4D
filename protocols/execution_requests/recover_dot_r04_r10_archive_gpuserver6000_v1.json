@@ -1,0 +1,13 @@
+{
+  "archive_md5": "ca546ff5f22c0279123ccb18509858ee",
+  "archive_name": "R01-10.zip",
+  "cache_path": "/home/github-runner/.cache/prob4d/dot-r04-r10-cut3r-gpuserver6000-v1/dot-v29/R01-10.zip",
+  "reason": "Recover or resume only the official archive acquisition lane; retain the frozen protocol, cohort, provider, thresholds, and marker-access order.",
+  "request_id": "60b321631e0773a7665314a84efabf1d7f069ae0a99af9502f7986d3bbe25d03",
+  "schema": "prob4d.dot-r04-r10-archive-cache-recovery-request",
+  "schema_version": 1,
+  "scientific_change": false,
+  "target_head_sha": "9e1b77b2e70685881db7f188a95a3a91443275e8",
+  "target_provider_job_name": "Seal marker-free R04-R10 CUT3R predictions on gpuserver6000",
+  "target_run_id": 33434695566
+}
