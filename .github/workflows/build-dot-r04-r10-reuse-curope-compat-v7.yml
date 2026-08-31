@@ -1,0 +1,116 @@
+name: Build DOT R04-R10 reusable cuRoPE compatibility wiring v7
+
+on:
+  push:
+    branches: [fix/dot-r04-r10-reuse-curope-compat-v1]
+    paths:
+      - ".github/workflows/build-dot-r04-r10-reuse-curope-compat-v7.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Apply audited cuRoPE patch without nested YAML text
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: fix/dot-r04-r10-reuse-curope-compat-v1
+          fetch-depth: 0
+          persist-credentials: true
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Insert source-bound patch application and regression assertions
+        shell: bash
+        env:
+          COMPATIBILITY_B64: "ICAgICAgICAgIGNvbXBhdGliaWxpdHlfcGF0Y2g9IiRHSVRIVUJfV09SS1NQQUNFLy5naXRodWIvcGF0Y2hlcy9jdXQzci1jdXJvcGUtdG9yY2gyMTEtY3UxMjYucGF0Y2giCiAgICAgICAgICBrZXJuZWxzPXNyYy9jcm9jby9tb2RlbHMvY3Vyb3BlL2tlcm5lbHMuY3UKICAgICAgICAgIHNldHVwPXNyYy9jcm9jby9tb2RlbHMvY3Vyb3BlL3NldHVwLnB5CiAgICAgICAgICBleHBlY3RlZF9rZXJuZWxzX2Jsb2I9NzE1NmNkMWJiOTM1Y2IxZjBiZTQ1ZTU4YWRkNTNmOWMyMTUwNWMyMAogICAgICAgICAgZXhwZWN0ZWRfc2V0dXBfYmxvYj0wMmRkYjA5MTIzNzBhNjdhNDlmZDJiYjkxMTY0Y2YyZjFkYTg2NDhlCiAgICAgICAgICB0ZXN0IC1mICIkY29tcGF0aWJpbGl0eV9wYXRjaCIKICAgICAgICAgIHRlc3QgIiQoL3Vzci9iaW4vZ2l0IC1DICIkY2hlY2tvdXQiIGhhc2gtb2JqZWN0ICIka2VybmVscyIpIiA9IFwKICAgICAgICAgICAgIiRleHBlY3RlZF9rZXJuZWxzX2Jsb2IiCiAgICAgICAgICB0ZXN0ICIkKC91c3IvYmluL2dpdCAtQyAiJGNoZWNrb3V0IiBoYXNoLW9iamVjdCAiJHNldHVwIikiID0gXAogICAgICAgICAgICAiJGV4cGVjdGVkX3NldHVwX2Jsb2IiCiAgICAgICAgICAvdXNyL2Jpbi9naXQgLUMgIiRjaGVja291dCIgYXBwbHkgLS1jaGVjayAiJGNvbXBhdGliaWxpdHlfcGF0Y2giCiAgICAgICAgICAvdXNyL2Jpbi9naXQgLUMgIiRjaGVja291dCIgYXBwbHkgIiRjb21wYXRpYmlsaXR5X3BhdGNoIgogICAgICAgICAgL3Vzci9iaW4vZ2l0IC1DICIkY2hlY2tvdXQiIGRpZmYgLS1jaGVjawogICAgICAgICAgQ0hFQ0tPVVQ9IiRjaGVja291dCIgcHl0aG9uIC0gPDwnUFknCiAgICAgICAgICBpbXBvcnQgb3MKICAgICAgICAgIGltcG9ydCBzdWJwcm9jZXNzCgogICAgICAgICAgY2hlY2tvdXQgPSBvcy5lbnZpcm9uWyJDSEVDS09VVCJdCiAgICAgICAgICBleHBlY3RlZCA9IFsKICAgICAgICAgICAgICAic3JjL2Nyb2NvL21vZGVscy9jdXJvcGUva2VybmVscy5jdSIsCiAgICAgICAgICAgICAgInNyYy9jcm9jby9tb2RlbHMvY3Vyb3BlL3NldHVwLnB5IiwKICAgICAgICAgIF0KICAgICAgICAgIG1vZGlmaWVkID0gc3VicHJvY2Vzcy5jaGVja19vdXRwdXQoCiAgICAgICAgICAgICAgWyJnaXQiLCAiLUMiLCBjaGVja291dCwgImRpZmYiLCAiLS1uYW1lLW9ubHkiXSwKICAgICAgICAgICAgICB0ZXh0PVRydWUsCiAgICAgICAgICApLnNwbGl0bGluZXMoKQogICAgICAgICAgaWYgc29ydGVkKG1vZGlmaWVkKSAhPSBzb3J0ZWQoZXhwZWN0ZWQpOgogICAgICAgICAgICAgIHJhaXNlIFN5c3RlbUV4aXQoZiJ1bmV4cGVjdGVkIENVVDNSIGNvbXBhdGliaWxpdHkgcGF0aHM6IHttb2RpZmllZCFyfSIpCiAgICAgICAgICBQWQogICAgICAgICAgZ3JlcCAtRiAndG9rZW5zLnNjYWxhcl90eXBlKCknICIkY2hlY2tvdXQvJGtlcm5lbHMiCiAgICAgICAgICBpZiBncmVwIC1GICd0b2tlbnMudHlwZSgpJyAiJGNoZWNrb3V0LyRrZXJuZWxzIjsgdGhlbgogICAgICAgICAgICBlY2hvICJkZXByZWNhdGVkIHRlbnNvciB0eXBlIGRpc3BhdGNoIHJlbWFpbnMiID4mMgogICAgICAgICAgICBleGl0IDIKICAgICAgICAgIGZpCiAgICAgICAgICBncmVwIC1GICdhcmNoPWNvbXB1dGVfODksY29kZT1zbV84OScgIiRjaGVja291dC8kc2V0dXAiCiAgICAgICAgICBwYXRjaF9zaGEyNTY9JChzaGEyNTZzdW0gIiRjb21wYXRpYmlsaXR5X3BhdGNoIiB8IGF3ayAne3ByaW50ICQxfScpCiAgICAgICAgICBrZXJuZWxzX3Bvc3RfYmxvYj0kKC91c3IvYmluL2dpdCAtQyAiJGNoZWNrb3V0IiBoYXNoLW9iamVjdCAiJGtlcm5lbHMiKQogICAgICAgICAgc2V0dXBfcG9zdF9ibG9iPSQoL3Vzci9iaW4vZ2l0IC1DICIkY2hlY2tvdXQiIGhhc2gtb2JqZWN0ICIkc2V0dXAiKQogICAgICAgICAgUEFUQ0hfU0hBMjU2PSIkcGF0Y2hfc2hhMjU2IiBcCiAgICAgICAgICAgIEtFUk5FTFNfUFJFX0JMT0I9IiRleHBlY3RlZF9rZXJuZWxzX2Jsb2IiIFwKICAgICAgICAgICAgS0VSTkVMU19QT1NUX0JMT0I9IiRrZXJuZWxzX3Bvc3RfYmxvYiIgXAogICAgICAgICAgICBTRVRVUF9QUkVfQkxPQj0iJGV4cGVjdGVkX3NldHVwX2Jsb2IiIFwKICAgICAgICAgICAgU0VUVVBfUE9TVF9CTE9CPSIkc2V0dXBfcG9zdF9ibG9iIiBcCiAgICAgICAgICAgIFJFQ0VJUFQ9IiRyb290L2V2aWRlbmNlL2N1cm9wZS1jb21wYXRpYmlsaXR5Lmpzb24iIFwKICAgICAgICAgICAgcHl0aG9uIC0gPDwnUFknCiAgICAgICAgICBpbXBvcnQgaGFzaGxpYgogICAgICAgICAgaW1wb3J0IGpzb24KICAgICAgICAgIGltcG9ydCBvcwogICAgICAgICAgZnJvbSBwYXRobGliIGltcG9ydCBQYXRoCgogICAgICAgICAgcmVjZWlwdCA9IHsKICAgICAgICAgICAgICAic2NoZW1hIjogInByb2I0ZC5kb3QtcjA0LXIxMC1jdXJvcGUtY29tcGF0aWJpbGl0eSIsCiAgICAgICAgICAgICAgInNjaGVtYV92ZXJzaW9uIjogMSwKICAgICAgICAgICAgICAiY3V0M3JfcmV2aXNpb24iOiBvcy5lbnZpcm9uWyJDVVQzUl9SRVZJU0lPTiJdLAogICAgICAgICAgICAgICJwYXRjaF9wYXRoIjogIi5naXRodWIvcGF0Y2hlcy9jdXQzci1jdXJvcGUtdG9yY2gyMTEtY3UxMjYucGF0Y2giLAogICAgICAgICAgICAgICJwYXRjaF9zaGEyNTYiOiBvcy5lbnZpcm9uWyJQQVRDSF9TSEEyNTYiXSwKICAgICAgICAgICAgICAic291cmNlX2Jsb2JzIjogewogICAgICAgICAgICAgICAgICAia2VybmVsc19wcmUiOiBvcy5lbnZpcm9uWyJLRVJORUxTX1BSRV9CTE9CIl0sCiAgICAgICAgICAgICAgICAgICJrZXJuZWxzX3Bvc3QiOiBvcy5lbnZpcm9uWyJLRVJORUxTX1BPU1RfQkxPQiJdLAogICAgICAgICAgICAgICAgICAic2V0dXBfcHJlIjogb3MuZW52aXJvblsiU0VUVVBfUFJFX0JMT0IiXSwKICAgICAgICAgICAgICAgICAgInNldHVwX3Bvc3QiOiBvcy5lbnZpcm9uWyJTRVRVUF9QT1NUX0JMT0IiXSwKICAgICAgICAgICAgICB9LAogICAgICAgICAgICAgICJzZW1hbnRpY19jaGFuZ2VzIjogWwogICAgICAgICAgICAgICAgICAiUHlUb3JjaCBkaXNwYXRjaCB0b2tlbnMudHlwZSgpIHRvIHRva2Vucy5zY2FsYXJfdHlwZSgpIiwKICAgICAgICAgICAgICAgICAgImNvbXBpbGUgbmF0aXZlIGN1Um9QRSBmb3IgQWRhIGNvbXB1dGVfODkvc21fODkiLAogICAgICAgICAgICAgIF0sCiAgICAgICAgICAgICAgIm1vZGVsX3dlaWdodHNfY2hhbmdlZCI6IEZhbHNlLAogICAgICAgICAgICAgICJwcm92aWRlcl9lcXVhdGlvbnNfY2hhbmdlZCI6IEZhbHNlLAogICAgICAgICAgICAgICJwcm92aWRlcl9pbnB1dHNfY2hhbmdlZCI6IEZhbHNlLAogICAgICAgICAgICAgICJzY2llbnRpZmljX3Byb3RvY29sX2NoYW5nZWQiOiBGYWxzZSwKICAgICAgICAgICAgICAiZG90X3BheWxvYWRfb3BlbmVkX2J5X3BhdGNoX3N0ZXAiOiBGYWxzZSwKICAgICAgICAgIH0KICAgICAgICAgIGNhbm9uaWNhbCA9IGpzb24uZHVtcHMocmVjZWlwdCwgc29ydF9rZXlzPVRydWUsIHNlcGFyYXRvcnM9KCIsIiwgIjoiKSkuZW5jb2RlKCkKICAgICAgICAgIHJlY2VpcHRbImFydGlmYWN0X2lkIl0gPSBoYXNobGliLnNoYTI1NihjYW5vbmljYWwpLmhleGRpZ2VzdCgpCiAgICAgICAgICBQYXRoKG9zLmVudmlyb25bIlJFQ0VJUFQiXSkud3JpdGVfdGV4dCgKICAgICAgICAgICAgICBqc29uLmR1bXBzKHJlY2VpcHQsIGluZGVudD0yLCBzb3J0X2tleXM9VHJ1ZSkgKyAiXG4iLAogICAgICAgICAgICAgIGVuY29kaW5nPSJ1dGYtOCIsCiAgICAgICAgICApCiAgICAgICAgICBwcmludChqc29uLmR1bXBzKHsiYXJ0aWZhY3RfaWQiOiByZWNlaXB0WyJhcnRpZmFjdF9pZCJdfSwgc29ydF9rZXlzPVRydWUpKQogICAgICAgICAgUFkKCg=="
+          TEST_INSERT_B64: "ICAgIGFzc2VydCAiLmdpdGh1Yi9wYXRjaGVzL2N1dDNyLWN1cm9wZS10b3JjaDIxMS1jdTEyNi5wYXRjIgaW4gcHJvdmlkZXIKICAgIGFzc2VydCAiNzE1NmNkMWJiOTM1Y2IxZjBiZTQ1ZTU4YWRkNTNmOWMyMTUwNWMyMCIgaW4gcHJvdmlkZXIKICAgIGFzc2VydCAiMDJkZGIwOTEyMzcwYTY3YTQ5ZmQyYmI5MTE2NGNmMmYxZGE4NjQ4ZSIgaW4gcHJvdmlkZXIKICAgIGFzc2VydCAidG9rZW5zLnNjYWxhcl90eXBlKCkiIGluIHByb3ZpZGVyCiAgICBhc3NlcnQgImFyY2g9Y29tcHV0ZV84OSxjb2RlPXNtXzg5IiBpbiBwcm92aWRlcgogICAgYXNzZXJ0ICJjdXJvcGUtY29tcGF0aWJpbGl0eS5qc29uIiBpbiBwcm92aWRlcgo="
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64
+          import os
+          from pathlib import Path
+
+          workflow_path = Path(
+              ".github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml"
+          )
+          lines = workflow_path.read_text(encoding="utf-8").splitlines(keepends=True)
+          needle = '          nvcc=""\n'
+          matches = [index for index, line in enumerate(lines) if line == needle]
+          if len(matches) != 1:
+              raise SystemExit(f"held-out nvcc insertion points={matches!r}")
+          index = matches[0]
+          preceding = next(
+              (line.strip() for line in reversed(lines[:index]) if line.strip()),
+              None,
+          )
+          expected_preceding = (
+              '/usr/bin/rm -rf -- "$checkout/src/croco/models/curope/build"'
+          )
+          if preceding != expected_preceding:
+              raise SystemExit(
+                  f"held-out build predecessor changed: {preceding!r}"
+              )
+          compatibility = base64.b64decode(os.environ["COMPATIBILITY_B64"]).decode()
+          lines[index:index] = compatibility.splitlines(keepends=True)
+          workflow_path.write_text("".join(lines), encoding="utf-8", newline="\n")
+
+          test_path = Path("tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py")
+          test_lines = test_path.read_text(encoding="utf-8").splitlines(keepends=True)
+          test_needle = '    assert "prepare_cut3r_runtime.py" in provider\n'
+          matches = [index for index, line in enumerate(test_lines) if line == test_needle]
+          if len(matches) != 1:
+              raise SystemExit(f"held-out test insertion points={matches!r}")
+          insert = base64.b64decode(os.environ["TEST_INSERT_B64"]).decode()
+          test_index = matches[0] + 1
+          test_lines[test_index:test_index] = insert.splitlines(keepends=True)
+          test_path.write_text("".join(test_lines), encoding="utf-8", newline="\n")
+          PY
+
+      - name: Validate and commit exactly two files
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -e ".[dev]"
+          python -m ruff format tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py
+          python -m ruff check tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py
+          python -m pytest -q \
+            tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py \
+            tests/test_trusted_self_hosted_validation_policy.py \
+            tests/test_github_action_pins.py
+          python -m compileall -q tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py
+          git diff --check
+          git add -- \
+            .github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml \
+            tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py
+          python - <<'PY'
+          import subprocess
+
+          expected = sorted(
+              [
+                  ".github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml",
+                  "tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py",
+              ]
+          )
+          staged = sorted(
+              subprocess.check_output(
+                  ["git", "diff", "--cached", "--name-only"],
+                  text=True,
+              ).splitlines()
+          )
+          if staged != expected:
+              raise SystemExit(f"unexpected staged paths: {staged!r}")
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Reuse audited cuRoPE compatibility in held-out provider"
+          git push origin HEAD:fix/dot-r04-r10-reuse-curope-compat-v1
