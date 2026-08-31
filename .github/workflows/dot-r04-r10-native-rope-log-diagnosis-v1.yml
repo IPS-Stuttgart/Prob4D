@@ -1,0 +1,77 @@
+name: DOT R04-R10 native RoPE log diagnosis v1
+
+on:
+  push:
+    branches: [ops/dot-r04-r10-native-rope-log-diagnosis-v1]
+    paths:
+      - ".github/workflows/dot-r04-r10-native-rope-log-diagnosis-v1.yml"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  diagnose:
+    name: Extract bounded native-RoPE failure context
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      TARGET_JOB_ID: "99660292244"
+    steps:
+      - name: Download the failed job log and retain only bounded diagnostics
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          raw="$RUNNER_TEMP/failed-job.log"
+          report="$RUNNER_TEMP/native-rope-diagnostic.txt"
+          curl --fail --silent --show-error --location \
+            --header "Accept: application/vnd.github+json" \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/jobs/$TARGET_JOB_ID/logs" \
+            --output "$raw"
+          RAW="$raw" REPORT="$report" python3 - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          raw = Path(os.environ["RAW"]).read_text(encoding="utf-8-sig", errors="replace")
+          lines = raw.splitlines()
+          start = 0
+          marker = "Build and attest native CUT3R RoPE in an isolated checkout"
+          for index, line in enumerate(lines):
+              if marker in line:
+                  start = index
+          section = lines[start:]
+          patterns = re.compile(
+              r"(?i)(error|exception|traceback|runtimeerror|subprocess|failed|failure|"
+              r"nvcc|cuda_home|cuda toolkit|compiler|ninja|rope|undefined|not found|"
+              r"unsupported|mismatch|fatal|warning)"
+          )
+          hits = [line for line in section if patterns.search(line)]
+          bounded = hits[-240:]
+          tail = section[-120:]
+          report = [
+              f"target_job_id={os.environ.get('TARGET_JOB_ID', 'unknown')}",
+              f"total_log_lines={len(lines)}",
+              f"native_section_lines={len(section)}",
+              "",
+              "=== matched diagnostics (bounded) ===",
+              *bounded,
+              "",
+              "=== native-section tail (bounded) ===",
+              *tail,
+          ]
+          Path(os.environ["REPORT"]).write_text("\n".join(report) + "\n", encoding="utf-8")
+          print("\n".join(report))
+          PY
+
+      - name: Upload bounded diagnostic
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dot-r04-r10-native-rope-diagnostic-${{ github.run_id }}
+          path: ${{ runner.temp }}/native-rope-diagnostic.txt
+          if-no-files-found: error
+          retention-days: 14
