@@ -1,0 +1,86 @@
+name: Verify DEFORM DLO4/DLO5 robustness evidence v1
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/deform-dlo45-query-observability-robustness-v1.yml"
+      - "docs/deform-dlo45-query-observability-robustness-v1.md"
+      - "evidence/deform-dlo45-query-observability-robustness-v1/**"
+      - "protocols/deform-dlo45-query-observability-robustness-v1.json"
+      - "scripts/science/audit_deform_dlo45_robustness.py"
+      - "tests/test_audit_deform_dlo45_robustness.py"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/deform-dlo45-query-observability-robustness-v1.yml"
+      - "docs/deform-dlo45-query-observability-robustness-v1.md"
+      - "evidence/deform-dlo45-query-observability-robustness-v1/**"
+      - "protocols/deform-dlo45-query-observability-robustness-v1.json"
+      - "scripts/science/audit_deform_dlo45_robustness.py"
+      - "tests/test_audit_deform_dlo45_robustness.py"
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  verify:
+    name: Reproduce immutable group-level robustness audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      ARTIFACT_ID: "9737419711"
+      ARTIFACT_SHA256: "0dd725d93e1357c1419b4cbbfbc0234fb379d17c4938547814a55e59ebc58954"
+      RESULT_MEMBER: outputs/deform-dlo45-query-observability-heldout-v1/result.json
+      RESULT_SHA256: "dfb905172776ca1ca438a273d4f7e66bbe87d7e1fdda3f713f733a46d55530ff"
+      EVIDENCE_DIR: evidence/deform-dlo45-query-observability-robustness-v1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          clean: true
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Validate focused implementation
+        run: |
+          python -m pip install -e ".[dev]"
+          python -m ruff check \
+            scripts/science/audit_deform_dlo45_robustness.py \
+            tests/test_audit_deform_dlo45_robustness.py
+          python -m pytest -q tests/test_audit_deform_dlo45_robustness.py
+          python -m compileall -q scripts/science/audit_deform_dlo45_robustness.py
+      - name: Download and verify immutable source result
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          zip="$RUNNER_TEMP/source.zip"
+          curl --fail --location --silent --show-error \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/artifacts/$ARTIFACT_ID/zip" \
+            -o "$zip"
+          printf '%s  %s\n' "$ARTIFACT_SHA256" "$zip" | sha256sum -c -
+          unzip -q "$zip" -d "$RUNNER_TEMP/source"
+          printf '%s  %s\n' "$RESULT_SHA256" \
+            "$RUNNER_TEMP/source/$RESULT_MEMBER" | sha256sum -c -
+      - name: Reproduce committed summary and emit full group table
+        run: |
+          generated="$RUNNER_TEMP/generated"
+          python scripts/science/audit_deform_dlo45_robustness.py \
+            --result "$RUNNER_TEMP/source/$RESULT_MEMBER" \
+            --protocol protocols/deform-dlo45-query-observability-robustness-v1.json \
+            --output-dir "$generated"
+          cmp "$generated/summary.json" "$EVIDENCE_DIR/summary.json"
+          cmp "$generated/ROBUSTNESS.md" "$EVIDENCE_DIR/ROBUSTNESS.md"
+          cmp "$generated/ROBUSTNESS.md" \
+            docs/deform-dlo45-query-observability-robustness-v1.md
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: deform-dlo45-query-observability-robustness-v1-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/generated
+          if-no-files-found: error
+          retention-days: 30
