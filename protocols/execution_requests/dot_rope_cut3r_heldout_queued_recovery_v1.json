@@ -1,0 +1,17 @@
+{
+  "schema": "prob4d.dot-rope-cut3r-heldout-queued-recovery-request",
+  "schema_version": 1,
+  "superseded_run_id": 33363832286,
+  "superseded_head_sha": "bb2179158b27178c6ebed9be866bee829108b72a",
+  "target_workflow": "dot-rope-cut3r-heldout-confirmation-v1.yml",
+  "retained_request_path": "protocols/execution_requests/dot_rope_cut3r_heldout_confirmation_v1.json",
+  "retained_request_id": "62d64df1b1b72f2b2aff0b17cf4c7aad245150f9fa1ff67712eedc0f4e109ce6",
+  "retained_protocol_id": "a83258295d5ecabd95017a775f334173bb48141918832fb1a065a1dff66d16ba",
+  "expected_provider_job": "Seal marker-free R04-R10 CUT3R predictions",
+  "provider_payload_opened": false,
+  "marker_payload_opened": false,
+  "artifacts_published": false,
+  "scientific_inputs_changed": false,
+  "action": "cancel-queued-and-rerun-exact-workflow-run",
+  "request_id": "3f60e16c4c6d16323322a2b363212c8392ad8a14c8daae02d58ccc9943519b8e"
+}
