@@ -87,6 +87,8 @@ select = ["E", "F", "I", "UP", "B"]
 
 [tool.ruff.lint.per-file-ignores]
 "scripts/science/run_pointworld_model_load_smoke.py" = ["UP022"]
+# Frozen standalone evidence evaluator; keep its reviewed Python 3.10 import surface unchanged.
+"scripts/science/run_tracking_cloth_finite_orbit_real_v1.py" = ["UP035"]
 # Standalone evidence script: the long Markdown result table is kept literal,
 # and its benchmark closures are called immediately inside each loop iteration.
 "scripts/science/run_tracking_cloth_query_portfolio_v1.py" = ["B023", "E501", "UP035"]
