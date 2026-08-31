@@ -1,0 +1,180 @@
+{
+  "claim_boundary": "Held-out confirmation of a source-frozen Gaussian dependence strength on seven public DOT rope sequences with marker-blind CUT3R predictions sealed before marker access. This does not establish arbitrary-sequence transfer, calibrated physical state uncertainty, BayesianPhysTwin benefit, Causal4D benefit, deployment safety, or state of the art.",
+  "comparison_methods": [
+    "pointwise_quadratic",
+    "dependence_alpha_0850",
+    "shared_quadratic_curvature"
+  ],
+  "dataset": {
+    "archive": "R01-10.zip",
+    "camera": "cam001",
+    "confirmation_sequences": [
+      "R04",
+      "R05",
+      "R06",
+      "R07",
+      "R08",
+      "R09",
+      "R10"
+    ],
+    "doi": "10.13021/ORC2020/XXLVXM",
+    "reserved_sequences": "R11-R70"
+  },
+  "evaluation": {
+    "coordinate_columns": [
+      0,
+      1
+    ],
+    "coordinate_convention_source_audit": {
+      "audit_id": "2b045cf62d1a4e385987def7c36674490130216e6bceb4883b4d86e445ec6049",
+      "decision": "current-convention-pooled-support-feasible",
+      "run_id": 33338130219,
+      "source_sequences": [
+        "R01",
+        "R02",
+        "R03"
+      ]
+    },
+    "coordinate_mode": "pixel-zero-based",
+    "marker_sampling": "bilinear-output-grid-from-original-image-coordinates",
+    "metric_fit_a_frames": [
+      1,
+      2
+    ],
+    "metric_fit_b_frames": [
+      6,
+      7
+    ],
+    "overlap_frames": [
+      3,
+      4,
+      5
+    ],
+    "preprocessing_transform": "cut3r-long-edge-resize-512-center-crop-multiple-of-16-pixel-centers",
+    "score_frames": [
+      6,
+      7
+    ],
+    "selected_coordinate_candidate": "columns-0-1:pixel-zero-based",
+    "sim3_fit": "proper-umeyama-80-percent-iterative-trim",
+    "support_rule": {
+      "overlap_minimum_nonempty_frames": 2,
+      "overlap_minimum_total_common": 6,
+      "provider_truth_minimum_total": 6,
+      "score_minimum_total": 2
+    }
+  },
+  "frames": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "implementation_dependencies": {
+    "dependence_tempering_git_blob_sha1": "cd7f0f605beffe2269f28e9501f2e04be0b00f08",
+    "dependence_tempering_path": "src/prob4d/dependence_tempering.py",
+    "pooled_evaluator_git_blob_sha1": "6195e70997f0e9582251c08772b1e423a3062ad6",
+    "pooled_evaluator_path": "scripts/science/evaluate_dot_rope_cut3r_pooled.py",
+    "provider_evaluator_git_blob_sha1": "612c8ae61b0a64d464256a11992b46c486c88012",
+    "provider_evaluator_path": "scripts/science/run_dot_rope_cut3r_native_provider.py"
+  },
+  "inference": {
+    "exact_sign_flip_alpha": 0.05,
+    "exact_sign_flip_alternative": "selected-alpha-has-lower-normalized-nll-than-pointwise",
+    "group_unit": "DOT sequence",
+    "paired_bootstrap_replicates": 20000,
+    "paired_bootstrap_seed": 20260902
+  },
+  "information_order": {
+    "alpha_grid_opened_on_confirmation": false,
+    "confirmation_side_retuning_allowed": false,
+    "evaluation_requires_sealed_provider_artifact": true,
+    "evaluation_stage_reads": "matching R04-R10 2-D and 3-D marker payloads only",
+    "provider_stage_forbids": [
+      "2-D marker payloads",
+      "3-D marker payloads",
+      "source R01-R03 payloads",
+      "reserved R11-R70 payloads",
+      "BayesianPhysTwin outcomes",
+      "Causal4D outcomes"
+    ],
+    "provider_stage_reads": "R04-R10 normal-view JPEG payloads only"
+  },
+  "protocol_id": "ff54d76a4cbd4216bc8af4c24b5bbafcb7727ad22a6fc3ffe6d847cfc641cf23",
+  "provider": {
+    "device": "cuda",
+    "image_size": 512,
+    "name": "CUT3R",
+    "native_rope_required": true,
+    "random_seed": 42,
+    "revisit": 1,
+    "update": true
+  },
+  "registered_criteria": {
+    "all_seven_confirmation_sequences_contribute": true,
+    "maximum_marginal_variance_absolute_difference": 1e-10,
+    "maximum_one_sided_exact_sign_flip_p": 0.05,
+    "means_held_fixed_across_methods": true,
+    "selected_mean_nll_lower_than_pointwise": true,
+    "selected_mean_nll_lower_than_shared": true,
+    "selected_worst_sequence_nll_lower_than_pointwise": true
+  },
+  "schema": "prob4d.dot-rope-dependence-confirmation-protocol",
+  "schema_version": 1,
+  "source_calibration": {
+    "artifact_id": 9747149957,
+    "artifact_name": "dot-rope-dependence-tempering-source-33362444268-1",
+    "artifact_sha256": "f896a278a84a6d6ee99f26cf5646e38f6a37081df19f4f0e9150f32a9001c68a",
+    "calibration_id": "943339ac864fda04cc59081bc81a605576b3c90bf0aa996aea00b00335cfc0c7",
+    "confirmation_payloads_opened": false,
+    "selected_alpha": 0.85,
+    "selected_method": "dependence_alpha_0850",
+    "selection_rule": "minimize-worst-sequence-normalized-nll-then-mean-then-smallest-alpha",
+    "source_request_id": "3ba482779ad1a886d910e5c7835e7099b10ee427e69c0957b2b477bcf0e2a339",
+    "source_sequences": [
+      "R01",
+      "R02",
+      "R03"
+    ],
+    "workflow_run_id": 33362444268
+  },
+  "uncertainty": {
+    "bootstrap_replicates": 256,
+    "bootstrap_seed": 20260830,
+    "means_held_fixed": true,
+    "observation_noise_fraction": 0.02,
+    "orbit_nodes": 33,
+    "probe_count": 8,
+    "probe_radius_fraction_of_provider_span": 0.25,
+    "scalar_inflation": 4.0,
+    "tensor_gh_order": 3
+  },
+  "windows": {
+    "continuous": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "window_a": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "window_b": [
+      3,
+      4,
+      5,
+      6,
+      7
+    ]
+  }
+}
