@@ -1,0 +1,649 @@
+name: DOT R04-R10 postprocess and hosted evaluation recovery v1
+
+on:
+  workflow_run:
+    workflows: ["DOT rope CUT3R held-out confirmation v1"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dot-r04-r10-postprocess-v1-${{ github.event.workflow_run.id }}-${{ github.event.workflow_run.run_attempt }}
+  cancel-in-progress: false
+
+env:
+  TARGET_RUN_ID: "33434695566"
+  TARGET_HEAD_SHA: 9e1b77b2e70685881db7f188a95a3a91443275e8
+  TARGET_WORKFLOW_PATH: .github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml
+  TARGET_PROVIDER_JOB: Seal marker-free R04-R10 CUT3R predictions on gpuserver6000
+  TARGET_EVALUATE_JOB: Evaluate R04-R10 markers only after provider seal
+  REQUEST_ID: 62d64df1b1b72f2b2aff0b17cf4c7aad245150f9fa1ff67712eedc0f4e109ce6
+  PROVIDER_ARTIFACT: dot-rope-cut3r-heldout-provider-gpuserver6000-62d64df1b1b72f2b2aff0b17cf4c7aad245150f9fa1ff67712eedc0f4e109ce6
+  EVALUATION_ARTIFACT: dot-rope-cut3r-heldout-evaluation-gpuserver6000-62d64df1b1b72f2b2aff0b17cf4c7aad245150f9fa1ff67712eedc0f4e109ce6
+  RECOVERED_EVALUATION_ARTIFACT: dot-rope-cut3r-heldout-evaluation-recovered-gpuserver6000-62d64df1b1b72f2b2aff0b17cf4c7aad245150f9fa1ff67712eedc0f4e109ce6
+  ARCHIVE_NAME: R01-10.zip
+  ARCHIVE_MD5: ca546ff5f22c0279123ccb18509858ee
+  DATASET_API: https://dataverse.orc.gmu.edu/api/datasets/:persistentId/?persistentId=doi:10.13021/ORC2020/XXLVXM
+  DATAFILE_API_ROOT: https://dataverse.orc.gmu.edu/api/access/datafile
+  R11_PROTOCOL: protocols/dot-rope-query-selective-heldout-v1.json
+  R11_REQUEST: protocols/execution_requests/dot_rope_query_selective_heldout_v1.json
+
+jobs:
+  inspect:
+    name: Inspect exact frozen completion and choose a fail-closed lane
+    if: github.event.workflow_run.id == 33434695566
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      mode: ${{ steps.inspect.outputs.mode }}
+      main_sha: ${{ steps.inspect.outputs.main_sha }}
+      source_run_id: ${{ steps.inspect.outputs.source_run_id }}
+      source_artifact_name: ${{ steps.inspect.outputs.source_artifact_name }}
+    steps:
+      - name: Check out exact default-branch postprocessor revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          clean: true
+
+      - name: Verify exact triggering run, jobs, artifacts, and information boundary
+        id: inspect
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_PATH: ${{ github.event_path }}
+          DEFAULT_HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          /usr/bin/python3 - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          import re
+          import urllib.request
+          from pathlib import Path
+          from typing import Any
+
+          event = json.loads(Path(os.environ["EVENT_PATH"]).read_text(encoding="utf-8"))
+          payload = event.get("workflow_run") or {}
+          target_run_id = int(os.environ["TARGET_RUN_ID"])
+          expected = {
+              "id": target_run_id,
+              "head_sha": os.environ["TARGET_HEAD_SHA"],
+              "path": os.environ["TARGET_WORKFLOW_PATH"],
+              "head_branch": "main",
+              "event": "push",
+              "status": "completed",
+              "run_attempt": 2,
+          }
+          for key, value in expected.items():
+              if payload.get(key) != value:
+                  raise SystemExit(f"unexpected triggering workflow metadata: {key}")
+
+          api = os.environ["GITHUB_API_URL"].rstrip("/")
+          repo = os.environ["GITHUB_REPOSITORY"]
+          headers = {
+              "Accept": "application/vnd.github+json",
+              "Authorization": f"Bearer {os.environ['GH_TOKEN']}",
+              "User-Agent": "Prob4D-DOT-R04-postprocess/1",
+              "X-GitHub-Api-Version": "2022-11-28",
+          }
+
+          def get(path: str) -> dict[str, Any]:
+              request = urllib.request.Request(f"{api}/repos/{repo}{path}", headers=headers)
+              with urllib.request.urlopen(request, timeout=60) as response:
+                  return json.load(response)
+
+          run = get(f"/actions/runs/{target_run_id}")
+          for key, value in expected.items():
+              if run.get(key) != value:
+                  raise SystemExit(f"workflow-run metadata changed: {key}")
+
+          jobs = get(f"/actions/runs/{target_run_id}/jobs?per_page=100").get("jobs", [])
+          providers = [job for job in jobs if job.get("name") == os.environ["TARGET_PROVIDER_JOB"]]
+          evaluators = [job for job in jobs if job.get("name") == os.environ["TARGET_EVALUATE_JOB"]]
+          if len(providers) != 1 or len(evaluators) != 1:
+              raise SystemExit("frozen provider/evaluator jobs are unavailable or ambiguous")
+          provider = providers[0]
+          evaluator = evaluators[0]
+
+          artifacts = get(f"/actions/runs/{target_run_id}/artifacts?per_page=100").get(
+              "artifacts", []
+          )
+
+          def exact_artifact(name: str) -> list[dict[str, Any]]:
+              return [
+                  item
+                  for item in artifacts
+                  if item.get("name") == name and item.get("expired") is False
+              ]
+
+          def verify_artifact(item: dict[str, Any], *, name: str) -> None:
+              if re.fullmatch(r"sha256:[0-9a-f]{64}", item.get("digest", "")) is None:
+                  raise SystemExit(f"{name} artifact digest is invalid")
+              workflow = item.get("workflow_run") or {}
+              if int(workflow.get("id", -1)) != target_run_id:
+                  raise SystemExit(f"{name} artifact workflow identity changed")
+
+          provider_artifacts = exact_artifact(os.environ["PROVIDER_ARTIFACT"])
+          evaluation_artifacts = exact_artifact(os.environ["EVALUATION_ARTIFACT"])
+          mode = "no-action"
+          source_run_id = target_run_id
+          source_artifact_name = "unavailable"
+
+          if provider.get("conclusion") == "success":
+              if len(provider_artifacts) != 1:
+                  raise SystemExit("successful provider lacks one exact immutable artifact")
+              verify_artifact(provider_artifacts[0], name="provider")
+              if evaluator.get("conclusion") == "success":
+                  if len(evaluation_artifacts) != 1:
+                      raise SystemExit("successful evaluator lacks one exact immutable artifact")
+                  verify_artifact(evaluation_artifacts[0], name="evaluation")
+                  mode = "existing-evaluation"
+                  source_artifact_name = os.environ["EVALUATION_ARTIFACT"]
+              elif evaluator.get("conclusion") == "failure":
+                  steps = {step.get("name"): step for step in evaluator.get("steps") or []}
+                  required = {
+                      "Verify provider seal before downloading marker archive": "success",
+                      "Download and verify official R01-R10 marker archive": "failure",
+                      "Evaluate the frozen alpha and comparators": "skipped",
+                      "Independently verify and classify the held-out result": "skipped",
+                  }
+                  for name, conclusion in required.items():
+                      if (steps.get(name) or {}).get("conclusion") != conclusion:
+                          raise SystemExit(
+                              f"evaluation failure is outside the recoverable archive boundary: {name}"
+                          )
+                  if evaluation_artifacts:
+                      raise SystemExit("evaluation artifact exists despite pre-evaluator failure")
+                  mode = "recover-evaluation"
+                  source_run_id = int(os.environ["GITHUB_RUN_ID"])
+                  source_artifact_name = os.environ["RECOVERED_EVALUATION_ARTIFACT"]
+
+          receipt = {
+              "schema": "prob4d.dot-r04-r10-postprocess-inspection",
+              "schema_version": 1,
+              "target_run_id": target_run_id,
+              "target_run_attempt": int(run["run_attempt"]),
+              "target_run_conclusion": run.get("conclusion"),
+              "provider_job_id": int(provider["id"]),
+              "provider_conclusion": provider.get("conclusion"),
+              "evaluation_job_id": int(evaluator["id"]),
+              "evaluation_conclusion": evaluator.get("conclusion"),
+              "mode": mode,
+              "source_run_id": source_run_id,
+              "source_artifact_name": source_artifact_name,
+              "r11_r70_opened": False,
+              "scientific_inputs_changed": False,
+          }
+          Path(os.environ["RUNNER_TEMP"], "dot-r04-inspection.json").write_text(
+              json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+          )
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"mode={mode}\n")
+              output.write(f"main_sha={os.environ['DEFAULT_HEAD_SHA']}\n")
+              output.write(f"source_run_id={source_run_id}\n")
+              output.write(f"source_artifact_name={source_artifact_name}\n")
+          print(json.dumps(receipt, indent=2, sort_keys=True))
+          PY
+
+      - name: Upload bounded inspection receipt
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: dot-r04-postprocess-inspection-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/dot-r04-inspection.json
+          if-no-files-found: error
+          retention-days: 30
+
+  recover_evaluation:
+    name: Recover hosted marker evaluation from the immutable provider seal
+    if: needs.inspect.outputs.mode == 'recover-evaluation'
+    needs: inspect
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      decision: ${{ steps.result.outputs.decision }}
+      result_id: ${{ steps.result.outputs.result_id }}
+    steps:
+      - name: Check out exact frozen evaluator revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.TARGET_HEAD_SHA }}
+          path: frozen
+          persist-credentials: false
+          clean: true
+
+      - name: Set up scientific Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: frozen/pyproject.toml
+
+      - name: Install exact frozen repository package
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -e ./frozen
+          python -m pip check
+
+      - name: Initialize isolated hosted recovery workspace
+        id: workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/dot-r04-evaluation-recovery-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          rm -rf -- "$root"
+          mkdir -p "$root/provider" "$root/dataset" "$root/evaluation"
+          echo "root=$root" >> "$GITHUB_OUTPUT"
+
+      - name: Download exact immutable provider artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ${{ env.PROVIDER_ARTIFACT }}
+          path: ${{ steps.workspace.outputs.root }}/provider
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.TARGET_RUN_ID }}
+
+      - name: Reverify provider seal before any marker download
+        shell: bash
+        run: |
+          set -euo pipefail
+          PROVIDER="${{ steps.workspace.outputs.root }}/provider" python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          provider = Path(os.environ["PROVIDER"])
+          manifest = json.loads((provider / "manifest.json").read_text(encoding="utf-8"))
+          seal = json.loads((provider / "provider-seal.json").read_text(encoding="utf-8"))
+          if manifest.get("request_id") != os.environ["REQUEST_ID"]:
+              raise SystemExit("provider request identity changed")
+          if seal.get("provider_bundle_id") != manifest.get("provider_bundle_id"):
+              raise SystemExit("provider bundle identity changed")
+          if seal.get("markers_opened") is not False:
+              raise SystemExit("provider seal reports marker access")
+          unsigned = dict(seal)
+          supplied = unsigned.pop("seal_id")
+          encoded = json.dumps(unsigned, sort_keys=True, separators=(",", ":")).encode()
+          if hashlib.sha256(encoded).hexdigest() != supplied:
+              raise SystemExit("provider seal identity mismatch")
+          for row in seal["files"]:
+              path = provider / row["path"]
+              if not path.is_file() or path.stat().st_size != row["bytes"]:
+                  raise SystemExit(f"provider file size changed: {row['path']}")
+              if hashlib.sha256(path.read_bytes()).hexdigest() != row["sha256"]:
+                  raise SystemExit(f"provider file digest changed: {row['path']}")
+          boundary = manifest.get("information_boundary") or {}
+          if boundary.get("two_dimensional_markers_opened") is not False:
+              raise SystemExit("provider opened 2-D markers")
+          if boundary.get("three_dimensional_markers_opened") is not False:
+              raise SystemExit("provider opened 3-D markers")
+          PY
+
+      - name: Reacquire exact official archive with byte-count and MD5 enforcement
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}/dataset"
+          read -r file_id expected_bytes < <(
+            python - <<'PY'
+          import json
+          import os
+          import urllib.request
+
+          request = urllib.request.Request(
+              os.environ["DATASET_API"],
+              headers={
+                  "Accept-Encoding": "identity",
+                  "User-Agent": "Prob4D-DOT-R04-hosted-evaluation-recovery/1",
+              },
+          )
+          with urllib.request.urlopen(request, timeout=60) as response:
+              metadata = json.load(response)
+          files = metadata["data"]["latestVersion"]["files"]
+          matches = [
+              entry["dataFile"]
+              for entry in files
+              if entry["dataFile"].get("filename") == os.environ["ARCHIVE_NAME"]
+          ]
+          if len(matches) != 1:
+              raise SystemExit("official archive identity is ambiguous")
+          data_file = matches[0]
+          checksum = data_file.get("checksum") or {}
+          if checksum.get("type") != "MD5":
+              raise SystemExit("official archive checksum type changed")
+          if checksum.get("value", "").lower() != os.environ["ARCHIVE_MD5"]:
+              raise SystemExit("official archive checksum changed")
+          print(int(data_file["id"]), int(data_file["filesize"]))
+          PY
+          )
+          test "$expected_bytes" -gt 0
+          url="$DATAFILE_API_ROOT/$file_id"
+          archive="$root/$ARCHIVE_NAME"
+          partial="$archive.partial"
+          rm -f -- "$archive" "$partial"
+          for attempt in 1 2 3; do
+            if ! curl \
+              --fail --location \
+              --header 'Accept-Encoding: identity' \
+              --retry 30 --retry-all-errors --retry-delay 5 \
+              --connect-timeout 30 --max-time 10800 \
+              --speed-time 300 --speed-limit 1024 \
+              --continue-at - --output "$partial" "$url"
+            then
+              rm -f -- "$partial"
+              continue
+            fi
+            if [[ "$(stat -c %s "$partial")" = "$expected_bytes" ]] && \
+               [[ "$(md5sum "$partial" | awk '{print $1}')" = "$ARCHIVE_MD5" ]]
+            then
+              mv -- "$partial" "$archive"
+              break
+            fi
+            rm -f -- "$partial"
+          done
+          test -f "$archive"
+          test "$(stat -c %s "$archive")" = "$expected_bytes"
+          printf '%s  %s\n' "$ARCHIVE_MD5" "$archive" | md5sum --check --strict
+
+      - name: Execute the exact frozen evaluator once
+        id: execution
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          python frozen/scripts/science/run_dot_rope_cut3r_heldout_confirmation.py \
+            evaluate \
+            --protocol frozen/protocols/dot-rope-cut3r-heldout-confirmation-v1.json \
+            --request-id "$REQUEST_ID" \
+            --prob4d-revision "$TARGET_HEAD_SHA" \
+            --dataset-root "$root/dataset" \
+            --provider-bundle "$root/provider" \
+            --output-dir "$root/evaluation"
+
+      - name: Independently verify recovered terminal result
+        id: result
+        shell: bash
+        env:
+          EXECUTION_OUTCOME: ${{ steps.execution.outcome }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}/evaluation"
+          if [[ -f "$root/result.json" ]]; then
+            result="$root/result.json"
+          elif [[ -f "$root/failure.json" ]]; then
+            result="$root/failure.json"
+          else
+            echo "recovered evaluator emitted no result payload" >&2
+            exit 2
+          fi
+          python frozen/scripts/science/verify_dot_rope_cut3r_heldout_result.py \
+            "$result" --marker-support "$root/marker-support.json" \
+            > "$root/independent-verification.json"
+          RESULT="$result" EXECUTION_OUTCOME="$EXECUTION_OUTCOME" python - <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          value = json.loads(Path(os.environ["RESULT"]).read_text(encoding="utf-8"))
+          decision = value["decision"]
+          result_id = value.get("evaluation_id") or value.get("result_id")
+          allowed = {
+              "heldout-strong-positive",
+              "heldout-directional-positive",
+              "heldout-mixed-or-negative",
+              "heldout-support-negative",
+              "technical-failure",
+          }
+          if decision not in allowed:
+              raise SystemExit("recovered decision is outside the frozen roster")
+          if re.fullmatch(r"[0-9a-f]{64}", result_id or "") is None:
+              raise SystemExit("recovered result identity is invalid")
+          if decision != "technical-failure" and os.environ["EXECUTION_OUTCOME"] != "success":
+              raise SystemExit("recovered scientific result and process outcome disagree")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"decision={decision}\n")
+              output.write(f"result_id={result_id}\n")
+          PY
+          if [[ -f "$root/SUMMARY.md" ]]; then
+            cat "$root/SUMMARY.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload immutable recovered evaluation evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: ${{ env.RECOVERED_EVALUATION_ARTIFACT }}
+          path: ${{ steps.workspace.outputs.root }}/evaluation/
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Fail only for a bounded recovered technical failure
+        if: steps.result.outputs.decision == 'technical-failure'
+        shell: bash
+        run: exit 3
+
+  materialize:
+    name: Verify terminal evidence and materialize an R11-R30 request candidate
+    if: >-
+      always() &&
+      needs.inspect.result == 'success' &&
+      (needs.inspect.outputs.mode == 'existing-evaluation' ||
+       (needs.inspect.outputs.mode == 'recover-evaluation' && needs.recover_evaluation.result == 'success'))
+    needs: [inspect, recover_evaluation]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      decision: ${{ steps.verify.outputs.decision }}
+      request_id: ${{ steps.materialize.outputs.request_id }}
+    steps:
+      - name: Check out exact default-branch request materializer revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.inspect.outputs.main_sha }}
+          persist-credentials: false
+          clean: true
+
+      - name: Set up scientific Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install exact repository package
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -e .
+          python -m pip check
+
+      - name: Resolve exact immutable evaluation artifact metadata
+        id: source
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN_ID: ${{ needs.inspect.outputs.source_run_id }}
+          SOURCE_ARTIFACT_NAME: ${{ needs.inspect.outputs.source_artifact_name }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/dot-r04-materialize"
+          /usr/bin/python3 - <<'PY'
+          import json
+          import os
+          import re
+          import urllib.request
+          from pathlib import Path
+
+          run_id = int(os.environ["SOURCE_RUN_ID"])
+          name = os.environ["SOURCE_ARTIFACT_NAME"]
+          url = (
+              f"{os.environ['GITHUB_API_URL']}/repos/{os.environ['GITHUB_REPOSITORY']}"
+              f"/actions/runs/{run_id}/artifacts?per_page=100"
+          )
+          request = urllib.request.Request(
+              url,
+              headers={
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {os.environ['GH_TOKEN']}",
+                  "User-Agent": "Prob4D-DOT-R11-request-materializer/1",
+                  "X-GitHub-Api-Version": "2022-11-28",
+              },
+          )
+          with urllib.request.urlopen(request, timeout=60) as response:
+              payload = json.load(response)
+          matches = [
+              item
+              for item in payload.get("artifacts", [])
+              if item.get("name") == name and item.get("expired") is False
+          ]
+          if len(matches) != 1:
+              raise SystemExit("evaluation artifact is unavailable or ambiguous")
+          artifact = matches[0]
+          if re.fullmatch(r"sha256:[0-9a-f]{64}", artifact.get("digest", "")) is None:
+              raise SystemExit("evaluation artifact digest is invalid")
+          workflow = artifact.get("workflow_run") or {}
+          if int(workflow.get("id", -1)) != run_id:
+              raise SystemExit("evaluation artifact workflow identity changed")
+          Path(os.environ["RUNNER_TEMP"], "dot-r04-materialize", "artifact.json").write_text(
+              json.dumps(artifact, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+          )
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"run_id={run_id}\n")
+              output.write(f"name={name}\n")
+          PY
+
+      - name: Download exact evaluation artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ${{ steps.source.outputs.name }}
+          path: ${{ runner.temp }}/dot-r04-materialize/evidence
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ steps.source.outputs.run_id }}
+
+      - name: Independently verify decision and evidence identities
+        id: verify
+        shell: bash
+        env:
+          SOURCE_RUN_ID: ${{ steps.source.outputs.run_id }}
+          SOURCE_ARTIFACT_NAME: ${{ steps.source.outputs.name }}
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/dot-r04-materialize/evidence"
+          mapfile -t results < <(find "$root" -type f -name result.json -print)
+          mapfile -t supports < <(find "$root" -type f -name marker-support.json -print)
+          if [[ ${#results[@]} -ne 1 || ${#supports[@]} -ne 1 ]]; then
+            echo "expected exactly one result.json and marker-support.json" >&2
+            exit 2
+          fi
+          python scripts/science/verify_dot_rope_cut3r_heldout_result.py \
+            "${results[0]}" --marker-support "${supports[0]}" \
+            > "$RUNNER_TEMP/dot-r04-materialize/verification.json"
+          VERIFICATION="$RUNNER_TEMP/dot-r04-materialize/verification.json" \
+            RESULT="${results[0]}" SUPPORT="${supports[0]}" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          verification = json.loads(Path(os.environ["VERIFICATION"]).read_text(encoding="utf-8"))
+          support = json.loads(Path(os.environ["SUPPORT"]).read_text(encoding="utf-8"))
+          receipt = {
+              "schema": "prob4d.dot-r04-r10-postprocess-verification",
+              "schema_version": 1,
+              "decision": verification["decision"],
+              "result_id": verification["result_id"],
+              "marker_support_id": support["support_id"],
+              "source_run_id": int(os.environ["SOURCE_RUN_ID"]),
+              "source_artifact_name": os.environ["SOURCE_ARTIFACT_NAME"],
+              "r11_r70_opened": False,
+              "scientific_inputs_changed": False,
+          }
+          Path(os.environ["RUNNER_TEMP"], "dot-r04-materialize", "receipt.json").write_text(
+              json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+          )
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"decision={verification['decision']}\n")
+              output.write(f"result={os.environ['RESULT']}\n")
+              output.write(f"support={os.environ['SUPPORT']}\n")
+          PY
+
+      - name: Materialize only an independently verified strong-positive request
+        id: materialize
+        if: steps.verify.outputs.decision == 'heldout-strong-positive'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e "$R11_REQUEST"
+          protocol_blob=$(git rev-parse "HEAD:$R11_PROTOCOL")
+          python scripts/science/materialize_dot_rope_query_selective_request.py \
+            --protocol "$R11_PROTOCOL" \
+            --protocol-git-blob-sha "$protocol_blob" \
+            --result "${{ steps.verify.outputs.result }}" \
+            --marker-support "${{ steps.verify.outputs.support }}" \
+            --artifact-metadata "$RUNNER_TEMP/dot-r04-materialize/artifact.json" \
+            --output "$R11_REQUEST" \
+            > "$RUNNER_TEMP/dot-r04-materialize/materialization.json"
+          validation=$(
+            python scripts/science/run_dot_rope_query_selective_heldout.py \
+              validate-request \
+              --request "$R11_REQUEST" \
+              --protocol "$R11_PROTOCOL" \
+              --protocol-git-blob-sha "$protocol_blob"
+          )
+          VALIDATION="$validation" python - <<'PY'
+          import json
+          import os
+
+          value = json.loads(os.environ["VALIDATION"])
+          if value["prerequisite"]["decision"] != "heldout-strong-positive":
+              raise SystemExit("materialized request lost the strong-positive prerequisite")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"request_id={value['request_id']}\n")
+          PY
+          cp "$R11_REQUEST" "$RUNNER_TEMP/dot-r04-materialize/request.json"
+          rm -f -- "$R11_REQUEST"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Upload bounded R11-R30 request candidate or terminal receipt
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: dot-r11-request-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/dot-r04-materialize/
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Publish postprocess summary
+        if: always()
+        shell: bash
+        env:
+          MODE: ${{ needs.inspect.outputs.mode }}
+          DECISION: ${{ steps.verify.outputs.decision }}
+          REQUEST_ID_OUT: ${{ steps.materialize.outputs.request_id }}
+        run: |
+          {
+            echo "## Frozen DOT R04-R10 postprocess"
+            echo
+            echo "- evidence lane: \`$MODE\`"
+            echo "- independently verified decision: \`${DECISION:-unavailable}\`"
+            echo "- R11-R30 request candidate: \`${REQUEST_ID_OUT:-not-materialized}\`"
+            echo
+            echo "No R11-R70 payload was opened and no scientific input or threshold was changed."
+          } >> "$GITHUB_STEP_SUMMARY"
