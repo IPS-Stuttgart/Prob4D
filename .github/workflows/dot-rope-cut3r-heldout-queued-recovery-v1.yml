@@ -126,7 +126,7 @@ jobs:
               raise SystemExit("queued-recovery request fields changed")
           expected = {
               "schema": "prob4d.dot-rope-cut3r-heldout-queued-recovery-request",
-              "schema_version": 1,
+              "schema_version": 2,
               "superseded_run_id": int(os.environ["SUPERSEDED_RUN_ID"]),
               "superseded_head_sha": os.environ["SUPERSEDED_HEAD_SHA"],
               "target_workflow": os.environ["TARGET_WORKFLOW"],
@@ -228,8 +228,15 @@ jobs:
               raise SystemExit(
                   f"recovery requires queued run/provider; got run={run['status']} job={job['status']}"
               )
-          if job.get("started_at") is not None or job.get("steps") not in (None, []):
-              raise SystemExit("provider job has started; exact queued recovery forbidden")
+          if job.get("steps") not in (None, []):
+              raise SystemExit("provider job has executable steps; exact queued recovery forbidden")
+          if job.get("completed_at") is not None or job.get("conclusion") is not None:
+              raise SystemExit("provider job has completed; exact queued recovery forbidden")
+          if job.get("runner_id") not in (None, 0) or job.get("runner_name") not in (None, ""):
+              raise SystemExit("provider job is assigned to a runner; exact queued recovery forbidden")
+          expected_labels = {"self-hosted", "Linux", "X64", "gpuserver4090"}
+          if set(job.get("labels", [])) != expected_labels:
+              raise SystemExit("provider job runner labels changed")
 
           status, _ = call("POST", f"/repos/{repo}/actions/runs/{run_id}/cancel")
           if status not in (202, 204):
@@ -264,7 +271,7 @@ jobs:
 
           summary = {
               "schema": "prob4d.dot-rope-cut3r-heldout-queued-recovery-receipt",
-              "schema_version": 1,
+              "schema_version": 2,
               "run_id": run_id,
               "head_sha": latest["head_sha"],
               "run_attempt": latest["run_attempt"],
