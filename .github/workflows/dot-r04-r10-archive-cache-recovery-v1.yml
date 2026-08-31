@@ -1,0 +1,250 @@
+name: DOT R04-R10 archive cache recovery v1
+
+on:
+  push:
+    branches: [ops/dot-r04-r10-archive-cache-recovery-v1]
+    paths:
+      - ".github/workflows/dot-r04-r10-archive-cache-recovery-v1.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dot-r04-r10-archive-cache-recovery-v1
+  cancel-in-progress: false
+
+env:
+  ARCHIVE_NAME: R01-10.zip
+  ARCHIVE_MD5: ca546ff5f22c0279123ccb18509858ee
+  DATASET_API: https://dataverse.orc.gmu.edu/api/datasets/:persistentId/?persistentId=doi:10.13021/ORC2020/XXLVXM
+  DATAFILE_API_ROOT: https://dataverse.orc.gmu.edu/api/access/datafile
+  CACHE_ROOT: /home/github-runner/.cache/prob4d/dot-r04-r10-cut3r-gpuserver6000-v1/dot-v29
+  FAILED_CONFIRMATION_RUN: "33434695566"
+
+jobs:
+  recover:
+    name: Resume and verify publisher archive without opening members
+    runs-on: [self-hosted, gpuserver6000]
+    timeout-minutes: 360
+    steps:
+      - name: Bind alternate runner and immutable cache destination
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_NAME" = "workstation2"
+          test "$RUNNER_OS" = "Linux"
+          test "$RUNNER_ARCH" = "X64"
+          command -v curl >/dev/null
+          command -v flock >/dev/null
+          command -v md5sum >/dev/null
+          test "$CACHE_ROOT" = "/home/github-runner/.cache/prob4d/dot-r04-r10-cut3r-gpuserver6000-v1/dot-v29"
+
+      - name: Resume exact Dataverse archive with bounded gateway retries
+        id: archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$CACHE_ROOT"
+          archive="$CACHE_ROOT/$ARCHIVE_NAME"
+          part="$archive.part"
+          receipt="$RUNNER_TEMP/dot-r04-r10-archive-cache-recovery.json"
+          metadata="$RUNNER_TEMP/dot-r04-r10-archive-metadata.json"
+
+          exec 9>"$CACHE_ROOT/.archive-cache.lock"
+          flock 9
+
+          valid=false
+          if [[ -f "$archive" ]]; then
+            measured=$(md5sum "$archive" | awk '{print $1}')
+            [[ "$measured" = "$ARCHIVE_MD5" ]] && valid=true
+          fi
+
+          if [[ "$valid" != true ]]; then
+            rm -f -- "$archive"
+
+            # Preserve the largest partial left by a previous transport failure.
+            largest=$(
+              find "$CACHE_ROOT" -maxdepth 1 -type f \
+                -name "$ARCHIVE_NAME.part*" -printf '%s\t%p\n' \
+                | sort -nr | head -n 1 | cut -f2- || true
+            )
+            if [[ -n "$largest" && "$largest" != "$part" ]]; then
+              current_size=0
+              [[ -f "$part" ]] && current_size=$(stat -c %s "$part")
+              largest_size=$(stat -c %s "$largest")
+              if (( largest_size > current_size )); then
+                rm -f -- "$part"
+                mv -- "$largest" "$part"
+              fi
+            fi
+
+            METADATA="$metadata" python3 - <<'PY'
+          import json
+          import os
+          import urllib.request
+          from pathlib import Path
+
+          request = urllib.request.Request(
+              os.environ["DATASET_API"],
+              headers={"User-Agent": "Prob4D-DOT-R04-R10-archive-recovery/1"},
+          )
+          with urllib.request.urlopen(request, timeout=60) as response:
+              payload = json.load(response)
+          if payload.get("status") != "OK":
+              raise SystemExit("Dataverse metadata request did not return OK")
+          files = payload["data"]["latestVersion"]["files"]
+          matches = [
+              entry["dataFile"]
+              for entry in files
+              if entry["dataFile"].get("filename") == os.environ["ARCHIVE_NAME"]
+          ]
+          if len(matches) != 1:
+              raise SystemExit("official DOT archive identity is ambiguous")
+          data_file = matches[0]
+          checksum = data_file.get("checksum") or {}
+          if checksum.get("type") != "MD5" or checksum.get("value") != os.environ["ARCHIVE_MD5"]:
+              raise SystemExit("publisher DOT archive checksum changed")
+          record = {
+              "datafile_id": int(data_file["id"]),
+              "expected_bytes": int(data_file["filesize"]),
+              "url": f"{os.environ['DATAFILE_API_ROOT']}/{data_file['id']}",
+          }
+          Path(os.environ["METADATA"]).write_text(
+              json.dumps(record, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(record, sort_keys=True))
+          PY
+
+            url=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["url"])' "$metadata")
+            expected_bytes=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["expected_bytes"])' "$metadata")
+            partial_bytes=0
+            [[ -f "$part" ]] && partial_bytes=$(stat -c %s "$part")
+            if (( partial_bytes > expected_bytes )); then
+              rm -f -- "$part"
+            fi
+
+            complete=false
+            for attempt in $(seq 1 12); do
+              start_bytes=0
+              [[ -f "$part" ]] && start_bytes=$(stat -c %s "$part")
+              echo "download_attempt=$attempt start_bytes=$start_bytes expected_bytes=$expected_bytes"
+
+              args=(
+                --fail
+                --location
+                --show-error
+                --silent
+                --connect-timeout 30
+                --max-time 1800
+                --retry 8
+                --retry-all-errors
+                --retry-delay 5
+                --speed-time 120
+                --speed-limit 1024
+                --output "$part"
+              )
+              if (( start_bytes > 0 )); then
+                args+=(--continue-at -)
+              fi
+
+              set +e
+              curl "${args[@]}" "$url"
+              rc=$?
+              set -e
+
+              if (( rc == 33 && start_bytes > 0 )); then
+                echo "publisher endpoint rejected byte ranges; restarting one full transfer"
+                rm -f -- "$part"
+                continue
+              fi
+              if (( rc != 0 )); then
+                delay=$(( attempt * 10 ))
+                (( delay > 90 )) && delay=90
+                echo "transport_failure_rc=$rc retry_delay_seconds=$delay"
+                sleep "$delay"
+                continue
+              fi
+
+              actual_bytes=$(stat -c %s "$part")
+              if (( actual_bytes != expected_bytes )); then
+                delay=$(( attempt * 10 ))
+                (( delay > 90 )) && delay=90
+                echo "incomplete_transfer_bytes=$actual_bytes retry_delay_seconds=$delay"
+                sleep "$delay"
+                continue
+              fi
+
+              measured=$(md5sum "$part" | awk '{print $1}')
+              if [[ "$measured" != "$ARCHIVE_MD5" ]]; then
+                echo "complete-length transfer had the wrong MD5; discarding it"
+                rm -f -- "$part"
+                sleep 30
+                continue
+              fi
+
+              mv -- "$part" "$archive"
+              complete=true
+              break
+            done
+            [[ "$complete" = true ]] || {
+              echo "Could not recover the publisher archive after bounded retries" >&2
+              exit 2
+            }
+          fi
+
+          printf '%s  %s\n' "$ARCHIVE_MD5" "$archive" | md5sum --check --strict
+          ARCHIVE="$archive" METADATA="$metadata" RECEIPT="$receipt" python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          archive = Path(os.environ["ARCHIVE"])
+          metadata_path = Path(os.environ["METADATA"])
+          metadata = (
+              json.loads(metadata_path.read_text(encoding="utf-8"))
+              if metadata_path.is_file()
+              else None
+          )
+          record = {
+              "schema": "prob4d.dot-r04-r10-archive-cache-recovery",
+              "schema_version": 1,
+              "failed_confirmation_run": int(os.environ["FAILED_CONFIRMATION_RUN"]),
+              "archive_name": os.environ["ARCHIVE_NAME"],
+              "archive_bytes": archive.stat().st_size,
+              "archive_md5": os.environ["ARCHIVE_MD5"],
+              "publisher_metadata": metadata,
+              "normal_view_images_opened": False,
+              "marker_payloads_opened": False,
+              "zip_members_opened": False,
+              "r04_r10_outcomes_opened": False,
+          }
+          canonical = json.dumps(record, sort_keys=True, separators=(",", ":"))
+          record["receipt_id"] = hashlib.sha256(canonical.encode()).hexdigest()
+          Path(os.environ["RECEIPT"]).write_text(
+              json.dumps(record, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(record, sort_keys=True))
+          PY
+          echo "archive=$archive" >> "$GITHUB_OUTPUT"
+
+      - name: Upload compact cache-recovery receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dot-r04-r10-archive-cache-recovery-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/dot-r04-r10-archive-cache-recovery.json
+            ${{ runner.temp }}/dot-r04-r10-archive-metadata.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Require verified cache and zero member access
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="${{ steps.archive.outputs.archive }}"
+          test -f "$archive"
+          printf '%s  %s\n' "$ARCHIVE_MD5" "$archive" | md5sum --check --strict
+          test -f "$RUNNER_TEMP/dot-r04-r10-archive-cache-recovery.json"
