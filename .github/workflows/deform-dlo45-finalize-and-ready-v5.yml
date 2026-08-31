@@ -1,0 +1,222 @@
+name: DEFORM DLO4/DLO5 finalize and ready v5
+
+on:
+  push:
+    branches:
+      - science/deform-dlo45-query-observability-real-v1
+    paths:
+      - protocols/execution_requests/deform_dlo45_finalize_and_ready_v5.trigger
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: deform-dlo45-finalize-and-ready-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+
+jobs:
+  finalize:
+    name: Test exact review tree, remove helpers, and mark PR ready
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Check out the latest experiment branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: science/deform-dlo45-query-observability-real-v1
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Normalize the retained review surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm -f --ignore-unmatch \
+            .github/workflows/deform-dlo45-observability-source-v1.yml \
+            .github/workflows/deform-dlo45-observability-official-mirror-v1.yml \
+            protocols/execution_requests/deform_dlo45_observability_source_v1.json \
+            protocols/execution_requests/deform_dlo45_observability_official_mirror_v1.json \
+            .github/workflows/deform-dlo45-mechanical-format-fix.yml \
+            protocols/execution_requests/deform_dlo45_mechanical_format_fix.trigger \
+            .github/workflows/deform-dlo45-branch-repair-v2.yml \
+            protocols/execution_requests/deform_dlo45_branch_repair_v2.trigger \
+            .github/workflows/deform-dlo45-merge-readiness-v3.yml \
+            protocols/execution_requests/deform_dlo45_merge_readiness_v3.trigger \
+            .github/workflows/deform-dlo45-finalize-review-v4.yml \
+            protocols/execution_requests/deform_dlo45_finalize_review_v4.trigger \
+            evidence/deform-dlo45-query-observability-heldout-v1/contract-trigger-v1.txt
+          python - <<'PY'
+          from pathlib import Path
+
+          paths = [
+              Path(".github/workflows/deform-dlo45-observability-hosted-v1.yml"),
+              Path(".github/workflows/deform-dlo45-local-segment-source-v2.yml"),
+              Path(".github/workflows/deform-dlo45-query-gate-source-v1.yml"),
+              Path(".github/workflows/deform-dlo45-query-observability-heldout-v1.yml"),
+          ]
+          for path in paths:
+              text = path.read_text(encoding="utf-8")
+              start = text.index("\non:\n") + 1
+              end = text.index("\npermissions:\n", start)
+              path.write_text(
+                  text[:start] + "on:\n  workflow_dispatch:\n" + text[end:],
+                  encoding="utf-8",
+              )
+          PY
+
+      - name: Install the repository development environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --no-cache-dir -e ".[dev]"
+
+      - name: Apply and verify mechanical formatting
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=(
+            scripts/science/audit_deform_dlo45_local_segments_official_v2.py
+            scripts/science/audit_deform_dlo45_local_segments_v2.py
+            scripts/science/audit_deform_dlo45_observability_official_mirror_v1.py
+            scripts/science/audit_deform_dlo45_observability_v1.py
+            scripts/science/calibrate_deform_dlo45_query_gate_official_v1.py
+            scripts/science/calibrate_deform_dlo45_query_gate_v1.py
+            scripts/science/evaluate_deform_dlo45_query_observability_official_v1.py
+            scripts/science/evaluate_deform_dlo45_query_observability_v1.py
+            tests/test_deform_dlo45_query_observability_evidence.py
+          )
+          python -m ruff check --fix -- "${files[@]}"
+          python -m ruff format -- "${files[@]}"
+          python -m ruff check -- "${files[@]}"
+          python -m ruff format --check -- "${files[@]}"
+          python -m compileall -q \
+            scripts/science/audit_deform_dlo45_local_segments_official_v2.py \
+            scripts/science/audit_deform_dlo45_local_segments_v2.py \
+            scripts/science/audit_deform_dlo45_observability_official_mirror_v1.py \
+            scripts/science/audit_deform_dlo45_observability_v1.py \
+            scripts/science/calibrate_deform_dlo45_query_gate_official_v1.py \
+            scripts/science/calibrate_deform_dlo45_query_gate_v1.py \
+            scripts/science/evaluate_deform_dlo45_query_observability_official_v1.py \
+            scripts/science/evaluate_deform_dlo45_query_observability_v1.py
+
+      - name: Run evidence, mechanism, and workflow-policy tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pytest -q \
+            tests/test_deform_dlo45_query_observability_evidence.py \
+            tests/test_query_observability.py \
+            tests/test_observable_gauge.py \
+            tests/test_axial_query_certificate.py \
+            tests/test_axial_query_certificate_integration.py \
+            tests/test_github_action_pins.py \
+            tests/test_trusted_self_hosted_validation_policy.py
+
+      - name: Remove this temporary finalizer
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm -f --ignore-unmatch \
+            .github/workflows/deform-dlo45-finalize-and-ready-v5.yml \
+            protocols/execution_requests/deform_dlo45_finalize_and_ready_v5.trigger
+
+      - name: Verify and stage the exact tested change boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -A
+          test -z "$(git diff --name-only)"
+          test -n "$(git diff --cached --name-only)"
+          while IFS= read -r path; do
+            case "$path" in
+              .github/workflows/deform-dlo45-observability-source-v1.yml|\
+              .github/workflows/deform-dlo45-observability-official-mirror-v1.yml|\
+              protocols/execution_requests/deform_dlo45_observability_source_v1.json|\
+              protocols/execution_requests/deform_dlo45_observability_official_mirror_v1.json|\
+              .github/workflows/deform-dlo45-mechanical-format-fix.yml|\
+              protocols/execution_requests/deform_dlo45_mechanical_format_fix.trigger|\
+              .github/workflows/deform-dlo45-branch-repair-v2.yml|\
+              protocols/execution_requests/deform_dlo45_branch_repair_v2.trigger|\
+              .github/workflows/deform-dlo45-merge-readiness-v3.yml|\
+              protocols/execution_requests/deform_dlo45_merge_readiness_v3.trigger|\
+              .github/workflows/deform-dlo45-finalize-review-v4.yml|\
+              protocols/execution_requests/deform_dlo45_finalize_review_v4.trigger|\
+              .github/workflows/deform-dlo45-finalize-and-ready-v5.yml|\
+              protocols/execution_requests/deform_dlo45_finalize_and_ready_v5.trigger|\
+              evidence/deform-dlo45-query-observability-heldout-v1/contract-trigger-v1.txt|\
+              .github/workflows/deform-dlo45-observability-hosted-v1.yml|\
+              .github/workflows/deform-dlo45-local-segment-source-v2.yml|\
+              .github/workflows/deform-dlo45-query-gate-source-v1.yml|\
+              .github/workflows/deform-dlo45-query-observability-heldout-v1.yml|\
+              scripts/science/audit_deform_dlo45_local_segments_official_v2.py|\
+              scripts/science/audit_deform_dlo45_local_segments_v2.py|\
+              scripts/science/audit_deform_dlo45_observability_official_mirror_v1.py|\
+              scripts/science/audit_deform_dlo45_observability_v1.py|\
+              scripts/science/calibrate_deform_dlo45_query_gate_official_v1.py|\
+              scripts/science/calibrate_deform_dlo45_query_gate_v1.py|\
+              scripts/science/evaluate_deform_dlo45_query_observability_official_v1.py|\
+              scripts/science/evaluate_deform_dlo45_query_observability_v1.py|\
+              tests/test_deform_dlo45_query_observability_evidence.py)
+                ;;
+              *)
+                echo "Unexpected staged path: $path" >&2
+                exit 2
+                ;;
+            esac
+          done < <(git diff --cached --name-only)
+
+      - name: Commit and push the exact tested tree
+        id: commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Finalize held-out DLO evidence for review"
+          git push origin HEAD:science/deform-dlo45-query-observability-real-v1
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Mark pull request ready for review
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh pr ready 387 --repo IPS-Stuttgart/Prob4D
+
+      - name: Record the validated review transition
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VALIDATED_SHA: ${{ steps.commit.outputs.sha }}
+        run: |
+          set -euo pipefail
+          gh pr comment 387 --repo IPS-Stuttgart/Prob4D --body-file - <<EOF
+          The held-out DLO evidence review surface was validated and committed at \`${VALIDATED_SHA}\`.
+
+          Validation completed before the branch update:
+          - Ruff check and formatting for all retained DLO evidence scripts and the evidence regression test;
+          - byte compilation of all retained DLO evidence scripts;
+          - immutable evidence identity and request-hash checks;
+          - exact fallback, comparison-ordering, and calibration-limitation regression checks;
+          - observable-gauge and query-observability mechanism tests;
+          - axial-query certificate and integration tests;
+          - GitHub Action pinning and trusted-runner policy tests.
+
+          Temporary write-enabled repair workflows, unsuccessful self-hosted audit lanes, and their triggers were removed from the committed tree. The scientific result and all frozen source/evaluation identities are unchanged. PR #387 is now ready for review; no merge was performed.
+          EOF
