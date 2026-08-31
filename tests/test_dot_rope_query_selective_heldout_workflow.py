@@ -4,6 +4,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/dot-rope-query-selective-heldout-v1.yml"
+CONTRACT_WORKFLOW = (
+    ROOT / ".github/workflows/dot-rope-query-selective-heldout-contract-v1.yml"
+)
 REQUEST = "protocols/execution_requests/dot_rope_query_selective_heldout_v1.json"
 
 
@@ -13,17 +16,32 @@ def _job(text: str, name: str, next_name: str | None = None) -> str:
     return text[start:end]
 
 
-def test_workflow_is_request_only_on_main_and_pr_safe() -> None:
-    text = WORKFLOW.read_text(encoding="utf-8")
-    prefix = text.split("permissions:", maxsplit=1)[0]
-    assert "\n  pull_request:" in prefix
-    assert "\n  push:" in prefix
-    assert "branches: [main]" in prefix
-    assert REQUEST in prefix
-    assert "pull_request_target:" not in text
-    assert "permissions:\n  contents: read\n" in text
-    assert "secrets." not in text
-    assert "git push" not in text
+def test_pr_contract_is_separate_from_main_only_execution() -> None:
+    execution = WORKFLOW.read_text(encoding="utf-8")
+    contract = CONTRACT_WORKFLOW.read_text(encoding="utf-8")
+    execution_prefix = execution.split("permissions:", maxsplit=1)[0]
+    contract_prefix = contract.split("permissions:", maxsplit=1)[0]
+
+    assert "\n  push:" in execution_prefix
+    assert "\n  pull_request:" not in execution_prefix
+    assert "branches: [main]" in execution_prefix
+    assert REQUEST in execution_prefix
+    assert "\n  contract:" not in execution
+
+    assert "\n  pull_request:" in contract_prefix
+    assert "\n  push:" not in contract_prefix
+    assert "branches: [main]" in contract_prefix
+    assert WORKFLOW.name in contract_prefix
+    assert CONTRACT_WORKFLOW.name in contract_prefix
+    assert "pull_request_target:" not in contract
+    assert "github.event.pull_request.head.sha" not in contract
+    assert "runs-on: ubuntu-latest" in contract
+    assert "self-hosted" not in contract
+
+    for text in (execution, contract):
+        assert "permissions:\n  contents: read\n" in text
+        assert "secrets." not in text
+        assert "git push" not in text
 
 
 def test_prerequisite_is_exact_artifact_bound_and_strong_positive() -> None:
@@ -78,14 +96,15 @@ def test_archive_and_information_boundaries_are_explicit() -> None:
 
 
 def test_external_actions_are_pinned_by_full_commit_sha() -> None:
-    text = WORKFLOW.read_text(encoding="utf-8")
-    for line in text.splitlines():
-        stripped = line.strip()
-        if not stripped.startswith("uses:"):
-            continue
-        target = stripped.split()[1]
-        if target.startswith("./"):
-            continue
-        revision = target.rsplit("@", 1)[1]
-        assert len(revision) == 40
-        assert all(character in "0123456789abcdef" for character in revision)
+    for path in (WORKFLOW, CONTRACT_WORKFLOW):
+        text = path.read_text(encoding="utf-8")
+        for line in text.splitlines():
+            stripped = line.strip()
+            if not stripped.startswith("uses:"):
+                continue
+            target = stripped.split()[1]
+            if target.startswith("./"):
+                continue
+            revision = target.rsplit("@", 1)[1]
+            assert len(revision) == 40
+            assert all(character in "0123456789abcdef" for character in revision)

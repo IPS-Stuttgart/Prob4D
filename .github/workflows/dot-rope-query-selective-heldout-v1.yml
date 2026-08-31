@@ -1,17 +1,6 @@
 name: DOT rope query-selective held-out CUT3R v1
 
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - ".github/workflows/dot-rope-query-selective-heldout-v1.yml"
-      - "protocols/dot-rope-query-selective-heldout-v1.json"
-      - "scripts/science/run_dot_rope_query_selective_heldout.py"
-      - "tests/test_dot_rope_query_selective_heldout.py"
-      - "tests/test_dot_rope_query_selective_heldout_workflow.py"
-      - "tests/test_trusted_self_hosted_validation_policy.py"
-      - "tests/_trusted_self_hosted_validation_policy_base.py"
-      - "docs/dot-rope-query-selective-heldout-v1.md"
   push:
     branches: [main]
     paths:
@@ -49,47 +38,6 @@ env:
   NUMEXPR_NUM_THREADS: "1"
 
 jobs:
-  contract:
-    name: Validate frozen R11-R30 experiment capsule
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - name: Check out reviewed revision
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          persist-credentials: false
-          clean: true
-      - name: Set up Python 3.12
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: pyproject.toml
-      - name: Validate implementation, protocol, and custody
-        shell: bash
-        run: |
-          set -euo pipefail
-          python -m pip install -e ".[dev]"
-          python -m pip check
-          python -m ruff check \
-            scripts/science/run_dot_rope_query_selective_heldout.py \
-            tests/test_dot_rope_query_selective_heldout.py \
-            tests/test_dot_rope_query_selective_heldout_workflow.py \
-            tests/test_trusted_self_hosted_validation_policy.py
-          python -m ruff format --check \
-            scripts/science/run_dot_rope_query_selective_heldout.py \
-            tests/test_dot_rope_query_selective_heldout.py \
-            tests/test_dot_rope_query_selective_heldout_workflow.py \
-            tests/test_trusted_self_hosted_validation_policy.py
-          python -m pytest -q \
-            tests/test_dot_rope_query_selective_heldout.py \
-            tests/test_dot_rope_query_selective_heldout_workflow.py \
-            tests/test_trusted_self_hosted_validation_policy.py \
-            tests/test_github_action_pins.py
-          python -m compileall -q scripts/science/run_dot_rope_query_selective_heldout.py
-
   authorize:
     name: Authorize one immutable strong-prerequisite request
     if: github.event_name == 'push'
