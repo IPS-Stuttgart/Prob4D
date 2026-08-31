@@ -1,0 +1,9 @@
+{
+  "schema": "prob4d.temporary-dot-r04-transport-switch-request",
+  "schema_version": 1,
+  "cancel_direct_recovery_run_id": 33442397966,
+  "next_lane": "hosted-archive-relay-v1",
+  "archive_payload_opened": false,
+  "marker_payload_opened": false,
+  "scientific_inputs_changed": false
+}
