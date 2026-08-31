@@ -1,0 +1,102 @@
+name: Finalize DOT R04-R10 reusable cuRoPE compatibility wiring
+
+on:
+  push:
+    branches: [fix/dot-r04-r10-reuse-curope-compat-v1]
+    paths:
+      - ".github/workflows/build-dot-r04-r10-reuse-curope-compat-v9.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    name: Commit the validated repair and remove helper workflows
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: fix/dot-r04-r10-reuse-curope-compat-v1
+          fetch-depth: 0
+          persist-credentials: true
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Re-execute the validated v8 target transformation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          source = Path(
+              ".github/workflows/build-dot-r04-r10-reuse-curope-compat-v8.yml"
+          ).read_text(encoding="utf-8").splitlines()
+          step = source.index(
+              "      - name: Insert the audited runtime patch and regression assertions"
+          )
+          start = next(
+              index
+              for index in range(step + 1, len(source))
+              if source[index] == "          python - <<'PY'"
+          )
+          end = next(
+              index
+              for index in range(start + 1, len(source))
+              if source[index] == "          PY"
+          )
+          body = source[start + 1 : end]
+          if any(line and not line.startswith("          ") for line in body):
+              raise SystemExit("validated v8 transformation indentation changed")
+          program = "\n".join(line[10:] if line else "" for line in body) + "\n"
+          exec(compile(program, "validated-v8-target-transformation", "exec"), {})
+          PY
+
+      - name: Remove every temporary helper before repository validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f -- \
+            .github/workflows/build-dot-r04-r10-reuse-curope-compat-v1.yml \
+            .github/workflows/build-dot-r04-r10-reuse-curope-compat-v2.yml \
+            .github/workflows/build-dot-r04-r10-reuse-curope-compat-v3.yml \
+            .github/workflows/build-dot-r04-r10-reuse-curope-compat-v4.yml \
+            .github/workflows/build-dot-r04-r10-reuse-curope-compat-v5.yml \
+            .github/workflows/build-dot-r04-r10-reuse-curope-compat-v6.yml \
+            .github/workflows/build-dot-r04-r10-reuse-curope-compat-v7.yml \
+            .github/workflows/build-dot-r04-r10-reuse-curope-compat-v8.yml \
+            .github/workflows/build-dot-r04-r10-reuse-curope-compat-v9.yml \
+            .github/workflows/diagnose-dot-r04-r10-v8-helper.yml \
+            CHANGELOG.d/dot-r04-r10-reuse-curope-compat.md
+
+      - name: Validate the repository-visible two-file repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -e ".[dev]"
+          python -m ruff format tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py
+          python -m ruff check tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py
+          python -m pytest -q \
+            tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py \
+            tests/test_trusted_self_hosted_validation_policy.py \
+            tests/test_github_action_pins.py
+          python -m compileall -q tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py
+          git diff --check
+
+      - name: Commit the target repair and helper removals
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -A -- .github/workflows
+          git add -- tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py
+          test -n "$(git diff --cached --name-only)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Reuse audited cuRoPE compatibility in held-out provider"
+          git push origin HEAD:fix/dot-r04-r10-reuse-curope-compat-v1
