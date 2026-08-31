@@ -46,9 +46,9 @@ jobs:
           assert 'selector = "runs-on: [self-hosted, gpuserver6000]"' in test
           assert not Path('protocols/execution_requests/dot_rope_query_selective_heldout_v1.json').exists()
           PY
-          mkdir -p "$RUNNER_TEMP/export/.github/workflows" "$RUNNER_TEMP/export/tests"
+          mkdir -p "$RUNNER_TEMP/export/tests"
           cp .github/workflows/dot-rope-query-selective-heldout-v1.yml \
-            "$RUNNER_TEMP/export/.github/workflows/"
+            "$RUNNER_TEMP/export/generated-dot-rope-query-selective-heldout-v1.yml"
           cp tests/test_dot_rope_query_selective_heldout_workflow.py \
             "$RUNNER_TEMP/export/tests/"
           git diff -- \
@@ -56,7 +56,7 @@ jobs:
             tests/test_dot_rope_query_selective_heldout_workflow.py \
             > "$RUNNER_TEMP/export/routing.patch"
           (cd "$RUNNER_TEMP/export" && sha256sum \
-            .github/workflows/dot-rope-query-selective-heldout-v1.yml \
+            generated-dot-rope-query-selective-heldout-v1.yml \
             tests/test_dot_rope_query_selective_heldout_workflow.py \
             routing.patch > SHA256SUMS)
       - name: Upload exact generated review files
