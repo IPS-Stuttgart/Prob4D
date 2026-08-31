@@ -44,8 +44,8 @@ def test_recovery_requires_an_unassigned_artifact_free_predecessor() -> None:
     assert 'job.get("steps")' in authorize
     assert 'job.get("runner_id") not in (None, 0)' in authorize
     assert 'job.get("runner_name") not in (None, "")' in authorize
-    assert 'if artifacts:' in authorize
-    assert '/actions/runs/{run_id}/cancel' in authorize
+    assert "if artifacts:" in authorize
+    assert "/actions/runs/{run_id}/cancel" in authorize
     assert 'run.get("conclusion") != "cancelled"' in authorize
     assert "actions: write" in authorize
     assert "contents: write" not in authorize
@@ -54,7 +54,10 @@ def test_recovery_requires_an_unassigned_artifact_free_predecessor() -> None:
 def test_official_release_and_information_order_are_fixed() -> None:
     text = WORKFLOW.read_text(encoding="utf-8")
     evaluate = _job(text, "evaluate")
-    assert "https://zenodo.org/records/14644526/files/tracking_dataset.zip?download=1" in text
+    assert (
+        "https://zenodo.org/records/14644526/files/tracking_dataset.zip?download=1"
+        in text
+    )
     assert "b4868b702f8a42b2ea1069d0f1a3b8f6" in text
     assert 'test "$count" -eq 120' in evaluate
     assert "run_tracking_cloth_finite_orbit_real_v1.py" in evaluate
@@ -63,7 +66,9 @@ def test_official_release_and_information_order_are_fixed() -> None:
     assert "Raw dataset payload appeared in evidence" in evaluate
     assert 'result["aggregate"]["target_groups"] == 56' in evaluate
     assert 'result["aggregate"]["total_cases"] >= 1000' in evaluate
-    assert 'result["claim_boundary"]["learned_visual_provider"] is False' in evaluate
+    assert (
+        'result["claim_boundary"]["learned_visual_provider"] is False' in evaluate
+    )
 
 
 def test_external_actions_are_pinned_to_full_commit_shas() -> None:
