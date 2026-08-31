@@ -129,3 +129,45 @@ def test_gaussian_metrics_are_finite() -> None:
     assert metrics["squared_error"] == 0.25
     assert math.isfinite(metrics["nll"])
     assert metrics["covered"] == 1.0
+
+
+def test_recording_classification_covers_registered_64_56_split(tmp_path: Path) -> None:
+    module = _load_module()
+    dataset_root = tmp_path / "dataset"
+    dataset_root.mkdir()
+
+    paths = [dataset_root / f"cotton_A2_shaking_{index:02d}.csv" for index in range(32)]
+    paths += [dataset_root / f"cotton_A2_twisting_{index:02d}.csv" for index in range(32)]
+    paths += [dataset_root / f"cotton_A2_half_lay_{index:02d}.csv" for index in range(8)]
+    paths += [dataset_root / f"cotton_A2_full_lay_{index:02d}.csv" for index in range(8)]
+    paths += [dataset_root / f"cotton_A2_hitting_{index:02d}.csv" for index in range(4)]
+    paths += [dataset_root / f"cotton_A2_self_collision_{index:02d}.csv" for index in range(36)]
+
+    protocol = {
+        "dataset": {
+            "expected_csv_files": 120,
+            "expected_source_files": 64,
+            "expected_target_files": 56,
+            "source_aliases": {
+                "shake": ["shake", "shaking"],
+                "twist": ["twist", "twisting"],
+            },
+            "target_aliases": [
+                "collision",
+                "collisions",
+                "collide",
+                "colliding",
+                "half_lay",
+                "full_lay",
+                "hitting",
+            ],
+        }
+    }
+
+    recordings, classification = module._classify_recordings(dataset_root, paths, protocol)
+
+    assert classification == {
+        "mode": "declared-aliases",
+        "counts": {"collision": 56, "shake": 32, "twist": 32},
+    }
+    assert len(recordings) == 120
