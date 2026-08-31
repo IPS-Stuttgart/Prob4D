@@ -20,7 +20,7 @@ def test_confirmation_workflow_is_single_request_triggered_and_stage_sealed() ->
     assert "old confirmation provider may have started; recovery is forbidden" in text
     assert "normal-view images only" in text
     assert "after provider seal" in text
-    assert "R11-R70 remain unopened" in text
+    assert "R11-R70 remained unopened" in text
 
 
 def test_confirmation_provider_is_read_only_and_bound_to_gpuserver6000() -> None:
