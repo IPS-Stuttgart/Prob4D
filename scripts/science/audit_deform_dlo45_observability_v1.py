@@ -38,9 +38,7 @@ class PrimitiveOnlyUnpickler(pickle.Unpickler):
         )
 
     def persistent_load(self, pid: object) -> Any:
-        raise pickle.UnpicklingError(
-            f"persistent ID {pid!r} is not allowed in DEFORM trajectories"
-        )
+        raise pickle.UnpicklingError(f"persistent ID {pid!r} is not allowed in DEFORM trajectories")
 
 
 def load_primitive_pickle(stream: BinaryIO) -> Any:
