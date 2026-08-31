@@ -1,0 +1,233 @@
+name: Finalize DEFORM DLO4/DLO5 evidence PR once
+
+on:
+  push:
+    branches:
+      - science/deform-dlo45-query-observability-real-v1
+    paths:
+      - protocols/execution_requests/deform_dlo45_finalize_once.trigger
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    name: Validate intended merge tree and record success
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out current experiment branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: science/deform-dlo45-query-observability-real-v1
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Construct the intended merge tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="evidence/deform-dlo45-query-observability-heldout-v1/executed-workflows"
+          mkdir -p "$archive"
+          executions=(
+            deform-dlo45-observability-source-v1.yml
+            deform-dlo45-observability-official-mirror-v1.yml
+            deform-dlo45-observability-hosted-v1.yml
+            deform-dlo45-local-segment-source-v2.yml
+            deform-dlo45-query-gate-source-v1.yml
+            deform-dlo45-query-observability-heldout-v1.yml
+          )
+          for workflow in "${executions[@]}"; do
+            source=".github/workflows/$workflow"
+            destination="$archive/$workflow"
+            if [[ -f "$source" && ! -e "$destination" ]]; then
+              git mv "$source" "$destination"
+            elif [[ -f "$source" && -e "$destination" ]]; then
+              cmp --silent "$source" "$destination"
+              rm -f -- "$source"
+            fi
+          done
+
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path(".github/workflows/deform-dlo45-evidence-integrity.yml")
+          text = path.read_text(encoding="utf-8")
+          additions = (
+              (
+                  '      - "tests/test_deform_dlo45_query_observability_evidence.py"\n',
+                  '      - "tests/test_deform_dlo45_query_observability_evidence.py"\n'
+                  '      - "tests/test_deform_dlo45_evidence_workflow_boundary.py"\n'
+                  '      - "tests/test_deform_dlo45_ci_validation_record.py"\n',
+              ),
+              (
+                  "            tests/test_deform_dlo45_query_observability_evidence.py\n",
+                  "            tests/test_deform_dlo45_query_observability_evidence.py \\\n"
+                  "            tests/test_deform_dlo45_evidence_workflow_boundary.py \\\n"
+                  "            tests/test_deform_dlo45_ci_validation_record.py\n",
+              ),
+              (
+                  "            tests/test_deform_dlo45_query_observability_evidence.py \\\n"
+                  "            tests/test_observable_gauge.py \\\n",
+                  "            tests/test_deform_dlo45_query_observability_evidence.py \\\n"
+                  "            tests/test_deform_dlo45_evidence_workflow_boundary.py \\\n"
+                  "            tests/test_deform_dlo45_ci_validation_record.py \\\n"
+                  "            tests/test_observable_gauge.py \\\n",
+              ),
+          )
+          for needle, replacement in additions:
+              if replacement in text:
+                  continue
+              if needle not in text:
+                  raise SystemExit(f"missing integrity-workflow insertion point: {needle!r}")
+              text = text.replace(needle, replacement, 1)
+          path.write_text(text, encoding="utf-8")
+          PY
+
+          rm -f -- \
+            .github/workflows/archive-deform-dlo45-execution-workflows-once.yml \
+            .github/workflows/cleanup-connector-probe-issue-once.yml \
+            .github/workflows/deform-dlo45-finalize-once.yml \
+            .github/workflows/deform-dlo45-mechanical-format-fix.yml \
+            .github/workflows/deform-dlo45-pr-reconcile-once.yml \
+            protocols/execution_requests/archive_deform_dlo45_workflows_once.trigger \
+            protocols/execution_requests/cleanup_connector_probe_issue_once.trigger \
+            protocols/execution_requests/deform_dlo45_finalize_once.trigger \
+            protocols/execution_requests/deform_dlo45_mechanical_format_fix.trigger \
+            protocols/execution_requests/deform_dlo45_pr_reconcile_once.trigger
+
+      - name: Install project development environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --no-cache-dir -e ".[dev]"
+
+      - name: Apply and verify mechanical Python formatting
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=(
+            scripts/science/audit_deform_dlo45_local_segments_official_v2.py
+            scripts/science/audit_deform_dlo45_local_segments_v2.py
+            scripts/science/audit_deform_dlo45_observability_official_mirror_v1.py
+            scripts/science/audit_deform_dlo45_observability_v1.py
+            scripts/science/calibrate_deform_dlo45_query_gate_official_v1.py
+            scripts/science/calibrate_deform_dlo45_query_gate_v1.py
+            scripts/science/evaluate_deform_dlo45_query_observability_official_v1.py
+            scripts/science/evaluate_deform_dlo45_query_observability_v1.py
+            tests/test_deform_dlo45_query_observability_evidence.py
+            tests/test_deform_dlo45_evidence_workflow_boundary.py
+          )
+          python -m ruff check --fix -- "${files[@]}"
+          python -m ruff format -- "${files[@]}"
+          python -m ruff check -- "${files[@]}"
+          python -m ruff format --check -- "${files[@]}"
+
+      - name: Run focused scientific and repository-policy tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pytest -q \
+            tests/test_deform_dlo45_query_observability_evidence.py \
+            tests/test_deform_dlo45_evidence_workflow_boundary.py \
+            tests/test_observable_gauge.py \
+            tests/test_query_observability.py \
+            tests/test_axial_query_certificate.py \
+            tests/test_axial_query_certificate_integration.py \
+            tests/test_github_action_pins.py \
+            tests/test_trusted_self_hosted_validation_policy.py
+          python -m compileall -q \
+            scripts/science/audit_deform_dlo45_local_segments_official_v2.py \
+            scripts/science/audit_deform_dlo45_local_segments_v2.py \
+            scripts/science/audit_deform_dlo45_observability_official_mirror_v1.py \
+            scripts/science/audit_deform_dlo45_observability_v1.py \
+            scripts/science/calibrate_deform_dlo45_query_gate_official_v1.py \
+            scripts/science/calibrate_deform_dlo45_query_gate_v1.py \
+            scripts/science/evaluate_deform_dlo45_query_observability_official_v1.py \
+            scripts/science/evaluate_deform_dlo45_query_observability_v1.py
+
+      - name: Validate immutable evidence contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          evidence = Path("evidence/deform-dlo45-query-observability-heldout-v1")
+          summary = json.loads((evidence / "summary.json").read_text(encoding="utf-8"))
+          validation = json.loads(
+              (evidence / "validation-manifest.json").read_text(encoding="utf-8")
+          )
+          assert summary["decision"] == "pass"
+          assert all(summary["criteria"].values())
+          assert summary["heldout_result_id"] == validation["frozen_heldout_result_id"]
+          assert summary["accounting"]["independent_groups"] == 28
+          assert summary["information_boundary"]["post_open_retuning_permitted"] is False
+          assert summary["limitations"]["provider_competence_tested"] is False
+          assert (
+              summary["limitations"]["accepted_centroid_covariance_underdispersed"]
+              ["nominal_90pct_coverage"]["mean"]
+              < 0.9
+          )
+          PY
+
+      - name: Record successful merge-tree validation
+        shell: bash
+        env:
+          VALIDATED_SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          record = {
+              "checks": [
+                  "ruff-check-and-format",
+                  "observable-gauge-tests",
+                  "query-observability-tests",
+                  "axial-query-certificate-tests",
+                  "github-action-pin-tests",
+                  "trusted-self-hosted-policy-tests",
+                  "evidence-identity-and-information-order",
+                  "active-versus-archived-workflow-boundary",
+              ],
+              "decision": "pass",
+              "frozen_heldout_result_id": (
+                  "1ac8cd083b39877888ea0eb2f4b9400ca89eda09436f25f5f0a6f43b154b1007"
+              ),
+              "github_run_id": os.environ["GITHUB_RUN_ID"],
+              "post_open_retuning_permitted": False,
+              "schema": "prob4d.deform-dlo45-pr-validation",
+              "schema_version": 1,
+              "validated_source_revision": os.environ["VALIDATED_SOURCE_SHA"],
+          }
+          path = Path(
+              "evidence/deform-dlo45-query-observability-heldout-v1/ci-validation.json"
+          )
+          path.write_text(
+              json.dumps(record, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Commit validated intended merge tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && {
+            echo "No finalization changes remained to commit."
+            exit 0
+          }
+          git commit -m "Finalize and validate held-out DLO evidence tree"
+          git push origin HEAD:science/deform-dlo45-query-observability-real-v1
