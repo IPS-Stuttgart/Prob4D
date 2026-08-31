@@ -68,3 +68,5 @@ jobs:
           done
           git commit -m "Route frozen DOT R11-R30 provider to gpuserver6000"
           git push origin "HEAD:${{ github.ref_name }}"
+
+# This file self-removes after generating the reviewable execution-only diff.
