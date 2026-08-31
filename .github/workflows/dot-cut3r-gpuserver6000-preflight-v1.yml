@@ -88,6 +88,7 @@ jobs:
               "/mnt/lexar4tb/datasets/dot-rope",
               "/home/florianpfaff/datasets/dot-rope",
               "/home/github-runner/.cache/workflows/dot-rope",
+              "/home/github-runner/.cache/datasets/dot",
           ]
           candidate_roots.extend(glob.glob("/mnt/*/florianpfaff/datasets/dot*"))
           candidate_roots.extend(glob.glob("/mnt/*/datasets/dot*"))
@@ -191,11 +192,58 @@ jobs:
                       record["manifest_error"] = f"{type(error).__name__}: {error}"
               runtimes.append(record)
 
+          nvcc_candidates: list[str] = []
+          path_nvcc = shutil.which("nvcc")
+          if path_nvcc:
+              nvcc_candidates.append(path_nvcc)
+          for pattern in (
+              "/usr/local/cuda*/bin/nvcc",
+              "/usr/local/cuda/bin/nvcc",
+              "/opt/cuda*/bin/nvcc",
+              "/opt/nvidia/cuda*/bin/nvcc",
+              "/usr/lib/cuda*/bin/nvcc",
+              "/home/github-runner/**/bin/nvcc",
+          ):
+              nvcc_candidates.extend(glob.glob(pattern, recursive=True))
+          nvcc_candidates = sorted(dict.fromkeys(nvcc_candidates))
+
+          cuda_toolkits: list[dict[str, Any]] = []
+          for raw in nvcc_candidates:
+              path = pathlib.Path(raw)
+              try:
+                  resolved = path.resolve(strict=True)
+              except Exception:
+                  resolved = path
+              version = run([str(path), "--version"])
+              output = f"{version.get('stdout', '')}\n{version.get('stderr', '')}"
+              root = resolved.parent.parent
+              cuda_toolkits.append(
+                  {
+                      "nvcc": str(path),
+                      "resolved_nvcc": str(resolved),
+                      "cuda_root": str(root),
+                      "is_executable": path.is_file() and os.access(path, os.X_OK),
+                      "version": version,
+                      "release_12_6": "release 12.6" in output,
+                      "include_cuda_h": (root / "include/cuda.h").is_file(),
+                      "lib64_exists": (root / "lib64").is_dir(),
+                  }
+              )
+
           nvidia = run([
               "nvidia-smi",
               "--query-gpu=name,driver_version,memory.total,memory.used,utilization.gpu",
               "--format=csv,noheader",
           ]) if shutil.which("nvidia-smi") else {"error": "nvidia-smi unavailable"}
+          filesystem = run([
+              "df",
+              "-h",
+              "/home/github-runner",
+              "/home/github-runner/.cache",
+              "/mnt",
+          ])
+          mounts = run(["findmnt", "-rn", "-o", "TARGET,SOURCE,FSTYPE,OPTIONS"])
+          compiler = run(["c++", "--version"]) if shutil.which("c++") else {"error": "c++ unavailable"}
 
           dataset_ready = any(
               item["archive_exists"] and item["archive_readable"] for item in datasets
@@ -207,10 +255,13 @@ jobs:
               and '"cuda_available": true' in item.get("python_probe", {}).get("stdout", "").lower()
               for item in runtimes
           )
+          cuda_12_6_ready = any(
+              item["is_executable"] and item["release_12_6"] for item in cuda_toolkits
+          )
 
           result = {
               "schema": "prob4d.dot-cut3r-gpuserver6000-preflight",
-              "schema_version": 1,
+              "schema_version": 2,
               "github_run_id": int(os.environ["GITHUB_RUN_ID"]),
               "github_run_attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
               "github_sha": os.environ["GITHUB_SHA"],
@@ -225,12 +276,21 @@ jobs:
                   "checkpoint_sha256": expected_checkpoint,
               },
               "nvidia_smi": nvidia,
+              "compiler": compiler,
+              "filesystem": filesystem,
+              "mounts": mounts,
+              "cuda_toolkits": cuda_toolkits,
+              "cuda_12_6_ready": cuda_12_6_ready,
               "datasets": datasets,
               "runtimes": runtimes,
               "decision": (
                   "ready-for-identical-heldout-provider"
                   if dataset_ready and runtime_ready
-                  else "bootstrap-or-stage-assets-required"
+                  else (
+                      "bootstrap-assets-with-local-cuda-12.6"
+                      if cuda_12_6_ready
+                      else "cuda-12.6-toolkit-required"
+                  )
               ),
               "dataset_ready": dataset_ready,
               "runtime_ready": runtime_ready,
@@ -267,6 +327,7 @@ jobs:
           print(f"- runner: `{value['runner']['name']}`")
           print(f"- dataset ready: `{value['dataset_ready']}`")
           print(f"- exact CUT3R runtime ready: `{value['runtime_ready']}`")
+          print(f"- local CUDA 12.6 toolkit ready: `{value['cuda_12_6_ready']}`")
           print()
           print("No DOT archive member, image, marker payload, or held-out prediction was opened.")
           PY
