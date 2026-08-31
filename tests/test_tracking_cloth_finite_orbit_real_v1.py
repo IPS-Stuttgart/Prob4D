@@ -9,7 +9,6 @@ from types import ModuleType
 
 import numpy as np
 
-
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts/science/run_tracking_cloth_finite_orbit_real_v1.py"
 
