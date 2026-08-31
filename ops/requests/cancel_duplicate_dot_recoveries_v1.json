@@ -1,0 +1,8 @@
+{
+  "schema": "prob4d.temporary-duplicate-dot-recovery-cancellation-request",
+  "schema_version": 1,
+  "active_run_id": 33442397966,
+  "cancel_run_ids": [33442397912, 33442492337],
+  "archive_payload_opened": false,
+  "scientific_inputs_changed": false
+}
