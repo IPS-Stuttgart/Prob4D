@@ -1,0 +1,48 @@
+{
+  "schema": "prob4d.tracking-cloth-query-portfolio.v1",
+  "protocol_id": "tracking-cloth-query-portfolio-v1",
+  "dataset": {
+    "name": "Tracking Cloth Deformation",
+    "doi": "10.5281/zenodo.14644526",
+    "dataset_root": "/home/github-runner/.cache/datasets/tracking-cloth-deformation-v1-zenodo-14644526",
+    "expected_csv_files": 120,
+    "expected_compatible_recordings": 80
+  },
+  "fold_count": 5,
+  "minimum_recordings_per_size": 24,
+  "lag_frames": 6,
+  "horizon_frames": 12,
+  "stride_frames": 4,
+  "maximum_windows_per_recording": 96,
+  "query_counts": [1, 2, 4, 8, 12, 20],
+  "query_selection": "deterministic evenly spaced marker indices; no target outcome used",
+  "joint_covariance_shrinkage": 0.08,
+  "joint_covariance_ridge_fraction": 0.0001,
+  "maximum_conditional_block_fraction": 0.2,
+  "factor_eigenvalue_relative_tolerance": 1e-12,
+  "rank_relative_tolerance": 1e-12,
+  "parity_relative_tolerance": 1e-9,
+  "required_maximum_relative_parity_error": 1e-7,
+  "benchmark_batch_windows": 256,
+  "timing_repeats": 7,
+  "comparators": [
+    "full shared factor with structured Woodbury solve",
+    "posterior-preserving shared factor",
+    "direct cached joint-query gain and posterior covariance",
+    "PSD-consistent low-rank-plus-isotropic spectral approximation of the complete joint covariance"
+  ],
+  "payload_accounting": {
+    "primary_scenario": "Q, C, conditional covariance, and means already resident at the consumer",
+    "compressed_factor_excludes_projection_metadata": true,
+    "secondary_factor_plus_projection_reported": true,
+    "standalone_cache_preferred_when_model_blocks_are_not_resident": true
+  },
+  "claim_boundary": {
+    "real_motion_capture_geometry": true,
+    "learned_4d_provider": false,
+    "bayesian_phystwin_benefit": false,
+    "causal4d_benefit": false,
+    "deployment_calibration": false,
+    "state_of_the_art": false
+  }
+}
