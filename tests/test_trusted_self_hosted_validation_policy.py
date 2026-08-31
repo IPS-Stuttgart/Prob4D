@@ -1,8 +1,9 @@
 """Load the unchanged self-hosted policy suite and extend its reviewed allowlist.
 
 The historical policy implementation is retained byte-for-byte in the adjacent
-non-test module. This wrapper adds only the separately reviewed DOT R11--R30
-workflow before exposing the original test functions to pytest.
+non-test module. This wrapper adds the separately reviewed DOT R11--R30 and
+Tracking-Cloth query-portfolio workflows before exposing the original test
+functions to pytest.
 """
 
 from __future__ import annotations
@@ -22,9 +23,13 @@ SPEC.loader.exec_module(POLICY)
 DOT_ROPE_QUERY_SELECTIVE_HELDOUT_WORKFLOW = (
     POLICY.WORKFLOW_ROOT / "dot-rope-query-selective-heldout-v1.yml"
 )
+TRACKING_CLOTH_QUERY_PORTFOLIO_WORKFLOW = (
+    POLICY.WORKFLOW_ROOT / "tracking-cloth-query-portfolio-v1.yml"
+)
 POLICY.TRUSTED_SELF_HOSTED_WORKFLOWS = (
     *POLICY.TRUSTED_SELF_HOSTED_WORKFLOWS,
     DOT_ROPE_QUERY_SELECTIVE_HELDOUT_WORKFLOW,
+    TRACKING_CLOTH_QUERY_PORTFOLIO_WORKFLOW,
 )
 
 for _name, _value in vars(POLICY).items():
