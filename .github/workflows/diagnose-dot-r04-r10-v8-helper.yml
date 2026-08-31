@@ -1,0 +1,50 @@
+name: Diagnose DOT R04-R10 v8 helper
+
+on:
+  push:
+    branches: [fix/dot-r04-r10-reuse-curope-compat-v1]
+    paths:
+      - ".github/workflows/diagnose-dot-r04-r10-v8-helper.yml"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      TARGET_JOB_ID: "99684048220"
+    steps:
+      - name: Extract bounded failure
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          raw="$RUNNER_TEMP/v8.log"
+          curl --fail --silent --show-error --location \
+            --header "Accept: application/vnd.github+json" \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/jobs/$TARGET_JOB_ID/logs" \
+            --output "$raw"
+          RAW="$raw" python3 - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          lines = Path(os.environ["RAW"]).read_text(
+              encoding="utf-8-sig", errors="replace"
+          ).splitlines()
+          patterns = re.compile(
+              r"(?i)(traceback|error|exception|systemexit|failed|failure|"
+              r"unavailable|lacks|insertion|base64|decode|utf-8|anchor|point)"
+          )
+          hits = [line for line in lines if patterns.search(line)]
+          print("=== matched failure lines ===")
+          print("\n".join(hits[-100:]))
+          print("=== log tail ===")
+          print("\n".join(lines[-80:]))
+          PY
