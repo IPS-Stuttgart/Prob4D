@@ -1,6 +1,6 @@
 {
   "schema": "prob4d.dot-rope-cut3r-heldout-queued-recovery-request",
-  "schema_version": 1,
+  "schema_version": 2,
   "superseded_run_id": 33363832286,
   "superseded_head_sha": "bb2179158b27178c6ebed9be866bee829108b72a",
   "target_workflow": "dot-rope-cut3r-heldout-confirmation-v1.yml",
@@ -13,5 +13,5 @@
   "artifacts_published": false,
   "scientific_inputs_changed": false,
   "action": "cancel-queued-and-rerun-exact-workflow-run",
-  "request_id": "3f60e16c4c6d16323322a2b363212c8392ad8a14c8daae02d58ccc9943519b8e"
+  "request_id": "387e88f4d63690472f82eafe3a1ce7bebdea5b62265c9c235f7aae36bf9b4032"
 }
