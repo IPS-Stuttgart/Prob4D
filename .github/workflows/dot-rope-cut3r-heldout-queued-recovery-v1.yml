@@ -1,0 +1,284 @@
+name: Recover queued DOT held-out confirmation v1
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/dot-rope-cut3r-heldout-queued-recovery-v1.yml"
+      - "docs/dot-rope-cut3r-heldout-queued-recovery-v1.md"
+      - "tests/test_dot_rope_cut3r_heldout_queued_recovery_workflow.py"
+  push:
+    branches: [main]
+    paths:
+      - "protocols/execution_requests/dot_rope_cut3r_heldout_queued_recovery_v1.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dot-rope-cut3r-heldout-queued-recovery-v1
+  cancel-in-progress: false
+
+env:
+  RECOVERY_REQUEST_PATH: protocols/execution_requests/dot_rope_cut3r_heldout_queued_recovery_v1.json
+  RETAINED_REQUEST_PATH: protocols/execution_requests/dot_rope_cut3r_heldout_confirmation_v1.json
+  RETAINED_REQUEST_ID: 62d64df1b1b72f2b2aff0b17cf4c7aad245150f9fa1ff67712eedc0f4e109ce6
+  RETAINED_PROTOCOL_ID: a83258295d5ecabd95017a775f334173bb48141918832fb1a065a1dff66d16ba
+  SUPERSEDED_RUN_ID: "33363832286"
+  SUPERSEDED_HEAD_SHA: bb2179158b27178c6ebed9be866bee829108b72a
+  TARGET_WORKFLOW: dot-rope-cut3r-heldout-confirmation-v1.yml
+  EXPECTED_PROVIDER_JOB: Seal marker-free R04-R10 CUT3R predictions
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+
+jobs:
+  contract:
+    name: Validate queued-run recovery contract
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact reviewed revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          clean: true
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Validate bounded recovery workflow
+        run: python tests/test_dot_rope_cut3r_heldout_queued_recovery_workflow.py
+
+  recover:
+    name: Cancel and requeue exact unopened DOT confirmation
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Check out exact merged recovery request
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+          clean: true
+
+      - name: Require exactly one recovery-request change
+        shell: bash
+        env:
+          EVENT_BEFORE: ${{ github.event.before }}
+          EVENT_AFTER: ${{ github.event.after }}
+          EVENT_FORCED: ${{ github.event.forced }}
+          EVENT_DELETED: ${{ github.event.deleted }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_AFTER" = "$(git rev-parse HEAD)"
+          test "$EVENT_FORCED" = "false"
+          test "$EVENT_DELETED" = "false"
+          test "$EVENT_BEFORE" != "0000000000000000000000000000000000000000"
+          mapfile -t changed < <(git diff --name-only "$EVENT_BEFORE" "$EVENT_AFTER" | sort)
+          if [[ ${#changed[@]} -ne 1 || "${changed[0]}" != "$RECOVERY_REQUEST_PATH" ]]; then
+            printf 'Expected only %s; changed paths were:\n' "$RECOVERY_REQUEST_PATH" >&2
+            printf '  %s\n' "${changed[@]}" >&2
+            exit 2
+          fi
+
+      - name: Validate recovery request and retained scientific identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          recovery_path = Path(os.environ["RECOVERY_REQUEST_PATH"])
+          retained_path = Path(os.environ["RETAINED_REQUEST_PATH"])
+          request = json.loads(recovery_path.read_text(encoding="utf-8"))
+          retained = json.loads(retained_path.read_text(encoding="utf-8"))
+
+          expected_fields = {
+              "schema",
+              "schema_version",
+              "superseded_run_id",
+              "superseded_head_sha",
+              "target_workflow",
+              "retained_request_path",
+              "retained_request_id",
+              "retained_protocol_id",
+              "expected_provider_job",
+              "provider_payload_opened",
+              "marker_payload_opened",
+              "artifacts_published",
+              "scientific_inputs_changed",
+              "action",
+              "request_id",
+          }
+          if set(request) != expected_fields:
+              raise SystemExit("queued-recovery request fields changed")
+          expected = {
+              "schema": "prob4d.dot-rope-cut3r-heldout-queued-recovery-request",
+              "schema_version": 1,
+              "superseded_run_id": int(os.environ["SUPERSEDED_RUN_ID"]),
+              "superseded_head_sha": os.environ["SUPERSEDED_HEAD_SHA"],
+              "target_workflow": os.environ["TARGET_WORKFLOW"],
+              "retained_request_path": os.environ["RETAINED_REQUEST_PATH"],
+              "retained_request_id": os.environ["RETAINED_REQUEST_ID"],
+              "retained_protocol_id": os.environ["RETAINED_PROTOCOL_ID"],
+              "expected_provider_job": os.environ["EXPECTED_PROVIDER_JOB"],
+              "provider_payload_opened": False,
+              "marker_payload_opened": False,
+              "artifacts_published": False,
+              "scientific_inputs_changed": False,
+              "action": "cancel-queued-and-rerun-exact-workflow-run",
+          }
+          for key, value in expected.items():
+              if request.get(key) != value:
+                  raise SystemExit(f"queued-recovery request {key} changed")
+          if retained.get("request_id") != os.environ["RETAINED_REQUEST_ID"]:
+              raise SystemExit("retained DOT confirmation request identity changed")
+          if retained.get("protocol_path") != "protocols/dot-rope-cut3r-heldout-confirmation-v1.json":
+              raise SystemExit("retained DOT confirmation protocol path changed")
+          unsigned = dict(request)
+          request_id = unsigned.pop("request_id", None)
+          payload = json.dumps(
+              unsigned,
+              sort_keys=True,
+              separators=(",", ":"),
+              ensure_ascii=False,
+              allow_nan=False,
+          ).encode("utf-8")
+          expected_id = hashlib.sha256(payload).hexdigest()
+          if request_id != expected_id:
+              raise SystemExit("queued-recovery request identity mismatch")
+          PY
+
+      - name: Cancel only the still-unopened queued run and requeue the exact same run
+        shell: bash
+        env:
+          API_URL: ${{ github.api_url }}
+          REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          import time
+          import urllib.error
+          import urllib.request
+          from typing import Any
+
+          api = os.environ["API_URL"].rstrip("/")
+          repo = os.environ["REPOSITORY"]
+          token = os.environ["GITHUB_TOKEN"]
+          run_id = int(os.environ["SUPERSEDED_RUN_ID"])
+          expected_head = os.environ["SUPERSEDED_HEAD_SHA"]
+          expected_job = os.environ["EXPECTED_PROVIDER_JOB"]
+
+          def call(method: str, path: str) -> tuple[int, Any]:
+              request = urllib.request.Request(
+                  f"{api}{path}",
+                  method=method,
+                  headers={
+                      "Accept": "application/vnd.github+json",
+                      "Authorization": f"Bearer {token}",
+                      "User-Agent": "prob4d-dot-heldout-queued-recovery",
+                      "X-GitHub-Api-Version": "2022-11-28",
+                  },
+              )
+              try:
+                  with urllib.request.urlopen(request, timeout=30) as response:
+                      body = response.read()
+                      return response.status, None if not body else json.loads(body)
+              except urllib.error.HTTPError as error:
+                  detail = error.read().decode("utf-8", errors="replace")
+                  raise RuntimeError(
+                      f"GitHub API {method} {path} failed with {error.code}: {detail}"
+                  ) from error
+
+          _, run = call("GET", f"/repos/{repo}/actions/runs/{run_id}")
+          if run["head_sha"] != expected_head:
+              raise SystemExit("superseded run head changed")
+          if run["name"] != "DOT rope CUT3R held-out confirmation v1":
+              raise SystemExit("superseded run workflow changed")
+          if run["run_attempt"] != 1:
+              raise SystemExit("superseded run was already retried")
+
+          _, artifacts = call("GET", f"/repos/{repo}/actions/runs/{run_id}/artifacts")
+          if int(artifacts.get("total_count", 0)) != 0:
+              raise SystemExit("superseded run already published artifacts; recovery forbidden")
+
+          _, jobs = call("GET", f"/repos/{repo}/actions/runs/{run_id}/jobs?filter=latest&per_page=100")
+          provider = [job for job in jobs.get("jobs", []) if job.get("name") == expected_job]
+          if len(provider) != 1:
+              raise SystemExit("expected exactly one held-out provider job")
+          job = provider[0]
+          if run["status"] != "queued" or job["status"] != "queued":
+              raise SystemExit(
+                  f"recovery requires queued run/provider; got run={run['status']} job={job['status']}"
+              )
+          if job.get("started_at") is not None or job.get("steps") not in (None, []):
+              raise SystemExit("provider job has started; exact queued recovery forbidden")
+
+          status, _ = call("POST", f"/repos/{repo}/actions/runs/{run_id}/cancel")
+          if status not in (202, 204):
+              raise SystemExit(f"unexpected cancel response {status}")
+
+          deadline = time.monotonic() + 90.0
+          while time.monotonic() < deadline:
+              _, value = call("GET", f"/repos/{repo}/actions/runs/{run_id}")
+              if value["status"] == "completed":
+                  if value.get("conclusion") != "cancelled":
+                      raise SystemExit(
+                          f"superseded run completed as {value.get('conclusion')}, not cancelled"
+                      )
+                  break
+              time.sleep(2.0)
+          else:
+              raise SystemExit("timed out waiting for queued run cancellation")
+
+          status, _ = call("POST", f"/repos/{repo}/actions/runs/{run_id}/rerun")
+          if status not in (201, 202, 204):
+              raise SystemExit(f"unexpected rerun response {status}")
+
+          deadline = time.monotonic() + 90.0
+          latest = None
+          while time.monotonic() < deadline:
+              _, latest = call("GET", f"/repos/{repo}/actions/runs/{run_id}")
+              if int(latest.get("run_attempt", 0)) >= 2:
+                  break
+              time.sleep(2.0)
+          else:
+              raise SystemExit("rerun attempt did not materialize")
+
+          summary = {
+              "schema": "prob4d.dot-rope-cut3r-heldout-queued-recovery-receipt",
+              "schema_version": 1,
+              "run_id": run_id,
+              "head_sha": latest["head_sha"],
+              "run_attempt": latest["run_attempt"],
+              "status": latest["status"],
+              "conclusion": latest.get("conclusion"),
+              "scientific_inputs_changed": False,
+              "provider_payload_opened_before_recovery": False,
+              "marker_payload_opened_before_recovery": False,
+              "artifacts_published_before_recovery": False,
+          }
+          print(json.dumps(summary, indent=2, sort_keys=True))
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as output:
+              output.write("## DOT held-out queued-run recovery\n\n")
+              output.write("```json\n")
+              output.write(json.dumps(summary, indent=2, sort_keys=True))
+              output.write("\n```\n")
+          PY
