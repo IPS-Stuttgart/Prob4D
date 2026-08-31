@@ -1,0 +1,376 @@
+name: Tracking Cloth finite-orbit hosted recovery v1
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/tracking-cloth-finite-orbit-hosted-recovery-v1.yml"
+      - "protocols/tracking-cloth-finite-orbit-real-v1.json"
+      - "scripts/science/run_tracking_cloth_finite_orbit_real_v1.py"
+      - "tests/test_tracking_cloth_finite_orbit_hosted_recovery_v1.py"
+      - "tests/test_tracking_cloth_finite_orbit_real_v1.py"
+  push:
+    branches: [main]
+    paths:
+      - "protocols/execution_requests/tracking_cloth_finite_orbit_hosted_recovery_v1.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tracking-cloth-finite-orbit-hosted-recovery-v1-${{ github.ref }}-${{ github.sha }}
+  cancel-in-progress: false
+
+env:
+  REQUEST_PATH: protocols/execution_requests/tracking_cloth_finite_orbit_hosted_recovery_v1.json
+  PROTOCOL_PATH: protocols/tracking-cloth-finite-orbit-real-v1.json
+  ZENODO_URL: https://zenodo.org/records/14644526/files/tracking_dataset.zip?download=1
+  ZENODO_MD5: b4868b702f8a42b2ea1069d0f1a3b8f6
+  ORIGINAL_RUN_ID: "33361712662"
+  ORIGINAL_HEAD_SHA: 5c4e3b4ebfe38a10b1d1635db62b23c4f1736770
+  ORIGINAL_JOB_NAME: Evaluate held-out collision geometry on gpuserver4090
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+
+jobs:
+  contract:
+    name: Validate hosted recovery capsule
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact reviewed revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          clean: true
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Validate protocol, recovery contract, and implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -e ".[dev]"
+          python -m pip check
+          python -m ruff check \
+            scripts/science/run_tracking_cloth_finite_orbit_real_v1.py \
+            tests/test_tracking_cloth_finite_orbit_real_v1.py \
+            tests/test_tracking_cloth_finite_orbit_hosted_recovery_v1.py
+          python -m ruff format --check \
+            scripts/science/run_tracking_cloth_finite_orbit_real_v1.py \
+            tests/test_tracking_cloth_finite_orbit_real_v1.py \
+            tests/test_tracking_cloth_finite_orbit_hosted_recovery_v1.py
+          python -m pytest -q \
+            tests/test_tracking_cloth_finite_orbit_real_v1.py \
+            tests/test_tracking_cloth_finite_orbit_hosted_recovery_v1.py \
+            tests/test_github_action_pins.py
+          python -m compileall -q scripts/science/run_tracking_cloth_finite_orbit_real_v1.py
+
+  authorize:
+    name: Authorize recovery and retire unassigned predecessor
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      actions: write
+      contents: read
+    outputs:
+      head_sha: ${{ steps.request.outputs.head_sha }}
+      protocol_blob: ${{ steps.request.outputs.protocol_blob }}
+      request_id: ${{ steps.request.outputs.request_id }}
+    steps:
+      - name: Check out exact merged-main revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+          clean: true
+      - name: Require exactly one immutable recovery request
+        id: request
+        shell: bash
+        env:
+          EVENT_BEFORE: ${{ github.event.before }}
+          EVENT_AFTER: ${{ github.event.after }}
+          EVENT_FORCED: ${{ github.event.forced }}
+          EVENT_DELETED: ${{ github.event.deleted }}
+          EVENT_REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_REF" = "refs/heads/main"
+          test "$EVENT_AFTER" = "$(git rev-parse HEAD)"
+          test "$EVENT_FORCED" = "false"
+          test "$EVENT_DELETED" = "false"
+          test "$EVENT_BEFORE" != "0000000000000000000000000000000000000000"
+          mapfile -t changed < <(git diff --name-only "$EVENT_BEFORE" "$EVENT_AFTER" | sort)
+          if [[ ${#changed[@]} -ne 1 || "${changed[0]}" != "$REQUEST_PATH" ]]; then
+            printf 'Expected only %s; changed paths were:\n' "$REQUEST_PATH" >&2
+            printf '  %s\n' "${changed[@]}" >&2
+            exit 2
+          fi
+          test -f "$REQUEST_PATH"
+          test ! -L "$REQUEST_PATH"
+          protocol_blob=$(git rev-parse "$EVENT_AFTER:$PROTOCOL_PATH")
+          PROTOCOL_BLOB="$protocol_blob" python - <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          request = json.loads(Path(os.environ["REQUEST_PATH"]).read_text(encoding="utf-8"))
+          assert request["schema"] == "prob4d.tracking-cloth-finite-orbit-hosted-recovery.v1"
+          assert re.fullmatch(r"[0-9a-f]{64}", request["request_id"])
+          assert request["protocol_id"] == "tracking-cloth-finite-orbit-real-v1"
+          assert request["protocol_git_blob_sha"] == os.environ["PROTOCOL_BLOB"]
+          assert request["superseded_run_id"] == int(os.environ["ORIGINAL_RUN_ID"])
+          assert request["superseded_head_sha"] == os.environ["ORIGINAL_HEAD_SHA"]
+          assert request["superseded_job_name"] == os.environ["ORIGINAL_JOB_NAME"]
+          assert request["zenodo_record"] == "14644526"
+          assert request["zenodo_md5"] == os.environ["ZENODO_MD5"]
+          assert request["opens_collision_outcomes"] is True
+          assert request["target_side_retuning_allowed"] is False
+          assert request["raw_data_publication_authorized"] is False
+          assert request["action"] == "cancel-unassigned-predecessor-and-evaluate-official-zenodo"
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+              output.write(f"request_id={request['request_id']}\n")
+          PY
+          echo "head_sha=$EVENT_AFTER" >> "$GITHUB_OUTPUT"
+          echo "protocol_blob=$protocol_blob" >> "$GITHUB_OUTPUT"
+      - name: Prove predecessor never executed and retire it
+        shell: bash
+        env:
+          API_URL: ${{ github.api_url }}
+          REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          import time
+          import urllib.error
+          import urllib.request
+
+          api = os.environ["API_URL"]
+          repository = os.environ["REPOSITORY"]
+          run_id = int(os.environ["ORIGINAL_RUN_ID"])
+          headers = {
+              "Accept": "application/vnd.github+json",
+              "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
+              "X-GitHub-Api-Version": "2022-11-28",
+          }
+
+          def call(path: str, *, method: str = "GET"):
+              request = urllib.request.Request(
+                  f"{api}/repos/{repository}{path}", method=method, headers=headers
+              )
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  payload = response.read()
+              return json.loads(payload) if payload else None
+
+          run = call(f"/actions/runs/{run_id}")
+          if run["head_sha"] != os.environ["ORIGINAL_HEAD_SHA"]:
+              raise SystemExit("predecessor head SHA changed")
+          if run["run_attempt"] != 1:
+              raise SystemExit("predecessor attempt changed")
+          jobs = call(f"/actions/runs/{run_id}/jobs?per_page=100")["jobs"]
+          matches = [job for job in jobs if job["name"] == os.environ["ORIGINAL_JOB_NAME"]]
+          if len(matches) != 1:
+              raise SystemExit("predecessor data job is unavailable")
+          job = matches[0]
+          if job.get("steps"):
+              raise SystemExit("predecessor data job has executable steps")
+          if job.get("runner_id") not in (None, 0) or job.get("runner_name") not in (None, ""):
+              raise SystemExit("predecessor data job was assigned to a runner")
+          if job.get("labels") != ["self-hosted", "Linux", "X64", "gpuserver4090"]:
+              raise SystemExit("predecessor runner labels changed")
+          artifacts = call(f"/actions/runs/{run_id}/artifacts?per_page=100")["artifacts"]
+          if artifacts:
+              raise SystemExit("predecessor published an artifact")
+
+          if run["status"] == "queued":
+              try:
+                  call(f"/actions/runs/{run_id}/cancel", method="POST")
+              except urllib.error.HTTPError as error:
+                  if error.code != 409:
+                      raise
+              for _ in range(30):
+                  time.sleep(2)
+                  run = call(f"/actions/runs/{run_id}")
+                  if run["status"] == "completed":
+                      break
+              else:
+                  raise SystemExit("predecessor did not retire after cancellation")
+          if run["status"] != "completed" or run.get("conclusion") != "cancelled":
+              raise SystemExit("predecessor is neither unassigned-queued nor safely cancelled")
+
+          jobs = call(f"/actions/runs/{run_id}/jobs?per_page=100")["jobs"]
+          job = next(item for item in jobs if item["name"] == os.environ["ORIGINAL_JOB_NAME"])
+          if job.get("steps") or job.get("runner_id") not in (None, 0):
+              raise SystemExit("predecessor execution state changed during retirement")
+          if call(f"/actions/runs/{run_id}/artifacts?per_page=100")["artifacts"]:
+              raise SystemExit("predecessor acquired artifacts during retirement")
+          PY
+
+  evaluate:
+    name: Evaluate official Tracking Cloth Zenodo release
+    if: >-
+      github.event_name == 'push' &&
+      github.actor == 'FlorianPfaff' &&
+      github.repository == 'IPS-Stuttgart/Prob4D'
+    needs: authorize
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - name: Initialize isolated workspace
+        id: workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${RUNNER_TEMP}/tracking-cloth-finite-orbit-hosted-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          rm -rf -- "$root"
+          mkdir -p "$root/data" "$root/evidence"
+          echo "root=$root" >> "$GITHUB_OUTPUT"
+      - name: Check out exact authorized revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.authorize.outputs.head_sha }}
+          persist-credentials: false
+          clean: true
+      - name: Verify clean source and protocol identity
+        env:
+          EXPECTED_HEAD: ${{ needs.authorize.outputs.head_sha }}
+          EXPECTED_PROTOCOL_BLOB: ${{ needs.authorize.outputs.protocol_blob }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git rev-parse "HEAD:$PROTOCOL_PATH")" = "$EXPECTED_PROTOCOL_BLOB"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Download, verify, and extract official release
+        id: data
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          archive="$root/tracking_dataset.zip"
+          curl --fail --location --retry 6 --retry-all-errors \
+            --connect-timeout 30 --output "$archive" "$ZENODO_URL"
+          printf '%s  %s\n' "$ZENODO_MD5" "$archive" | md5sum --check --strict
+          unzip -q "$archive" -d "$root/data"
+          count=$(find "$root/data" -type f -iname '*.csv' -printf '.' | wc -c)
+          test "$count" -eq 120
+          echo "dataset=$root/data" >> "$GITHUB_OUTPUT"
+      - name: Install pinned numerical runtime
+        shell: bash
+        run: |
+          python -m pip install --disable-pip-version-check "numpy==2.3.5"
+          python -m pip install --disable-pip-version-check --no-deps -e .
+          python -m pip check
+          python - <<'PY' > "${{ steps.workspace.outputs.root }}/runtime.json"
+          import json
+          import platform
+          import sys
+          import numpy
+
+          print(json.dumps({
+              "source": "checksum-verified-official-zenodo",
+              "python": platform.python_version(),
+              "executable": sys.executable,
+              "numpy": numpy.__version__,
+          }, indent=2, sort_keys=True))
+          PY
+      - name: Run source-sealed held-out evaluation
+        id: experiment
+        continue-on-error: true
+        shell: bash
+        env:
+          OUTPUT_DIR: ${{ steps.workspace.outputs.root }}/evidence
+          DATASET: ${{ steps.data.outputs.dataset }}
+          SOURCE_REVISION: ${{ needs.authorize.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          set +e
+          PYTHONPATH=src python scripts/science/run_tracking_cloth_finite_orbit_real_v1.py \
+            --dataset-root "$DATASET" \
+            --protocol "$PROTOCOL_PATH" \
+            --output-dir "$OUTPUT_DIR" \
+            --source-revision "$SOURCE_REVISION" \
+            > "$root/stdout.txt" 2> "$root/stderr.txt"
+          status=$?
+          set -e
+          printf '%s\n' "$status" > "$root/process-exit-code.txt"
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Remove raw release before publication
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          rm -rf -- "$root/data" "$root/tracking_dataset.zip"
+          if find "$root/evidence" -type f \( -iname '*.csv' -o -iname '*.zip' \) -print -quit | grep -q .; then
+            echo "Raw dataset payload appeared in evidence" >&2
+            exit 3
+          fi
+      - name: Upload compact immutable evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: tracking-cloth-finite-orbit-hosted-v1-${{ github.run_attempt }}
+          path: ${{ steps.workspace.outputs.root }}
+          if-no-files-found: error
+          retention-days: 30
+      - name: Publish compact summary
+        if: always()
+        shell: bash
+        run: |
+          root="${{ steps.workspace.outputs.root }}"
+          if test -f "$root/evidence/summary.md"; then
+            cat "$root/evidence/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          else
+            printf 'Evaluation did not produce summary.md.\n\n```text\n' >> "$GITHUB_STEP_SUMMARY"
+            tail -n 100 "$root/stderr.txt" >> "$GITHUB_STEP_SUMMARY" || true
+            printf '\n```\n' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Enforce registered terminal result
+        shell: bash
+        env:
+          RESULT_PATH: ${{ steps.workspace.outputs.root }}/evidence/result.json
+          PROCESS_EXIT: ${{ steps.experiment.outputs.exit_code }}
+        run: |
+          set -euo pipefail
+          test "$PROCESS_EXIT" = "0"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          result = json.loads(Path(os.environ["RESULT_PATH"]).read_text(encoding="utf-8"))
+          assert result["status"] == "evaluated-real-geometry-passed"
+          assert result["aggregate"]["target_groups"] == 56
+          assert result["aggregate"]["total_cases"] >= 1000
+          failed = [name for name, passed in result["criteria"].items() if not passed]
+          if failed:
+              raise SystemExit("registered criteria failed: " + ", ".join(failed))
+          assert result["claim_boundary"]["learned_visual_provider"] is False
+          PY
