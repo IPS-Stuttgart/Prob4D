@@ -1,9 +1,6 @@
 """Static contract for the one-time DOT held-out queued-run recovery helper."""
 
-from __future__ import annotations
-
 from pathlib import Path
-
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/dot-rope-cut3r-heldout-queued-recovery-v1.yml"
