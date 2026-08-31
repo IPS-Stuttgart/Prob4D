@@ -20,8 +20,9 @@ jobs:
           clean: true
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: dot-query-selective-control-plane
+          name: dot-query-selective-control-plane-v2
           path: |
+            .github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml
             .github/workflows/dot-rope-query-selective-heldout-v1.yml
             protocols/dot-rope-query-selective-heldout-v1.json
             scripts/science/run_dot_rope_query_selective_heldout.py
