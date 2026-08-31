@@ -1,0 +1,42 @@
+{
+  "analysis": {
+    "bootstrap_replicates": 20000,
+    "family_counts": {
+      "DLO4": 14,
+      "DLO5": 14
+    },
+    "independent_unit": "official evaluation trajectory file",
+    "trim_fraction": 0.2
+  },
+  "claim_boundary": [
+    "This is a post-hoc robustness audit of one immutable held-out DLO4/DLO5 result, not a new independent confirmation cohort.",
+    "All inference remains at the official trajectory-file level; frames and cases are nested observations.",
+    "The audit changes no query gate, support, covariance, prior, comparator, threshold, seed, provider, or evaluation outcome.",
+    "The descriptive scale mismatch is not an evaluation-side recalibration and is not promoted as a method.",
+    "The audit does not establish learned-provider competence, arbitrary DLO transfer, BayesianPhysTwin or Causal4D benefit, deployment calibration, safety, or state of the art."
+  ],
+  "information_order": {
+    "evaluation_outcomes_already_opened": true,
+    "new_confirmatory_success_gate_allowed": false,
+    "post_open_covariance_recalibration_allowed": false,
+    "post_open_method_retuning_allowed": false,
+    "post_open_threshold_retuning_allowed": false,
+    "provider_execution_required": false,
+    "raw_dataset_access_required": false
+  },
+  "protocol_id": "11328ea1ca8531b7fa6e6cf5c156fdaa27ad16da9895ea81bdb6efe5dc977fa1",
+  "schema": "prob4d.deform-dlo45-query-observability-robustness-audit",
+  "schema_version": 1,
+  "source_result": {
+    "artifact_id": 9737419711,
+    "artifact_name": "deform-dlo45-query-observability-heldout-v1-401e3125b968fd0612b999cded8f06d182ef0a52",
+    "artifact_sha256": "0dd725d93e1357c1419b4cbbfbc0234fb379d17c4938547814a55e59ebc58954",
+    "evaluated_revision": "401e3125b968fd0612b999cded8f06d182ef0a52",
+    "request_id": "fd5f6e2fa1ab5070c01c3831697f461c63058cdf4385bc28a36cb1b5adbda2da",
+    "result_id": "1ac8cd083b39877888ea0eb2f4b9400ca89eda09436f25f5f0a6f43b154b1007",
+    "result_member": "outputs/deform-dlo45-query-observability-heldout-v1/result.json",
+    "result_sha256": "dfb905172776ca1ca438a273d4f7e66bbe87d7e1fdda3f713f733a46d55530ff",
+    "workflow_job_id": 99307352307,
+    "workflow_run_id": 33330222025
+  }
+}
