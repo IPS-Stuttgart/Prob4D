@@ -1,0 +1,17 @@
+{
+  "schema": "prob4d.dot-frozen-provider-prewarm-recovery-request",
+  "schema_version": 2,
+  "runner_label": "gpuserver6000",
+  "runner_name": "workstation2",
+  "scope": "cache-runtime-prewarm-and-technical-recovery",
+  "target_run_id": 33434695566,
+  "archives": [
+    "R01-10.zip",
+    "R11-20.zip",
+    "R21-30.zip"
+  ],
+  "archives_may_be_extracted": false,
+  "images_may_be_opened": false,
+  "markers_may_be_opened": false,
+  "scientific_evaluation_authorized": false
+}
