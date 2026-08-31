@@ -1,0 +1,59 @@
+name: One-shot cleanup of accidental connector probe issue
+
+on:
+  push:
+    branches:
+      - science/deform-dlo45-query-observability-real-v1
+    paths:
+      - protocols/execution_requests/cleanup_connector_probe_issue_once.trigger
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out experiment branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: science/deform-dlo45-query-observability-real-v1
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Close only the exact accidental probe issue
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mapfile -t matches < <(
+            gh api --paginate "repos/${GITHUB_REPOSITORY}/issues?state=all&per_page=100" \
+              --jq '.[] | select(.pull_request == null) | select(.title == "DO NOT CREATE — connector capability probe") | .number'
+          )
+          if [[ ${#matches[@]} -gt 1 ]]; then
+            printf 'Refusing to close multiple matching issues: %s\n' "${matches[*]}" >&2
+            exit 2
+          fi
+          if [[ ${#matches[@]} -eq 1 ]]; then
+            gh api --method PATCH \
+              "repos/${GITHUB_REPOSITORY}/issues/${matches[0]}" \
+              -f state=closed \
+              -f state_reason=not_planned >/dev/null
+          fi
+
+      - name: Remove one-shot cleanup machinery
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f -- \
+            .github/workflows/cleanup-connector-probe-issue-once.yml \
+            protocols/execution_requests/cleanup_connector_probe_issue_once.trigger
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m "Remove one-shot connector probe cleanup"
+          git push origin HEAD:science/deform-dlo45-query-observability-real-v1
