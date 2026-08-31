@@ -1,0 +1,261 @@
+name: Recover frozen DOT R04-R10 after cache prewarm v1
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/dot-r04-r10-rerun-after-cache-v1.yml"
+      - "CHANGELOG.d/dot-r04-r10-rerun-after-cache-v1.md"
+      - "tests/test_dot_r04_r10_rerun_after_cache_workflow.py"
+  workflow_run:
+    workflows: ["DOT R01-R10 gpuserver6000 cache prewarm v1"]
+    types: [completed]
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: dot-r04-r10-rerun-after-cache-v1
+  cancel-in-progress: false
+
+env:
+  TARGET_RUN_ID: "33434695566"
+  TARGET_HEAD_SHA: 9e1b77b2e70685881db7f188a95a3a91443275e8
+  TARGET_WORKFLOW_PATH: .github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml
+  TARGET_PROVIDER_JOB: Seal marker-free R04-R10 CUT3R predictions on gpuserver6000
+  CACHE_WORKFLOW_PATH: .github/workflows/dot-r01-r10-gpuserver6000-cache-prewarm-v1.yml
+  CACHE_ARTIFACT_PREFIX: dot-r01-r10-gpuserver6000-cache-prewarm-
+  ARCHIVE_MD5: ca546ff5f22c0279123ccb18509858ee
+
+jobs:
+  contract:
+    name: Validate fail-closed recovery contract
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Check out exact reviewed revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          clean: true
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Run focused recovery-policy checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -e ".[dev]"
+          python -m ruff check tests/test_dot_r04_r10_rerun_after_cache_workflow.py
+          python -m ruff format --check tests/test_dot_r04_r10_rerun_after_cache_workflow.py
+          python -m pytest -q \
+            tests/test_dot_r04_r10_rerun_after_cache_workflow.py \
+            tests/test_github_action_pins.py
+
+  recover:
+    name: Rerun only a technical frozen-run failure
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: write
+    outputs:
+      decision: ${{ steps.recover.outputs.decision }}
+      target_attempt: ${{ steps.recover.outputs.target_attempt }}
+    steps:
+      - name: Check out trusted default-branch recovery code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+          clean: true
+      - name: Verify cache receipt and rerun only failed jobs
+        id: recover
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CACHE_RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import io
+          import json
+          import os
+          import urllib.error
+          import urllib.request
+          import zipfile
+
+          api = os.environ["GITHUB_API_URL"]
+          repository = os.environ["GITHUB_REPOSITORY"]
+          token = os.environ["GH_TOKEN"]
+          headers = {
+              "Accept": "application/vnd.github+json",
+              "Authorization": f"Bearer {token}",
+              "User-Agent": "Prob4D-DOT-cache-recovery/1",
+              "X-GitHub-Api-Version": "2022-11-28",
+          }
+
+          def request(path: str, *, method: str = "GET", raw: bool = False):
+              req = urllib.request.Request(
+                  f"{api}/repos/{repository}{path}", method=method, headers=headers
+              )
+              try:
+                  with urllib.request.urlopen(req, timeout=120) as response:
+                      payload = response.read()
+              except urllib.error.HTTPError as exc:
+                  detail = exc.read().decode("utf-8", errors="replace")
+                  raise RuntimeError(f"GitHub API {exc.code}: {detail}") from exc
+              if raw:
+                  return payload
+              return json.loads(payload) if payload else None
+
+          cache_run_id = int(os.environ["CACHE_RUN_ID"])
+          cache_run = request(f"/actions/runs/{cache_run_id}")
+          if cache_run["path"] != os.environ["CACHE_WORKFLOW_PATH"]:
+              raise SystemExit("unexpected cache workflow path")
+          if cache_run["event"] != "push" or cache_run["head_branch"] != "main":
+              raise SystemExit("cache prewarm was not a trusted main push")
+          if cache_run["status"] != "completed" or cache_run["conclusion"] != "success":
+              raise SystemExit("cache prewarm is not successful")
+
+          cache_artifacts = request(
+              f"/actions/runs/{cache_run_id}/artifacts?per_page=100"
+          )["artifacts"]
+          candidates = [
+              item
+              for item in cache_artifacts
+              if item["name"].startswith(os.environ["CACHE_ARTIFACT_PREFIX"])
+              and item.get("expired") is False
+          ]
+          if len(candidates) != 1:
+              raise SystemExit("cache prewarm receipt artifact is ambiguous")
+          archive = request(
+              f"/actions/artifacts/{candidates[0]['id']}/zip", raw=True
+          )
+          with zipfile.ZipFile(io.BytesIO(archive)) as bundle:
+              names = bundle.namelist()
+              matches = [name for name in names if name.endswith("result.json")]
+              if len(matches) != 1:
+                  raise SystemExit("cache receipt result is ambiguous")
+              receipt = json.loads(bundle.read(matches[0]))
+          if receipt.get("schema") != (
+              "prob4d.dot-r01-r10-gpuserver6000-cache-prewarm-result"
+          ):
+              raise SystemExit("cache receipt schema changed")
+          archive_receipt = receipt.get("archive") or {}
+          if archive_receipt.get("name") != "R01-10.zip":
+              raise SystemExit("cache receipt archive changed")
+          if archive_receipt.get("md5") != os.environ["ARCHIVE_MD5"]:
+              raise SystemExit("cache receipt checksum changed")
+          boundary = receipt.get("information_boundary") or {}
+          required_false = {
+              "archive_members_enumerated",
+              "archive_extracted",
+              "normal_view_images_opened",
+              "two_dimensional_markers_opened",
+              "three_dimensional_markers_opened",
+              "scientific_prediction_constructed",
+              "scientific_evaluation_performed",
+          }
+          if any(boundary.get(key) is not False for key in required_false):
+              raise SystemExit("cache prewarm crossed its information boundary")
+
+          target_run_id = int(os.environ["TARGET_RUN_ID"])
+          target = request(f"/actions/runs/{target_run_id}")
+          if target["head_sha"] != os.environ["TARGET_HEAD_SHA"]:
+              raise SystemExit("frozen target revision changed")
+          if target["path"] != os.environ["TARGET_WORKFLOW_PATH"]:
+              raise SystemExit("frozen target workflow changed")
+          if target["event"] != "push" or target["head_branch"] != "main":
+              raise SystemExit("frozen target is not the authorized main push")
+
+          decision: str
+          if target["status"] != "completed":
+              decision = "no-op-target-still-active"
+          elif target["conclusion"] == "success":
+              decision = "no-op-terminal-success"
+          elif target["conclusion"] not in {"failure", "cancelled"}:
+              raise SystemExit(
+                  f"unsupported target conclusion: {target['conclusion']}"
+              )
+          elif int(target["run_attempt"]) >= 4:
+              raise SystemExit("frozen target exceeded bounded recovery attempts")
+          else:
+              artifacts = request(
+                  f"/actions/runs/{target_run_id}/artifacts?per_page=100"
+              )["artifacts"]
+              terminal_names = [
+                  item["name"]
+                  for item in artifacts
+                  if "heldout" in item["name"].lower()
+                  and "result" in item["name"].lower()
+                  and item.get("expired") is False
+              ]
+              if terminal_names:
+                  raise SystemExit(
+                      "target already has a terminal result artifact; rerun forbidden"
+                  )
+              jobs = request(
+                  f"/actions/runs/{target_run_id}/jobs?per_page=100"
+              )["jobs"]
+              providers = [
+                  job
+                  for job in jobs
+                  if job["name"] == os.environ["TARGET_PROVIDER_JOB"]
+              ]
+              if len(providers) != 1:
+                  raise SystemExit("frozen provider job is ambiguous")
+              if providers[0]["status"] != "completed":
+                  raise SystemExit("frozen provider job is not complete")
+              request(
+                  f"/actions/runs/{target_run_id}/rerun-failed-jobs",
+                  method="POST",
+              )
+              decision = "rerun-failed-jobs-requested"
+
+          attempt = int(target["run_attempt"])
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"decision={decision}\n")
+              output.write(f"target_attempt={attempt}\n")
+          print(
+              json.dumps(
+                  {
+                      "cache_run_id": cache_run_id,
+                      "target_run_id": target_run_id,
+                      "target_attempt_before_action": attempt,
+                      "decision": decision,
+                  },
+                  sort_keys=True,
+              )
+          )
+          PY
+      - name: Publish recovery decision
+        shell: bash
+        env:
+          DECISION: ${{ steps.recover.outputs.decision }}
+          ATTEMPT: ${{ steps.recover.outputs.target_attempt }}
+        run: |
+          {
+            echo "## Frozen DOT R04-R10 cache recovery"
+            echo
+            echo "- target run: \`$TARGET_RUN_ID\`"
+            echo "- attempt before action: \`$ATTEMPT\`"
+            echo "- decision: \`$DECISION\`"
+            echo
+            echo "No protocol, request, provider, cohort, threshold, marker order, prediction, or outcome was changed."
+          } >> "$GITHUB_STEP_SUMMARY"
