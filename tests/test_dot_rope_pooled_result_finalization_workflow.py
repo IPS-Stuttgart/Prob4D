@@ -15,6 +15,10 @@ def test_finalization_workflow_is_request_bound_and_hosted() -> None:
     assert "runs-on: ubuntu-latest" in text
     assert "self-hosted" not in text
     assert "pull_request_target:" not in text
+    assert "github.event.pull_request.head.sha" not in text
+    assert "requirements/ci/quality.txt" in text
+    assert "python -m pip install -r requirements/ci/quality.txt" in text
+    assert 'python -m pip install -e ".[dev]"' not in text
     assert 'test "$EVENT_FORCED" = "false"' in text
     assert 'test "$EVENT_DELETED" = "false"' in text
     assert "git push" not in text

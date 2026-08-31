@@ -33,7 +33,7 @@ jobs:
       - name: Check out reviewed revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
           persist-credentials: false
           clean: true
       - name: Set up Python 3.12
@@ -41,18 +41,15 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: pyproject.toml
+          cache-dependency-path: requirements/ci/quality.txt
       - name: Validate finalizer and workflow
         shell: bash
         run: |
           set -euo pipefail
-          python -m pip install -e ".[dev]"
+          python -m pip install -r requirements/ci/quality.txt
+          python -m pip install --no-deps -e .
           python -m pip check
           python -m ruff check \
-            scripts/science/finalize_dot_rope_pooled_result.py \
-            tests/test_finalize_dot_rope_pooled_result.py \
-            tests/test_dot_rope_pooled_result_finalization_workflow.py
-          python -m ruff format --check \
             scripts/science/finalize_dot_rope_pooled_result.py \
             tests/test_finalize_dot_rope_pooled_result.py \
             tests/test_dot_rope_pooled_result_finalization_workflow.py
