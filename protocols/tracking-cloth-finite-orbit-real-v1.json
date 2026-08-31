@@ -11,7 +11,15 @@
       "shake": ["shake", "shaking"],
       "twist": ["twist", "twisting"]
     },
-    "target_aliases": ["collision", "collisions", "collide", "colliding"]
+    "target_aliases": [
+      "collision",
+      "collisions",
+      "collide",
+      "colliding",
+      "half_lay",
+      "full_lay",
+      "hitting"
+    ]
   },
   "information_order": {
     "marker_triplet_selected_from_source_only": true,
