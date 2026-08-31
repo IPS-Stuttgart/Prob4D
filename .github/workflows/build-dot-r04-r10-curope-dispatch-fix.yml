@@ -1,0 +1,392 @@
+name: Build DOT R04-R10 cuRoPE dispatch fix
+
+on:
+  push:
+    branches: [fix/dot-r04-r10-pytorch211-curope-dispatch]
+    paths:
+      - ".github/workflows/build-dot-r04-r10-curope-dispatch-fix.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Apply exact source fix and focused tests
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out fix branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: fix/dot-r04-r10-pytorch211-curope-dispatch
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Apply hash-bound native RoPE compatibility and tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          script_path = Path("scripts/science/prepare_cut3r_runtime.py")
+          text = script_path.read_text(encoding="utf-8")
+
+          anchor = '''_TRUSTED_REQUEST_PATH = (
+              "protocols/execution_requests/dot_rope_cut3r_sealed_runtime_v1.json"
+          )
+          _TRUSTED_CUT3R_REVISION = "8bc15dc92a6d7fd92920b4ec81540d3dec7d3ecf"
+          '''
+          replacement = '''_TRUSTED_REQUEST_PATH = (
+              "protocols/execution_requests/dot_rope_cut3r_sealed_runtime_v1.json"
+          )
+          _TRUSTED_HELDOUT_REQUEST_PATH = (
+              "protocols/execution_requests/"
+              "dot_rope_cut3r_heldout_confirmation_gpuserver6000_v1.json"
+          )
+          _TRUSTED_NATIVE_ROPE_REQUEST_PATHS = frozenset(
+              {_TRUSTED_REQUEST_PATH, _TRUSTED_HELDOUT_REQUEST_PATH}
+          )
+          _TRUSTED_CUT3R_REVISION = "8bc15dc92a6d7fd92920b4ec81540d3dec7d3ecf"
+          '''
+          if text.count(anchor) != 1:
+              raise SystemExit("trusted request constant anchor changed")
+          text = text.replace(anchor, replacement, 1)
+
+          anchor = '''_TRUSTED_CHECKPOINT_SHA256 = (
+              "45f7e98a0a64dbeb54901ae2b878cd8cd125f20a4497316483f0bd6f109f8103"
+          )
+          _TRUSTED_MODEL_RELATIVE_PATH = Path("src/dust3r/model.py")
+          '''
+          replacement = '''_TRUSTED_CHECKPOINT_SHA256 = (
+              "45f7e98a0a64dbeb54901ae2b878cd8cd125f20a4497316483f0bd6f109f8103"
+          )
+          _TRUSTED_CUROPE_KERNEL_RELATIVE_PATH = Path(
+              "src/croco/models/curope/kernels.cu"
+          )
+          _TRUSTED_CUROPE_KERNEL_GIT_BLOB_SHA1 = (
+              "7156cd1bb935cb1f0be45e58add53f9c21505c20"
+          )
+          _ORIGINAL_CUROPE_DISPATCH = (
+              '    AT_DISPATCH_FLOATING_TYPES_AND_HALF('
+              'tokens.type(), "rope_2d_cuda", ([&] {\\n'
+          )
+          _PATCHED_CUROPE_DISPATCH = (
+              '    AT_DISPATCH_FLOATING_TYPES_AND_HALF('
+              'tokens.scalar_type(), "rope_2d_cuda", ([&] {\\n'
+          )
+          _TRUSTED_MODEL_RELATIVE_PATH = Path("src/dust3r/model.py")
+          '''
+          if text.count(anchor) != 1:
+              raise SystemExit("trusted checkpoint constant anchor changed")
+          text = text.replace(anchor, replacement, 1)
+
+          anchor = '''def _trusted_request_selected() -> bool:
+              return os.environ.get("REQUEST_PATH") == _TRUSTED_REQUEST_PATH
+
+
+          def _require_trusted_runtime_identity() -> None:
+          '''
+          replacement = '''def _trusted_request_selected() -> bool:
+              return os.environ.get("REQUEST_PATH") == _TRUSTED_REQUEST_PATH
+
+
+          def _trusted_native_rope_request_selected() -> bool:
+              return os.environ.get("REQUEST_PATH") in _TRUSTED_NATIVE_ROPE_REQUEST_PATHS
+
+
+          def _require_trusted_runtime_identity() -> None:
+          '''
+          if text.count(anchor) != 1:
+              raise SystemExit("trusted request helper anchor changed")
+          text = text.replace(anchor, replacement, 1)
+
+          anchor = '''def _prepare_trusted_checkpoint_compatibility(
+              checkout: Path,
+          ) -> dict[str, object] | None:
+          '''
+          native_function = '''def _prepare_trusted_native_rope_compatibility(
+              checkout: Path,
+          ) -> dict[str, object] | None:
+              """Patch the hash-pinned cuRoPE dispatch before compiling PyTorch 2.11."""
+
+              if not _trusted_native_rope_request_selected():
+                  return None
+              _require_trusted_runtime_identity()
+
+              kernel_path = checkout / _TRUSTED_CUROPE_KERNEL_RELATIVE_PATH
+              if kernel_path.is_symlink():
+                  raise RuntimeError(
+                      "trusted CUT3R cuRoPE source must not be a symbolic link"
+                  )
+              resolved_kernel = kernel_path.resolve(strict=True)
+              try:
+                  resolved_kernel.relative_to(checkout)
+              except ValueError as error:
+                  raise RuntimeError(
+                      "trusted CUT3R cuRoPE source escapes the checkout"
+                  ) from error
+              if not resolved_kernel.is_file():
+                  raise RuntimeError(
+                      "trusted CUT3R cuRoPE source is not a regular file"
+                  )
+
+              source = resolved_kernel.read_bytes()
+              source_blob = _git_blob_sha1(source)
+              if source_blob != _TRUSTED_CUROPE_KERNEL_GIT_BLOB_SHA1:
+                  raise RuntimeError("trusted CUT3R cuRoPE source bytes changed")
+              text = source.decode("utf-8")
+              if (
+                  text.count(_ORIGINAL_CUROPE_DISPATCH) != 1
+                  or _PATCHED_CUROPE_DISPATCH in text
+              ):
+                  raise RuntimeError("trusted CUT3R cuRoPE dispatch call changed")
+
+              patched = text.replace(
+                  _ORIGINAL_CUROPE_DISPATCH,
+                  _PATCHED_CUROPE_DISPATCH,
+                  1,
+              ).encode("utf-8")
+              resolved_kernel.write_bytes(patched)
+              record: dict[str, object] = {
+                  "schema": "prob4d.cut3r-trusted-native-rope-compatibility",
+                  "schema_version": 1,
+                  "status": "trusted-pytorch211-scalar-dispatch-enabled",
+                  "request_path": os.environ["REQUEST_PATH"],
+                  "cut3r_revision": _TRUSTED_CUT3R_REVISION,
+                  "checkpoint_sha256": _TRUSTED_CHECKPOINT_SHA256,
+                  "source_member": _TRUSTED_CUROPE_KERNEL_RELATIVE_PATH.as_posix(),
+                  "source_git_blob_sha1": source_blob,
+                  "source_sha256": hashlib.sha256(source).hexdigest(),
+                  "patched_sha256": hashlib.sha256(patched).hexdigest(),
+                  "dispatch_change": "tokens.type() -> tokens.scalar_type()",
+                  "semantic_boundary": (
+                      "The compatibility repair changes only the ATen scalar dispatch "
+                      "selector required by PyTorch 2.11; kernel arithmetic, model "
+                      "weights, provider inputs, prediction means, and the frozen "
+                      "evaluation protocol are unchanged."
+                  ),
+              }
+              record["artifact_id"] = _content_id(record)
+              return record
+
+
+          def _prepare_trusted_checkpoint_compatibility(
+              checkout: Path,
+          ) -> dict[str, object] | None:
+          '''
+          if text.count(anchor) != 1:
+              raise SystemExit("checkpoint function anchor changed")
+          text = text.replace(anchor, native_function, 1)
+
+          anchor = '''    if args.build:
+              subprocess.run(
+                  [sys.executable, "setup.py", "build_ext", "--inplace"],
+                  cwd=curope_root,
+                  check=True,
+              )
+
+              receipt = require_compiled_cut3r_rope(checkout)
+          '''
+          replacement = '''    native_rope_compatibility = None
+              if args.build:
+                  native_rope_compatibility = _prepare_trusted_native_rope_compatibility(
+                      checkout
+                  )
+                  subprocess.run(
+                      [sys.executable, "setup.py", "build_ext", "--inplace"],
+                      cwd=curope_root,
+                      check=True,
+                  )
+
+              receipt = require_compiled_cut3r_rope(checkout)
+          '''
+          if text.count(anchor) != 1:
+              raise SystemExit("native build anchor changed")
+          text = text.replace(anchor, replacement, 1)
+
+          anchor = '''    _write_no_clobber(args.output, receipt)
+              if checkpoint_compatibility is not None:
+          '''
+          replacement = '''    _write_no_clobber(args.output, receipt)
+              if native_rope_compatibility is not None:
+                  _write_no_clobber(
+                      args.output.with_name("native-rope-compatibility.json"),
+                      native_rope_compatibility,
+                  )
+              if checkpoint_compatibility is not None:
+          '''
+          if text.count(anchor) != 1:
+              raise SystemExit("runtime receipt anchor changed")
+          text = text.replace(anchor, replacement, 1)
+          script_path.write_text(text, encoding="utf-8", newline="\n")
+
+          tests_path = Path("tests/test_prepare_cut3r_runtime.py")
+          tests = tests_path.read_text(encoding="utf-8")
+          anchor = '''def _configure_smoke_fixture(
+              monkeypatch,
+              module,
+              tmp_path: Path,
+          ) -> tuple[Path, Path, bytes]:
+          '''
+          helper = '''def _configure_native_rope_fixture(
+              monkeypatch,
+              module,
+              tmp_path: Path,
+          ) -> tuple[Path, Path, bytes]:
+              checkout = tmp_path / "CUT3R"
+              kernel_path = checkout / module._TRUSTED_CUROPE_KERNEL_RELATIVE_PATH
+              kernel_path.parent.mkdir(parents=True)
+              source = (
+                  b"#include <torch/extension.h>\\n\\n"
+                  + module._ORIGINAL_CUROPE_DISPATCH.encode("utf-8")
+                  + b"        launch_kernel<scalar_t>();\\n"
+                  + b"    }));\\n"
+              )
+              kernel_path.write_bytes(source)
+              monkeypatch.setattr(
+                  module,
+                  "_TRUSTED_CUROPE_KERNEL_GIT_BLOB_SHA1",
+                  module._git_blob_sha1(source),
+              )
+              monkeypatch.setenv("REQUEST_PATH", module._TRUSTED_HELDOUT_REQUEST_PATH)
+              monkeypatch.setenv("CUT3R_REVISION", module._TRUSTED_CUT3R_REVISION)
+              monkeypatch.setenv(
+                  "CUT3R_CHECKPOINT_SHA256",
+                  module._TRUSTED_CHECKPOINT_SHA256,
+              )
+              return checkout, kernel_path, source
+
+
+          def _configure_smoke_fixture(
+              monkeypatch,
+              module,
+              tmp_path: Path,
+          ) -> tuple[Path, Path, bytes]:
+          '''
+          if tests.count(anchor) != 1:
+              raise SystemExit("smoke fixture anchor changed")
+          tests = tests.replace(anchor, helper, 1)
+
+          anchor = '''def test_trusted_checkpoint_compatibility_is_hash_bound(
+              monkeypatch,
+              tmp_path: Path,
+          ) -> None:
+          '''
+          native_tests = '''def test_trusted_native_rope_compatibility_is_hash_bound(
+              monkeypatch,
+              tmp_path: Path,
+          ) -> None:
+              module = _load_script()
+              checkout, kernel_path, source = _configure_native_rope_fixture(
+                  monkeypatch,
+                  module,
+                  tmp_path,
+              )
+
+              record = module._prepare_trusted_native_rope_compatibility(
+                  checkout.resolve()
+              )
+
+              assert record is not None
+              assert record["status"] == "trusted-pytorch211-scalar-dispatch-enabled"
+              assert record["request_path"] == module._TRUSTED_HELDOUT_REQUEST_PATH
+              assert record["source_git_blob_sha1"] == module._git_blob_sha1(source)
+              patched = kernel_path.read_text(encoding="utf-8")
+              assert patched.count("tokens.scalar_type()") == 1
+              assert "tokens.type()" not in patched
+              unsigned = dict(record)
+              artifact_id = unsigned.pop("artifact_id")
+              assert artifact_id == module._content_id(unsigned)
+
+
+          def test_trusted_native_rope_compatibility_rejects_source_drift(
+              monkeypatch,
+              tmp_path: Path,
+          ) -> None:
+              module = _load_script()
+              checkout, kernel_path, _ = _configure_native_rope_fixture(
+                  monkeypatch,
+                  module,
+                  tmp_path,
+              )
+              kernel_path.write_text("unexpected source\\n", encoding="utf-8")
+
+              with pytest.raises(RuntimeError, match="cuRoPE source bytes changed"):
+                  module._prepare_trusted_native_rope_compatibility(checkout.resolve())
+
+
+          def test_trusted_checkpoint_compatibility_is_hash_bound(
+              monkeypatch,
+              tmp_path: Path,
+          ) -> None:
+          '''
+          if tests.count(anchor) != 1:
+              raise SystemExit("checkpoint test anchor changed")
+          tests = tests.replace(anchor, native_tests, 1)
+
+          anchor = '''    assert module._prepare_trusted_checkpoint_compatibility(tmp_path.resolve()) is None
+              assert module._prepare_trusted_smoke_workspace_compatibility(tmp_path.resolve()) is None
+          '''
+          replacement = '''    assert module._prepare_trusted_native_rope_compatibility(tmp_path.resolve()) is None
+              assert module._prepare_trusted_checkpoint_compatibility(tmp_path.resolve()) is None
+              assert module._prepare_trusted_smoke_workspace_compatibility(tmp_path.resolve()) is None
+          '''
+          if tests.count(anchor) != 1:
+              raise SystemExit("unrelated runtime test anchor changed")
+          tests = tests.replace(anchor, replacement, 1)
+          tests_path.write_text(tests, encoding="utf-8", newline="\n")
+
+          Path("CHANGELOG.d/dot-r04-r10-pytorch211-curope-dispatch.md").write_text(
+              "Fix the hash-pinned CUT3R native RoPE build for PyTorch 2.11 by "
+              "using `Tensor.scalar_type()` for ATen dispatch in the isolated "
+              "runtime copy. The model, checkpoint, inputs, means, covariance "
+              "protocol, and held-out R04-R10 cohort remain unchanged.\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Format and validate focused repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -e ".[dev]"
+          python -m ruff format \
+            scripts/science/prepare_cut3r_runtime.py \
+            tests/test_prepare_cut3r_runtime.py
+          python -m ruff check \
+            scripts/science/prepare_cut3r_runtime.py \
+            tests/test_prepare_cut3r_runtime.py
+          python -m pytest -q \
+            tests/test_prepare_cut3r_runtime.py \
+            tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py \
+            tests/test_github_action_pins.py
+          python -m compileall -q scripts/science/prepare_cut3r_runtime.py
+          git diff --check
+
+      - name: Commit generated repair to the branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t changed < <(git status --porcelain=v1 | sed 's/^...//' | sort)
+          expected=(
+            CHANGELOG.d/dot-r04-r10-pytorch211-curope-dispatch.md
+            scripts/science/prepare_cut3r_runtime.py
+            tests/test_prepare_cut3r_runtime.py
+          )
+          printf '%s\n' "${changed[@]}" > "$RUNNER_TEMP/changed.txt"
+          printf '%s\n' "${expected[@]}" > "$RUNNER_TEMP/expected.txt"
+          diff -u "$RUNNER_TEMP/expected.txt" "$RUNNER_TEMP/changed.txt"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- "${expected[@]}"
+          git commit -m "Fix CUT3R native RoPE dispatch for PyTorch 2.11"
+          git push origin HEAD:fix/dot-r04-r10-pytorch211-curope-dispatch
