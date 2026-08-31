@@ -219,7 +219,7 @@ def _load_protocol(path: Path) -> dict[str, Any]:
         raise ValueError("rank threshold changed")
     if factor.get("methods") != list(METHODS):
         raise ValueError("method roster changed")
-    if set((factor.get("queries") or {})) != set(QUERIES):
+    if set(factor.get("queries") or {}) != set(QUERIES):
         raise ValueError("query roster changed")
     boundary = protocol.get("information_boundary") or {}
     required_false = (
