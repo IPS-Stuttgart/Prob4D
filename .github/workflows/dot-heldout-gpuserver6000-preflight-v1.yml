@@ -57,13 +57,27 @@ jobs:
               try:
                   stat = path.lstat()
               except FileNotFoundError:
-                  return {"path": str(path), "exists": False}
+                  return {"path": str(path), "exists": False, "status": "not-found"}
+              except PermissionError:
+                  return {
+                      "path": str(path),
+                      "exists": None,
+                      "status": "permission-denied",
+                  }
+              is_symlink = path.is_symlink()
+              try:
+                  is_file = path.is_file() if not is_symlink else False
+                  is_dir = path.is_dir() if not is_symlink else False
+              except PermissionError:
+                  is_file = None
+                  is_dir = None
               return {
                   "path": str(path),
                   "exists": True,
-                  "is_file": path.is_file() if not path.is_symlink() else False,
-                  "is_dir": path.is_dir() if not path.is_symlink() else False,
-                  "is_symlink": path.is_symlink(),
+                  "status": "metadata-readable",
+                  "is_file": is_file,
+                  "is_dir": is_dir,
+                  "is_symlink": is_symlink,
                   "size_bytes": int(stat.st_size),
                   "mode": oct(stat.st_mode & 0o7777),
               }
