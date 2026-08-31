@@ -110,15 +110,11 @@ def _synthetic_rows(sequence_count: int) -> tuple[list[dict], dict]:
                 "queries": {
                     "centerline_centroid": {
                         "admitted": True,
-                        "predictions": {
-                            "query_aware": {"exact_fallback": False}
-                        },
+                        "predictions": {"query_aware": {"exact_fallback": False}},
                     },
                     "off_axis_probe": {
                         "admitted": False,
-                        "predictions": {
-                            "query_aware": {"exact_fallback": True}
-                        },
+                        "predictions": {"query_aware": {"exact_fallback": True}},
                     },
                 },
             }

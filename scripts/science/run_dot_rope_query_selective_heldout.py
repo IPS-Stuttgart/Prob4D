@@ -64,13 +64,9 @@ CAMERA = "cam001"
 FRAMES = list(range(1, 8))
 BASE_PROVIDER_BLOB = "612c8ae61b0a64d464256a11992b46c486c88012"
 POOLED_EVALUATOR_BLOB = "6195e70997f0e9582251c08772b1e423a3062ad6"
-PREREQUISITE_PROTOCOL_ID = (
-    "a83258295d5ecabd95017a775f334173bb48141918832fb1a065a1dff66d16ba"
-)
+PREREQUISITE_PROTOCOL_ID = "a83258295d5ecabd95017a775f334173bb48141918832fb1a065a1dff66d16ba"
 PREREQUISITE_DECISION = "heldout-strong-positive"
-SOURCE_CALIBRATION_ID = (
-    "943339ac864fda04cc59081bc81a605576b3c90bf0aa996aea00b00335cfc0c7"
-)
+SOURCE_CALIBRATION_ID = "943339ac864fda04cc59081bc81a605576b3c90bf0aa996aea00b00335cfc0c7"
 SELECTED_DEPENDENCE_ALPHA = 0.85
 METHODS = (
     "physical_fallback",
@@ -199,15 +195,9 @@ def _load_protocol(path: Path) -> dict[str, Any]:
         raise ValueError("camera or frame roster changed")
     if protocol.get("prerequisite", {}).get("protocol_id") != PREREQUISITE_PROTOCOL_ID:
         raise ValueError("prerequisite protocol changed")
-    if (
-        protocol.get("prerequisite", {}).get("required_decision")
-        != PREREQUISITE_DECISION
-    ):
+    if protocol.get("prerequisite", {}).get("required_decision") != PREREQUISITE_DECISION:
         raise ValueError("prerequisite decision changed")
-    if (
-        protocol.get("prerequisite", {}).get("source_calibration_id")
-        != SOURCE_CALIBRATION_ID
-    ):
+    if protocol.get("prerequisite", {}).get("source_calibration_id") != SOURCE_CALIBRATION_ID:
         raise ValueError("source calibration identity changed")
     if (
         float(protocol.get("prerequisite", {}).get("selected_dependence_alpha"))
@@ -525,9 +515,7 @@ def _verify_provider_bundle(
 
 def _archive_for_sequence(protocol: Mapping[str, Any], sequence: str) -> str:
     matches = [
-        str(archive["name"])
-        for archive in protocol["archives"]
-        if sequence in archive["sequences"]
+        str(archive["name"]) for archive in protocol["archives"] if sequence in archive["sequences"]
     ]
     if len(matches) != 1:
         raise ValueError(f"sequence {sequence} does not map to one archive")
@@ -705,12 +693,8 @@ def _report_payload(report: Any) -> dict[str, Any]:
         "query_dimension": int(report.query_dimension),
         "direct_observability_fraction": float(report.direct_observability_fraction),
         "nullspace_sensitivity_fraction": float(report.nullspace_sensitivity_fraction),
-        "metric_variance_reduction_fraction": float(
-            report.metric_variance_reduction_fraction
-        ),
-        "worst_supported_variance_ratio": float(
-            report.worst_supported_variance_ratio
-        ),
+        "metric_variance_reduction_fraction": float(report.metric_variance_reduction_fraction),
+        "worst_supported_variance_ratio": float(report.worst_supported_variance_ratio),
         "gauge_invariant_query": bool(report.gauge_invariant_query),
     }
 
@@ -830,16 +814,12 @@ def seal(args: argparse.Namespace) -> int:
                         Sim3.identity(),
                         prior_covariance,
                     )
-                    observable_eigenvalues = np.linalg.eigvalsh(
-                        factor.observable_information
-                    )
+                    observable_eigenvalues = np.linalg.eigvalsh(factor.observable_information)
                     nullspace_precision = float(np.mean(observable_eigenvalues)) * float(
                         protocol["factor"]["invalid_nullspace_precision_ratio"]
                     )
                     invalid_information = factor.information_matrix + (
-                        nullspace_precision
-                        * factor.nullspace_basis
-                        @ factor.nullspace_basis.T
+                        nullspace_precision * factor.nullspace_basis @ factor.nullspace_basis.T
                     )
                     invalid = _fuse_information(
                         factor,
@@ -853,9 +833,7 @@ def seal(args: argparse.Namespace) -> int:
                         "centerline_centroid": centroid,
                         "off_axis_probe": centroid + factor.chart.cloud_scale * normal,
                     }
-                    provider_span = 2.0 * float(
-                        np.max(np.linalg.norm(source - centroid, axis=1))
-                    )
+                    provider_span = 2.0 * float(np.max(np.linalg.norm(source - centroid, axis=1)))
                     if provider_span <= np.finfo(np.float64).eps:
                         raise ValueError("provider overlap span is degenerate")
                     queries: dict[str, Any] = {}
@@ -882,21 +860,13 @@ def seal(args: argparse.Namespace) -> int:
                             query_source,
                             invalid,
                         )
-                        query_aware_mean = (
-                            candidate_mean if decision.admitted else fallback_mean
-                        )
+                        query_aware_mean = candidate_mean if decision.admitted else fallback_mean
                         query_aware_covariance = (
-                            candidate_covariance
-                            if decision.admitted
-                            else fallback_covariance
+                            candidate_covariance if decision.admitted else fallback_covariance
                         )
-                        full_rank_mean = (
-                            candidate_mean if factor.rank == 7 else fallback_mean
-                        )
+                        full_rank_mean = candidate_mean if factor.rank == 7 else fallback_mean
                         full_rank_covariance = (
-                            candidate_covariance
-                            if factor.rank == 7
-                            else fallback_covariance
+                            candidate_covariance if factor.rank == 7 else fallback_covariance
                         )
                         predictions = {
                             "physical_fallback": _prediction_record(
@@ -936,9 +906,7 @@ def seal(args: argparse.Namespace) -> int:
                             if query_aware["mean"] != fallback_record["mean"]:
                                 raise ValueError("rejected query changed the fallback mean")
                             if query_aware["covariance"] != fallback_record["covariance"]:
-                                raise ValueError(
-                                    "rejected query changed the fallback covariance"
-                                )
+                                raise ValueError("rejected query changed the fallback covariance")
                         queries[query_name] = {
                             "query_source": [float(value) for value in query_source],
                             "observability": _report_payload(report),
@@ -951,8 +919,7 @@ def seal(args: argparse.Namespace) -> int:
                             "factor": {
                                 "rank": factor.rank,
                                 "normalized_geometry_spectrum": [
-                                    float(value)
-                                    for value in factor.normalized_geometry_spectrum
+                                    float(value) for value in factor.normalized_geometry_spectrum
                                 ],
                                 "residual_rms": float(factor.residual_rms),
                                 "inlier_fraction": float(factor.inlier_fraction),
@@ -966,9 +933,9 @@ def seal(args: argparse.Namespace) -> int:
                     )
                 except Exception as error:
                     item["support"] = "support-negative"
-                    item["failure"] = (
-                        f"{type(error).__name__}: {' '.join(str(error).split())}"
-                    )[:1000]
+                    item["failure"] = (f"{type(error).__name__}: {' '.join(str(error).split())}")[
+                        :1000
+                    ]
                 sequence_records.append(item)
     supported = [row["sequence"] for row in sequence_records if row["support"] == "supported"]
     seal_value: dict[str, Any] = {
@@ -1125,21 +1092,15 @@ def _aggregate_rows(
             if method == "physical_fallback":
                 continue
             fallback_by_sequence = {
-                row["sequence"]: row
-                for row in query_rows
-                if row["method"] == "physical_fallback"
+                row["sequence"]: row for row in query_rows if row["method"] == "physical_fallback"
             }
             rmse_improvements = [
-                fallback_by_sequence[row["sequence"]][
-                    "rmse_fraction_of_provider_span"
-                ]
+                fallback_by_sequence[row["sequence"]]["rmse_fraction_of_provider_span"]
                 - row["rmse_fraction_of_provider_span"]
                 for row in selected
             ]
             nll_improvements = [
-                fallback_by_sequence[row["sequence"]][
-                    "normalized_nll_per_dimension"
-                ]
+                fallback_by_sequence[row["sequence"]]["normalized_nll_per_dimension"]
                 - row["normalized_nll_per_dimension"]
                 for row in selected
             ]
@@ -1169,15 +1130,9 @@ def _classification(
 ) -> tuple[str, dict[str, bool]]:
     statistics = protocol["statistics"]
     supported = len(rows) // (len(METHODS) * len(QUERIES))
-    seal_rows = [
-        row for row in seal_value["sequence_records"] if row["support"] == "supported"
-    ]
-    centroid_admitted = sum(
-        row["queries"]["centerline_centroid"]["admitted"] for row in seal_rows
-    )
-    off_axis_rejected = sum(
-        not row["queries"]["off_axis_probe"]["admitted"] for row in seal_rows
-    )
+    seal_rows = [row for row in seal_value["sequence_records"] if row["support"] == "supported"]
+    centroid_admitted = sum(row["queries"]["centerline_centroid"]["admitted"] for row in seal_rows)
+    off_axis_rejected = sum(not row["queries"]["off_axis_probe"]["admitted"] for row in seal_rows)
     rejected_query_aware = [
         prediction
         for row in seal_rows
@@ -1186,15 +1141,10 @@ def _classification(
         for prediction in [row["queries"][query]["predictions"]["query_aware"]]
     ]
     centroid = comparisons["centerline_centroid"]["query_aware"]
-    unconditional_off_axis = comparisons["off_axis_probe"][
-        "observable_subspace_unconditional"
-    ]
-    unconditional_aggregate = aggregate["off_axis_probe"][
-        "observable_subspace_unconditional"
-    ]
+    unconditional_off_axis = comparisons["off_axis_probe"]["observable_subspace_unconditional"]
+    unconditional_aggregate = aggregate["off_axis_probe"]["observable_subspace_unconditional"]
     checks = {
-        "minimum_supported_sequences": supported
-        >= int(statistics["minimum_supported_sequences"]),
+        "minimum_supported_sequences": supported >= int(statistics["minimum_supported_sequences"]),
         "minimum_centroid_acceptance_fraction": (
             centroid_admitted / max(len(seal_rows), 1)
             >= float(statistics["minimum_centroid_acceptance_fraction"])
@@ -1206,13 +1156,9 @@ def _classification(
         "exact_fallback_for_every_rejection": all(
             prediction["exact_fallback"] for prediction in rejected_query_aware
         ),
-        "centroid_rmse_lower_bound_positive": centroid[
-            "fallback_minus_method_rmse"
-        ]["lower_95"]
+        "centroid_rmse_lower_bound_positive": centroid["fallback_minus_method_rmse"]["lower_95"]
         > 0.0,
-        "centroid_nll_lower_bound_positive": centroid[
-            "fallback_minus_method_nll"
-        ]["lower_95"]
+        "centroid_nll_lower_bound_positive": centroid["fallback_minus_method_nll"]["lower_95"]
         > 0.0,
     }
     selective_pass = all(checks.values())
@@ -1381,9 +1327,7 @@ def evaluate(args: argparse.Namespace) -> int:
             scoring_failures.append(
                 {
                     "sequence": sequence,
-                    "failure": (
-                        f"{type(error).__name__}: {' '.join(str(error).split())}"
-                    )[:1000],
+                    "failure": (f"{type(error).__name__}: {' '.join(str(error).split())}")[:1000],
                 }
             )
     scored_sequences = sorted({row["sequence"] for row in rows})

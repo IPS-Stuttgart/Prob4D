@@ -4,9 +4,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/dot-rope-query-selective-heldout-v1.yml"
-CONTRACT_WORKFLOW = (
-    ROOT / ".github/workflows/dot-rope-query-selective-heldout-contract-v1.yml"
-)
+CONTRACT_WORKFLOW = ROOT / ".github/workflows/dot-rope-query-selective-heldout-contract-v1.yml"
 REQUEST = "protocols/execution_requests/dot_rope_query_selective_heldout_v1.json"
 
 
@@ -50,7 +48,7 @@ def test_prerequisite_is_exact_artifact_bound_and_strong_positive() -> None:
     assert "runs-on: ubuntu-latest" in prerequisite
     assert "actions: read" in prerequisite
     assert "/actions/artifacts/{os.environ['ARTIFACT_ID']}" in prerequisite
-    assert "value.get(\"digest\") != os.environ[\"EXPECTED_DIGEST\"]" in prerequisite
+    assert 'value.get("digest") != os.environ["EXPECTED_DIGEST"]' in prerequisite
     assert "verify_dot_rope_cut3r_heldout_result.py" in prerequisite
     assert 'verified["decision"] != "heldout-strong-positive"' in prerequisite
     assert "prerequisite evaluation identity changed" in prerequisite
