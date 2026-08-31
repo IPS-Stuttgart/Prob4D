@@ -1,0 +1,19 @@
+{
+  "schema": "prob4d.dot-measured-querybank-local-request.v1",
+  "schema_version": 1,
+  "request_id": "dot-measured-querybank-gpuserver4090-20260901-v2",
+  "runner_label": "gpuserver4090",
+  "dataset_root": "/mnt/seagate10tb/florianpfaff/datasets/dot",
+  "archive": "R01-10.zip",
+  "source_sequences": [
+    "R01",
+    "R02",
+    "R03"
+  ],
+  "reserved_sequences": "R04-R70",
+  "provider_run_id": 33329701704,
+  "target_payloads_authorized": false,
+  "heldout_transfer_claimed": false,
+  "paper_claim_authorized": false,
+  "expected_source_revision": "927e499559b932cb4d82cd6a6fce0d8a7d13368a"
+}
