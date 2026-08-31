@@ -1,0 +1,7 @@
+protocol_id=tracking-cloth-finite-orbit-real-v1
+superseded_run_id=33361712662
+superseded_head_sha=5c4e3b4ebfe38a10b1d1635db62b23c4f1736770
+zenodo_record=14644526
+zenodo_md5=b4868b702f8a42b2ea1069d0f1a3b8f6
+target_side_retuning_allowed=false
+raw_data_publication_authorized=false
