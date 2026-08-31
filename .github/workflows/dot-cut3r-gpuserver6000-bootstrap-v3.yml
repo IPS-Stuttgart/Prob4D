@@ -1,0 +1,387 @@
+name: DOT CUT3R gpuserver6000 bootstrap v3
+
+on:
+  push:
+    branches:
+      - ops/dot-cut3r-gpuserver6000-preflight-v1
+    paths:
+      - ".github/workflows/dot-cut3r-gpuserver6000-bootstrap-v3.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dot-cut3r-gpuserver6000-bootstrap-v3
+  cancel-in-progress: false
+
+env:
+  RUNTIME_ROOT: /home/github-runner/.cache/prob4d/cut3r-runtime-v1
+  RUNTIME_PYTHON: /home/github-runner/.cache/prob4d/cut3r-runtime-v1/venv/bin/python
+  DATASET_ROOT: /home/github-runner/.cache/datasets/dot
+  CUT3R_REVISION: 8bc15dc92a6d7fd92920b4ec81540d3dec7d3ecf
+  CHECKPOINT_NAME: cut3r_512_dpt_4_64.pth
+  CHECKPOINT_SHA256: 45f7e98a0a64dbeb54901ae2b878cd8cd125f20a4497316483f0bd6f109f8103
+  CHECKPOINT_GDRIVE_ID: 1Asz-ZB3FfpzZYwunhQvNPZEUA8XUNAYD
+  ARCHIVE_NAME: R01-10.zip
+  ARCHIVE_DATAFILE_ID: "2343"
+  ARCHIVE_BYTES: "1705947395"
+  ARCHIVE_MD5: ca546ff5f22c0279123ccb18509858ee
+  DATAFILE_API_ROOT: https://dataverse.orc.gmu.edu/api/access/datafile
+  CUDA_HOME: /usr/local/cuda-12.9
+  TORCH_CUDA_ARCH_LIST: "8.9"
+  MAX_JOBS: "4"
+  COMPATIBILITY_PATCH: .github/patches/cut3r-curope-torch211-cu126.patch
+  EXPECTED_CUROPE_KERNELS_BLOB: 7156cd1bb935cb1f0be45e58add53f9c21505c20
+  EXPECTED_CUROPE_SETUP_BLOB: 02ddb0912370a67a49fd2bb91164cf2f1da8648e
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  bootstrap:
+    name: Resume exact CUT3R bootstrap on gpuserver6000
+    if: >-
+      github.repository == 'IPS-Stuttgart/Prob4D' &&
+      github.actor == 'FlorianPfaff' &&
+      github.ref == 'refs/heads/ops/dot-cut3r-gpuserver6000-preflight-v1'
+    runs-on: [self-hosted, Linux, X64, gpuserver6000]
+    timeout-minutes: 360
+    steps:
+      - name: Require intended runner, source, and CUDA 12.9
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_NAME" = "workstation2"
+          test "$RUNNER_OS" = "Linux"
+          test "$RUNNER_ARCH" = "X64"
+          test -x "$CUDA_HOME/bin/nvcc"
+          "$CUDA_HOME/bin/nvcc" --version | grep -F 'release 12.9'
+          checkout="$RUNTIME_ROOT/CUT3R"
+          test -d "$checkout/.git"
+          test "$(git -C "$checkout" rev-parse HEAD)" = "$CUT3R_REVISION"
+          git -C "$checkout" reset --hard "$CUT3R_REVISION"
+          git -C "$checkout" clean -fdx
+          test -z "$(git -C "$checkout" status --porcelain=v1 --untracked-files=all)"
+
+      - name: Check out exact operational source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+
+      - name: Verify frozen templates and patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test "$(git hash-object .github/workflows/bootstrap-dot-cut3r-gpuserver4090-runtime.yml)" = \
+            "1ef19aec112a84008584256120bb11083b66cc04"
+          test "$(git hash-object .github/workflows/complete-dot-cut3r-cu126-runtime.yml)" = \
+            "7d0772d7fb9e85509014ccddb5e9eea6f9347609"
+          test "$(git hash-object "$COMPATIBILITY_PATCH")" = \
+            "9127464c77b571b9586144cabe24a4eed8667db0"
+
+      - name: Provision bootstrap Python 3.10
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.10"
+
+      - name: Build resolver-stable CUDA-12.6 PyTorch environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          checkout="$RUNTIME_ROOT/CUT3R"
+          staging="$RUNTIME_ROOT/venv.staging-${GITHUB_RUN_ID}"
+          filtered="$RUNTIME_ROOT/requirements.runtime.txt"
+          constraints="$RUNTIME_ROOT/constraints.runtime.txt"
+          bootstrap_constraints="$RUNTIME_ROOT/constraints.bootstrap.txt"
+          rm -rf "$staging"
+          python -m venv "$staging"
+          py="$staging/bin/python"
+          "$py" -m pip install --no-cache-dir \
+            "pip==25.2" "setuptools==80.9.0" "wheel==0.45.1"
+          cat > "$bootstrap_constraints" <<'EOF'
+          typing-extensions==4.15.0
+          flit-core==3.12.0
+          numpy==1.26.4
+          pillow==10.3.0
+          EOF
+          "$py" -m pip install --no-cache-dir \
+            --index-url https://pypi.org/simple \
+            --constraint "$bootstrap_constraints" \
+            "typing-extensions==4.15.0" "flit-core==3.12.0"
+          "$py" -m pip install \
+            --index-url https://download.pytorch.org/whl/cu126 \
+            --extra-index-url https://pypi.org/simple \
+            --constraint "$bootstrap_constraints" \
+            torch==2.11.0 torchvision==0.26.0
+          python - "$checkout/requirements.txt" "$filtered" "$constraints" <<'PY'
+          import re
+          import sys
+          from pathlib import Path
+
+          source = Path(sys.argv[1]).read_text(encoding="utf-8").splitlines()
+          kept = []
+          for raw in source:
+              stripped = raw.strip()
+              if re.match(r"^(torch|torchvision)(?:\s|[<>=!~].*)?$", stripped, flags=re.I):
+                  continue
+              kept.append(raw)
+          Path(sys.argv[2]).write_text("\n".join(kept) + "\n", encoding="utf-8")
+          Path(sys.argv[3]).write_text(
+              "torch==2.11.0\n"
+              "torchvision==0.26.0\n"
+              "typing-extensions==4.15.0\n"
+              "numpy==1.26.4\n"
+              "pillow==10.3.0\n",
+              encoding="utf-8",
+          )
+          PY
+          "$py" -m pip install \
+            --index-url https://pypi.org/simple \
+            --extra-index-url https://download.pytorch.org/whl/cu126 \
+            --constraint "$constraints" \
+            -r "$filtered" \
+            gdown
+          "$py" - <<'PY'
+          import accelerate
+          import einops
+          import gdown
+          import h5py
+          import hydra
+          import lpips
+          import numpy
+          import PIL
+          import roma
+          import scipy
+          import sklearn
+          import torch
+          import torchvision
+          import transformers
+
+          print(f"torch={torch.__version__}")
+          print(f"torchvision={torchvision.__version__}")
+          print(f"torch_cuda={torch.version.cuda}")
+          print(f"numpy={numpy.__version__}")
+          print(f"pillow={PIL.__version__}")
+          print(f"cuda_available={torch.cuda.is_available()}")
+          if not torch.__version__.startswith("2.11.0"):
+              raise SystemExit(torch.__version__)
+          if not torchvision.__version__.startswith("0.26.0"):
+              raise SystemExit(torchvision.__version__)
+          if torch.version.cuda != "12.6":
+              raise SystemExit(str(torch.version.cuda))
+          if numpy.__version__ != "1.26.4":
+              raise SystemExit(numpy.__version__)
+          if PIL.__version__ != "10.3.0":
+              raise SystemExit(PIL.__version__)
+          if not torch.cuda.is_available():
+              raise SystemExit("CUDA unavailable")
+          print(f"cuda_device={torch.cuda.get_device_name(0)}")
+          PY
+          rm -rf "$RUNTIME_ROOT/venv.previous"
+          if [[ -d "$RUNTIME_ROOT/venv" ]]; then
+            mv "$RUNTIME_ROOT/venv" "$RUNTIME_ROOT/venv.previous"
+          fi
+          mv "$staging" "$RUNTIME_ROOT/venv"
+          rm -rf "$RUNTIME_ROOT/venv.previous"
+          test -x "$RUNTIME_PYTHON"
+
+      - name: Replay frozen checkpoint, patch, compile, and manifest steps
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --no-cache-dir "PyYAML==6.0.2"
+          PATH="$CUDA_HOME/bin:$PATH" python - <<'PY'
+          import os
+          import subprocess
+          from pathlib import Path
+
+          import yaml
+
+          selections = [
+              (
+                  Path(".github/workflows/bootstrap-dot-cut3r-gpuserver4090-runtime.yml"),
+                  ["Acquire and verify exact CUT3R checkpoint"],
+              ),
+              (
+                  Path(".github/workflows/complete-dot-cut3r-cu126-runtime.yml"),
+                  [
+                      "Apply source-bound PyTorch 2.11 compatibility patch",
+                      "Compile and attest native CUT3R RoPE",
+                      "Seal content-addressed runtime manifest",
+                  ],
+              ),
+          ]
+          environment = dict(os.environ)
+          environment["PATH"] = f"{environment['CUDA_HOME']}/bin:{environment['PATH']}"
+          for workflow_path, names in selections:
+              workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+              steps = []
+              for job in (workflow.get("jobs") or {}).values():
+                  steps.extend((job or {}).get("steps") or [])
+              by_name = {
+                  str(step.get("name")): str(step.get("run"))
+                  for step in steps
+                  if isinstance(step, dict) and step.get("name") and step.get("run")
+              }
+              for name in names:
+                  script = by_name.get(name)
+                  if not script:
+                      raise SystemExit(f"missing frozen workflow step: {name}")
+                  print(f"::group::{name}", flush=True)
+                  subprocess.run(
+                      ["bash", "--noprofile", "--norc", "-e", "-o", "pipefail", "-c", script],
+                      check=True,
+                      env=environment,
+                  )
+                  print("::endgroup::", flush=True)
+          PY
+
+      - name: Attest CUDA 12.9 native-toolkit qualification boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          PATH="$CUDA_HOME/bin:$PATH" \
+          CUDA_HOME="$CUDA_HOME" \
+          PYTHONPATH="$RUNTIME_ROOT/CUT3R:$RUNTIME_ROOT/CUT3R/src" \
+            "$RUNTIME_PYTHON" - <<'PY'
+          import json
+          import os
+          import subprocess
+          from pathlib import Path
+
+          import torch
+          from dust3r.model import ARCroco3DStereo
+
+          root = Path(os.environ["RUNTIME_ROOT"])
+          manifest = json.loads((root / "bootstrap-manifest.json").read_text(encoding="utf-8"))
+          nvcc = subprocess.run(
+              [str(Path(os.environ["CUDA_HOME"]) / "bin/nvcc"), "--version"],
+              check=True,
+              capture_output=True,
+              text=True,
+          ).stdout
+          payload = {
+              "schema": "prob4d.dot-cut3r-runtime-minor-toolkit-qualification",
+              "schema_version": 1,
+              "torch_version": torch.__version__,
+              "torch_cuda_build": torch.version.cuda,
+              "native_toolkit": "12.9",
+              "native_toolkit_output": nvcc,
+              "gpu": torch.cuda.get_device_name(0),
+              "compute_capability": list(torch.cuda.get_device_capability(0)),
+              "model_import": ARCroco3DStereo.__name__,
+              "runtime_bootstrap_id": manifest["bootstrap_id"],
+              "native_rope_artifact_id": manifest["native_rope_artifact_id"],
+              "scientific_inputs_changed": False,
+              "heldout_payloads_opened": False,
+              "source_parity_required_before_heldout": True,
+          }
+          (root / "minor-toolkit-qualification.json").write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(payload, sort_keys=True))
+          PY
+
+      - name: Stage checksum-verified official DOT archive without opening members
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$DATASET_ROOT"
+          archive="$DATASET_ROOT/$ARCHIVE_NAME"
+          part="$archive.part-${GITHUB_RUN_ID}"
+          valid=false
+          if [[ -f "$archive" ]]; then
+            measured=$(md5sum "$archive" | awk '{print $1}')
+            if [[ "$measured" = "$ARCHIVE_MD5" ]]; then
+              valid=true
+            fi
+          fi
+          if [[ "$valid" != true ]]; then
+            rm -f "$part"
+            curl --fail --location --retry 6 --retry-all-errors \
+              --connect-timeout 30 --output "$part" \
+              "$DATAFILE_API_ROOT/$ARCHIVE_DATAFILE_ID"
+            test "$(stat -c '%s' "$part")" = "$ARCHIVE_BYTES"
+            printf '%s  %s\n' "$ARCHIVE_MD5" "$part" | md5sum --check --strict
+            mv "$part" "$archive"
+          fi
+          test "$(stat -c '%s' "$archive")" = "$ARCHIVE_BYTES"
+          printf '%s  %s\n' "$ARCHIVE_MD5" "$archive" | md5sum --check --strict
+
+      - name: Seal bounded bootstrap evidence
+        id: evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/dot-cut3r-gpuserver6000-bootstrap-${GITHUB_RUN_ID}.json"
+          OUTPUT="$output" "$RUNTIME_PYTHON" - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNTIME_ROOT"])
+          manifest = json.loads((root / "bootstrap-manifest.json").read_text(encoding="utf-8"))
+          qualification = json.loads(
+              (root / "minor-toolkit-qualification.json").read_text(encoding="utf-8")
+          )
+          archive = Path(os.environ["DATASET_ROOT"]) / os.environ["ARCHIVE_NAME"]
+          payload = {
+              "schema": "prob4d.dot-cut3r-gpuserver6000-bootstrap",
+              "schema_version": 3,
+              "github_run_id": int(os.environ["GITHUB_RUN_ID"]),
+              "github_sha": os.environ["GITHUB_SHA"],
+              "runner_name": os.environ.get("RUNNER_NAME"),
+              "runtime_bootstrap_id": manifest["bootstrap_id"],
+              "native_rope_artifact_id": manifest["native_rope_artifact_id"],
+              "checkpoint_sha256": manifest["checkpoint"]["sha256"],
+              "torch_cuda_build": manifest["torch_cuda_version"],
+              "native_toolkit": qualification["native_toolkit"],
+              "archive_size_bytes": archive.stat().st_size,
+              "archive_md5": os.environ["ARCHIVE_MD5"],
+              "decision": "source-parity-qualification-required",
+              "information_boundary": {
+                  "archive_members_opened": False,
+                  "normal_view_images_opened": False,
+                  "marker_payloads_opened": False,
+                  "r04_r10_predictions_executed": False,
+                  "r11_r70_opened": False,
+              },
+          }
+          canonical = json.dumps(
+              payload,
+              sort_keys=True,
+              separators=(",", ":"),
+              ensure_ascii=False,
+          ).encode("utf-8")
+          payload["evidence_id"] = hashlib.sha256(canonical).hexdigest()
+          Path(os.environ["OUTPUT"]).write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(payload, sort_keys=True))
+          PY
+          echo "output=$output" >> "$GITHUB_OUTPUT"
+
+      - name: Upload compact bootstrap receipts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dot-cut3r-gpuserver6000-bootstrap-v3-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            /home/github-runner/.cache/prob4d/cut3r-runtime-v1/runtime-receipt.json
+            /home/github-runner/.cache/prob4d/cut3r-runtime-v1/compatibility-patch-receipt.json
+            /home/github-runner/.cache/prob4d/cut3r-runtime-v1/bootstrap-manifest.json
+            /home/github-runner/.cache/prob4d/cut3r-runtime-v1/minor-toolkit-qualification.json
+            /home/github-runner/.cache/prob4d/cut3r-runtime-v1/requirements.runtime.txt
+            /home/github-runner/.cache/prob4d/cut3r-runtime-v1/constraints.runtime.txt
+            /home/github-runner/.cache/prob4d/cut3r-runtime-v1/constraints.bootstrap.txt
+            ${{ steps.evidence.outputs.output }}
+          if-no-files-found: warn
+          retention-days: 30
