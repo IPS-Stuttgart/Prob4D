@@ -26,7 +26,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat .github/tmp/dot-r11-finalize-0{0,1,2,3}.py > "$RUNNER_TEMP/finalize-dot-r11.py"
+          : > "$RUNNER_TEMP/finalize-dot-r11.py"
+          for fragment in .github/tmp/dot-r11-finalize-0{0,1,2,3}.py; do
+            cat "$fragment" >> "$RUNNER_TEMP/finalize-dot-r11.py"
+            printf '\n' >> "$RUNNER_TEMP/finalize-dot-r11.py"
+          done
           python "$RUNNER_TEMP/finalize-dot-r11.py"
           rm -f .github/tmp/dot-r11-finalize-0{0,1,2,3}.py
           rm -f .github/workflows/temporary-export-dot-query-selective-v1.yml
