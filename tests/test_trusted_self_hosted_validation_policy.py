@@ -17,9 +17,7 @@ DOT_ROPE_CUT3R_HELDOUT_CONFIRMATION_WORKFLOW = (
     WORKFLOW_ROOT / "dot-rope-cut3r-heldout-confirmation-v1.yml"
 )
 DOT_ROPE_MARKER_SUPPORT_AUDIT_WORKFLOW = WORKFLOW_ROOT / "dot-rope-marker-support-audit-v1.yml"
-TRACKING_CLOTH_QUERY_PORTFOLIO_WORKFLOW = (
-    WORKFLOW_ROOT / "tracking-cloth-query-portfolio-v1.yml"
-)
+TRACKING_CLOTH_QUERY_PORTFOLIO_WORKFLOW = WORKFLOW_ROOT / "tracking-cloth-query-portfolio-v1.yml"
 TRACKING_CLOTH_FINITE_ORBIT_REAL_WORKFLOW = (
     WORKFLOW_ROOT / "tracking-cloth-finite-orbit-real-v1.yml"
 )
