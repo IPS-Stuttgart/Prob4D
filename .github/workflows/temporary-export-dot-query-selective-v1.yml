@@ -1,0 +1,32 @@
+name: Temporary export DOT query-selective control plane
+
+on:
+  push:
+    branches: [science/dot-query-selective-r11-r30-gpuserver6000-v1]
+    paths:
+      - ".github/workflows/temporary-export-dot-query-selective-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          clean: true
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: dot-query-selective-control-plane
+          path: |
+            .github/workflows/dot-rope-query-selective-heldout-v1.yml
+            protocols/dot-rope-query-selective-heldout-v1.json
+            scripts/science/run_dot_rope_query_selective_heldout.py
+            tests/test_dot_rope_query_selective_heldout.py
+            tests/test_dot_rope_query_selective_heldout_workflow.py
+            tests/test_trusted_self_hosted_validation_policy.py
+          if-no-files-found: error
+          retention-days: 1
