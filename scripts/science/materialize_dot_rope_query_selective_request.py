@@ -114,7 +114,11 @@ def _verified_artifact(value: Mapping[str, Any]) -> dict[str, Any]:
     if artifact.get("expired") is not False:
         raise ValueError("artifact must be unexpired")
     workflow = artifact.get("workflow_run")
-    if not isinstance(workflow, dict) or not isinstance(workflow.get("id"), int) or workflow["id"] <= 0:
+    if (
+        not isinstance(workflow, dict)
+        or not isinstance(workflow.get("id"), int)
+        or workflow["id"] <= 0
+    ):
         raise ValueError("artifact workflow_run.id must be a positive integer")
     return artifact
 
