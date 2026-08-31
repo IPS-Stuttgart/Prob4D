@@ -1,0 +1,21 @@
+{
+  "claim_boundary": "held-out public-real-geometry controlled-gauge evidence; not learned-provider competence or calibrated accepted-query covariance",
+  "expected_decision": "pass",
+  "expected_independent_groups": 28,
+  "expected_source_gate_result_id": "a3b48a522e509e53935cc42c9f1cd293cd5f7753057979c99c743a10d74c14e2",
+  "expected_source_geometry_result_id": "04f0df72492e97de2b16b7db57da707c97a37c1fcc545f6e6853f60498fe58a9",
+  "frozen_heldout_result_id": "1ac8cd083b39877888ea0eb2f4b9400ca89eda09436f25f5f0a6f43b154b1007",
+  "post_open_retuning_permitted": false,
+  "required_checks": [
+    "ruff-check",
+    "ruff-format-check",
+    "observable-gauge-tests",
+    "query-observability-tests",
+    "axial-query-certificate-tests",
+    "workflow-policy-tests",
+    "github-action-pin-tests",
+    "evidence-integrity-tests"
+  ],
+  "schema": "prob4d.deform-dlo45-query-observability-validation-manifest",
+  "schema_version": 1
+}
