@@ -87,6 +87,7 @@ select = ["E", "F", "I", "UP", "B"]
 
 [tool.ruff.lint.per-file-ignores]
 "scripts/science/run_pointworld_model_load_smoke.py" = ["UP022"]
+"scripts/science/run_tracking_cloth_finite_orbit_real_v1.py" = ["UP035"]
 
 [tool.mypy]
 python_version = "3.10"
