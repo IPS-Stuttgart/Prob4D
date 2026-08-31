@@ -1,0 +1,280 @@
+name: DOT CUT3R measured query bank v1
+
+on:
+  push:
+    branches:
+      - science/dot-cut3r-measured-querybank-v1
+    paths:
+      - ".github/workflows/dot-rope-cut3r-measured-querybank-v1.yml"
+      - "docs/dot-rope-cut3r-measured-querybank-v1.md"
+      - "protocols/dot-rope-cut3r-measured-querybank-v1.json"
+      - "scripts/science/run_dot_rope_cut3r_measured_querybank_v1.py"
+      - "tests/test_dot_rope_cut3r_measured_querybank_v1.py"
+      - "src/prob4d/posterior_preserving_compression.py"
+      - "src/prob4d/dot_rope_cut3r_study.py"
+      - "src/prob4d/dependence_tempering.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dot-cut3r-measured-querybank-v1-${{ github.sha }}
+  cancel-in-progress: false
+
+env:
+  PROTOCOL_PATH: protocols/dot-rope-cut3r-measured-querybank-v1.json
+  ARCHIVE_NAME: R01-10.zip
+  ARCHIVE_MD5: ca546ff5f22c0279123ccb18509858ee
+  DATASET_API: https://dataverse.orc.gmu.edu/api/datasets/:persistentId/?persistentId=doi:10.13021/ORC2020/XXLVXM
+  DATAFILE_API_ROOT: https://dataverse.orc.gmu.edu/api/access/datafile
+  PROVIDER_RUN_ID: "33329701704"
+  PROVIDER_ARTIFACT_NAME: dot-rope-cut3r-sealed-provider-33329701704-1
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+
+jobs:
+  preflight:
+    name: Validate measured query-bank capsule
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          clean: true
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install exact development package
+        run: |
+          python -m pip install -e ".[dev]"
+          python -m pip check
+      - name: Validate protocol, tests, lint, and compilation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import importlib.util
+          from pathlib import Path
+
+          script = Path("scripts/science/run_dot_rope_cut3r_measured_querybank_v1.py")
+          spec = importlib.util.spec_from_file_location("measured_querybank", script)
+          assert spec is not None and spec.loader is not None
+          module = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+          protocol = module.load_protocol(Path("protocols/dot-rope-cut3r-measured-querybank-v1.json"))
+          assert protocol["source_sequences"] == ["R01", "R02", "R03"]
+          assert protocol["reserved_sequences"] == "R04-R70"
+          assert protocol["dependence_strength"] == 0.85
+          assert protocol["query_counts"] == [1, 2, 4, 8]
+          assert protocol["claim_boundary"]["r04_r70_opened"] is False
+          PY
+          python -m ruff check \
+            scripts/science/run_dot_rope_cut3r_measured_querybank_v1.py \
+            tests/test_dot_rope_cut3r_measured_querybank_v1.py
+          python -m pytest -q \
+            tests/test_posterior_preserving_compression.py \
+            tests/test_dot_rope_cut3r_measured_querybank_v1.py \
+            tests/test_github_action_pins.py
+          python -m compileall -q scripts/science/run_dot_rope_cut3r_measured_querybank_v1.py
+
+  evaluate:
+    name: Evaluate measured DOT/CUT3R query factors
+    needs: preflight
+    if: >-
+      github.actor == 'FlorianPfaff' &&
+      github.repository == 'IPS-Stuttgart/Prob4D' &&
+      github.ref_name == 'science/dot-cut3r-measured-querybank-v1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Initialize isolated workspace
+        id: workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/dot-cut3r-measured-querybank-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          rm -rf -- "$root"
+          mkdir -p "$root/provider" "$root/dataset" "$root/evidence"
+          echo "root=$root" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          clean: true
+      - name: Verify exact clean source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install pinned numerical runtime
+        run: |
+          python -m pip install --disable-pip-version-check "numpy==2.3.5"
+          python -m pip install --disable-pip-version-check --no-deps -e .
+          python -m pip check
+      - name: Download immutable source provider artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ${{ env.PROVIDER_ARTIFACT_NAME }}
+          path: ${{ steps.workspace.outputs.root }}/provider
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.PROVIDER_RUN_ID }}
+      - name: Resolve official DOT archive identity
+        id: archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="${{ steps.workspace.outputs.root }}" python - <<'PY'
+          import json
+          import os
+          import urllib.request
+          from pathlib import Path
+
+          request = urllib.request.Request(
+              os.environ["DATASET_API"],
+              headers={"User-Agent": "Prob4D-measured-querybank/1"},
+          )
+          with urllib.request.urlopen(request, timeout=60) as response:
+              metadata = json.load(response)
+          if metadata.get("status") != "OK":
+              raise SystemExit("Dataverse metadata request did not return OK")
+          files = metadata["data"]["latestVersion"]["files"]
+          matches = [
+              entry["dataFile"]
+              for entry in files
+              if entry.get("dataFile", {}).get("filename") == os.environ["ARCHIVE_NAME"]
+          ]
+          if len(matches) != 1:
+              raise SystemExit("official metadata did not contain exactly one R01-10.zip")
+          data_file = matches[0]
+          checksum = data_file.get("checksum", {})
+          if checksum.get("type") != "MD5" or checksum.get("value", "").lower() != os.environ["ARCHIVE_MD5"]:
+              raise SystemExit("official DOT checksum changed")
+          receipt = {
+              "dataset_persistent_id": "doi:10.13021/ORC2020/XXLVXM",
+              "dataset_version": metadata["data"]["latestVersion"]["versionNumber"],
+              "filename": data_file["filename"],
+              "datafile_id": int(data_file["id"]),
+              "byte_count": int(data_file["filesize"]),
+              "checksum": checksum,
+          }
+          Path(os.environ["ROOT"], "evidence", "official-archive-metadata.json").write_text(
+              json.dumps(receipt, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"datafile_id={receipt['datafile_id']}\n")
+              output.write(f"byte_count={receipt['byte_count']}\n")
+          PY
+      - name: Download and verify R01-10.zip
+        shell: bash
+        env:
+          DATAFILE_ID: ${{ steps.archive.outputs.datafile_id }}
+          EXPECTED_BYTES: ${{ steps.archive.outputs.byte_count }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          archive="$root/dataset/$ARCHIVE_NAME"
+          curl --fail --location --retry 6 --retry-all-errors \
+            --connect-timeout 30 --output "$archive" \
+            "$DATAFILE_API_ROOT/$DATAFILE_ID"
+          test "$(stat -c %s "$archive")" = "$EXPECTED_BYTES"
+          printf '%s  %s\n' "$ARCHIVE_MD5" "$archive" | md5sum --check --strict
+      - name: Run measured provider-factor experiment
+        id: experiment
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          set +e
+          PYTHONPATH=src python \
+            scripts/science/run_dot_rope_cut3r_measured_querybank_v1.py \
+              --dataset-root "$root/dataset" \
+              --provider-bundle "$root/provider/bundle" \
+              --protocol "$PROTOCOL_PATH" \
+              --output-dir "$root/evidence/result" \
+              --source-revision "$GITHUB_SHA" \
+              > "$root/stdout.txt" 2> "$root/stderr.txt"
+          status=$?
+          set -e
+          printf '%s\n' "$status" > "$root/process-exit-code.txt"
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Remove raw source payloads before upload
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          rm -rf -- "$root/provider" "$root/dataset"
+          if find "$root/evidence" -type f \( \
+            -iname '*.npz' -o -iname '*.zip' -o -iname '*.jpg' -o -iname '*.png' \
+          \) -print -quit | grep -q .; then
+            echo "Raw provider or dataset payload appeared in evidence" >&2
+            exit 3
+          fi
+      - name: Upload compact measured-factor evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dot-cut3r-measured-querybank-v1-${{ github.run_attempt }}
+          path: ${{ steps.workspace.outputs.root }}
+          if-no-files-found: error
+          retention-days: 30
+      - name: Publish result summary
+        if: always()
+        shell: bash
+        run: |
+          summary="${{ steps.workspace.outputs.root }}/evidence/result/summary.md"
+          if test -f "$summary"; then
+            cat "$summary" >> "$GITHUB_STEP_SUMMARY"
+          elif test -f "${{ steps.workspace.outputs.root }}/stderr.txt"; then
+            printf '```text\n' >> "$GITHUB_STEP_SUMMARY"
+            tail -n 100 "${{ steps.workspace.outputs.root }}/stderr.txt" >> "$GITHUB_STEP_SUMMARY"
+            printf '\n```\n' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Enforce completed exact experiment
+        shell: bash
+        env:
+          PROCESS_EXIT: ${{ steps.experiment.outputs.exit_code }}
+          RESULT_PATH: ${{ steps.workspace.outputs.root }}/evidence/result/result.json
+        run: |
+          set -euo pipefail
+          test "$PROCESS_EXIT" = "0"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          result = json.loads(Path(os.environ["RESULT_PATH"]).read_text())
+          assert result["status"] == "evaluated-measured-dot-cut3r-querybank"
+          assert result["information_boundary"]["provider_inference_rerun"] is False
+          assert result["information_boundary"]["reserved_sequences"] == "R04-R70"
+          assert result["information_boundary"]["target_payloads_opened"] is False
+          aggregate = result["aggregate"]
+          assert aggregate["sequence_count"] == 3
+          assert aggregate["bank_evaluation_count"] == 12
+          assert aggregate["maximum_relative_gain_error"] <= 1e-7
+          assert aggregate["maximum_relative_posterior_covariance_error"] <= 1e-7
+          assert aggregate["all_posteriors_valid"] is True
+          PY
