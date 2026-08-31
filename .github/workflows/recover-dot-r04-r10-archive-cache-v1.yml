@@ -1,0 +1,530 @@
+name: Recover frozen DOT R04-R10 archive cache v1
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "protocols/execution_requests/recover_dot_r04_r10_archive_gpuserver6000_v1.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: recover-dot-r04-r10-archive-cache-v1
+  cancel-in-progress: false
+
+env:
+  REQUEST_PATH: protocols/execution_requests/recover_dot_r04_r10_archive_gpuserver6000_v1.json
+  TARGET_RUN_ID: "33434695566"
+  TARGET_HEAD_SHA: 9e1b77b2e70685881db7f188a95a3a91443275e8
+  TARGET_WORKFLOW_PATH: .github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml
+  TARGET_PROVIDER_JOB_NAME: Seal marker-free R04-R10 CUT3R predictions on gpuserver6000
+  ARCHIVE_NAME: R01-10.zip
+  ARCHIVE_MD5: ca546ff5f22c0279123ccb18509858ee
+  CACHE_ROOT: /home/github-runner/.cache/prob4d/dot-r04-r10-cut3r-gpuserver6000-v1/dot-v29
+  DATASET_API: https://dataverse.orc.gmu.edu/api/datasets/:persistentId/?persistentId=doi:10.13021/ORC2020/XXLVXM
+  DATAFILE_API_ROOT: https://dataverse.orc.gmu.edu/api/access/datafile
+
+jobs:
+  authorize:
+    name: Authorize one archive-only recovery request
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      request_id: ${{ steps.request.outputs.request_id }}
+    steps:
+      - name: Check out exact request revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+          clean: true
+
+      - name: Require exactly one content-addressed request-file change
+        id: request
+        shell: bash
+        env:
+          EVENT_REF: ${{ github.ref }}
+          EVENT_BEFORE: ${{ github.event.before }}
+          EVENT_AFTER: ${{ github.event.after }}
+          EVENT_FORCED: ${{ github.event.forced }}
+          EVENT_DELETED: ${{ github.event.deleted }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_REF" = "refs/heads/main"
+          test "$EVENT_AFTER" = "$(git rev-parse HEAD)"
+          test "$EVENT_FORCED" = "false"
+          test "$EVENT_DELETED" = "false"
+          test "$EVENT_BEFORE" != "0000000000000000000000000000000000000000"
+          mapfile -t changed < <(git diff --name-only "$EVENT_BEFORE" "$EVENT_AFTER" | sort)
+          if [[ ${#changed[@]} -ne 1 || "${changed[0]}" != "$REQUEST_PATH" ]]; then
+            printf 'Expected only %s; changed paths were:\n' "$REQUEST_PATH" >&2
+            printf '  %s\n' "${changed[@]}" >&2
+            exit 2
+          fi
+          REQUEST_PATH="$REQUEST_PATH" python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path(os.environ["REQUEST_PATH"])
+          value = json.loads(path.read_text(encoding="utf-8"))
+          supplied = value.pop("request_id")
+          encoded = json.dumps(
+              value,
+              sort_keys=True,
+              separators=(",", ":"),
+              ensure_ascii=False,
+              allow_nan=False,
+          ).encode("utf-8")
+          measured = hashlib.sha256(encoded).hexdigest()
+          if supplied != measured:
+              raise SystemExit("archive-recovery request identity mismatch")
+          expected = {
+              "schema": "prob4d.dot-r04-r10-archive-cache-recovery-request",
+              "schema_version": 1,
+              "target_run_id": int(os.environ["TARGET_RUN_ID"]),
+              "target_head_sha": os.environ["TARGET_HEAD_SHA"],
+              "target_provider_job_name": os.environ["TARGET_PROVIDER_JOB_NAME"],
+              "archive_name": os.environ["ARCHIVE_NAME"],
+              "archive_md5": os.environ["ARCHIVE_MD5"],
+              "cache_path": f"{os.environ['CACHE_ROOT']}/{os.environ['ARCHIVE_NAME']}",
+              "scientific_change": False,
+              "reason": (
+                  "Recover or resume only the official archive acquisition lane; "
+                  "retain the frozen protocol, cohort, provider, thresholds, and "
+                  "marker-access order."
+              ),
+          }
+          if value != expected:
+              raise SystemExit("archive-recovery request content changed")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"request_id={supplied}\n")
+          PY
+
+      - name: Verify target run identity without modifying it
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          import urllib.request
+
+          url = (
+              f"{os.environ['GITHUB_API_URL']}/repos/{os.environ['GITHUB_REPOSITORY']}"
+              f"/actions/runs/{os.environ['TARGET_RUN_ID']}"
+          )
+          request = urllib.request.Request(
+              url,
+              headers={
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {os.environ['GH_TOKEN']}",
+                  "User-Agent": "Prob4D-DOT-archive-recovery/1",
+                  "X-GitHub-Api-Version": "2022-11-28",
+              },
+          )
+          with urllib.request.urlopen(request, timeout=60) as response:
+              run = json.load(response)
+          if run["head_sha"] != os.environ["TARGET_HEAD_SHA"]:
+              raise SystemExit("target run head changed")
+          if run["path"] != os.environ["TARGET_WORKFLOW_PATH"]:
+              raise SystemExit("target workflow changed")
+          print(json.dumps({
+              "run_id": run["id"],
+              "status": run["status"],
+              "conclusion": run.get("conclusion"),
+              "attempt": run["run_attempt"],
+          }, sort_keys=True))
+          PY
+
+  prime:
+    name: Prime exact official archive cache on gpuserver6000
+    needs: authorize
+    environment: trusted-self-hosted-validation
+    runs-on: [self-hosted, gpuserver6000]
+    timeout-minutes: 360
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      need_rerun: ${{ steps.target.outputs.need_rerun }}
+      provider_job_id: ${{ steps.target.outputs.provider_job_id }}
+      receipt_id: ${{ steps.archive.outputs.receipt_id }}
+    steps:
+      - name: Bind the intended recovery runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_NAME" = "workstation2"
+          test "$RUNNER_OS" = "Linux"
+          test "$RUNNER_ARCH" = "X64"
+          command -v md5sum >/dev/null 2>&1
+          command -v curl >/dev/null 2>&1
+          command -v flock >/dev/null 2>&1
+
+      - name: Wait for the target attempt and authorize only pre-provider-seal recovery
+        id: target
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          import time
+          import urllib.request
+
+          api = os.environ["GITHUB_API_URL"]
+          repository = os.environ["GITHUB_REPOSITORY"]
+          run_id = int(os.environ["TARGET_RUN_ID"])
+          headers = {
+              "Accept": "application/vnd.github+json",
+              "Authorization": f"Bearer {os.environ['GH_TOKEN']}",
+              "User-Agent": "Prob4D-DOT-archive-recovery/1",
+              "X-GitHub-Api-Version": "2022-11-28",
+          }
+
+          def get(path):
+              request = urllib.request.Request(
+                  f"{api}/repos/{repository}{path}",
+                  headers=headers,
+              )
+              with urllib.request.urlopen(request, timeout=60) as response:
+                  return json.load(response)
+
+          for _ in range(240):
+              run = get(f"/actions/runs/{run_id}")
+              if run["head_sha"] != os.environ["TARGET_HEAD_SHA"]:
+                  raise SystemExit("target run head changed")
+              if run["path"] != os.environ["TARGET_WORKFLOW_PATH"]:
+                  raise SystemExit("target workflow changed")
+              if run["status"] == "completed":
+                  break
+              time.sleep(30)
+          else:
+              raise SystemExit("target run did not reach a terminal state")
+
+          jobs = get(f"/actions/runs/{run_id}/jobs?per_page=100")["jobs"]
+          matches = [
+              job for job in jobs
+              if job["name"] == os.environ["TARGET_PROVIDER_JOB_NAME"]
+          ]
+          if len(matches) != 1:
+              raise SystemExit("target provider job is unavailable")
+          provider = matches[0]
+
+          if run.get("conclusion") == "success":
+              need_rerun = False
+          else:
+              steps = {step["name"]: step for step in (provider.get("steps") or [])}
+              archive = steps.get("Download and verify the official DOT R01-R10 archive")
+              if archive is None:
+                  raise SystemExit("archive step is unavailable")
+              if archive.get("conclusion") == "success":
+                  raise SystemExit(
+                      "target failed after archive acquisition; archive-only recovery is forbidden"
+                  )
+              forbidden = {
+                  "Predict from marker-free normal-view images only",
+                  "Seal provider bundle before any marker access",
+                  "Upload immutable provider seal before marker evaluation",
+              }
+              for name in forbidden:
+                  step = steps.get(name) or {}
+                  if step.get("status") == "completed" and step.get("conclusion") not in {
+                      None, "skipped"
+                  }:
+                      raise SystemExit(
+                          f"provider advanced beyond archive acquisition at step {name!r}"
+                      )
+              artifacts = get(f"/actions/runs/{run_id}/artifacts?per_page=100")
+              provider_prefix = "dot-rope-cut3r-heldout-provider-gpuserver6000-"
+              if any(
+                  item.get("name", "").startswith(provider_prefix)
+                  for item in artifacts.get("artifacts", [])
+              ):
+                  raise SystemExit("provider seal already exists; archive recovery is forbidden")
+              need_rerun = True
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"need_rerun={'true' if need_rerun else 'false'}\n")
+              output.write(f"provider_job_id={provider['id']}\n")
+          print(json.dumps({
+              "run_id": run_id,
+              "run_conclusion": run.get("conclusion"),
+              "run_attempt": run["run_attempt"],
+              "provider_job_id": provider["id"],
+              "provider_conclusion": provider.get("conclusion"),
+              "need_rerun": need_rerun,
+          }, sort_keys=True))
+          PY
+
+      - name: Reuse, salvage, or resumably acquire the exact official archive
+        id: archive
+        if: steps.target.outputs.need_rerun == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          /usr/bin/mkdir -p "$CACHE_ROOT"
+          exec 9>"$CACHE_ROOT/.archive-recovery.lock"
+          flock -w 300 9
+
+          archive="$CACHE_ROOT/$ARCHIVE_NAME"
+          stable_part="$archive.part"
+          source_kind=""
+          source_path=""
+
+          valid_archive() {
+            local path="$1"
+            [[ -f "$path" ]] || return 1
+            [[ "$(md5sum "$path" | awk '{print $1}')" = "$ARCHIVE_MD5" ]]
+          }
+
+          if valid_archive "$archive"; then
+            source_kind="existing-cache"
+            source_path="$archive"
+          else
+            /usr/bin/rm -f -- "$archive"
+            candidates=(
+              "/mnt/seagate10tb/florianpfaff/datasets/dot/$ARCHIVE_NAME"
+              "/mnt/seagate10tb/florianpfaff/datasets/dot-rope/$ARCHIVE_NAME"
+              "/mnt/lexar4tb/datasets/dot/$ARCHIVE_NAME"
+              "/mnt/lexar4tb/datasets/dot-rope/$ARCHIVE_NAME"
+              "/mnt/lexar4tb/dot/$ARCHIVE_NAME"
+              "/mnt/lexar4tb/dot-rope/$ARCHIVE_NAME"
+            )
+            for candidate in "${candidates[@]}"; do
+              if valid_archive "$candidate"; then
+                temporary="$archive.local-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+                /usr/bin/rm -f -- "$temporary"
+                cp --reflink=auto --sparse=always "$candidate" "$temporary"
+                printf '%s  %s\n' "$ARCHIVE_MD5" "$temporary" | md5sum --check --strict
+                /usr/bin/mv -- "$temporary" "$archive"
+                source_kind="verified-local-copy"
+                source_path="$candidate"
+                break
+              fi
+            done
+          fi
+
+          if [[ -z "$source_kind" ]]; then
+            mapfile -t partials < <(
+              find "$CACHE_ROOT" -maxdepth 1 -type f \
+                \( -name "$ARCHIVE_NAME.part" -o -name "$ARCHIVE_NAME.part-*" \) \
+                -printf '%s\t%p\n' | sort -rn
+            )
+            if [[ ${#partials[@]} -gt 0 ]]; then
+              largest="${partials[0]#*$'\t'}"
+              if [[ "$largest" != "$stable_part" ]]; then
+                if [[ ! -f "$stable_part" || $(stat -c %s "$largest") -gt $(stat -c %s "$stable_part") ]]; then
+                  /usr/bin/mv -- "$largest" "$stable_part"
+                fi
+              fi
+            fi
+
+            read -r file_id expected_bytes < <(
+              python - <<'PY'
+          import json
+          import os
+          import urllib.request
+
+          request = urllib.request.Request(
+              os.environ["DATASET_API"],
+              headers={"User-Agent": "Prob4D-DOT-archive-recovery/1"},
+          )
+          with urllib.request.urlopen(request, timeout=60) as response:
+              metadata = json.load(response)
+          files = metadata["data"]["latestVersion"]["files"]
+          matches = [
+              entry["dataFile"]
+              for entry in files
+              if entry["dataFile"].get("filename") == os.environ["ARCHIVE_NAME"]
+          ]
+          if len(matches) != 1:
+              raise SystemExit("official archive identity is ambiguous")
+          data_file = matches[0]
+          checksum = data_file.get("checksum") or {}
+          if checksum.get("type") != "MD5":
+              raise SystemExit("official archive checksum type changed")
+          if checksum.get("value", "").lower() != os.environ["ARCHIVE_MD5"]:
+              raise SystemExit("official archive checksum changed")
+          print(int(data_file["id"]), int(data_file["filesize"]))
+          PY
+            )
+            if [[ -f "$stable_part" && $(stat -c %s "$stable_part") -gt "$expected_bytes" ]]; then
+              /usr/bin/rm -f -- "$stable_part"
+            fi
+            url="$DATAFILE_API_ROOT/$file_id"
+            if ! curl \
+              --fail \
+              --location \
+              --retry 30 \
+              --retry-all-errors \
+              --retry-delay 5 \
+              --connect-timeout 30 \
+              --max-time 14400 \
+              --speed-time 300 \
+              --speed-limit 1024 \
+              --continue-at - \
+              --output "$stable_part" \
+              "$url"
+            then
+              echo "Resumed transfer failed; retrying one fresh official transfer." >&2
+              /usr/bin/rm -f -- "$stable_part"
+              curl \
+                --fail \
+                --location \
+                --retry 30 \
+                --retry-all-errors \
+                --retry-delay 5 \
+                --connect-timeout 30 \
+                --max-time 14400 \
+                --speed-time 300 \
+                --speed-limit 1024 \
+                --output "$stable_part" \
+                "$url"
+            fi
+            test "$(stat -c %s "$stable_part")" = "$expected_bytes"
+            printf '%s  %s\n' "$ARCHIVE_MD5" "$stable_part" | md5sum --check --strict
+            /usr/bin/mv -- "$stable_part" "$archive"
+            source_kind="resumable-official-download"
+            source_path="$url"
+          fi
+
+          printf '%s  %s\n' "$ARCHIVE_MD5" "$archive" | md5sum --check --strict
+          chmod a-w "$archive"
+
+          ARCHIVE="$archive" SOURCE_KIND="$source_kind" SOURCE_PATH="$source_path" \
+            REQUEST_ID="${{ needs.authorize.outputs.request_id }}" python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          archive = Path(os.environ["ARCHIVE"])
+          receipt = {
+              "schema": "prob4d.dot-r04-r10-archive-cache-recovery-receipt",
+              "schema_version": 1,
+              "request_id": os.environ["REQUEST_ID"],
+              "target_run_id": int(os.environ["TARGET_RUN_ID"]),
+              "target_head_sha": os.environ["TARGET_HEAD_SHA"],
+              "archive_name": os.environ["ARCHIVE_NAME"],
+              "archive_md5": os.environ["ARCHIVE_MD5"],
+              "archive_bytes": archive.stat().st_size,
+              "cache_path": str(archive),
+              "source_kind": os.environ["SOURCE_KIND"],
+              "source_path": os.environ["SOURCE_PATH"],
+              "archive_extracted": False,
+              "normal_view_images_opened": False,
+              "two_dimensional_markers_opened": False,
+              "three_dimensional_markers_opened": False,
+              "scientific_protocol_changed": False,
+          }
+          encoded = json.dumps(
+              receipt,
+              sort_keys=True,
+              separators=(",", ":"),
+              ensure_ascii=False,
+              allow_nan=False,
+          ).encode("utf-8")
+          receipt["receipt_id"] = hashlib.sha256(encoded).hexdigest()
+          output_path = Path(os.environ["CACHE_ROOT"]) / "archive-recovery-receipt.json"
+          output_path.write_text(
+              json.dumps(receipt, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"receipt_id={receipt['receipt_id']}\n")
+          PY
+
+      - name: Upload bounded archive-recovery receipt
+        if: always() && steps.target.outputs.need_rerun == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: dot-r04-r10-archive-recovery-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.CACHE_ROOT }}/archive-recovery-receipt.json
+          if-no-files-found: warn
+          retention-days: 30
+
+  rerun:
+    name: Re-run the frozen provider job and its dependents
+    needs: [authorize, prime]
+    if: needs.prime.outputs.need_rerun == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - name: Re-run the exact failed provider job
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PROVIDER_JOB_ID: ${{ needs.prime.outputs.provider_job_id }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os
+          import urllib.request
+
+          url = (
+              f"{os.environ['GITHUB_API_URL']}/repos/{os.environ['GITHUB_REPOSITORY']}"
+              f"/actions/jobs/{os.environ['PROVIDER_JOB_ID']}/rerun"
+          )
+          request = urllib.request.Request(
+              url,
+              method="POST",
+              headers={
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {os.environ['GH_TOKEN']}",
+                  "Content-Length": "0",
+                  "User-Agent": "Prob4D-DOT-archive-recovery/1",
+                  "X-GitHub-Api-Version": "2022-11-28",
+              },
+          )
+          with urllib.request.urlopen(request, data=b"", timeout=60) as response:
+              if response.status not in {201, 202}:
+                  raise SystemExit(f"unexpected rerun status {response.status}")
+          print(f"rerun requested for provider job {os.environ['PROVIDER_JOB_ID']}")
+          PY
+
+  publish:
+    name: Publish archive-recovery controller decision
+    if: always()
+    needs: [authorize, prime, rerun]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Write recovery summary
+        shell: bash
+        env:
+          AUTHORIZE_RESULT: ${{ needs.authorize.result }}
+          PRIME_RESULT: ${{ needs.prime.result }}
+          NEED_RERUN: ${{ needs.prime.outputs.need_rerun }}
+          PROVIDER_JOB_ID: ${{ needs.prime.outputs.provider_job_id }}
+          RECEIPT_ID: ${{ needs.prime.outputs.receipt_id }}
+          RERUN_RESULT: ${{ needs.rerun.result }}
+        run: |
+          {
+            echo "## Frozen DOT R04-R10 archive recovery"
+            echo
+            echo "- authorization: \`$AUTHORIZE_RESULT\`"
+            echo "- cache prime: \`$PRIME_RESULT\`"
+            echo "- provider rerun required: \`$NEED_RERUN\`"
+            echo "- provider job ID: \`$PROVIDER_JOB_ID\`"
+            echo "- archive receipt ID: \`$RECEIPT_ID\`"
+            echo "- rerun request: \`$RERUN_RESULT\`"
+            echo
+            echo "No archive was extracted and no marker payload was opened by this controller."
+            echo "The frozen protocol, cohort, provider, thresholds, and evaluation order were unchanged."
+          } >> "$GITHUB_STEP_SUMMARY"
