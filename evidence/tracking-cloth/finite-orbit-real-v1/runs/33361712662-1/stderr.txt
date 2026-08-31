@@ -1,0 +1,11 @@
+tracking-cloth finite-orbit evaluation failed: fewer than three common 3-D marker groups: []
+Traceback (most recent call last):
+  File "/home/github-runner/actions-runner/_work/Prob4D/Prob4D/scripts/science/run_tracking_cloth_finite_orbit_real_v1.py", line 1020, in <module>
+    raise SystemExit(main())
+  File "/home/github-runner/actions-runner/_work/Prob4D/Prob4D/scripts/science/run_tracking_cloth_finite_orbit_real_v1.py", line 1015, in main
+    return run(build_parser().parse_args())
+  File "/home/github-runner/actions-runner/_work/Prob4D/Prob4D/scripts/science/run_tracking_cloth_finite_orbit_real_v1.py", line 918, in run
+    common_markers = _common_marker_names(
+  File "/home/github-runner/actions-runner/_work/Prob4D/Prob4D/scripts/science/run_tracking_cloth_finite_orbit_real_v1.py", line 370, in _common_marker_names
+    raise RuntimeError(f"fewer than three common 3-D marker groups: {result}")
+RuntimeError: fewer than three common 3-D marker groups: []
