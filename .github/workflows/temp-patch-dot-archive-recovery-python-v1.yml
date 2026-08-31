@@ -32,22 +32,19 @@ jobs:
 
           path = Path(".github/workflows/recover-dot-r04-r10-archive-cache-v1.yml")
           text = path.read_text(encoding="utf-8")
-          old = '''          command -v flock >/dev/null 2>&1
-
-              - name: Wait for the target attempt and authorize only pre-provider-seal recovery
-          '''
-          new = '''          command -v flock >/dev/null 2>&1
-
-              - name: Set up controller Python 3.12
-                uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-                with:
-                  python-version: "3.12"
-
-              - name: Wait for the target attempt and authorize only pre-provider-seal recovery
-          '''
-          if text.count(old) != 1:
+          marker = "      - name: Wait for the target attempt and authorize only pre-provider-seal recovery\n"
+          insertion = (
+              "      - name: Set up controller Python 3.12\n"
+              "        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0\n"
+              "        with:\n"
+              "          python-version: \"3.12\"\n"
+              "\n"
+          )
+          if text.count(marker) != 1:
               raise SystemExit("controller-Python insertion point changed")
-          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          if insertion in text:
+              raise SystemExit("controller Python is already provisioned")
+          path.write_text(text.replace(marker, insertion + marker, 1), encoding="utf-8")
           PY
 
       - name: Validate bounded diff and action pin
