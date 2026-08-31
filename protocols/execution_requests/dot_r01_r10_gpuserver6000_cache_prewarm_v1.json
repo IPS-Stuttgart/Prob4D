@@ -1,0 +1,12 @@
+{
+  "schema": "prob4d.dot-r01-r10-gpuserver6000-cache-prewarm-request",
+  "schema_version": 1,
+  "runner_label": "gpuserver6000",
+  "runner_name": "workstation2",
+  "archive": "R01-10.zip",
+  "scope": "compressed-archive-cache-only",
+  "archive_may_be_extracted": false,
+  "images_may_be_opened": false,
+  "markers_may_be_opened": false,
+  "scientific_evaluation_authorized": false
+}
