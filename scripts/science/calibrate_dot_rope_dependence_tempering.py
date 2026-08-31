@@ -107,7 +107,7 @@ def _load_protocol(path: Path) -> dict[str, Any]:
         raise ValueError("alpha_grid must retain both endpoint models")
     if any(not math.isfinite(value) or not 0.0 <= value <= 1.0 for value in strengths):
         raise ValueError("alpha_grid strengths must lie in [0, 1]")
-    if any(second <= first for first, second in zip(strengths, strengths[1:], strict=True)):
+    if any(second <= first for first, second in zip(strengths, strengths[1:])):
         raise ValueError("alpha_grid must be strictly increasing")
     return protocol
 
@@ -192,7 +192,10 @@ def select_strength(
     for strength in strengths:
         method = alpha_method_name(strength)
         rows = [row for row in method_rows if row.get("method") == method]
-        by_sequence = {str(row["sequence"]): float(row["normalized_nll_per_dimension"]) for row in rows}
+        by_sequence = {
+            str(row["sequence"]): float(row["normalized_nll_per_dimension"])
+            for row in rows
+        }
         if set(by_sequence) != set(SOURCE_SEQUENCES):
             raise ValueError(f"source score roster is incomplete for {method}")
         values = [by_sequence[sequence] for sequence in SOURCE_SEQUENCES]
