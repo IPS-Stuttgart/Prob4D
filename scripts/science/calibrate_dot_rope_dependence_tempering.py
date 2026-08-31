@@ -74,7 +74,10 @@ def _hex(value: object, *, name: str, length: int) -> str:
 
 def _load_protocol(path: Path) -> dict[str, Any]:
     protocol = _read_json(path)
-    if protocol.get("schema") != PROTOCOL_SCHEMA or protocol.get("schema_version") != SCHEMA_VERSION:
+    if (
+        protocol.get("schema") != PROTOCOL_SCHEMA
+        or protocol.get("schema_version") != SCHEMA_VERSION
+    ):
         raise ValueError("unsupported dependence-tempering source protocol")
     unsigned = dict(protocol)
     protocol_id = unsigned.pop("protocol_id", None)
@@ -107,7 +110,9 @@ def _load_protocol(path: Path) -> dict[str, Any]:
         raise ValueError("alpha_grid must retain both endpoint models")
     if any(not math.isfinite(value) or not 0.0 <= value <= 1.0 for value in strengths):
         raise ValueError("alpha_grid strengths must lie in [0, 1]")
-    if any(second <= first for first, second in zip(strengths, strengths[1:])):
+    if any(
+        second <= first for first, second in zip(strengths, strengths[1:], strict=False)
+    ):
         raise ValueError("alpha_grid must be strictly increasing")
     return protocol
 
@@ -284,7 +289,9 @@ def calibrate(args: argparse.Namespace) -> int:
         difference = max(abs(endpoint_rows[key] - reference_rows[key]) for key in SOURCE_SEQUENCES)
         endpoint_checks[method] = float(difference)
         if difference > 1.0e-10:
-            raise RuntimeError("dependence-tempering endpoint did not reproduce its registered model")
+            raise RuntimeError(
+                "dependence-tempering endpoint did not reproduce its registered model"
+            )
 
     result: dict[str, Any] = {
         "schema": RESULT_SCHEMA,
