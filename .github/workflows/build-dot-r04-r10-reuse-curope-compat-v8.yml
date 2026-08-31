@@ -1,4 +1,4 @@
-name: Build DOT R04-R10 reusable cuRoPE compatibility wiring v8
+name: Finalize DOT R04-R10 cuRoPE compatibility from v8
 
 on:
   push:
@@ -10,11 +10,11 @@ permissions:
   contents: write
 
 jobs:
-  build:
-    name: Reuse validated compatibility payload and commit exact files
+  finalize:
+    name: Commit validated cuRoPE repair with robust assertion
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -28,88 +28,65 @@ jobs:
           cache: pip
           cache-dependency-path: pyproject.toml
 
-      - name: Insert the audited runtime patch and regression assertions
+      - name: Re-execute the validated v10 target transformation
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
-          import base64
-          import re
           from pathlib import Path
 
-          source_builder = Path(
-              ".github/workflows/build-dot-r04-r10-reuse-curope-compat-v7.yml"
-          ).read_text(encoding="utf-8")
-          match = re.search(
-              r'^\s+COMPATIBILITY_B64: "([A-Za-z0-9+/=]+)"$',
-              source_builder,
-              flags=re.MULTILINE,
+          source = Path(
+              ".github/workflows/build-dot-r04-r10-reuse-curope-compat-v10.yml"
+          ).read_text(encoding="utf-8").splitlines()
+          step = source.index("      - name: Insert exact source-bound compatibility block")
+          start = next(
+              index
+              for index in range(step + 1, len(source))
+              if source[index] == "          python - <<'PY'"
           )
-          if match is None:
-              raise SystemExit("validated compatibility payload is unavailable")
-          compatibility = base64.b64decode(
-              match.group(1),
-              validate=True,
-          ).decode("utf-8")
-          required = (
-              ".github/patches/cut3r-curope-torch211-cu126.patch",
-              "7156cd1bb935cb1f0be45e58add53f9c21505c20",
-              "02ddb0912370a67a49fd2bb91164cf2f1da8648e",
-              "tokens.scalar_type()",
-              "arch=compute_89,code=sm_89",
-              "curope-compatibility.json",
+          end = next(
+              index
+              for index in range(start + 1, len(source))
+              if source[index] == "          PY"
           )
-          for item in required:
-              if item not in compatibility:
-                  raise SystemExit(f"validated compatibility payload lacks {item!r}")
-
-          workflow_path = Path(
-              ".github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml"
-          )
-          lines = workflow_path.read_text(encoding="utf-8").splitlines(keepends=True)
-          needle = '          nvcc=""\n'
-          matches = [index for index, line in enumerate(lines) if line == needle]
-          if len(matches) != 1:
-              raise SystemExit(f"held-out nvcc insertion points={matches!r}")
-          index = matches[0]
-          preceding = next(
-              (line.strip() for line in reversed(lines[:index]) if line.strip()),
-              None,
-          )
-          expected_preceding = (
-              '/usr/bin/rm -rf -- "$checkout/src/croco/models/curope/build"'
-          )
-          if preceding != expected_preceding:
-              raise SystemExit(
-                  f"held-out build predecessor changed: {preceding!r}"
-              )
-          lines[index:index] = compatibility.splitlines(keepends=True)
-          workflow_path.write_text("".join(lines), encoding="utf-8", newline="\n")
+          body = source[start + 1 : end]
+          if any(line and not line.startswith("          ") for line in body):
+              raise SystemExit("validated v10 transformation indentation changed")
+          program = "\n".join(line[10:] if line else "" for line in body) + "\n"
+          exec(compile(program, "validated-v10-target-transformation", "exec"), {})
 
           test_path = Path("tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py")
-          test_lines = test_path.read_text(encoding="utf-8").splitlines(keepends=True)
-          test_needle = '    assert "prepare_cut3r_runtime.py" in provider\n'
-          test_matches = [
-              item for item, line in enumerate(test_lines) if line == test_needle
-          ]
-          if len(test_matches) != 1:
+          tests = test_path.read_text(encoding="utf-8")
+          old = '    assert "arch=compute_89,code=sm_89" in provider\n'
+          new = '    assert "compute_89/sm_89" in provider\n'
+          if tests.count(old) != 1:
               raise SystemExit(
-                  f"held-out workflow test insertion points={test_matches!r}"
+                  f"overly literal SM89 assertion count changed: {tests.count(old)}"
               )
-          assertions = [
-              '    assert ".github/patches/cut3r-curope-torch211-cu126.patch" in provider\n',
-              '    assert "7156cd1bb935cb1f0be45e58add53f9c21505c20" in provider\n',
-              '    assert "02ddb0912370a67a49fd2bb91164cf2f1da8648e" in provider\n',
-              '    assert "tokens.scalar_type()" in provider\n',
-              '    assert "arch=compute_89,code=sm_89" in provider\n',
-              '    assert "curope-compatibility.json" in provider\n',
-          ]
-          insert_at = test_matches[0] + 1
-          test_lines[insert_at:insert_at] = assertions
-          test_path.write_text("".join(test_lines), encoding="utf-8", newline="\n")
+          tests = tests.replace(old, new, 1)
+          test_path.write_text(tests, encoding="utf-8", newline="\n")
           PY
 
-      - name: Validate and commit exactly two files
+      - name: Remove all temporary helper workflows before validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f -- \
+            .github/workflows/build-dot-r04-r10-reuse-curope-compat-v1.yml \
+            .github/workflows/build-dot-r04-r10-reuse-curope-compat-v2.yml \
+            .github/workflows/build-dot-r04-r10-reuse-curope-compat-v3.yml \
+            .github/workflows/build-dot-r04-r10-reuse-curope-compat-v4.yml \
+            .github/workflows/build-dot-r04-r10-reuse-curope-compat-v5.yml \
+            .github/workflows/build-dot-r04-r10-reuse-curope-compat-v6.yml \
+            .github/workflows/build-dot-r04-r10-reuse-curope-compat-v7.yml \
+            .github/workflows/build-dot-r04-r10-reuse-curope-compat-v8.yml \
+            .github/workflows/build-dot-r04-r10-reuse-curope-compat-v9.yml \
+            .github/workflows/build-dot-r04-r10-reuse-curope-compat-v10.yml \
+            .github/workflows/build-dot-r04-r10-reuse-curope-compat-v11.yml \
+            .github/workflows/diagnose-dot-r04-r10-v8-helper.yml \
+            CHANGELOG.d/dot-r04-r10-reuse-curope-compat.md
+
+      - name: Validate the repository-visible repair
         shell: bash
         run: |
           set -euo pipefail
@@ -122,27 +99,14 @@ jobs:
             tests/test_github_action_pins.py
           python -m compileall -q tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py
           git diff --check
-          git add -- \
-            .github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml \
-            tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py
-          python - <<'PY'
-          import subprocess
 
-          expected = sorted(
-              [
-                  ".github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml",
-                  "tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py",
-              ]
-          )
-          staged = sorted(
-              subprocess.check_output(
-                  ["git", "diff", "--cached", "--name-only"],
-                  text=True,
-              ).splitlines()
-          )
-          if staged != expected:
-              raise SystemExit(f"unexpected staged paths: {staged!r}")
-          PY
+      - name: Commit the net two-file scientific repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -A -- .github/workflows
+          git add -- tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py
+          test -n "$(git diff --cached --name-only)"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "Reuse audited cuRoPE compatibility in held-out provider"
