@@ -1,0 +1,96 @@
+name: Tracking Cloth taxonomy inventory v1
+
+on:
+  push:
+    branches:
+      - science/tracking-cloth-taxonomy-fix-v1
+    paths:
+      - protocols/execution_requests/tracking_cloth_taxonomy_inventory_v1.trigger
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tracking-cloth-taxonomy-inventory-${{ github.ref }}-${{ github.sha }}
+  cancel-in-progress: false
+
+env:
+  DATASET_ROOT: /home/github-runner/.cache/datasets/tracking-cloth-deformation-v1-zenodo-14644526
+  PROTOCOL_PATH: protocols/tracking-cloth-finite-orbit-real-v1.json
+  OUTPUT_DIR: outputs/tracking-cloth-taxonomy-inventory-v1
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+
+jobs:
+  inventory:
+    name: Inventory 120 recording names on gpuserver4090
+    runs-on: [self-hosted, Linux, X64, gpuserver4090]
+    timeout-minutes: 20
+    steps:
+      - name: Bind intended runner and complete dataset
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_NAME" = "workstation1"
+          test "$RUNNER_OS" = "Linux"
+          test "$RUNNER_ARCH" = "X64"
+          test -d "$DATASET_ROOT"
+          test "$(find "$DATASET_ROOT" -type f -iname '*.csv' -printf '.' | wc -c)" -eq 120
+          test -x /usr/bin/python3
+
+      - name: Check out exact triggering revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          clean: true
+
+      - name: Verify clean exact checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test -f "$PROTOCOL_PATH"
+          /usr/bin/python3 -m py_compile scripts/science/inventory_tracking_cloth_taxonomy_v1.py
+
+      - name: Build metadata-only taxonomy inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf -- "$OUTPUT_DIR"
+          /usr/bin/python3 scripts/science/inventory_tracking_cloth_taxonomy_v1.py \
+            --dataset-root "$DATASET_ROOT" \
+            --protocol "$PROTOCOL_PATH" \
+            --output-dir "$OUTPUT_DIR"
+
+      - name: Enforce information boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          /usr/bin/python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          result = json.loads(
+              Path("outputs/tracking-cloth-taxonomy-inventory-v1/result.json").read_text()
+          )
+          assert result["csv_file_count"] == 120
+          boundary = result["information_boundary"]
+          assert boundary["csv_file_contents_opened"] is False
+          assert boundary["csv_metadata_read"] is True
+          assert boundary["relative_paths_read"] is True
+          assert boundary["dataset_mutated"] is False
+          print(result["alias_counts"])
+          print("unassigned", result["unassigned_count"])
+          PY
+          cat "$OUTPUT_DIR/summary.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload metadata-only inventory
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: tracking-cloth-taxonomy-inventory-v1-${{ github.sha }}
+          path: outputs/tracking-cloth-taxonomy-inventory-v1/
+          if-no-files-found: error
+          retention-days: 14
