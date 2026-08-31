@@ -1,0 +1,163 @@
+name: DEFORM DLO4/DLO5 one-shot PR reconciliation
+
+on:
+  push:
+    branches:
+      - science/deform-dlo45-query-observability-real-v1
+    paths:
+      - protocols/execution_requests/deform_dlo45_pr_reconcile_once.trigger
+
+permissions:
+  contents: write
+
+concurrency:
+  group: deform-dlo45-pr-reconcile-once-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    name: Format, validate, and remove one-shot machinery
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out the exact experiment branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: science/deform-dlo45-query-observability-real-v1
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Install the pinned project development environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --no-cache-dir -e ".[dev]"
+
+      - name: Apply mechanical Ruff fixes and formatting
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=(
+            scripts/science/audit_deform_dlo45_local_segments_official_v2.py
+            scripts/science/audit_deform_dlo45_local_segments_v2.py
+            scripts/science/audit_deform_dlo45_observability_official_mirror_v1.py
+            scripts/science/audit_deform_dlo45_observability_v1.py
+            scripts/science/calibrate_deform_dlo45_query_gate_official_v1.py
+            scripts/science/calibrate_deform_dlo45_query_gate_v1.py
+            scripts/science/evaluate_deform_dlo45_query_observability_official_v1.py
+            scripts/science/evaluate_deform_dlo45_query_observability_v1.py
+          )
+          python -m ruff check --fix -- "${files[@]}"
+          python -m ruff format -- "${files[@]}"
+          python -m ruff check -- "${files[@]}"
+          python -m ruff format --check -- "${files[@]}"
+
+      - name: Run focused mechanism and integration tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pytest -q \
+            tests/test_observable_gauge.py \
+            tests/test_query_observability.py \
+            tests/test_axial_query_certificate.py \
+            tests/test_axial_query_certificate_integration.py
+          python -m compileall -q \
+            scripts/science/audit_deform_dlo45_local_segments_official_v2.py \
+            scripts/science/audit_deform_dlo45_local_segments_v2.py \
+            scripts/science/audit_deform_dlo45_observability_official_mirror_v1.py \
+            scripts/science/audit_deform_dlo45_observability_v1.py \
+            scripts/science/calibrate_deform_dlo45_query_gate_official_v1.py \
+            scripts/science/calibrate_deform_dlo45_query_gate_v1.py \
+            scripts/science/evaluate_deform_dlo45_query_observability_official_v1.py \
+            scripts/science/evaluate_deform_dlo45_query_observability_v1.py
+
+      - name: Validate immutable JSON evidence and requests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          paths = [
+              Path("evidence/deform-dlo45-query-observability-heldout-v1/summary.json"),
+              Path("protocols/execution_requests/deform_dlo45_local_segment_source_v2.json"),
+              Path("protocols/execution_requests/deform_dlo45_observability_hosted_v1.json"),
+              Path("protocols/execution_requests/deform_dlo45_observability_official_mirror_v1.json"),
+              Path("protocols/execution_requests/deform_dlo45_observability_source_v1.json"),
+              Path("protocols/execution_requests/deform_dlo45_query_gate_source_v1.json"),
+              Path("protocols/execution_requests/deform_dlo45_query_observability_eval_v1.json"),
+          ]
+          for path in paths:
+              with path.open(encoding="utf-8") as stream:
+                  json.load(stream)
+          summary = json.loads(paths[0].read_text(encoding="utf-8"))
+          assert summary["decision"] == "pass"
+          assert summary["heldout_result_id"] == (
+              "1ac8cd083b39877888ea0eb2f4b9400ca89eda09436f25f5f0a6f43b154b1007"
+          )
+          assert summary["accounting"]["independent_groups"] == 28
+          assert all(summary["criteria"].values())
+          PY
+
+      - name: Remove temporary formatting machinery
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f -- \
+            .github/workflows/deform-dlo45-mechanical-format-fix.yml \
+            .github/workflows/deform-dlo45-pr-reconcile-once.yml \
+            protocols/execution_requests/deform_dlo45_mechanical_format_fix.trigger \
+            protocols/execution_requests/deform_dlo45_pr_reconcile_once.trigger
+
+      - name: Verify the bounded change set
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import subprocess
+
+          allowed = {
+              ".github/workflows/deform-dlo45-mechanical-format-fix.yml",
+              ".github/workflows/deform-dlo45-pr-reconcile-once.yml",
+              "protocols/execution_requests/deform_dlo45_mechanical_format_fix.trigger",
+              "protocols/execution_requests/deform_dlo45_pr_reconcile_once.trigger",
+              "scripts/science/audit_deform_dlo45_local_segments_official_v2.py",
+              "scripts/science/audit_deform_dlo45_local_segments_v2.py",
+              "scripts/science/audit_deform_dlo45_observability_official_mirror_v1.py",
+              "scripts/science/audit_deform_dlo45_observability_v1.py",
+              "scripts/science/calibrate_deform_dlo45_query_gate_official_v1.py",
+              "scripts/science/calibrate_deform_dlo45_query_gate_v1.py",
+              "scripts/science/evaluate_deform_dlo45_query_observability_official_v1.py",
+              "scripts/science/evaluate_deform_dlo45_query_observability_v1.py",
+          }
+          changed = set(
+              subprocess.check_output(
+                  ["git", "status", "--porcelain=v1"],
+                  text=True,
+              ).splitlines()
+          )
+          paths = {line[3:] for line in changed if len(line) >= 4}
+          unexpected = paths - allowed
+          if unexpected:
+              raise SystemExit(f"unexpected changed paths: {sorted(unexpected)}")
+          PY
+
+      - name: Commit the mechanical-only reconciliation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && {
+            echo "No reconciliation changes remained to commit."
+            exit 0
+          }
+          git commit -m "Reconcile DLO evidence formatting and remove one-shot helpers"
+          git push origin HEAD:science/deform-dlo45-query-observability-real-v1
