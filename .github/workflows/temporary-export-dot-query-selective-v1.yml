@@ -1,0 +1,70 @@
+name: Finalize DOT R11-R30 gpuserver6000 control plane
+
+on:
+  push:
+    branches:
+      - science/dot-query-selective-r11-r30-gpuserver6000-v2
+    paths:
+      - ".github/workflows/temporary-export-dot-query-selective-v1.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: github.actor == 'FlorianPfaff' && github.repository == 'IPS-Stuttgart/Prob4D'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+          persist-credentials: true
+          clean: true
+      - name: Apply deterministic routing transformation
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .github/tmp/dot-r11-finalize-0{0,1,2,3}.py > "$RUNNER_TEMP/finalize-dot-r11.py"
+          python "$RUNNER_TEMP/finalize-dot-r11.py"
+          rm -f .github/tmp/dot-r11-finalize-0{0,1,2,3}.py
+          rm -f .github/workflows/temporary-export-dot-query-selective-v1.yml
+          git diff --check
+          python - <<'PY'
+          from pathlib import Path
+
+          workflow = Path('.github/workflows/dot-rope-query-selective-heldout-v1.yml').read_text()
+          test = Path('tests/test_dot_rope_query_selective_heldout_workflow.py').read_text()
+          assert 'runs-on: [self-hosted, gpuserver6000]' in workflow
+          assert 'test "$RUNNER_NAME" = "workstation2"' in workflow
+          assert 'Resolve, download, and verify official R11-R30 archives' in workflow
+          assert '--continue-at -' in workflow
+          assert 'R31-R70 remained unopened' in workflow
+          assert 'runs-on: [self-hosted, Linux, X64, gpuserver4090]' not in workflow
+          assert 'selector = "runs-on: [self-hosted, gpuserver6000]"' in test
+          assert not Path('protocols/execution_requests/dot_rope_query_selective_heldout_v1.json').exists()
+          PY
+      - name: Commit exact reviewed-branch files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          mapfile -t changed < <(git diff --cached --name-only | sort)
+          expected=(
+            .github/tmp/dot-r11-finalize-00.py
+            .github/tmp/dot-r11-finalize-01.py
+            .github/tmp/dot-r11-finalize-02.py
+            .github/tmp/dot-r11-finalize-03.py
+            .github/workflows/dot-rope-query-selective-heldout-v1.yml
+            .github/workflows/temporary-export-dot-query-selective-v1.yml
+            tests/test_dot_rope_query_selective_heldout_workflow.py
+          )
+          test "${#changed[@]}" -eq "${#expected[@]}"
+          for index in "${!expected[@]}"; do
+            test "${changed[$index]}" = "${expected[$index]}"
+          done
+          git commit -m "Route frozen DOT R11-R30 provider to gpuserver6000"
+          git push origin "HEAD:${{ github.ref_name }}"
