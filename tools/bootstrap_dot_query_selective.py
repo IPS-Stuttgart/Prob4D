@@ -12,11 +12,16 @@ import tarfile
 from pathlib import Path, PurePosixPath
 
 BRANCH = "science/dot-query-selective-r11-r30-v1"
-EXPECTED_PARENT = "8eaa70676a922c7e5e3a4c1fdc2234ea7ae1455f"
+EXPECTED_PARENT = "8cc9d20ce9133773681531445247137b62161c35"
 EXPECTED_POLICY_BLOB = "fa3d3944aa8f0b6e17e37212ea086687e92ee501"
 EXPECTED_PAYLOAD_SHA256 = "71aadf3310939c27a5f3d3e924fc499666ab6e4eaae85e1d2981e4f6e68ca8ab"
-CHUNK_COUNT = 4
-CHUNK_TEMPLATE = "tools/dot_query_payload_part_{:02d}.txt"
+CHUNKS = (
+    "tools/dot_query_payload_head_00.txt",
+    "tools/dot_query_payload_head_01.txt",
+    "tools/dot_query_payload_part_01.txt",
+    "tools/dot_query_payload_part_02.txt",
+    "tools/dot_query_payload_part_03.txt",
+)
 BOOTSTRAP_PATH = Path("tools/bootstrap_dot_query_selective.py")
 WORKFLOW_PATH = Path(".github/workflows/bootstrap-dot-query-selective-v1.yml")
 POLICY_PATH = Path("tests/test_trusted_self_hosted_validation_policy.py")
@@ -48,8 +53,8 @@ def main() -> int:
         raise SystemExit("trusted self-hosted policy bytes changed")
 
     encoded = "".join(
-        Path(CHUNK_TEMPLATE.format(index)).read_text(encoding="ascii").strip()
-        for index in range(CHUNK_COUNT)
+        Path(path).read_text(encoding="ascii").strip()
+        for path in CHUNKS
     )
     payload = base64.b64decode(encoded, validate=True)
     if hashlib.sha256(payload).hexdigest() != EXPECTED_PAYLOAD_SHA256:
@@ -77,7 +82,8 @@ def main() -> int:
                 target.write_bytes(source.read())
 
     paths_to_remove = [BOOTSTRAP_PATH, WORKFLOW_PATH]
-    paths_to_remove.extend(Path(CHUNK_TEMPLATE.format(index)) for index in range(CHUNK_COUNT))
+    paths_to_remove.extend(Path(path) for path in CHUNKS)
+    paths_to_remove.append(Path("tools/dot_query_payload_part_00.txt"))
     for path in paths_to_remove:
         path.unlink()
 
