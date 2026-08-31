@@ -1,0 +1,48 @@
+name: Apply exact DOT query Ruff fix
+
+on:
+  push:
+    branches: [science/dot-query-selective-r11-r30-v1]
+    paths:
+      - ".github/workflows/apply-dot-query-ruff-fix.yml"
+      - "tools/dot-query-ruff.patch"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-dot-query-ruff-fix
+  cancel-in-progress: false
+
+jobs:
+  fix:
+    if: >-
+      github.repository == 'IPS-Stuttgart/Prob4D' &&
+      github.actor == 'FlorianPfaff' &&
+      github.ref == 'refs/heads/science/dot-query-selective-r11-r30-v1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact fix revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: true
+          clean: true
+      - name: Apply exact one-line Ruff correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "2bb71e7e64b8c4b0376b694b8e12f75bf5fc6b1e"
+          test "$(git hash-object scripts/science/run_dot_rope_query_selective_heldout.py)" = "afcf43562f70053269c5a8e7c2ace2a209bcf519"
+          git apply --check tools/dot-query-ruff.patch
+          git apply tools/dot-query-ruff.patch
+          rm tools/dot-query-ruff.patch
+          python3 -m py_compile scripts/science/run_dot_rope_query_selective_heldout.py
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Apply authoritative Ruff fix [skip ci]"
+          git push origin HEAD:science/dot-query-selective-r11-r30-v1
