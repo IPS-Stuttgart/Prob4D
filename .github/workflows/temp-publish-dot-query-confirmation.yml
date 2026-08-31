@@ -1,0 +1,131 @@
+name: Temporary publish DOT query confirmation evidence
+
+on:
+  workflow_run:
+    workflows: ["DOT rope natural-factor query-observability confirmation v1"]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish:
+    if: github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out current main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Download and validate completed evidence
+        id: evidence
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN_ID: ${{ github.event.workflow_run.id }}
+          SOURCE_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          SOURCE_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/dot-query-publish-$SOURCE_RUN_ID"
+          rm -rf -- "$root"
+          mkdir -p "$root"
+          destination="evidence/dot-rope-query-observability-confirmation-v1"
+          mkdir -p "$destination"
+          if [[ "$SOURCE_CONCLUSION" != "success" ]]; then
+            SOURCE_RUN_ID="$SOURCE_RUN_ID" SOURCE_CONCLUSION="$SOURCE_CONCLUSION" \
+              SOURCE_HEAD_SHA="$SOURCE_HEAD_SHA" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          value = {
+              "schema": "prob4d.dot-rope-query-observability-confirmation-run-failure",
+              "schema_version": 1,
+              "workflow_run_id": int(os.environ["SOURCE_RUN_ID"]),
+              "workflow_conclusion": os.environ["SOURCE_CONCLUSION"],
+              "authorized_revision": os.environ["SOURCE_HEAD_SHA"],
+              "scientific_result_available": False,
+              "claim_boundary": "Technical workflow failure only; no scientific conclusion is inferred.",
+          }
+          Path(
+              "evidence/dot-rope-query-observability-confirmation-v1/"
+              "technical-failure.json"
+          ).write_text(json.dumps(value, indent=2, sort_keys=True) + "\n")
+          PY
+            echo "decision=technical-failure" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          artifact=$(gh api \
+            "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID/artifacts?per_page=100" \
+            --jq '[.artifacts[] | select(.name | startswith("dot-rope-query-observability-confirmation-"))] | if length == 1 then .[0] else error("expected one confirmation evidence artifact") end')
+          artifact_id=$(jq -r .id <<<"$artifact")
+          artifact_digest=$(jq -r .digest <<<"$artifact")
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact_id/zip" > "$root/artifact.zip"
+          unzip -q "$root/artifact.zip" -d "$root/artifact"
+          mapfile -t results < <(find "$root/artifact" -type f -name result.json | sort)
+          mapfile -t summaries < <(find "$root/artifact" -type f -name SUMMARY.md | sort)
+          test ${#results[@]} -eq 1
+          test ${#summaries[@]} -eq 1
+          RESULT="${results[0]}" SOURCE_RUN_ID="$SOURCE_RUN_ID" \
+            SOURCE_HEAD_SHA="$SOURCE_HEAD_SHA" ARTIFACT_ID="$artifact_id" \
+            ARTIFACT_DIGEST="$artifact_digest" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          source = Path(os.environ["RESULT"])
+          result = json.loads(source.read_text())
+          assert result["schema"] == (
+              "prob4d.dot-rope-query-observability-confirmation-result"
+          )
+          boundary = result["information_boundary"]
+          assert boundary["confirmation_provider_predictions_sealed_before_marker_evaluation"] is True
+          assert boundary["retained_R11_R70_payloads_opened"] is False
+          assert boundary["post_confirmation_retuning_permitted"] is False
+          publication = {
+              "schema": "prob4d.dot-rope-query-observability-confirmation-publication",
+              "schema_version": 1,
+              "workflow_run_id": int(os.environ["SOURCE_RUN_ID"]),
+              "authorized_revision": os.environ["SOURCE_HEAD_SHA"],
+              "artifact_id": int(os.environ["ARTIFACT_ID"]),
+              "artifact_digest": os.environ["ARTIFACT_DIGEST"],
+              "result_id": result["result_id"],
+              "decision": result["decision"],
+              "source_calibration_id": result["source_calibration"]["calibration_id"],
+              "source_calibration_decision": result["source_calibration"]["decision"],
+              "confirmation_marker_payloads_opened": boundary[
+                  "confirmation_marker_payloads_opened"
+              ],
+              "retained_R11_R70_payloads_opened": False,
+              "post_confirmation_retuning_permitted": False,
+          }
+          destination = Path(
+              "evidence/dot-rope-query-observability-confirmation-v1"
+          )
+          destination.joinpath("result.json").write_text(
+              json.dumps(result, indent=2, sort_keys=True, allow_nan=False) + "\n"
+          )
+          destination.joinpath("publication.json").write_text(
+              json.dumps(publication, indent=2, sort_keys=True) + "\n"
+          )
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"decision={result['decision']}\n")
+              output.write(f"result_id={result['result_id']}\n")
+          PY
+          cp "${summaries[0]}" "$destination/SUMMARY.md"
+      - name: Remove publisher and commit immutable receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/temp-publish-dot-query-confirmation.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Publish DOT query-observability confirmation evidence"
+          git pull --rebase origin main
+          git push origin HEAD:main
