@@ -1,0 +1,631 @@
+name: DOT rope CUT3R held-out confirmation v1
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml"
+      - "protocols/dot-rope-cut3r-heldout-confirmation-v1.json"
+      - "scripts/science/run_dot_rope_cut3r_heldout_confirmation.py"
+      - "tests/test_dot_rope_cut3r_heldout_confirmation.py"
+      - "tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py"
+      - "tests/test_trusted_self_hosted_validation_policy.py"
+  push:
+    branches: [main]
+    paths:
+      - "protocols/execution_requests/dot_rope_cut3r_heldout_confirmation_v1.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dot-rope-cut3r-heldout-confirmation-v1-${{ github.ref }}-${{ github.sha }}
+  cancel-in-progress: false
+
+env:
+  REQUEST_PATH: protocols/execution_requests/dot_rope_cut3r_heldout_confirmation_v1.json
+  PROTOCOL_PATH: protocols/dot-rope-cut3r-heldout-confirmation-v1.json
+  DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/dot
+  CUT3R_RUNTIME_ROOT: /home/github-runner/.cache/prob4d/cut3r-runtime-v1
+  CUT3R_RUNTIME_CHECKOUT: /home/github-runner/.cache/prob4d/cut3r-runtime-v1/CUT3R
+  CUT3R_RUNTIME_PYTHON: /home/github-runner/.cache/prob4d/cut3r-runtime-v1/venv/bin/python
+  CUT3R_RUNTIME_CHECKPOINT: /home/github-runner/.cache/prob4d/cut3r-runtime-v1/cut3r_512_dpt_4_64.pth
+  CUT3R_RUNTIME_MANIFEST: /home/github-runner/.cache/prob4d/cut3r-runtime-v1/bootstrap-manifest.json
+  CUT3R_REVISION: 8bc15dc92a6d7fd92920b4ec81540d3dec7d3ecf
+  CUT3R_CHECKPOINT_SHA256: 45f7e98a0a64dbeb54901ae2b878cd8cd125f20a4497316483f0bd6f109f8103
+  ARCHIVE_NAME: R01-10.zip
+  ARCHIVE_MD5: ca546ff5f22c0279123ccb18509858ee
+  DATASET_API: https://dataverse.orc.gmu.edu/api/datasets/:persistentId/?persistentId=doi:10.13021/ORC2020/XXLVXM
+  DATAFILE_API_ROOT: https://dataverse.orc.gmu.edu/api/access/datafile
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+
+jobs:
+  contract:
+    name: Validate frozen held-out confirmation control plane
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out reviewed revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          clean: true
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Validate frozen protocol, runner, and custody
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -e ".[dev]"
+          python -m pip check
+          python -m ruff check \
+            scripts/science/run_dot_rope_cut3r_heldout_confirmation.py \
+            tests/test_dot_rope_cut3r_heldout_confirmation.py \
+            tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py \
+            tests/test_trusted_self_hosted_validation_policy.py
+          python -m ruff format --check \
+            scripts/science/run_dot_rope_cut3r_heldout_confirmation.py \
+            tests/test_dot_rope_cut3r_heldout_confirmation.py \
+            tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py \
+            tests/test_trusted_self_hosted_validation_policy.py
+          python -m pytest -q \
+            tests/test_dot_rope_cut3r_heldout_confirmation.py \
+            tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py \
+            tests/test_trusted_self_hosted_validation_policy.py \
+            tests/test_github_action_pins.py
+          python -m compileall -q scripts/science/run_dot_rope_cut3r_heldout_confirmation.py
+
+  authorize:
+    name: Authorize one immutable held-out request
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      request_id: ${{ steps.request.outputs.request_id }}
+      head_sha: ${{ steps.request.outputs.head_sha }}
+      protocol_git_blob_sha: ${{ steps.request.outputs.protocol_git_blob_sha }}
+    steps:
+      - name: Check out exact merged revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+          clean: true
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Require exactly one non-forced confirmation-request change
+        id: request
+        shell: bash
+        env:
+          EVENT_REF: ${{ github.ref }}
+          EVENT_BEFORE: ${{ github.event.before }}
+          EVENT_AFTER: ${{ github.event.after }}
+          EVENT_FORCED: ${{ github.event.forced }}
+          EVENT_DELETED: ${{ github.event.deleted }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_REF" = "refs/heads/main"
+          test "$EVENT_AFTER" = "$(git rev-parse HEAD)"
+          test "$EVENT_FORCED" = "false"
+          test "$EVENT_DELETED" = "false"
+          test "$EVENT_BEFORE" != "0000000000000000000000000000000000000000"
+          mapfile -t changed < <(git diff --name-only "$EVENT_BEFORE" "$EVENT_AFTER" | sort)
+          if [[ ${#changed[@]} -ne 1 || "${changed[0]}" != "$REQUEST_PATH" ]]; then
+            printf 'Expected only %s; changed paths were:\n' "$REQUEST_PATH" >&2
+            printf '  %s\n' "${changed[@]}" >&2
+            exit 2
+          fi
+          protocol_blob=$(git rev-parse "$EVENT_AFTER:$PROTOCOL_PATH")
+          python -m pip install -e .
+          validation=$(
+            python scripts/science/run_dot_rope_cut3r_heldout_confirmation.py \
+              validate-request \
+              --request "$REQUEST_PATH" \
+              --protocol "$PROTOCOL_PATH" \
+              --protocol-git-blob-sha "$protocol_blob"
+          )
+          VALIDATION="$validation" PROTOCOL_BLOB="$protocol_blob" EVENT_AFTER="$EVENT_AFTER" \
+            python - <<'PY'
+          import json
+          import os
+
+          value = json.loads(os.environ["VALIDATION"])
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"request_id={value['request_id']}\n")
+              output.write(f"head_sha={os.environ['EVENT_AFTER']}\n")
+              output.write(f"protocol_git_blob_sha={os.environ['PROTOCOL_BLOB']}\n")
+          PY
+
+  provider:
+    name: Seal marker-free R04-R10 CUT3R predictions
+    if: github.event_name == 'push'
+    needs: authorize
+    environment: trusted-self-hosted-validation
+    runs-on: [self-hosted, Linux, X64, gpuserver4090]
+    timeout-minutes: 360
+    permissions:
+      contents: read
+    outputs:
+      decision: ${{ steps.result.outputs.decision }}
+      provider_bundle_id: ${{ steps.result.outputs.provider_bundle_id }}
+    steps:
+      - name: Initialize isolated provider workspace
+        id: workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${RUNNER_TEMP}/prob4d-dot-heldout-provider-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          /usr/bin/rm -rf -- "$root"
+          /usr/bin/mkdir -p "$root/provider" "$root/home" "$root/cache" "$root/tmp"
+          echo "root=$root" >> "$GITHUB_OUTPUT"
+          {
+            echo "HOME=$root/home"
+            echo "XDG_CACHE_HOME=$root/cache"
+            echo "TMPDIR=$root/tmp"
+            echo "TORCH_EXTENSIONS_DIR=$root/cache/torch-extensions"
+            echo "WANDB_MODE=disabled"
+            echo "WANDB_DISABLED=true"
+          } >> "$GITHUB_ENV"
+      - name: Require intended runner and official R01-10 archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_NAME" = "workstation1"
+          test "$RUNNER_OS" = "Linux"
+          test "$RUNNER_ARCH" = "X64"
+          command -v nvidia-smi >/dev/null 2>&1
+          test -d "$DATASET_ROOT"
+          test ! -L "$DATASET_ROOT"
+          test -f "$DATASET_ROOT/$ARCHIVE_NAME"
+          test -r "$DATASET_ROOT/$ARCHIVE_NAME"
+          printf '%s  %s\n' "$ARCHIVE_MD5" "$DATASET_ROOT/$ARCHIVE_NAME" | md5sum --check --strict
+          nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv,noheader
+      - name: Check out exact authorized revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.authorize.outputs.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+      - name: Verify clean exact checkout
+        shell: bash
+        env:
+          EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Bind persistent CUDA 12.6 CUT3R runtime
+        id: runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -x "$CUT3R_RUNTIME_PYTHON"
+          test -d "$CUT3R_RUNTIME_CHECKOUT/.git"
+          test -f "$CUT3R_RUNTIME_CHECKPOINT"
+          test -f "$CUT3R_RUNTIME_MANIFEST"
+          test "$(git -C "$CUT3R_RUNTIME_CHECKOUT" rev-parse HEAD)" = "$CUT3R_REVISION"
+          test "$(sha256sum "$CUT3R_RUNTIME_CHECKPOINT" | awk '{print $1}')" = \
+            "$CUT3R_CHECKPOINT_SHA256"
+          MANIFEST="$CUT3R_RUNTIME_MANIFEST" \
+            EXPECTED_REVISION="$CUT3R_REVISION" \
+            EXPECTED_CHECKPOINT_SHA256="$CUT3R_CHECKPOINT_SHA256" \
+            EXPECTED_PYTHON="$CUT3R_RUNTIME_PYTHON" \
+            "$CUT3R_RUNTIME_PYTHON" - <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          manifest = json.loads(Path(os.environ["MANIFEST"]).read_text(encoding="utf-8"))
+          if manifest.get("schema") != "prob4d.dot-cut3r-gpuserver4090-runtime-bootstrap":
+              raise SystemExit("runtime manifest schema changed")
+          if manifest.get("schema_version") != 4:
+              raise SystemExit("runtime manifest version changed")
+          if manifest.get("cut3r_revision") != os.environ["EXPECTED_REVISION"]:
+              raise SystemExit("runtime manifest binds another CUT3R revision")
+          checkpoint = manifest.get("checkpoint") or {}
+          if checkpoint.get("sha256") != os.environ["EXPECTED_CHECKPOINT_SHA256"]:
+              raise SystemExit("runtime manifest binds another checkpoint")
+          if manifest.get("runtime_python") != os.environ["EXPECTED_PYTHON"]:
+              raise SystemExit("runtime manifest binds another interpreter")
+          if not str(manifest.get("torch_version", "")).startswith("2.11.0"):
+              raise SystemExit("runtime manifest binds another Torch version")
+          if manifest.get("torch_cuda_version") != "12.6":
+              raise SystemExit("runtime manifest binds another CUDA version")
+          if manifest.get("cuda_available") is not True:
+              raise SystemExit("runtime manifest does not attest CUDA")
+          if manifest.get("dot_dataset_accessed") is not False:
+              raise SystemExit("runtime bootstrap crossed the DOT data boundary")
+          native_id = manifest.get("native_rope_artifact_id")
+          if not isinstance(native_id, str) or re.fullmatch(r"[0-9a-f]{64}", native_id) is None:
+              raise SystemExit("runtime manifest has no native RoPE identity")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"native_rope_artifact_id={native_id}\n")
+          PY
+      - name: Copy and attest native runtime without opening DOT
+        shell: bash
+        env:
+          NATIVE_ROPE_ARTIFACT_ID: ${{ steps.runtime.outputs.native_rope_artifact_id }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          mkdir -p "$root/CUT3R"
+          cp -a "$CUT3R_RUNTIME_CHECKOUT/." "$root/CUT3R/"
+          REQUEST_PATH=__heldout_runtime_verification__ \
+            PYTHONPATH="$GITHUB_WORKSPACE/src" \
+            "$CUT3R_RUNTIME_PYTHON" \
+            scripts/science/prepare_cut3r_runtime.py \
+              --cut3r-checkout "$root/CUT3R" \
+              --expected-artifact-id "$NATIVE_ROPE_ARTIFACT_ID" \
+              --output "$root/provider/runtime-receipt.json"
+      - name: Enable exact hash-bound legacy checkpoint load in isolated copy
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          CHECKOUT="$root/CUT3R" CHECKPOINT="$CUT3R_RUNTIME_CHECKPOINT" \
+            EXPECTED_CHECKPOINT="$CUT3R_CHECKPOINT_SHA256" \
+            "$CUT3R_RUNTIME_PYTHON" - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          checkout = Path(os.environ["CHECKOUT"]).resolve(strict=True)
+          checkpoint = Path(os.environ["CHECKPOINT"]).resolve(strict=True)
+          digest = hashlib.sha256(checkpoint.read_bytes()).hexdigest()
+          if digest != os.environ["EXPECTED_CHECKPOINT"]:
+              raise SystemExit("held-out checkpoint bytes changed")
+          model = checkout / "src/dust3r/model.py"
+          source = model.read_bytes()
+          header = f"blob {len(source)}\0".encode("ascii")
+          blob = hashlib.sha1(header + source, usedforsecurity=False).hexdigest()
+          if blob != "7ed9f6106fb063686990c874ede99876ebc939ab":
+              raise SystemExit("held-out CUT3R model source blob changed")
+          original = '    ckpt = torch.load(model_path, map_location="cpu")\n'
+          patched = '    ckpt = torch.load(model_path, map_location="cpu", weights_only=False)\n'
+          text = source.decode("utf-8")
+          if text.count(original) != 1 or patched in text:
+              raise SystemExit("held-out CUT3R load call changed")
+          output = text.replace(original, patched, 1).encode("utf-8")
+          model.write_bytes(output)
+          receipt = {
+              "schema": "prob4d.dot-cut3r-heldout-checkpoint-compatibility",
+              "schema_version": 1,
+              "cut3r_revision": os.environ.get("CUT3R_REVISION"),
+              "source_git_blob_sha1": blob,
+              "source_sha256": hashlib.sha256(source).hexdigest(),
+              "patched_sha256": hashlib.sha256(output).hexdigest(),
+              "checkpoint_sha256": digest,
+              "policy": "weights_only=False only after exact source and checkpoint verification",
+              "dot_payloads_opened": False,
+          }
+          Path(os.environ["RUNNER_TEMP"], "dot-heldout-checkpoint-compatibility.json").write_text(
+              json.dumps(receipt, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          cp "$RUNNER_TEMP/dot-heldout-checkpoint-compatibility.json" "$root/provider/"
+      - name: Predict R04-R10 from normal-view images only
+        id: execute
+        continue-on-error: true
+        shell: bash
+        env:
+          REQUEST_ID: ${{ needs.authorize.outputs.request_id }}
+          EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          PYTHONPATH="$GITHUB_WORKSPACE/src:$GITHUB_WORKSPACE/scripts/science" \
+            "$CUT3R_RUNTIME_PYTHON" \
+            scripts/science/run_dot_rope_cut3r_heldout_confirmation.py \
+              predict \
+              --protocol "$PROTOCOL_PATH" \
+              --request-id "$REQUEST_ID" \
+              --prob4d-revision "$EXPECTED_HEAD_SHA" \
+              --dataset-root "$DATASET_ROOT" \
+              --cut3r-checkout "$root/CUT3R" \
+              --checkpoint "$CUT3R_RUNTIME_CHECKPOINT" \
+              --runtime-receipt "$root/provider/runtime-receipt.json" \
+              --output-dir "$root/provider/bundle"
+      - name: Read sealed provider result
+        id: result
+        if: always()
+        shell: bash
+        env:
+          EXECUTION_OUTCOME: ${{ steps.execute.outcome }}
+        run: |
+          set -euo pipefail
+          manifest="${{ steps.workspace.outputs.root }}/provider/bundle/manifest.json"
+          if [[ "$EXECUTION_OUTCOME" != "success" || ! -f "$manifest" ]]; then
+            echo "decision=technical-failure" >> "$GITHUB_OUTPUT"
+            echo "provider_bundle_id=unavailable" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          MANIFEST="$manifest" python - <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          value = json.loads(Path(os.environ["MANIFEST"]).read_text(encoding="utf-8"))
+          if value.get("decision") != "sealed-provider-predictions":
+              raise SystemExit("held-out provider did not seal predictions")
+          bundle_id = value.get("provider_bundle_id", "")
+          if re.fullmatch(r"[0-9a-f]{64}", bundle_id) is None:
+              raise SystemExit("held-out provider bundle identity is invalid")
+          boundary = value.get("information_boundary") or {}
+          if boundary.get("two_dimensional_markers_opened") is not False:
+              raise SystemExit("provider opened 2-D markers")
+          if boundary.get("three_dimensional_markers_opened") is not False:
+              raise SystemExit("provider opened 3-D markers")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write("decision=sealed-provider-predictions\n")
+              output.write(f"provider_bundle_id={bundle_id}\n")
+          PY
+      - name: Upload immutable held-out provider bundle
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dot-rope-cut3r-heldout-provider-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.workspace.outputs.root }}/provider/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Require sealed provider predictions
+        if: always()
+        shell: bash
+        env:
+          DECISION: ${{ steps.result.outputs.decision }}
+        run: |
+          set -euo pipefail
+          test "$DECISION" = "sealed-provider-predictions"
+
+  evaluate:
+    name: Evaluate frozen R04-R10 markers after provider seal
+    if: github.event_name == 'push'
+    needs: [authorize, provider]
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      decision: ${{ steps.result.outputs.decision }}
+      result_id: ${{ steps.result.outputs.result_id }}
+    steps:
+      - name: Initialize isolated evaluation workspace
+        id: workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/prob4d-dot-heldout-evaluation-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          rm -rf -- "$root"
+          mkdir -p "$root/provider" "$root/dataset" "$root/evidence"
+          echo "root=$root" >> "$GITHUB_OUTPUT"
+      - name: Check out exact authorized revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.authorize.outputs.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+      - name: Verify clean exact checkout
+        shell: bash
+        env:
+          EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Set up scientific Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install repository package
+        run: |
+          python -m pip install -e .
+          python -m pip check
+      - name: Download exact sealed confirmation provider bundle
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: dot-rope-cut3r-heldout-provider-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.workspace.outputs.root }}/provider
+      - name: Resolve official DOT archive identity
+        id: archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          DATASET_API="$DATASET_API" ARCHIVE_NAME="$ARCHIVE_NAME" ARCHIVE_MD5="$ARCHIVE_MD5" \
+            ROOT="$root" python - <<'PY'
+          import json
+          import os
+          import urllib.request
+          from pathlib import Path
+
+          request = urllib.request.Request(
+              os.environ["DATASET_API"],
+              headers={"User-Agent": "Prob4D-DOT-heldout-confirmation/1"},
+          )
+          with urllib.request.urlopen(request, timeout=60) as response:
+              metadata = json.load(response)
+          if metadata.get("status") != "OK":
+              raise SystemExit("Dataverse metadata request did not return OK")
+          files = metadata["data"]["latestVersion"]["files"]
+          matches = [
+              entry["dataFile"]
+              for entry in files
+              if entry.get("dataFile", {}).get("filename") == os.environ["ARCHIVE_NAME"]
+          ]
+          if len(matches) != 1:
+              raise SystemExit("official DOT metadata did not contain exactly one R01-10.zip")
+          data_file = matches[0]
+          checksum = data_file.get("checksum", {})
+          if (
+              checksum.get("type") != "MD5"
+              or checksum.get("value", "").lower() != os.environ["ARCHIVE_MD5"]
+          ):
+              raise SystemExit("official DOT R01-10.zip checksum changed")
+          file_id = int(data_file["id"])
+          byte_count = int(data_file["filesize"])
+          receipt = {
+              "dataset_persistent_id": "doi:10.13021/ORC2020/XXLVXM",
+              "filename": data_file["filename"],
+              "datafile_id": file_id,
+              "byte_count": byte_count,
+              "checksum": checksum,
+          }
+          Path(os.environ["ROOT"], "evidence", "official-archive-metadata.json").write_text(
+              json.dumps(receipt, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"datafile_id={file_id}\n")
+              output.write(f"byte_count={byte_count}\n")
+          PY
+      - name: Download and verify official R01-10.zip
+        shell: bash
+        env:
+          DATAFILE_ID: ${{ steps.archive.outputs.datafile_id }}
+          EXPECTED_BYTES: ${{ steps.archive.outputs.byte_count }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          archive="$root/dataset/$ARCHIVE_NAME"
+          curl --fail --location --retry 6 --retry-all-errors \
+            --connect-timeout 30 --output "$archive" \
+            "$DATAFILE_API_ROOT/$DATAFILE_ID"
+          test "$(stat -c %s "$archive")" = "$EXPECTED_BYTES"
+          printf '%s  %s\n' "$ARCHIVE_MD5" "$archive" | md5sum --check --strict
+      - name: Open frozen R04-R10 marker outcomes and score once
+        id: execute
+        continue-on-error: true
+        shell: bash
+        env:
+          REQUEST_ID: ${{ needs.authorize.outputs.request_id }}
+          EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          PYTHONPATH="$GITHUB_WORKSPACE/src:$GITHUB_WORKSPACE/scripts/science" \
+            python scripts/science/run_dot_rope_cut3r_heldout_confirmation.py \
+              evaluate \
+              --protocol "$PROTOCOL_PATH" \
+              --request-id "$REQUEST_ID" \
+              --prob4d-revision "$EXPECTED_HEAD_SHA" \
+              --dataset-root "$root/dataset" \
+              --provider-bundle "$root/provider/bundle" \
+              --output-dir "$root/evidence/result"
+      - name: Read bounded confirmation outcome
+        id: result
+        if: always()
+        shell: bash
+        env:
+          EXECUTION_OUTCOME: ${{ steps.execute.outcome }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}/evidence/result"
+          ROOT="$root" EXECUTION_OUTCOME="$EXECUTION_OUTCOME" python - <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          root = Path(os.environ["ROOT"])
+          complete = root / "result.json"
+          failed = root / "failure.json"
+          if complete.is_file():
+              value = json.loads(complete.read_text(encoding="utf-8"))
+              decision = value["decision"]
+              result_id = value["evaluation_id"]
+          elif failed.is_file():
+              value = json.loads(failed.read_text(encoding="utf-8"))
+              decision = value["decision"]
+              result_id = value["result_id"]
+          else:
+              raise SystemExit("held-out confirmation emitted no bounded result")
+          if re.fullmatch(r"[0-9a-f]{64}", result_id) is None:
+              raise SystemExit("held-out confirmation result identity is invalid")
+          allowed = {
+              "heldout-strong-positive",
+              "heldout-directional-positive",
+              "heldout-mixed-or-negative",
+              "heldout-support-negative",
+              "technical-failure",
+          }
+          if decision not in allowed:
+              raise SystemExit("held-out confirmation decision is unsupported")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"decision={decision}\n")
+              output.write(f"result_id={result_id}\n")
+          PY
+      - name: Upload bounded held-out evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dot-rope-cut3r-heldout-evaluation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.workspace.outputs.root }}/evidence/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Require scientific terminal outcome
+        if: always()
+        shell: bash
+        env:
+          DECISION: ${{ steps.result.outputs.decision }}
+        run: |
+          set -euo pipefail
+          case "$DECISION" in
+            heldout-strong-positive|heldout-directional-positive|heldout-mixed-or-negative|heldout-support-negative)
+              ;;
+            *)
+              exit 2
+              ;;
+          esac
+
+  publish:
+    name: Publish held-out terminal decision
+    if: always() && github.event_name == 'push'
+    needs: [authorize, provider, evaluate]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Write run summary
+        shell: bash
+        env:
+          PROVIDER_RESULT: ${{ needs.provider.result }}
+          PROVIDER_DECISION: ${{ needs.provider.outputs.decision }}
+          EVALUATION_RESULT: ${{ needs.evaluate.result }}
+          DECISION: ${{ needs.evaluate.outputs.decision }}
+          RESULT_ID: ${{ needs.evaluate.outputs.result_id }}
+        run: |
+          {
+            echo "## DOT R04-R10 held-out CUT3R confirmation"
+            echo
+            echo "- provider job: \`$PROVIDER_RESULT\`"
+            echo "- provider decision: \`$PROVIDER_DECISION\`"
+            echo "- evaluation job: \`$EVALUATION_RESULT\`"
+            echo "- terminal decision: \`$DECISION\`"
+            echo "- result ID: \`$RESULT_ID\`"
+            echo "- source-frozen alpha: \`0.85\`"
+            echo
+            echo "No confirmation-side tuning is authorized. R11-R70 remain unopened."
+          } >> "$GITHUB_STEP_SUMMARY"
