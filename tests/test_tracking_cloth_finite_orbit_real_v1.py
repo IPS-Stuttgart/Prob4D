@@ -170,3 +170,4 @@ def test_recording_classification_covers_registered_64_56_split(tmp_path: Path) 
         "counts": {"collision": 56, "shake": 32, "twist": 32},
     }
     assert len(recordings) == 120
+    assert {recording.label for recording in recordings} == {"collision", "shake", "twist"}
