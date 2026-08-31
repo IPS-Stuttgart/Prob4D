@@ -1,0 +1,180 @@
+name: Finalize DOT R04-R10 cuRoPE compatibility explicitly
+
+on:
+  push:
+    branches: [fix/dot-r04-r10-reuse-curope-compat-v1]
+    paths:
+      - ".github/workflows/build-dot-r04-r10-reuse-curope-compat-v10.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    name: Apply explicit audited patch and remove helper workflows
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: fix/dot-r04-r10-reuse-curope-compat-v1
+          fetch-depth: 0
+          persist-credentials: true
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Insert exact source-bound compatibility block
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          workflow_path = Path(
+              ".github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml"
+          )
+          lines = workflow_path.read_text(encoding="utf-8").splitlines(keepends=True)
+          needle = '          nvcc=""\n'
+          matches = [i for i, line in enumerate(lines) if line == needle]
+          if len(matches) != 1:
+              raise SystemExit(f"held-out nvcc insertion points={matches!r}")
+          index = matches[0]
+          preceding = next(
+              (line.strip() for line in reversed(lines[:index]) if line.strip()),
+              None,
+          )
+          expected_preceding = (
+              '/usr/bin/rm -rf -- "$checkout/src/croco/models/curope/build"'
+          )
+          if preceding != expected_preceding:
+              raise SystemExit(
+                  f"held-out build predecessor changed: {preceding!r}"
+              )
+
+          block = [
+              '          compatibility_patch="$GITHUB_WORKSPACE/.github/patches/cut3r-curope-torch211-cu126.patch"\n',
+              '          kernels=src/croco/models/curope/kernels.cu\n',
+              '          setup=src/croco/models/curope/setup.py\n',
+              '          expected_kernels_blob=7156cd1bb935cb1f0be45e58add53f9c21505c20\n',
+              '          expected_setup_blob=02ddb0912370a67a49fd2bb91164cf2f1da8648e\n',
+              '          test -f "$compatibility_patch"\n',
+              '          test "$(/usr/bin/git -C "$checkout" hash-object "$kernels")" = "$expected_kernels_blob"\n',
+              '          test "$(/usr/bin/git -C "$checkout" hash-object "$setup")" = "$expected_setup_blob"\n',
+              '          /usr/bin/git -C "$checkout" apply --check "$compatibility_patch"\n',
+              '          /usr/bin/git -C "$checkout" apply "$compatibility_patch"\n',
+              '          /usr/bin/git -C "$checkout" diff --check\n',
+              '          modified=$(/usr/bin/git -C "$checkout" diff --name-only | sort)\n',
+              '          expected=$(printf \'%s\\n%s\\n\' "$kernels" "$setup" | sort)\n',
+              '          test "$modified" = "$expected"\n',
+              '          grep -F \'tokens.scalar_type()\' "$checkout/$kernels"\n',
+              '          if grep -F \'tokens.type()\' "$checkout/$kernels"; then\n',
+              '            echo "deprecated tensor type dispatch remains" >&2\n',
+              '            exit 2\n',
+              '          fi\n',
+              '          grep -F \'arch=compute_89,code=sm_89\' "$checkout/$setup"\n',
+              '          patch_sha256=$(sha256sum "$compatibility_patch" | awk \'{print $1}\')\n',
+              '          kernels_post_blob=$(/usr/bin/git -C "$checkout" hash-object "$kernels")\n',
+              '          setup_post_blob=$(/usr/bin/git -C "$checkout" hash-object "$setup")\n',
+              '          PATCH_SHA256="$patch_sha256" KERNELS_POST_BLOB="$kernels_post_blob" SETUP_POST_BLOB="$setup_post_blob" RECEIPT="$root/evidence/curope-compatibility.json" python - <<\'PYRECEIPT\'\n',
+              '          import hashlib\n',
+              '          import json\n',
+              '          import os\n',
+              '          from pathlib import Path\n',
+              '\n',
+              '          record = {\n',
+              '              "schema": "prob4d.dot-r04-r10-curope-compatibility",\n',
+              '              "schema_version": 1,\n',
+              '              "cut3r_revision": os.environ["CUT3R_REVISION"],\n',
+              '              "patch_path": ".github/patches/cut3r-curope-torch211-cu126.patch",\n',
+              '              "patch_sha256": os.environ["PATCH_SHA256"],\n',
+              '              "kernels_pre_blob": "7156cd1bb935cb1f0be45e58add53f9c21505c20",\n',
+              '              "kernels_post_blob": os.environ["KERNELS_POST_BLOB"],\n',
+              '              "setup_pre_blob": "02ddb0912370a67a49fd2bb91164cf2f1da8648e",\n',
+              '              "setup_post_blob": os.environ["SETUP_POST_BLOB"],\n',
+              '              "dispatch_change": "tokens.type() -> tokens.scalar_type()",\n',
+              '              "compile_target": "compute_89/sm_89",\n',
+              '              "model_weights_changed": False,\n',
+              '              "provider_equations_changed": False,\n',
+              '              "provider_inputs_changed": False,\n',
+              '              "scientific_protocol_changed": False,\n',
+              '              "dot_payload_opened_by_patch_step": False,\n',
+              '          }\n',
+              '          canonical = json.dumps(record, sort_keys=True, separators=(",", ":")).encode()\n',
+              '          record["artifact_id"] = hashlib.sha256(canonical).hexdigest()\n',
+              '          Path(os.environ["RECEIPT"]).write_text(\n',
+              '              json.dumps(record, indent=2, sort_keys=True) + "\\n",\n',
+              '              encoding="utf-8",\n',
+              '          )\n',
+              '          print(json.dumps({"artifact_id": record["artifact_id"]}, sort_keys=True))\n',
+              '          PYRECEIPT\n',
+              '\n',
+          ]
+          lines[index:index] = block
+          workflow_path.write_text("".join(lines), encoding="utf-8", newline="\n")
+
+          test_path = Path("tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py")
+          test_lines = test_path.read_text(encoding="utf-8").splitlines(keepends=True)
+          test_needle = '    assert "prepare_cut3r_runtime.py" in provider\n'
+          test_matches = [
+              i for i, line in enumerate(test_lines) if line == test_needle
+          ]
+          if len(test_matches) != 1:
+              raise SystemExit(
+                  f"held-out workflow test insertion points={test_matches!r}"
+              )
+          assertions = [
+              '    assert ".github/patches/cut3r-curope-torch211-cu126.patch" in provider\n',
+              '    assert "7156cd1bb935cb1f0be45e58add53f9c21505c20" in provider\n',
+              '    assert "02ddb0912370a67a49fd2bb91164cf2f1da8648e" in provider\n',
+              '    assert "tokens.scalar_type()" in provider\n',
+              '    assert "arch=compute_89,code=sm_89" in provider\n',
+              '    assert "curope-compatibility.json" in provider\n',
+          ]
+          insert_at = test_matches[0] + 1
+          test_lines[insert_at:insert_at] = assertions
+          test_path.write_text("".join(test_lines), encoding="utf-8", newline="\n")
+          PY
+
+      - name: Remove every temporary helper before validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f -- \
+            .github/workflows/build-dot-r04-r10-reuse-curope-compat-v1.yml \
+            .github/workflows/build-dot-r04-r10-reuse-curope-compat-v2.yml \
+            .github/workflows/build-dot-r04-r10-reuse-curope-compat-v3.yml \
+            .github/workflows/build-dot-r04-r10-reuse-curope-compat-v4.yml \
+            .github/workflows/build-dot-r04-r10-reuse-curope-compat-v5.yml \
+            .github/workflows/build-dot-r04-r10-reuse-curope-compat-v6.yml \
+            .github/workflows/build-dot-r04-r10-reuse-curope-compat-v7.yml \
+            .github/workflows/build-dot-r04-r10-reuse-curope-compat-v8.yml \
+            .github/workflows/build-dot-r04-r10-reuse-curope-compat-v9.yml \
+            .github/workflows/build-dot-r04-r10-reuse-curope-compat-v10.yml \
+            .github/workflows/diagnose-dot-r04-r10-v8-helper.yml \
+            CHANGELOG.d/dot-r04-r10-reuse-curope-compat.md
+
+      - name: Validate and commit the repository-visible repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -e ".[dev]"
+          python -m ruff format tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py
+          python -m ruff check tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py
+          python -m pytest -q \
+            tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py \
+            tests/test_trusted_self_hosted_validation_policy.py \
+            tests/test_github_action_pins.py
+          python -m compileall -q tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py
+          git diff --check
+          git add -A -- .github/workflows
+          git add -- tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py
+          test -n "$(git diff --cached --name-only)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Reuse audited cuRoPE compatibility in held-out provider"
+          git push origin HEAD:fix/dot-r04-r10-reuse-curope-compat-v1
