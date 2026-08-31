@@ -1,0 +1,161 @@
+{
+  "archive": "R01-10.zip",
+  "archive_md5": "ca546ff5f22c0279123ccb18509858ee",
+  "camera": "cam001",
+  "claim_boundary": "Independent held-out DOT rope confirmation on R04-R10 for the source-frozen alpha=0.85 shared-dependence model. R11-R70 remain unopened. No parameter, provider, coordinate convention, support rule, window, mean, comparator, or threshold may be changed after confirmation access. The result can establish only the registered held-out CUT3R query-uncertainty/dependence claim; it does not establish BayesianPhysTwin benefit, Causal4D benefit, deployment safety, or state of the art.",
+  "confirmation_sequences": [
+    "R04",
+    "R05",
+    "R06",
+    "R07",
+    "R08",
+    "R09",
+    "R10"
+  ],
+  "dataset_doi": "10.13021/ORC2020/XXLVXM",
+  "evaluation": {
+    "metric_fit_a_frames": [
+      1,
+      2
+    ],
+    "metric_fit_b_frames": [
+      6,
+      7
+    ],
+    "overlap_frames": [
+      3,
+      4,
+      5
+    ],
+    "score_frames": [
+      6,
+      7
+    ],
+    "sim3_fit": "proper-umeyama-80-percent-iterative-trim"
+  },
+  "frames": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "information_boundary": {
+    "confirmation_tuning_authorized": false,
+    "evaluation_stage_reads": "matching 2-D and 3-D marker payloads from R04-R10 only after provider seal",
+    "evaluation_stage_requires_sealed_provider_bundle": true,
+    "provider_stage_forbids": [
+      "2-D marker payloads",
+      "3-D marker payloads",
+      "R11-R70 payloads",
+      "confirmation residuals before provider seal",
+      "BayesianPhysTwin outcomes",
+      "Causal4D outcomes"
+    ],
+    "provider_stage_reads": "normal-view JPEG payloads from R04-R10 only",
+    "source_calibration_frozen": true
+  },
+  "marker_sampling": {
+    "coordinate_columns": [
+      0,
+      1
+    ],
+    "coordinate_mode": "pixel-zero-based",
+    "preprocessing_transform": "cut3r-long-edge-resize-512-center-crop-multiple-of-16-pixel-centers",
+    "selected_coordinate_candidate": "columns-0-1:pixel-zero-based",
+    "support_rule": {
+      "overlap_minimum_nonempty_frames": 2,
+      "overlap_minimum_total_common": 6,
+      "provider_truth_minimum_total": 6,
+      "score_minimum_total": 2
+    }
+  },
+  "protocol_id": "a83258295d5ecabd95017a775f334173bb48141918832fb1a065a1dff66d16ba",
+  "provider": {
+    "checkpoint_sha256": "45f7e98a0a64dbeb54901ae2b878cd8cd125f20a4497316483f0bd6f109f8103",
+    "cut3r_revision": "8bc15dc92a6d7fd92920b4ec81540d3dec7d3ecf",
+    "device": "cuda",
+    "image_size": 512,
+    "name": "CUT3R",
+    "native_rope_required": true,
+    "random_seed": 42,
+    "revisit": 1,
+    "update": true
+  },
+  "reserved_sequences": "R11-R70",
+  "schema": "prob4d.dot-rope-cut3r-heldout-confirmation-protocol",
+  "schema_version": 1,
+  "source_calibration": {
+    "artifact_id": 9747149957,
+    "artifact_sha256": "f896a278a84a6d6ee99f26cf5646e38f6a37081df19f4f0e9150f32a9001c68a",
+    "calibration_id": "943339ac864fda04cc59081bc81a605576b3c90bf0aa996aea00b00335cfc0c7",
+    "request_id": "3ba482779ad1a886d910e5c7835e7099b10ee427e69c0957b2b477bcf0e2a339",
+    "run_id": 33362444268,
+    "selected_alpha": 0.85,
+    "selection_rule": "minimize-worst-sequence-normalized-nll-then-mean-then-smallest-alpha",
+    "source_sequences": [
+      "R01",
+      "R02",
+      "R03"
+    ]
+  },
+  "statistics": {
+    "directional_positive_rule": "selected alpha has negative equal-sequence mean NLL difference versus all three primary comparators but the strong-positive bootstrap rule is not met",
+    "independent_unit": "complete_sequence",
+    "otherwise": "mixed-or-negative-confirmation",
+    "paired_bootstrap_replicates": 20000,
+    "paired_bootstrap_seed": 20260831,
+    "primary_comparators": [
+      "pointwise_quadratic",
+      "shared_quadratic_curvature",
+      "local_first_order"
+    ],
+    "primary_metric": "normalized_joint_gaussian_nll_per_dimension",
+    "strong_positive_rule": "selected alpha has negative equal-sequence mean NLL difference and paired 95% bootstrap upper bound below zero versus pointwise_quadratic and shared_quadratic_curvature; local_first_order mean difference must also be negative"
+  },
+  "uncertainty": {
+    "bootstrap_replicates": 256,
+    "bootstrap_seed": 20260830,
+    "comparators": [
+      "dependence_alpha_0850",
+      "pointwise_quadratic",
+      "shared_quadratic_curvature",
+      "local_first_order",
+      "cluster_bootstrap_fallback"
+    ],
+    "means_held_fixed": true,
+    "observation_noise_fraction": 0.02,
+    "orbit_nodes": 33,
+    "probe_count": 8,
+    "scalar_inflation": 4.0,
+    "selected_dependence_alpha": 0.85,
+    "tensor_gh_order": 3
+  },
+  "windows": {
+    "continuous": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "window_a": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "window_b": [
+      3,
+      4,
+      5,
+      6,
+      7
+    ]
+  }
+}
