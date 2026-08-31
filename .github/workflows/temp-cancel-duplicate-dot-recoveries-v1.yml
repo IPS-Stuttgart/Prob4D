@@ -1,0 +1,240 @@
+name: Temporary cancel duplicate DOT recovery runs v1
+
+on:
+  push:
+    branches: [ops/cancel-duplicate-dot-recoveries-v1]
+    paths:
+      - "ops/requests/cancel_duplicate_dot_recoveries_v1.json"
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  cancel:
+    name: Retire unopened duplicate recovery runs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact controller revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+          clean: true
+
+      - name: Require exactly one controller request change
+        shell: bash
+        env:
+          EVENT_BEFORE: ${{ github.event.before }}
+          EVENT_AFTER: ${{ github.event.after }}
+          EVENT_FORCED: ${{ github.event.forced }}
+          EVENT_DELETED: ${{ github.event.deleted }}
+          REQUEST_PATH: ops/requests/cancel_duplicate_dot_recoveries_v1.json
+        run: |
+          set -euo pipefail
+          test "$EVENT_AFTER" = "$(git rev-parse HEAD)"
+          test "$EVENT_FORCED" = "false"
+          test "$EVENT_DELETED" = "false"
+          test "$EVENT_BEFORE" != "0000000000000000000000000000000000000000"
+          mapfile -t changed < <(git diff --name-only "$EVENT_BEFORE" "$EVENT_AFTER" | sort)
+          if [[ ${#changed[@]} -ne 1 || "${changed[0]}" != "$REQUEST_PATH" ]]; then
+            printf 'Expected only %s; changed paths were:\n' "$REQUEST_PATH" >&2
+            printf '  %s\n' "${changed[@]}" >&2
+            exit 2
+          fi
+
+      - name: Verify and cancel only unopened duplicate controllers
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ACTIVE_RUN_ID: "33442397966"
+          ACTIVE_HEAD_SHA: ef2daea9484edb17917f328812a458813f692cd6
+          ACTIVE_PATH: .github/workflows/recover-dot-r04-r10-archive-cache-v2.yml
+        run: |
+          set -euo pipefail
+          /usr/bin/python3 - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          import time
+          import urllib.error
+          import urllib.request
+          from typing import Any
+
+          api = os.environ["GITHUB_API_URL"].rstrip("/")
+          repository = os.environ["GITHUB_REPOSITORY"]
+          token = os.environ["GH_TOKEN"]
+          headers = {
+              "Accept": "application/vnd.github+json",
+              "Authorization": f"Bearer {token}",
+              "User-Agent": "Prob4D-cancel-duplicate-DOT-recoveries/1",
+              "X-GitHub-Api-Version": "2022-11-28",
+          }
+
+          targets = [
+              {
+                  "run_id": 33442397912,
+                  "head_sha": "ef2daea9484edb17917f328812a458813f692cd6",
+                  "path": ".github/workflows/recover-dot-r04-r10-archive-cache-v1.yml",
+                  "allowed_statuses": {"queued", "pending"},
+                  "self_hosted_job": "Prime exact official archive cache on gpuserver6000",
+              },
+              {
+                  "run_id": 33442492337,
+                  "head_sha": "6d2da0337eacdbcb96fbb60cffdd0da1ea743f85",
+                  "path": ".github/workflows/recover-dot-r04-r10-archive-cache-v1.yml",
+                  "allowed_statuses": {"queued", "pending"},
+                  "self_hosted_job": "Prime exact official archive cache on gpuserver6000",
+              },
+          ]
+
+          def call(method: str, path: str) -> tuple[int, Any]:
+              request = urllib.request.Request(
+                  f"{api}/repos/{repository}{path}",
+                  method=method,
+                  data=b"" if method == "POST" else None,
+                  headers=headers,
+              )
+              try:
+                  with urllib.request.urlopen(request, timeout=60) as response:
+                      raw = response.read()
+                      return response.status, json.loads(raw) if raw else None
+              except urllib.error.HTTPError as error:
+                  detail = error.read().decode("utf-8", errors="replace")
+                  raise RuntimeError(
+                      f"GitHub API {method} {path} failed with {error.code}: {detail}"
+                  ) from error
+
+          def get_run(run_id: int) -> dict[str, Any]:
+              return call("GET", f"/actions/runs/{run_id}")[1]
+
+          def get_jobs(run_id: int) -> list[dict[str, Any]]:
+              payload = call("GET", f"/actions/runs/{run_id}/jobs?per_page=100")[1]
+              return list(payload.get("jobs", []))
+
+          def get_artifacts(run_id: int) -> dict[str, Any]:
+              return call("GET", f"/actions/runs/{run_id}/artifacts?per_page=100")[1]
+
+          active_id = int(os.environ["ACTIVE_RUN_ID"])
+          active = get_run(active_id)
+          if active["head_sha"] != os.environ["ACTIVE_HEAD_SHA"]:
+              raise SystemExit("active archive controller head changed")
+          if active["path"] != os.environ["ACTIVE_PATH"]:
+              raise SystemExit("active archive controller workflow changed")
+          if active["status"] not in {"queued", "in_progress"}:
+              raise SystemExit(
+                  f"active archive controller is not live: {active['status']}"
+              )
+          active_jobs = get_jobs(active_id)
+          recover = [
+              job for job in active_jobs
+              if job.get("name") == "Recover exact official archive on gpuserver6000"
+          ]
+          if len(recover) != 1:
+              raise SystemExit("active archive-recovery job is unavailable")
+          if recover[0]["status"] not in {"queued", "in_progress"}:
+              raise SystemExit("active archive-recovery job is not live")
+
+          preflight = []
+          for target in targets:
+              run_id = target["run_id"]
+              run = get_run(run_id)
+              if run["head_sha"] != target["head_sha"]:
+                  raise SystemExit(f"duplicate run {run_id} head changed")
+              if run["path"] != target["path"]:
+                  raise SystemExit(f"duplicate run {run_id} workflow changed")
+              if int(run.get("run_attempt", 0)) != 1:
+                  raise SystemExit(f"duplicate run {run_id} attempt changed")
+              if run["status"] not in target["allowed_statuses"]:
+                  raise SystemExit(
+                      f"duplicate run {run_id} is no longer unopened: {run['status']}"
+                  )
+              if run.get("conclusion") is not None:
+                  raise SystemExit(f"duplicate run {run_id} has a conclusion")
+
+              artifacts = get_artifacts(run_id)
+              if int(artifacts.get("total_count", 0)) != 0:
+                  raise SystemExit(f"duplicate run {run_id} published artifacts")
+
+              jobs = get_jobs(run_id)
+              self_hosted = [
+                  job for job in jobs
+                  if job.get("name") == target["self_hosted_job"]
+              ]
+              if len(self_hosted) > 1:
+                  raise SystemExit(f"duplicate run {run_id} has ambiguous GPU jobs")
+              if self_hosted:
+                  job = self_hosted[0]
+                  if job["status"] not in {"queued", "pending"}:
+                      raise SystemExit(
+                          f"duplicate run {run_id} GPU job already started: {job['status']}"
+                      )
+                  if job.get("steps") not in (None, []):
+                      raise SystemExit(f"duplicate run {run_id} GPU job has steps")
+                  if job.get("runner_id") not in (None, 0):
+                      raise SystemExit(f"duplicate run {run_id} has a runner assignment")
+                  if job.get("runner_name") not in (None, ""):
+                      raise SystemExit(f"duplicate run {run_id} has a runner name")
+              preflight.append(
+                  {
+                      "run_id": run_id,
+                      "status": run["status"],
+                      "jobs": [job.get("name") for job in jobs],
+                      "artifacts": 0,
+                  }
+              )
+
+          cancelled = []
+          for target in targets:
+              run_id = target["run_id"]
+              status, _ = call("POST", f"/actions/runs/{run_id}/cancel")
+              if status not in {202, 204}:
+                  raise SystemExit(
+                      f"unexpected cancellation response {status} for run {run_id}"
+                  )
+
+          deadline = time.monotonic() + 120.0
+          remaining = {target["run_id"] for target in targets}
+          while remaining and time.monotonic() < deadline:
+              for run_id in tuple(remaining):
+                  run = get_run(run_id)
+                  if run["status"] == "completed":
+                      if run.get("conclusion") != "cancelled":
+                          raise SystemExit(
+                              f"duplicate run {run_id} completed as {run.get('conclusion')}"
+                          )
+                      cancelled.append(run_id)
+                      remaining.remove(run_id)
+              if remaining:
+                  time.sleep(2)
+          if remaining:
+              raise SystemExit(
+                  f"timed out cancelling duplicate recovery runs: {sorted(remaining)}"
+              )
+
+          active_after = get_run(active_id)
+          if active_after.get("conclusion") == "cancelled":
+              raise SystemExit("active archive controller was cancelled unexpectedly")
+          if active_after["status"] not in {"queued", "in_progress", "completed"}:
+              raise SystemExit("active archive controller entered an invalid state")
+
+          summary = {
+              "schema": "prob4d.dot-recovery-duplicate-cancellation-receipt",
+              "schema_version": 1,
+              "active_run_id": active_id,
+              "active_status_after": active_after["status"],
+              "cancelled_run_ids": sorted(cancelled),
+              "preflight": preflight,
+              "archive_payload_opened_by_controller": False,
+              "scientific_inputs_changed": False,
+          }
+          print(json.dumps(summary, indent=2, sort_keys=True))
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as output:
+              output.write("## Duplicate DOT recovery cancellation\n\n")
+              output.write("```json\n")
+              output.write(json.dumps(summary, indent=2, sort_keys=True))
+              output.write("\n```\n")
+          PY
