@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "action": {"const": "cancel-unassigned-predecessor-and-evaluate-official-zenodo"},
+    "opens_collision_outcomes": {"const": true},
+    "protocol_git_blob_sha": {"pattern": "^[0-9a-f]{40}$", "type": "string"},
+    "protocol_id": {"const": "tracking-cloth-finite-orbit-real-v1"},
+    "raw_data_publication_authorized": {"const": false},
+    "request_id": {"pattern": "^[0-9a-f]{64}$", "type": "string"},
+    "schema": {"const": "prob4d.tracking-cloth-finite-orbit-hosted-recovery.v1"},
+    "superseded_head_sha": {"const": "5c4e3b4ebfe38a10b1d1635db62b23c4f1736770"},
+    "superseded_job_name": {"const": "Evaluate held-out collision geometry on gpuserver4090"},
+    "superseded_run_id": {"const": 33361712662},
+    "target_side_retuning_allowed": {"const": false},
+    "zenodo_md5": {"const": "b4868b702f8a42b2ea1069d0f1a3b8f6"},
+    "zenodo_record": {"const": "14644526"}
+  },
+  "required": [
+    "schema",
+    "request_id",
+    "protocol_id",
+    "protocol_git_blob_sha",
+    "superseded_run_id",
+    "superseded_head_sha",
+    "superseded_job_name",
+    "zenodo_record",
+    "zenodo_md5",
+    "opens_collision_outcomes",
+    "target_side_retuning_allowed",
+    "raw_data_publication_authorized",
+    "action"
+  ],
+  "title": "Tracking Cloth finite-orbit hosted recovery request",
+  "type": "object"
+}
