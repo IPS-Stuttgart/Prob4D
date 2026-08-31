@@ -1,0 +1,7 @@
+{
+  "schema": "prob4d.temporary-hosted-policy-patch-request",
+  "schema_version": 1,
+  "target": "tests/_trusted_self_hosted_validation_policy_base.py",
+  "workflow": ".github/workflows/recover-dot-r04-r10-archive-cache-v1.yml",
+  "scientific_change": false
+}
