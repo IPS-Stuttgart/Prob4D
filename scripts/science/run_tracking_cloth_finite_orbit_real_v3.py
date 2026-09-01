@@ -28,18 +28,10 @@ RESULT_SCHEMA = "prob4d.tracking-cloth-finite-orbit-result.v3"
 EXPECTED_SOURCE = 24
 EXPECTED_TARGET = 15
 SELECTED_TRIPLET = ("1", "20", "5")
-QUALIFICATION_PROTOCOL_ID = (
-    "4652d72f9e8d4c80c69df86b7a48a6f4e307e4131ea3bea04e09deed10db5eb0"
-)
-QUALIFICATION_RESULT_ID = (
-    "5f130c8643c18346ad55e7d5997deefadc20481d14c8024e641ce811f23119e0"
-)
-QUALIFICATION_SOURCE_SEAL_ID = (
-    "1bb2236a087f5d309199fadd1cc2ebcc6a6242eaf6ab4f65a0d077ab9545ba52"
-)
-QUALIFICATION_SUPPORT_ID = (
-    "2d3b385f69bbeace010412771ad988bc51509cfe61e071cdc6ed0f7803938abb"
-)
+QUALIFICATION_PROTOCOL_ID = "4652d72f9e8d4c80c69df86b7a48a6f4e307e4131ea3bea04e09deed10db5eb0"
+QUALIFICATION_RESULT_ID = "5f130c8643c18346ad55e7d5997deefadc20481d14c8024e641ce811f23119e0"
+QUALIFICATION_SOURCE_SEAL_ID = "1bb2236a087f5d309199fadd1cc2ebcc6a6242eaf6ab4f65a0d077ab9545ba52"
+QUALIFICATION_SUPPORT_ID = "2d3b385f69bbeace010412771ad988bc51509cfe61e071cdc6ed0f7803938abb"
 QUALIFICATION_ARTIFACT_DIGEST = (
     "sha256:c7c61a117c1e3dbcf33997c528fb1703bfae44cbdfb560d176a9880bc04b05e3"
 )
@@ -218,11 +210,7 @@ def _configure_v2(v2: ModuleType, protocol: dict[str, Any]) -> None:
             "marker, threshold, or method. The 27 incompatible self-collision "
             "recordings remain a separately reported support-negative cohort.\n"
         )
-        return (
-            text.rstrip()
-            + "\n\n## Header-only support qualification\n\n"
-            + qualification
-        )
+        return text.rstrip() + "\n\n## Header-only support qualification\n\n" + qualification
 
     v2.PROTOCOL_ID = PROTOCOL_ID
     v2.PROTOCOL_SCHEMA = PROTOCOL_SCHEMA
