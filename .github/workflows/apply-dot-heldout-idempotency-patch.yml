@@ -103,7 +103,7 @@ jobs:
               "provider_attempts": provider_attempts,
               "artifact_count": artifacts["total_count"],
           }, sort_keys=True))
-'''
+          '''
           workflow.write_text(
               text[:start] + replacement + text[end:],
               encoding="utf-8",
@@ -125,7 +125,7 @@ jobs:
     )
     assert 'run["run_attempt"] != 2' not in text
     assert "old confirmation produced an artifact; recovery is forbidden" in text
-'''
+          '''
           if tests.count(anchor) != 1:
               raise SystemExit("workflow-test insertion anchor changed")
           test_path.write_text(
