@@ -1,0 +1,167 @@
+name: DOT R11-R20 camera-routing source audit v1
+
+on:
+  push:
+    branches: [science/dot-r11-r20-camera-routing-source-v1]
+    paths:
+      - "ops/requests/dot_r11_r20_camera_routing_source_v1.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dot-r11-r20-camera-routing-source-v1
+  cancel-in-progress: false
+
+env:
+  REQUEST_PATH: ops/requests/dot_r11_r20_camera_routing_source_v1.json
+  DATASET_ROOT: /home/github-runner/.cache/prob4d/dot-r11-r30-archives-v29
+  ARCHIVE: R11-20.zip
+  ARCHIVE_MD5: 23ce3e7067465d3edabe20b4c7cfa388
+
+jobs:
+  authorize:
+    name: Authorize source-only camera-routing audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      head_sha: ${{ steps.request.outputs.head_sha }}
+    steps:
+      - name: Check out exact request revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+          clean: true
+      - name: Require exactly one non-forced request change
+        id: request
+        shell: bash
+        env:
+          EVENT_REF: ${{ github.ref }}
+          EVENT_BEFORE: ${{ github.event.before }}
+          EVENT_AFTER: ${{ github.event.after }}
+          EVENT_FORCED: ${{ github.event.forced }}
+          EVENT_DELETED: ${{ github.event.deleted }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_REF" = "refs/heads/science/dot-r11-r20-camera-routing-source-v1"
+          test "$EVENT_AFTER" = "$(git rev-parse HEAD)"
+          test "$EVENT_FORCED" = "false"
+          test "$EVENT_DELETED" = "false"
+          test "$EVENT_BEFORE" != "0000000000000000000000000000000000000000"
+          mapfile -t changed < <(git diff --name-only "$EVENT_BEFORE" "$EVENT_AFTER" | sort)
+          if [[ ${#changed[@]} -ne 1 || "${changed[0]}" != "$REQUEST_PATH" ]]; then
+            printf 'Expected only %s; changed paths were:\n' "$REQUEST_PATH" >&2
+            printf '  %s\n' "${changed[@]}" >&2
+            exit 2
+          fi
+          REQUEST="$REQUEST_PATH" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          value = json.loads(Path(os.environ["REQUEST"]).read_text(encoding="utf-8"))
+          expected = {
+              "schema": "prob4d.dot-r11-r20-camera-routing-source-audit-request",
+              "schema_version": 1,
+              "source_sequences": "R11-R20",
+              "confirmation_sequences": "R21-R30",
+              "reserve_sequences": "R31-R70",
+              "runner_label": "gpuserver6000",
+              "source_performance_metrics_allowed": False,
+              "confirmation_payload_access_allowed": False,
+              "provider_execution_allowed": False,
+          }
+          if value != expected:
+              raise SystemExit("source camera-routing request content changed")
+          PY
+          echo "head_sha=$EVENT_AFTER" >> "$GITHUB_OUTPUT"
+
+  audit:
+    name: Audit R11-R20 camera routing on gpuserver6000
+    needs: authorize
+    environment: trusted-self-hosted-validation
+    runs-on: [self-hosted, gpuserver6000]
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - name: Bind runner and exact source archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_NAME" = "workstation2"
+          test "$RUNNER_OS" = "Linux"
+          test "$RUNNER_ARCH" = "X64"
+          test -x /usr/bin/python3
+          test -f "$DATASET_ROOT/$ARCHIVE"
+          test ! -L "$DATASET_ROOT/$ARCHIVE"
+          printf '%s  %s\n' "$ARCHIVE_MD5" "$DATASET_ROOT/$ARCHIVE" | md5sum --check --strict
+      - name: Initialize isolated evidence workspace
+        id: workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/dot-r11-r20-camera-routing-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          rm -rf -- "$root"
+          mkdir -p "$root/evidence"
+          echo "root=$root" >> "$GITHUB_OUTPUT"
+      - name: Check out exact authorized revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.authorize.outputs.head_sha }}
+          persist-credentials: false
+          clean: true
+      - name: Run outcome-blind source camera-routing audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          /usr/bin/python3 scripts/science/audit_dot_r11_r20_camera_routing_support_v1.py \
+            --dataset-root "$DATASET_ROOT" \
+            --output "${{ steps.workspace.outputs.root }}/evidence/result.json"
+      - name: Verify information boundary and summarize
+        shell: bash
+        run: |
+          set -euo pipefail
+          RESULT="${{ steps.workspace.outputs.root }}/evidence/result.json" /usr/bin/python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          value = json.loads(Path(os.environ["RESULT"]).read_text(encoding="utf-8"))
+          assert value["decision"] in {
+              "camera-routing-source-support-eligible",
+              "camera-routing-source-support-negative",
+          }
+          boundary = value["information_boundary"]
+          assert boundary["source_reconstruction_error_computed"] is False
+          assert boundary["source_proper_score_computed"] is False
+          assert boundary["r21_r30_payloads_opened"] is False
+          assert boundary["r31_r70_payloads_opened"] is False
+          assert boundary["provider_predictions_computed"] is False
+          summary = {
+              "decision": value["decision"],
+              "audit_id": value["audit_id"],
+              "candidate": value["selected_candidate"]["candidate_id"],
+              "supported_sequences": value["selected_candidate"]["supported_sequences"],
+              "routing": value["selected_camera_routing"],
+          }
+          print(json.dumps(summary, indent=2, sort_keys=True))
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as output:
+              output.write("## DOT R11-R20 camera-routing source audit\n\n```json\n")
+              output.write(json.dumps(summary, indent=2, sort_keys=True))
+              output.write("\n```\n\nR21-R70 remained unopened. No performance metric or provider prediction was computed.\n")
+          PY
+      - name: Upload bounded source audit evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: dot-r11-r20-camera-routing-source-v1-${{ github.run_id }}
+          path: ${{ steps.workspace.outputs.root }}/evidence/result.json
+          if-no-files-found: error
+          retention-days: 90
+      - name: Remove isolated evidence workspace
+        if: always()
+        shell: bash
+        run: |
+          rm -rf -- "${{ steps.workspace.outputs.root }}"
