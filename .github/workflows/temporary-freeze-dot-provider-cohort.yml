@@ -1,0 +1,126 @@
+name: Temporary freeze DOT learned-provider cohort
+
+on:
+  push:
+    branches:
+      - research/dot-rope-reserve-support-audit-v1
+    paths:
+      - ".github/workflows/temporary-freeze-dot-provider-cohort.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: temporary-freeze-dot-provider-cohort
+  cancel-in-progress: false
+
+jobs:
+  freeze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: true
+          clean: true
+      - name: Select two fixed-camera sequences from each reserve archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          evidence = Path("evidence/dot-rope-reserve-support-audit-v1")
+          result = json.loads((evidence / "result.json").read_text())
+          assert len(result["qualified_sequences"]) == 60
+          assert result["unsupported_sequences"] == []
+          candidates = [
+              row
+              for row in result["selected_cameras"]
+              if row["qualified"] and row["selected_camera"] == "cam001"
+          ]
+          by_archive = {}
+          for row in candidates:
+              by_archive.setdefault(row["archive"], []).append(row)
+          assert sorted(by_archive) == [
+              "R11-20.zip",
+              "R21-30.zip",
+              "R31-40.zip",
+              "R41-50.zip",
+              "R51-60.zip",
+              "R61-70.zip",
+          ]
+          selected = []
+          for archive in sorted(by_archive):
+              ranked = sorted(
+                  by_archive[archive],
+                  key=lambda row: (
+                      hashlib.sha256(
+                          f"{result['support_id']}:{row['sequence']}".encode()
+                      ).hexdigest(),
+                      row["sequence"],
+                  ),
+              )
+              assert len(ranked) >= 2
+              selected.extend(ranked[:2])
+          selected_sequences = [row["sequence"] for row in selected]
+          reserve = [
+              sequence
+              for sequence in result["qualified_sequences"]
+              if sequence not in selected_sequences
+          ]
+          cohort = {
+              "schema": "prob4d.dot-rope-learned-provider-cohort.v1",
+              "support_id": result["support_id"],
+              "support_protocol_sha256": result["protocol_sha256"],
+              "support_branch_revision": result["repository_revision"],
+              "selection_rule": (
+                  "among support-qualified sequences whose deterministic selected "
+                  "camera is cam001, take the two smallest SHA256(support_id:sequence) "
+                  "per official reserve archive; break ties by sequence"
+              ),
+              "selected_sequence_count": 12,
+              "selected_sequences": selected_sequences,
+              "selected_camera_by_sequence": {
+                  row["sequence"]: row["selected_camera"] for row in selected
+              },
+              "selected_archive_by_sequence": {
+                  row["sequence"]: row["archive"] for row in selected
+              },
+              "reserve_sequence_count": len(reserve),
+              "reserve_sequences": reserve,
+              "information_order": {
+                  "three_dimensional_truth_opened_before_cohort_freeze": False,
+                  "normal_view_images_opened_before_cohort_freeze": False,
+                  "learned_provider_executed_before_cohort_freeze": False,
+                  "provider_outcomes_used_for_selection": False,
+                  "three_dimensional_outcomes_used_for_selection": False,
+              },
+              "next_stage": {
+                  "provider_checkpoint_and_code_must_remain_source_frozen": True,
+                  "provider_output_support_must_be_sealed_before_3d_truth": True,
+                  "target_side_retuning_allowed": False,
+                  "unsupported_provider_outputs_replaced": False,
+              },
+          }
+          unsigned = dict(cohort)
+          cohort["cohort_id"] = hashlib.sha256(
+              json.dumps(
+                  unsigned,
+                  sort_keys=True,
+                  separators=(",", ":"),
+              ).encode()
+          ).hexdigest()
+          (evidence / "provider-cohort.json").write_text(
+              json.dumps(cohort, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(cohort)
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add evidence/dot-rope-reserve-support-audit-v1/provider-cohort.json
+          git commit -m "Freeze outcome-blind DOT learned-provider cohort"
+          git push origin HEAD:research/dot-rope-reserve-support-audit-v1
