@@ -76,6 +76,7 @@ def test_confirmation_provider_reuses_audited_curope_compatibility_patch() -> No
     text = WORKFLOW.read_text(encoding="utf-8")
     provider = text[text.index("\n  provider:") : text.index("\n  evaluate:")]
 
+    # Compatibility is attested before the workflow may read the DOT archive.
     assert ".github/patches/cut3r-curope-torch211-cu126.patch" in provider
     assert "9127464c77b571b9586144cabe24a4eed8667db0" in provider
     assert "9778ec434a6e2d9ae8be162295d60e06d86bf0fbadbb66d516eb46c666ab547d" in provider
