@@ -214,7 +214,7 @@ jobs:
                   raw = response.read()
               return json.loads(raw) if raw else None
 
-         run = request(f"/actions/runs/{run_id}")
+          run = request(f"/actions/runs/{run_id}")
           if run["head_sha"] != os.environ["ORIGINAL_HEAD_SHA"]:
               raise SystemExit("queued predecessor head changed")
           attempt_count = int(run["run_attempt"])
