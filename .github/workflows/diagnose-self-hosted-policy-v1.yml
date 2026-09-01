@@ -1,0 +1,49 @@
+name: Diagnose inherited self-hosted policy
+
+on:
+  push:
+    branches:
+      - fix/dot-r04-r10-curope-integration-v4
+    paths:
+      - .github/workflows/diagnose-self-hosted-policy-v1.yml
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out exact branch revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          clean: true
+
+      - name: Print workflows missing from the central allowlist
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import importlib.util
+          from pathlib import Path
+
+          path = Path("tests/_trusted_self_hosted_validation_policy_base.py")
+          spec = importlib.util.spec_from_file_location("policy", path)
+          assert spec is not None and spec.loader is not None
+          policy = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(policy)
+          offenders = []
+          for workflow in policy._workflow_files():
+              if workflow in policy.TRUSTED_SELF_HOSTED_WORKFLOWS:
+                  continue
+              if policy._uses_self_hosted_runner(workflow.read_text(encoding="utf-8")):
+                  offenders.append(workflow.relative_to(policy.ROOT).as_posix())
+          print("OFFENDERS_BEGIN")
+          for offender in offenders:
+              print(offender)
+          print("OFFENDERS_END")
+          raise SystemExit(1 if offenders else 0)
+          PY
