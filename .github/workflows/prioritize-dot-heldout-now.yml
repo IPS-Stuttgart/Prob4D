@@ -1,0 +1,155 @@
+name: Prioritize DOT held-out confirmation now
+
+on:
+  push:
+    branches: ["ops/prioritize-dot-heldout-now"]
+    paths:
+      - ".github/workflows/prioritize-dot-heldout-now.yml"
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  prioritize:
+    name: Clear untouched lower-priority gpuserver4090 jobs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Cancel two untouched older queue entries and verify DOT is next
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          API_URL: ${{ github.api_url }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          import time
+          import urllib.error
+          import urllib.request
+          from typing import Any
+
+          api = os.environ["API_URL"].rstrip("/")
+          repo = os.environ["REPOSITORY"]
+          token = os.environ["GH_TOKEN"]
+
+          def call(method: str, path: str) -> tuple[int, Any]:
+              request = urllib.request.Request(
+                  f"{api}{path}",
+                  method=method,
+                  data=b"" if method == "POST" else None,
+                  headers={
+                      "Accept": "application/vnd.github+json",
+                      "Authorization": f"Bearer {token}",
+                      "User-Agent": "prob4d-prioritize-dot-heldout",
+                      "X-GitHub-Api-Version": "2022-11-28",
+                  },
+              )
+              try:
+                  with urllib.request.urlopen(request, timeout=30) as response:
+                      body = response.read()
+                      return response.status, None if not body else json.loads(body)
+              except urllib.error.HTTPError as error:
+                  detail = error.read().decode("utf-8", errors="replace")
+                  raise RuntimeError(
+                      f"GitHub API {method} {path} failed with {error.code}: {detail}"
+                  ) from error
+
+          lower_priority = (
+              (33364210535, "Tracking Cloth query portfolio v1"),
+              (33434127418, "Run local DOT measured query bank 20260901 v2"),
+          )
+          cancelled: list[int] = []
+
+          for run_id, expected_name in lower_priority:
+              _, run = call("GET", f"/repos/{repo}/actions/runs/{run_id}")
+              if run.get("name") != expected_name:
+                  raise SystemExit(f"run {run_id} identity changed")
+              if run.get("status") != "queued":
+                  print(f"skip {run_id}: status={run.get('status')}")
+                  continue
+
+              _, artifacts = call("GET", f"/repos/{repo}/actions/runs/{run_id}/artifacts")
+              if int(artifacts.get("total_count", 0)) != 0:
+                  raise SystemExit(f"run {run_id} has artifacts; refusing cancellation")
+
+              _, jobs = call(
+                  "GET", f"/repos/{repo}/actions/runs/{run_id}/jobs?filter=latest&per_page=100"
+              )
+              gpu_jobs = [
+                  job
+                  for job in jobs.get("jobs", [])
+                  if "gpuserver4090" in set(job.get("labels", []))
+              ]
+              if not gpu_jobs:
+                  raise SystemExit(f"run {run_id} has no gpuserver4090 job")
+              for job in gpu_jobs:
+                  if job.get("status") != "queued":
+                      raise SystemExit(f"run {run_id} GPU job is not queued")
+                  if job.get("runner_id") not in (None, 0):
+                      raise SystemExit(f"run {run_id} GPU job is already assigned")
+                  if job.get("runner_name") not in (None, ""):
+                      raise SystemExit(f"run {run_id} GPU job has a runner name")
+                  if job.get("steps") not in (None, []):
+                      raise SystemExit(f"run {run_id} GPU job has executable steps")
+
+              status, _ = call("POST", f"/repos/{repo}/actions/runs/{run_id}/cancel")
+              if status not in (202, 204):
+                  raise SystemExit(f"unexpected cancellation response {status} for {run_id}")
+              cancelled.append(run_id)
+
+          deadline = time.monotonic() + 90.0
+          pending = set(cancelled)
+          while pending and time.monotonic() < deadline:
+              for run_id in tuple(pending):
+                  _, run = call("GET", f"/repos/{repo}/actions/runs/{run_id}")
+                  if run.get("status") == "completed":
+                      if run.get("conclusion") != "cancelled":
+                          raise SystemExit(
+                              f"run {run_id} completed as {run.get('conclusion')}, not cancelled"
+                          )
+                      pending.remove(run_id)
+              if pending:
+                  time.sleep(2.0)
+          if pending:
+              raise SystemExit(f"cancellation did not settle for {sorted(pending)}")
+
+          heldout_id = 33363832286
+          _, heldout = call("GET", f"/repos/{repo}/actions/runs/{heldout_id}")
+          if heldout.get("name") != "DOT rope CUT3R held-out confirmation v1":
+              raise SystemExit("held-out run identity changed")
+          if heldout.get("status") != "queued" or int(heldout.get("run_attempt", 0)) != 3:
+              raise SystemExit(
+                  f"held-out run is not queued attempt 3: "
+                  f"status={heldout.get('status')} attempt={heldout.get('run_attempt')}"
+              )
+          _, heldout_jobs = call(
+              "GET", f"/repos/{repo}/actions/runs/{heldout_id}/jobs?filter=latest&per_page=100"
+          )
+          provider = [
+              job
+              for job in heldout_jobs.get("jobs", [])
+              if job.get("name") == "Seal marker-free R04-R10 CUT3R predictions"
+          ]
+          if len(provider) != 1 or provider[0].get("status") != "queued":
+              raise SystemExit("held-out provider job is no longer queued")
+
+          summary = {
+              "cancelled_lower_priority_runs": cancelled,
+              "heldout_run_id": heldout_id,
+              "heldout_attempt": heldout.get("run_attempt"),
+              "heldout_status": heldout.get("status"),
+              "heldout_provider_job_id": provider[0].get("id"),
+              "heldout_provider_runner_id": provider[0].get("runner_id"),
+          }
+          print(json.dumps(summary, indent=2, sort_keys=True))
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as output:
+              output.write("## DOT queue prioritization\n\n```json\n")
+              output.write(json.dumps(summary, indent=2, sort_keys=True))
+              output.write("\n```\n")
+          PY
