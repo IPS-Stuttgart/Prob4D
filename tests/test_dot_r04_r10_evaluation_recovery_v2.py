@@ -147,3 +147,28 @@ def test_recovery_log_redirect_does_not_forward_github_credentials() -> None:
     assert "redirected.remove_header(key)" in inspect
     assert "urllib.request.build_opener(CrossOriginSafeRedirectHandler())" in inspect
     assert "urllib.request.urlopen(log_request, timeout=120)" not in inspect
+
+
+def test_recovery_uses_explicit_current_control_request_checkout() -> None:
+    text = WORKFLOW.read_text(encoding="utf-8")
+    recover = text[text.index("\n  recover:") :]
+    control_checkout = recover[
+        recover.index("Check out exact merged recovery control revision") : recover.index(
+            "Check out exact frozen evaluator revision"
+        )
+    ]
+
+    assert (
+        "CONTROL_REQUEST_PATH: "
+        "control/protocols/execution_requests/dot_r04_r10_evaluation_recovery_v2.json"
+        in recover
+    )
+    assert "ref: ${{ github.sha }}" in control_checkout
+    assert "path: control" in control_checkout
+    assert "persist-credentials: false" in control_checkout
+    assert 'Path(os.environ["CONTROL_REQUEST_PATH"]).read_text' in recover
+    assert "recovery request content address changed" in recover
+    assert "recovery request identity changed" in recover
+    assert 'cp "$CONTROL_REQUEST_PATH" "$root/recovery-request.json"' in recover
+    assert 'Path(os.environ["REQUEST_PATH"]).resolve().read_text' not in recover
+    assert 'cp "$REQUEST_PATH"' not in recover
