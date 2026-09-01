@@ -26,9 +26,7 @@ def _load_module():
 
 def _recording(material: str, size: str, phase: str, index: int):
     motion = "shake" if phase == "source" else "collision"
-    return SimpleNamespace(
-        relative_path=f"tracking_dataset/{material}_{size}_{motion}_{index}.csv"
-    )
+    return SimpleNamespace(relative_path=f"tracking_dataset/{material}_{size}_{motion}_{index}.csv")
 
 
 def test_frozen_protocol_identity_and_parent_binding() -> None:
@@ -76,9 +74,7 @@ def test_roster_filter_is_material_and_size_explicit() -> None:
     assert len(excluded_source) == 40
     assert len(eligible_target) == 42
     assert len(excluded_target) == 14
-    assert {
-        module._material_and_size(row.relative_path) for row in eligible_source
-    } == {
+    assert {module._material_and_size(row.relative_path) for row in eligible_source} == {
         ("cotton", "A2"),
         ("denim", "A2"),
         ("wool", "A2"),
