@@ -100,8 +100,7 @@ def _load_protocol(path: Path) -> dict[str, Any]:
         or not ratios
         or float(ratios[0]) != 0.0
         or any(float(value) < 0.0 for value in ratios)
-        or sorted(float(value) for value in ratios)
-        != [float(value) for value in ratios]
+        or sorted(float(value) for value in ratios) != [float(value) for value in ratios]
         or len(set(float(value) for value in ratios)) != len(ratios)
     ):
         raise ValueError("coefficient_error_ratios is invalid")
@@ -162,10 +161,7 @@ def _coefficient_bank(
     directions = _unit_vectors(rng, stationary_count, query_dimension)
     phase_vectors = np.column_stack((np.cos(phase[stationary]), np.sin(phase[stationary])))
     coefficients[stationary] = (
-        0.5
-        * diameters[stationary, None, None]
-        * directions[:, :, None]
-        * phase_vectors[:, None, :]
+        0.5 * diameters[stationary, None, None] * directions[:, :, None] * phase_vectors[:, None, :]
     )
 
     general = ~stationary
@@ -176,9 +172,7 @@ def _coefficient_bank(
         mask = raw_sigma == 0.0
         raw[mask] = rng.normal(size=(int(np.count_nonzero(mask)), query_dimension, 2))
         raw_sigma = batch_axial_orbit_diameters(raw) / 2.0
-    coefficients[general] = raw * (
-        0.5 * diameters[general] / raw_sigma
-    )[:, None, None]
+    coefficients[general] = raw * (0.5 * diameters[general] / raw_sigma)[:, None, None]
     nominal_angles = rng.uniform(-np.pi, np.pi, size=count)
     nominal_angles[stationary] = phase[stationary]
     return coefficients, nominal_angles, stationary
@@ -439,27 +433,21 @@ def _registered_checks(
     parity: dict[str, Any],
 ) -> dict[str, bool]:
     registered = protocol["registered_checks"]
-    certified = [
-        row for row in bounded_rows if row["method"] == "certified_bounded_error"
-    ]
+    certified = [row for row in bounded_rows if row["method"] == "certified_bounded_error"]
     local_zero = next(
         row
         for row in bounded_rows
-        if row["method"] == "nominal_local_derivative"
-        and row["coefficient_error_ratio"] == 0.0
+        if row["method"] == "nominal_local_derivative" and row["coefficient_error_ratio"] == 0.0
     )
     naive_positive = [
         row
         for row in bounded_rows
-        if row["method"] == "naive_estimated_diameter"
-        and row["coefficient_error_ratio"] > 0.0
+        if row["method"] == "naive_estimated_diameter" and row["coefficient_error_ratio"] > 0.0
     ]
     sampled_certified = [
         row for row in sampling_rows if row["method"] == "lipschitz_certified_sampling"
     ]
-    sampled_naive = [
-        row for row in sampling_rows if row["method"] == "naive_sampled_diameter"
-    ]
+    sampled_naive = [row for row in sampling_rows if row["method"] == "naive_sampled_diameter"]
     return {
         "bounded_error_certificate_has_no_harmful_acceptance": max(
             row["harmful_acceptance_rate_among_variant"] for row in certified
@@ -521,12 +509,9 @@ def _summary(report: dict[str, Any]) -> str:
     zero_local = next(
         row
         for row in bounded
-        if row["method"] == "nominal_local_derivative"
-        and row["coefficient_error_ratio"] == 0.0
+        if row["method"] == "nominal_local_derivative" and row["coefficient_error_ratio"] == 0.0
     )
-    certified = [
-        row for row in bounded if row["method"] == "certified_bounded_error"
-    ]
+    certified = [row for row in bounded if row["method"] == "certified_bounded_error"]
     lines = [
         "# Robust finite-orbit query-identifiability control",
         "",

@@ -74,9 +74,7 @@ def batch_axial_orbit_diameters(coefficients: ArrayLike) -> FloatArray:
 
     matrix = _finite_array(coefficients, name="coefficients")
     if matrix.ndim < 2 or matrix.shape[-2] == 0 or matrix.shape[-1] != 2:
-        raise ValueError(
-            "coefficients must have shape (..., query_dimension, 2)"
-        )
+        raise ValueError("coefficients must have shape (..., query_dimension, 2)")
     first = matrix[..., :, 0]
     second = matrix[..., :, 1]
     gram_00 = np.sum(first * first, axis=-1)
@@ -160,9 +158,7 @@ def certify_axial_linear_query(
         name="estimated_coefficients",
     )
     if matrix.ndim != 2 or matrix.shape[0] == 0 or matrix.shape[1] != 2:
-        raise ValueError(
-            "estimated_coefficients must have shape (query_dimension, 2)"
-        )
+        raise ValueError("estimated_coefficients must have shape (query_dimension, 2)")
     error = _nonnegative_scalar(
         coefficient_error_bound,
         name="coefficient_error_bound",
