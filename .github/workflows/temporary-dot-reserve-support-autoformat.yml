@@ -1,0 +1,52 @@
+name: Temporary DOT reserve support autoformat
+
+on:
+  push:
+    branches:
+      - research/dot-rope-reserve-support-audit-v1
+    paths:
+      - ".github/workflows/temporary-dot-reserve-support-autoformat.yml"
+      - "scripts/science/audit_dot_rope_reserve_support.py"
+      - "tests/test_dot_rope_reserve_support_audit.py"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: temporary-dot-reserve-support-autoformat
+  cancel-in-progress: false
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: true
+          clean: true
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Format exact files
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check "ruff==0.12.12"
+          python -m ruff format \
+            scripts/science/audit_dot_rope_reserve_support.py \
+            tests/test_dot_rope_reserve_support_audit.py
+      - name: Commit formatter output when needed
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo "No formatter changes required."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            scripts/science/audit_dot_rope_reserve_support.py \
+            tests/test_dot_rope_reserve_support_audit.py
+          git commit -m "Apply Ruff formatting to DOT reserve support audit"
+          git push origin HEAD:research/dot-rope-reserve-support-audit-v1
