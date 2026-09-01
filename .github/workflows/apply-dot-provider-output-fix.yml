@@ -1,0 +1,97 @@
+name: Apply DOT provider output directory fix
+
+on:
+  push:
+    branches:
+      - fix/dot-r04-r10-provider-output-v1
+    paths:
+      - ".github/workflows/apply-dot-provider-output-fix.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out fix branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: fix/dot-r04-r10-provider-output-v1
+          fetch-depth: 0
+          persist-credentials: true
+          clean: true
+
+      - name: Apply bounded workflow and regression-test fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          workflow = Path(
+              ".github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml"
+          )
+          text = workflow.read_text(encoding="utf-8")
+          old = (
+              '          /usr/bin/mkdir -p \\\n'
+              '            "$root/home" \\\n'
+              '            "$root/cache" \\\n'
+              '            "$root/tmp" \\\n'
+              '            "$root/evidence" \\\n'
+              '            "$root/provider"\n'
+              '          echo "root=$root" >> "$GITHUB_OUTPUT"\n'
+          )
+          new = (
+              '          /usr/bin/mkdir -p \\\n'
+              '            "$root/home" \\\n'
+              '            "$root/cache" \\\n'
+              '            "$root/tmp" \\\n'
+              '            "$root/evidence"\n'
+              '          test ! -e "$root/provider"\n'
+              '          echo "root=$root" >> "$GITHUB_OUTPUT"\n'
+          )
+          if text.count(old) != 1:
+              raise SystemExit("provider workspace initialization shape changed")
+          workflow.write_text(
+              text.replace(old, new, 1),
+              encoding="utf-8",
+              newline="\n",
+          )
+
+          test_path = Path(
+              "tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py"
+          )
+          tests = test_path.read_text(encoding="utf-8")
+          anchor = (
+              '    provider = text[text.index("\\n  provider:") : '
+              'text.index("\\n  evaluate:")]\n\n'
+          )
+          addition = anchor + (
+              '    initialization = provider[\n'
+              '        provider.index("Initialize isolated prediction workspace") :\n'
+              '        provider.index("Check out exact authorized Prob4D revision")\n'
+              '    ]\n'
+              '    assert \'test ! -e "$root/provider"\' in initialization\n'
+              '    assert \'"$root/provider" \\\\\' not in initialization\n\n'
+          )
+          if tests.count(anchor) != 1:
+              raise SystemExit("provider workflow test anchor changed")
+          test_path.write_text(
+              tests.replace(anchor, addition, 1),
+              encoding="utf-8",
+              newline="\n",
+          )
+
+          Path(".github/workflows/apply-dot-provider-output-fix.yml").unlink()
+          PY
+
+          python -m py_compile tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py
+          git diff --check
+          git status --short
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Leave held-out provider output for exclusive creation"
+          git push origin HEAD:fix/dot-r04-r10-provider-output-v1
