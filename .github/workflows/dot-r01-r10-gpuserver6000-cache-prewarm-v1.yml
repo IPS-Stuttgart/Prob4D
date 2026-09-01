@@ -1,0 +1,283 @@
+name: DOT R01-R10 gpuserver6000 cache prewarm v1
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/dot-r01-r10-gpuserver6000-cache-prewarm-v1.yml"
+      - "CHANGELOG.d/dot-r01-r10-cache-prewarm-v1.md"
+      - "tests/test_dot_r01_r10_cache_prewarm_workflow.py"
+  push:
+    branches: [main]
+    paths:
+      - "protocols/execution_requests/dot_r01_r10_gpuserver6000_cache_prewarm_v1.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dot-r01-r10-gpuserver6000-cache-prewarm-v1
+  cancel-in-progress: false
+
+env:
+  REQUEST_PATH: protocols/execution_requests/dot_r01_r10_gpuserver6000_cache_prewarm_v1.json
+  CACHE_ROOT: /home/github-runner/.cache/prob4d/dot-r04-r10-cut3r-gpuserver6000-v1/dot-v29
+  ARCHIVE_NAME: R01-10.zip
+  ARCHIVE_MD5: ca546ff5f22c0279123ccb18509858ee
+  DATASET_API: https://dataverse.orc.gmu.edu/api/datasets/:persistentId/?persistentId=doi:10.13021/ORC2020/XXLVXM
+  DATAFILE_API_ROOT: https://dataverse.orc.gmu.edu/api/access/datafile
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+
+jobs:
+  contract:
+    name: Validate bounded cache prewarm contract
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out exact reviewed revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          clean: true
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Run focused custody checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -e ".[dev]"
+          python -m ruff check tests/test_dot_r01_r10_cache_prewarm_workflow.py
+          python -m ruff format --check tests/test_dot_r01_r10_cache_prewarm_workflow.py
+          python -m pytest -q \
+            tests/test_dot_r01_r10_cache_prewarm_workflow.py \
+            tests/test_trusted_self_hosted_validation_policy.py \
+            tests/test_github_action_pins.py
+
+  authorize:
+    name: Authorize one immutable cache-only request
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      head_sha: ${{ steps.request.outputs.head_sha }}
+      request_id: ${{ steps.request.outputs.request_id }}
+    steps:
+      - name: Check out exact merged-main revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+          clean: true
+      - name: Require exactly one non-forced request-file change
+        id: request
+        shell: bash
+        env:
+          EVENT_REF: ${{ github.ref }}
+          EVENT_BEFORE: ${{ github.event.before }}
+          EVENT_AFTER: ${{ github.event.after }}
+          EVENT_FORCED: ${{ github.event.forced }}
+          EVENT_DELETED: ${{ github.event.deleted }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_REF" = "refs/heads/main"
+          test "$EVENT_AFTER" = "$(git rev-parse HEAD)"
+          test "$EVENT_FORCED" = "false"
+          test "$EVENT_DELETED" = "false"
+          test "$EVENT_BEFORE" != "0000000000000000000000000000000000000000"
+          mapfile -t changed < <(git diff --name-only "$EVENT_BEFORE" "$EVENT_AFTER" | sort)
+          if [[ ${#changed[@]} -ne 1 || "${changed[0]}" != "$REQUEST_PATH" ]]; then
+            printf 'Expected only %s; changed paths were:\n' "$REQUEST_PATH" >&2
+            printf '  %s\n' "${changed[@]}" >&2
+            exit 2
+          fi
+          REQUEST="$REQUEST_PATH" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          value = json.loads(Path(os.environ["REQUEST"]).read_text(encoding="utf-8"))
+          expected = {
+              "schema": "prob4d.dot-r01-r10-gpuserver6000-cache-prewarm-request",
+              "schema_version": 1,
+              "runner_label": "gpuserver6000",
+              "runner_name": "workstation2",
+              "archive": "R01-10.zip",
+              "scope": "compressed-archive-cache-only",
+              "archive_may_be_extracted": False,
+              "images_may_be_opened": False,
+              "markers_may_be_opened": False,
+              "scientific_evaluation_authorized": False,
+          }
+          if value != expected:
+              raise SystemExit("cache prewarm request content changed")
+          PY
+          request_id=$(sha256sum "$REQUEST_PATH" | awk '{print $1}')
+          {
+            echo "head_sha=$EVENT_AFTER"
+            echo "request_id=$request_id"
+          } >> "$GITHUB_OUTPUT"
+
+  prewarm:
+    name: Materialize exact R01-R10 archive in frozen-run cache
+    if: github.event_name == 'push'
+    needs: authorize
+    environment: trusted-self-hosted-validation
+    runs-on: [self-hosted, gpuserver6000]
+    timeout-minutes: 360
+    permissions:
+      contents: read
+    steps:
+      - name: Bind intended runner and isolated receipt workspace
+        id: workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_NAME" = "workstation2"
+          test "$RUNNER_OS" = "Linux"
+          test "$RUNNER_ARCH" = "X64"
+          root="${RUNNER_TEMP}/prob4d-dot-r01-r10-cache-prewarm-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          rm -rf -- "$root"
+          mkdir -p "$root/receipt"
+          echo "root=$root" >> "$GITHUB_OUTPUT"
+      - name: Check out exact authorized revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.authorize.outputs.head_sha }}
+          persist-credentials: false
+          clean: true
+      - name: Resolve publisher identity and resumably materialize archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$CACHE_ROOT"
+          test ! -L "$CACHE_ROOT"
+          metadata="$RUNNER_TEMP/dot-r01-r10-cache-metadata.json"
+          python - <<'PY' > "$metadata"
+          import json
+          import os
+          import urllib.request
+
+          request = urllib.request.Request(
+              os.environ["DATASET_API"],
+              headers={"User-Agent": "Prob4D-DOT-R01-R10-cache-prewarm/1"},
+          )
+          with urllib.request.urlopen(request, timeout=60) as response:
+              value = json.load(response)
+          if value.get("status") != "OK":
+              raise SystemExit("Dataverse metadata did not return OK")
+          matches = [
+              entry["dataFile"]
+              for entry in value["data"]["latestVersion"]["files"]
+              if entry["dataFile"].get("filename") == os.environ["ARCHIVE_NAME"]
+          ]
+          if len(matches) != 1:
+              raise SystemExit("official R01-R10 archive identity is ambiguous")
+          data_file = matches[0]
+          checksum = data_file.get("checksum") or {}
+          if checksum.get("type") != "MD5":
+              raise SystemExit("official R01-R10 checksum type changed")
+          if str(checksum.get("value", "")).lower() != os.environ["ARCHIVE_MD5"]:
+              raise SystemExit("official R01-R10 checksum changed")
+          print(json.dumps({
+              "datafile_id": int(data_file["id"]),
+              "bytes": int(data_file["filesize"]),
+              "md5": os.environ["ARCHIVE_MD5"],
+          }, sort_keys=True))
+          PY
+          file_id=$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["datafile_id"])' "$metadata")
+          bytes=$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["bytes"])' "$metadata")
+          archive="$CACHE_ROOT/$ARCHIVE_NAME"
+          valid=false
+          if [[ -f "$archive" && "$(stat -c %s "$archive")" = "$bytes" ]]; then
+            measured=$(md5sum "$archive" | awk '{print $1}')
+            [[ "$measured" = "$ARCHIVE_MD5" ]] && valid=true
+          fi
+          if [[ "$valid" != true ]]; then
+            part="$archive.part"
+            touch "$part"
+            curl --fail --location --retry 20 --retry-all-errors \
+              --connect-timeout 30 --continue-at - \
+              --output "$part" "$DATAFILE_API_ROOT/$file_id"
+            test "$(stat -c %s "$part")" = "$bytes"
+            printf '%s  %s\n' "$ARCHIVE_MD5" "$part" | md5sum --check --strict
+            mv -- "$part" "$archive"
+          fi
+          test "$(stat -c %s "$archive")" = "$bytes"
+          printf '%s  %s\n' "$ARCHIVE_MD5" "$archive" | md5sum --check --strict
+      - name: Seal cache-only receipt
+        shell: bash
+        env:
+          REQUEST_ID: ${{ needs.authorize.outputs.request_id }}
+          EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          ROOT="${{ steps.workspace.outputs.root }}" python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          archive = Path(os.environ["CACHE_ROOT"], os.environ["ARCHIVE_NAME"])
+          value = {
+              "schema": "prob4d.dot-r01-r10-gpuserver6000-cache-prewarm-result",
+              "schema_version": 1,
+              "request_id": os.environ["REQUEST_ID"],
+              "prob4d_revision": os.environ["EXPECTED_HEAD_SHA"],
+              "runner_name": os.environ["RUNNER_NAME"],
+              "archive": {
+                  "name": archive.name,
+                  "path": str(archive),
+                  "bytes": archive.stat().st_size,
+                  "md5": os.environ["ARCHIVE_MD5"],
+              },
+              "information_boundary": {
+                  "compressed_archive_bytes_read_for_hashing": True,
+                  "archive_members_enumerated": False,
+                  "archive_extracted": False,
+                  "normal_view_images_opened": False,
+                  "two_dimensional_markers_opened": False,
+                  "three_dimensional_markers_opened": False,
+                  "scientific_prediction_constructed": False,
+                  "scientific_evaluation_performed": False,
+              },
+              "frozen_confirmation_sequences": [
+                  "R04", "R05", "R06", "R07", "R08", "R09", "R10"
+              ],
+              "reserved_sequences": "R11-R70",
+          }
+          canonical = json.dumps(
+              value,
+              sort_keys=True,
+              separators=(",", ":"),
+              ensure_ascii=False,
+              allow_nan=False,
+          ).encode("utf-8")
+          value["result_id"] = hashlib.sha256(canonical).hexdigest()
+          Path(os.environ["ROOT"], "receipt", "result.json").write_text(
+              json.dumps(value, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+      - name: Upload bounded cache receipt
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: dot-r01-r10-gpuserver6000-cache-prewarm-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.workspace.outputs.root }}/receipt/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Remove isolated receipt workspace
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          test "$root" = "${RUNNER_TEMP}/prob4d-dot-r01-r10-cache-prewarm-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          rm -rf -- "$root"
