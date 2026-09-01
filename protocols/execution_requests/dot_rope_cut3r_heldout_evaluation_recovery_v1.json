@@ -1,0 +1,40 @@
+{
+  "claim_boundary": "Hosted-only technical recovery of the exact frozen R04-R10 marker evaluation from the immutable provider seal. No provider rerun, parameter change, cohort change, comparator change, bootstrap change, or R11-R70 access is authorized.",
+  "frozen_science": {
+    "confirmation_sequences": [
+      "R04",
+      "R05",
+      "R06",
+      "R07",
+      "R08",
+      "R09",
+      "R10"
+    ],
+    "confirmation_tuning_authorized": false,
+    "protocol_id": "a83258295d5ecabd95017a775f334173bb48141918832fb1a065a1dff66d16ba",
+    "request_id": "62d64df1b1b72f2b2aff0b17cf4c7aad245150f9fa1ff67712eedc0f4e109ce6",
+    "reserved_sequences": "R11-R70",
+    "selected_alpha": 0.85
+  },
+  "information_boundary": {
+    "bayesian_phystwin_executed": false,
+    "causal4d_executed": false,
+    "marker_evaluation_authorized": true,
+    "normal_view_images_reopened": false,
+    "provider_inference_rerun": false,
+    "provider_predictions_reused": true,
+    "r11_r70_opened": false
+  },
+  "recovery_reason": "The immutable provider bundle was sealed successfully, but the hosted evaluator did not start because its exclusive output directory had been pre-created by the workflow.",
+  "recovery_request_id": "ce095a67548ad130c85c66ae8ff415949f9079368be2b313e362b46d8cf81cf5",
+  "schema": "prob4d.dot-rope-cut3r-heldout-evaluation-recovery-request",
+  "schema_version": 1,
+  "source_provider_artifact": {
+    "artifact_id": 9797527843,
+    "digest": "sha256:45cccd5b6f7b7d671cfc86fbcb27232d29faf5dafdeee8d0ea5a9c45ce42ae7c",
+    "name": "dot-rope-cut3r-heldout-provider-gpuserver6000-62d64df1b1b72f2b2aff0b17cf4c7aad245150f9fa1ff67712eedc0f4e109ce6",
+    "provider_bundle_id": "57dc11d9e39258a2f620d67e39f1176cafe74252173ead8cb4ba2f76083499ec"
+  },
+  "source_workflow_head_sha": "b85dd8e8adb68ffb289868731222151968940317",
+  "source_workflow_run_id": 33500239597
+}
