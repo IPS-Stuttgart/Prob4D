@@ -1,0 +1,157 @@
+{
+  "files": {
+    ".github/workflows/bootstrap-dot-r11-r20-source-on-main-v1.yml": false,
+    ".github/workflows/dot-rope-r11-r20-source-v1.yml": false,
+    ".github/workflows/dot-rope-r21-r40-confirmation-v1.yml": false,
+    "evidence/dot-r11-r20-source-support-qualification-v1.json": false,
+    "evidence/dot-r21-r40-confirmation-v1/terminal.json": false,
+    "protocols/dot-rope-r11-r20-source-v1.json": false,
+    "protocols/dot-rope-r21-r40-confirmation-v1.json": false,
+    "protocols/execution_requests/dot_rope_r11_r20_source_v1.json": false,
+    "protocols/execution_requests/dot_rope_r21_r40_confirmation_v1.json": false
+  },
+  "main_revision": "f7cf7b70caf55695e5baa443c8ae4a21b4227715",
+  "schema": "prob4d.dot-r11-r40-execution-snapshot",
+  "schema_version": 1,
+  "workflows": [
+    {
+      "http_status": 404,
+      "latest_run": null,
+      "workflow": "bootstrap-dot-r11-r20-source-on-main-v1.yml"
+    },
+    {
+      "http_status": 404,
+      "latest_run": null,
+      "workflow": "dot-rope-r11-r20-source-v1.yml"
+    },
+    {
+      "http_status": 200,
+      "latest_run": {
+        "artifacts": [],
+        "conclusion": null,
+        "event": "push",
+        "head_sha": "a1430f5ae7637bd3936c463495c29cc2972f9e11",
+        "id": 33545377280,
+        "jobs": [
+          {
+            "conclusion": null,
+            "id": 99981447750,
+            "name": "qualify-freeze-and-trigger",
+            "status": "in_progress",
+            "steps": [
+              {
+                "conclusion": "success",
+                "name": "Set up job",
+                "status": "completed"
+              },
+              {
+                "conclusion": "success",
+                "name": "Check out exact triggering main revision",
+                "status": "completed"
+              },
+              {
+                "conclusion": "success",
+                "name": "Require a sole continuation-trigger change",
+                "status": "completed"
+              },
+              {
+                "conclusion": null,
+                "name": "Wait for the exact R11-R20 source workflow and artifact",
+                "status": "in_progress"
+              },
+              {
+                "conclusion": null,
+                "name": "Qualify source support and freeze its exact receipt",
+                "status": "pending"
+              },
+              {
+                "conclusion": null,
+                "name": "Generate frozen R21-R40 target protocol, wrapper, workflow, and request",
+                "status": "pending"
+              },
+              {
+                "conclusion": null,
+                "name": "Register and validate target control plane before any target request",
+                "status": "pending"
+              },
+              {
+                "conclusion": null,
+                "name": "Commit source receipt and target machinery without its request",
+                "status": "pending"
+              },
+              {
+                "conclusion": null,
+                "name": "Commit the target request as the sole next main change",
+                "status": "pending"
+              },
+              {
+                "conclusion": null,
+                "name": "Post Check out exact triggering main revision",
+                "status": "pending"
+              }
+            ]
+          }
+        ],
+        "status": "in_progress"
+      },
+      "workflow": "continue-dot-r21-r40-after-source-v1.yml"
+    },
+    {
+      "http_status": 404,
+      "latest_run": null,
+      "workflow": "dot-rope-r21-r40-confirmation-v1.yml"
+    },
+    {
+      "http_status": 200,
+      "latest_run": {
+        "artifacts": [],
+        "conclusion": null,
+        "event": "push",
+        "head_sha": "54f894d318a4033407d6312754ba12b9e7f22232",
+        "id": 33545390060,
+        "jobs": [
+          {
+            "conclusion": null,
+            "id": 99981488843,
+            "name": "publish",
+            "status": "in_progress",
+            "steps": [
+              {
+                "conclusion": "success",
+                "name": "Set up job",
+                "status": "completed"
+              },
+              {
+                "conclusion": "success",
+                "name": "Check out exact triggering main revision",
+                "status": "completed"
+              },
+              {
+                "conclusion": null,
+                "name": "Wait for the prospective target workflow and terminal artifact",
+                "status": "in_progress"
+              },
+              {
+                "conclusion": null,
+                "name": "Verify and materialize a content-addressed terminal publication",
+                "status": "pending"
+              },
+              {
+                "conclusion": null,
+                "name": "Commit immutable terminal evidence to main",
+                "status": "pending"
+              },
+              {
+                "conclusion": null,
+                "name": "Post Check out exact triggering main revision",
+                "status": "pending"
+              }
+            ]
+          }
+        ],
+        "status": "in_progress"
+      },
+      "workflow": "publish-dot-r21-r40-terminal-v1.yml"
+    }
+  ]
+}
