@@ -1,0 +1,137 @@
+name: Factorized shared dependence
+
+on:
+  push:
+    branches:
+      - research/factorized-shared-dependence-v1
+    paths:
+      - ".github/workflows/factorized-shared-dependence.yml"
+      - "src/prob4d/factorized_dependence.py"
+      - "tests/test_factorized_dependence.py"
+      - "scripts/science/run_factorized_shared_dependence_control.py"
+      - "protocols/factorized-shared-dependence-control-v1.json"
+      - "docs/factorized-shared-dependence.md"
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/factorized-shared-dependence.yml"
+      - "src/prob4d/factorized_dependence.py"
+      - "tests/test_factorized_dependence.py"
+      - "scripts/science/run_factorized_shared_dependence_control.py"
+      - "protocols/factorized-shared-dependence-control-v1.json"
+      - "docs/factorized-shared-dependence.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: factorized-shared-dependence-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  factorized-gaussian-contract:
+    name: Dense parity, moments, and storage control
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install development environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -e ".[dev]"
+          python -m pip check
+
+      - name: Lint, format, and type-check focused files
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m ruff check \
+            src/prob4d/factorized_dependence.py \
+            tests/test_factorized_dependence.py \
+            scripts/science/run_factorized_shared_dependence_control.py
+          python -m ruff format --check \
+            src/prob4d/factorized_dependence.py \
+            tests/test_factorized_dependence.py \
+            scripts/science/run_factorized_shared_dependence_control.py
+          python -m mypy src/prob4d/factorized_dependence.py
+
+      - name: Verify dense parity, sampling, and invalid-input behavior
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pytest -q tests/test_factorized_dependence.py
+
+      - name: Reproduce designed factorization control
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf outputs/factorized-shared-dependence-control-v1
+          python scripts/science/run_factorized_shared_dependence_control.py \
+            --protocol protocols/factorized-shared-dependence-control-v1.json \
+            --output outputs/factorized-shared-dependence-control-v1/result.json
+
+      - name: Enforce numerical parity and bounded interpretation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          result = json.loads(
+              Path(
+                  "outputs/factorized-shared-dependence-control-v1/result.json"
+              ).read_text(encoding="utf-8")
+          )
+          assert result["schema"] == (
+              "prob4d.factorized-shared-dependence-result.v1"
+          )
+          parity = result["dense_parity"]
+          assert parity["maximum_solve_absolute_error"] < 1.0e-8
+          assert parity["log_determinant_absolute_error"] < 1.0e-8
+          assert parity["quadratic_form_absolute_error"] < 1.0e-7
+          assert parity["gaussian_nll_absolute_error"] < 1.0e-7
+          assert result["sampling_control"][
+              "relative_covariance_frobenius_error"
+          ] < 0.05
+          storage = result["paper_scale_storage"]
+          assert storage["factorized_float64_bytes"] == 491_520
+          assert storage["dense_float64_bytes"] == 301_989_888
+          assert storage["dense_to_factorized_storage_ratio"] == 614.4
+          assert result["information_boundary"] == {
+              "provider_predictions_opened": False,
+              "source_outcomes_opened": False,
+              "heldout_outcomes_opened": False,
+              "bayesian_phystwin_executed": False,
+              "causal4d_executed": False,
+          }
+          print({
+              "artifact_id": result["artifact_id"],
+              "dense_parity": parity,
+              "sampling": result["sampling_control"],
+              "paper_scale_storage": storage,
+          })
+          PY
+
+      - name: Upload designed-control evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: factorized-shared-dependence-control-v1-${{ github.run_id }}
+          path: outputs/factorized-shared-dependence-control-v1/
+          if-no-files-found: warn
+          retention-days: 30
