@@ -1,0 +1,57 @@
+name: Temporary stage DOT scientific-exit mapping fix
+
+on:
+  push:
+    branches: [fix/dot-heldout-scientific-exit-mapping-v1]
+    paths:
+      - ".github/workflows/temporary-stage-dot-scientific-exit-mapping-fix.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out exact branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: fix/dot-heldout-scientific-exit-mapping-v1
+          persist-credentials: true
+          clean: true
+      - name: Stage exact workflow fixes as ordinary blobs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p tmp
+          for source in \
+            .github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml \
+            .github/workflows/dot-r04-r10-postprocess-v1.yml
+          do
+            target="tmp/$(basename "$source")"
+            cp "$source" "$target"
+            TARGET="$target" python - <<'PY'
+          import os
+          from pathlib import Path
+
+          path = Path(os.environ['TARGET'])
+          text = path.read_text(encoding='utf-8')
+          old_main = '''          if decision != "technical-failure" and os.environ["EXECUTION_OUTCOME"] != "success":\n              raise SystemExit("scientific result and process outcome disagree")\n'''
+          new_main = '''          expected_outcome = (\n              "failure"\n              if decision in {"heldout-support-negative", "technical-failure"}\n              else "success"\n          )\n          if os.environ["EXECUTION_OUTCOME"] != expected_outcome:\n              raise SystemExit("scientific result and process outcome disagree")\n'''
+          old_recovery = '''          if decision != "technical-failure" and os.environ["EXECUTION_OUTCOME"] != "success":\n              raise SystemExit("recovered scientific result and process outcome disagree")\n'''
+          new_recovery = '''          expected_outcome = (\n              "failure"\n              if decision in {"heldout-support-negative", "technical-failure"}\n              else "success"\n          )\n          if os.environ["EXECUTION_OUTCOME"] != expected_outcome:\n              raise SystemExit("recovered scientific result and process outcome disagree")\n'''
+          count = text.count(old_main) + text.count(old_recovery)
+          if count != 1:
+              raise SystemExit(f'expected exactly one scientific-outcome assertion, found {count}')
+          text = text.replace(old_main, new_main).replace(old_recovery, new_recovery)
+          path.write_text(text, encoding='utf-8')
+          PY
+            diff -u "$source" "$target" || test $? -eq 1
+            git diff --no-index --check "$source" "$target" || true
+            git add "$target"
+          done
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Stage DOT scientific-exit mapping fix'
+          git push origin HEAD:fix/dot-heldout-scientific-exit-mapping-v1
