@@ -13,11 +13,12 @@ import math
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TypeAlias
 
 import numpy as np
 from numpy.typing import NDArray
 
-FloatArray = NDArray[np.float64]
+FloatArray: TypeAlias = NDArray[np.float64]
 
 
 @dataclass(frozen=True)
@@ -154,11 +155,15 @@ def _layout_from_rows(rows: Sequence[Sequence[str]], delimiter: str) -> MotiveLa
             )
             and axes == ("X", "Y", "Z")
         ):
-            labels = {header[label_index][column + offset].strip() for offset in range(3)}
-            unique_ids = {header[unique_id_index][column + offset].strip() for offset in range(3)}
-            if len(labels) != 1 or len(unique_ids) != 1:
+            label_cells = {
+                header[label_index][column + offset].strip() for offset in range(3)
+            }
+            unique_ids = {
+                header[unique_id_index][column + offset].strip() for offset in range(3)
+            }
+            if len(label_cells) != 1 or len(unique_ids) != 1:
                 raise ValueError("Motive marker triple has inconsistent identity cells")
-            label = next(iter(labels))
+            label = next(iter(label_cells))
             unique_id = next(iter(unique_ids))
             if not label or not unique_id:
                 raise ValueError("Motive marker label or unique ID is empty")
@@ -174,8 +179,8 @@ def _layout_from_rows(rows: Sequence[Sequence[str]], delimiter: str) -> MotiveLa
             column += 1
     if len(markers) < 3:
         raise ValueError("Motive CSV contains fewer than three explicit 3-D markers")
-    labels = [marker.label for marker in markers]
-    if len(set(labels)) != len(labels):
+    marker_labels = [marker.label for marker in markers]
+    if len(set(marker_labels)) != len(marker_labels):
         raise ValueError("Motive CSV contains duplicate marker labels")
     return MotiveLayout(
         delimiter=delimiter,
