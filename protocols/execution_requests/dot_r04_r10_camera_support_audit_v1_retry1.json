@@ -1,0 +1,18 @@
+{
+  "archive": "R01-10.zip",
+  "frozen_r04_r10_result_reinterpreted": false,
+  "performance_metrics_computed": false,
+  "r11_r70_opened": false,
+  "request_id": "3f2a41cf9aed232163717d75dba276d6e5cfc0334099e8536201e2ef273999e1",
+  "schema": "prob4d.dot-r04-r10-camera-support-audit-request",
+  "schema_version": 1,
+  "sequences": [
+    "R04",
+    "R05",
+    "R06",
+    "R07",
+    "R08",
+    "R09",
+    "R10"
+  ]
+}
