@@ -1,0 +1,54 @@
+{
+  "chi_square_threshold_90": 6.251388631170325,
+  "ci_grid_size": 1001,
+  "ci_objective": "logdet",
+  "claim_boundary": "Controlled linear-Gaussian evidence for prior-anchored query-message algebra and unknown-dependence covariance-intersection behavior. It does not establish provider calibration, real-data utility, nonlinear-query validity, robot safety, or state of the art.",
+  "correlation_values": [
+    0.0,
+    0.25,
+    0.5,
+    0.75,
+    0.9,
+    0.99
+  ],
+  "coverage_probability": 0.9,
+  "criteria": {
+    "high_correlation_minimum": 0.75,
+    "maximum_api_parity_error": 1e-10,
+    "maximum_ci_normalized_nees": 1.0,
+    "maximum_exact_coverage_error": 0.012,
+    "maximum_exact_normalized_nees_error": 0.03,
+    "maximum_independent_parity_error": 1e-12,
+    "maximum_naive_high_correlation_coverage": 0.75,
+    "minimum_ci_coverage": 0.9,
+    "minimum_naive_high_correlation_normalized_nees": 1.5
+  },
+  "dimension": 3,
+  "prior_covariance_diagonal": [
+    4.0,
+    4.0,
+    4.0
+  ],
+  "prior_mean": [
+    0.3,
+    -0.2,
+    0.5
+  ],
+  "protocol_id": "7425758b5fbe7c0ae7f22bf3cfaa207746bf60881beb59a0c421ff362651b6cf",
+  "sample_count": 65536,
+  "schema": "prob4d.query-message-overlap-study-protocol",
+  "schema_version": 1,
+  "seed": 20260902,
+  "window_noise_diagonals": [
+    [
+      0.2,
+      1.0,
+      0.5
+    ],
+    [
+      1.0,
+      0.2,
+      0.5
+    ]
+  ]
+}
