@@ -10,6 +10,7 @@ on:
     branches: [main]
     paths:
       - "protocols/execution_requests/dot_r04_r10_camera_support_audit_v1.json"
+      - "protocols/execution_requests/dot_r04_r10_camera_support_audit_v1_retry1.json"
 
 permissions:
   contents: read
@@ -19,7 +20,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  REQUEST_PATH: protocols/execution_requests/dot_r04_r10_camera_support_audit_v1.json
+  REQUEST_PATH_V1: protocols/execution_requests/dot_r04_r10_camera_support_audit_v1.json
+  REQUEST_PATH_RETRY1: protocols/execution_requests/dot_r04_r10_camera_support_audit_v1_retry1.json
   DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/dot
   ARCHIVE_NAME: R01-10.zip
   ARCHIVE_MD5: ca546ff5f22c0279123ccb18509858ee
@@ -62,6 +64,18 @@ jobs:
           for forbidden in ("R11-20.zip", "R21-30.zip", "R31-40.zip", "R41-50.zip", "R51-60.zip", "R61-70.zip"):
               if forbidden in text:
                   raise SystemExit(f"target archive leaked into diagnostic: {forbidden}")
+          workflow = Path(".github/workflows/dot-r04-r10-camera-support-audit-v1.yml").read_text(
+              encoding="utf-8"
+          )
+          if "runs-on: [self-hosted, gpuserver4090]" not in workflow:
+              raise SystemExit("audit scheduler must bind the explicit gpuserver4090 label")
+          for runtime_check in (
+              'test "$RUNNER_NAME" = "workstation1"',
+              'test "$RUNNER_OS" = "Linux"',
+              'test "$RUNNER_ARCH" = "X64"',
+          ):
+              if runtime_check not in workflow:
+                  raise SystemExit(f"missing runtime runner check: {runtime_check}")
           PY
 
   authorize:
@@ -97,12 +111,17 @@ jobs:
           test "$EVENT_DELETED" = "false"
           test "$EVENT_BEFORE" != "0000000000000000000000000000000000000000"
           mapfile -t changed < <(git diff --name-only "$EVENT_BEFORE" "$EVENT_AFTER" | sort)
-          if [[ ${#changed[@]} -ne 1 || "${changed[0]}" != "$REQUEST_PATH" ]]; then
-            printf 'Expected only %s; changed paths were:\n' "$REQUEST_PATH" >&2
+          if [[ ${#changed[@]} -ne 1 ]]; then
+            printf 'Expected exactly one diagnostic request change; changed paths were:\n' >&2
             printf '  %s\n' "${changed[@]}" >&2
             exit 2
           fi
-          REQUEST="$REQUEST_PATH" EVENT_AFTER="$EVENT_AFTER" python - <<'PY'
+          request_path="${changed[0]}"
+          if [[ "$request_path" != "$REQUEST_PATH_V1" && "$request_path" != "$REQUEST_PATH_RETRY1" ]]; then
+            printf 'Unexpected diagnostic request path: %s\n' "$request_path" >&2
+            exit 2
+          fi
+          REQUEST="$request_path" EVENT_AFTER="$EVENT_AFTER" python - <<'PY'
           import hashlib
           import json
           import os
@@ -150,7 +169,7 @@ jobs:
     if: github.event_name == 'push'
     needs: authorize
     environment: trusted-self-hosted-validation
-    runs-on: [self-hosted, Linux, X64, gpuserver4090]
+    runs-on: [self-hosted, gpuserver4090]
     timeout-minutes: 30
     permissions:
       contents: read
