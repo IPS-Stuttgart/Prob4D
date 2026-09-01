@@ -17,6 +17,8 @@ SEQUENCES = [f"R{i:02d}" for i in range(4, 11)]
 FRAMES = list(range(1, 8))
 ARCHIVE = "R01-10.zip"
 ARCHIVE_MD5 = "ca546ff5f22c0279123ccb18509858ee"
+SHARED_3D_CAMERA = "cam001"
+LAYOUT_CENSUS_ID = "74f090a99d6740ac3388c43493531ea5168291e4c5a709fb74344e45b46b4f19"
 CAMERA_RE = re.compile(
     r"^(R(?:0[4-9]|10))/images/normal_view/frame(\d{6})_(cam\d+)\.jpg$"
 )
@@ -97,6 +99,15 @@ def member(sequence: str, dimension: int, frame: int, camera: str) -> str:
 
 def image_member(sequence: str, frame: int, camera: str) -> str:
     return f"{sequence}/images/normal_view/frame{frame:06d}_{camera}.jpg"
+
+
+def coordinate_members(sequence: str, frame: int, camera: str) -> tuple[str, str]:
+    """Return one camera-specific 2-D carrier and the shared 3-D carrier."""
+
+    return (
+        member(sequence, 2, frame, camera),
+        member(sequence, 3, frame, SHARED_3D_CAMERA),
+    )
 
 
 def finite_pair(row: list[float]) -> tuple[float, float] | None:
@@ -224,8 +235,9 @@ def audit(dataset_root: Path) -> dict[str, Any]:
                 support[sequence][camera] = {mode: {} for mode in modes}
                 for frame in FRAMES:
                     image_name = image_member(sequence, frame, camera)
-                    two_name = member(sequence, 2, frame, camera)
-                    three_name = member(sequence, 3, frame, camera)
+                    two_name, three_name = coordinate_members(
+                        sequence, frame, camera
+                    )
                     for path in (image_name, two_name, three_name):
                         pure = PurePosixPath(path)
                         if pure.is_absolute() or ".." in pure.parts or path not in names:
@@ -235,9 +247,13 @@ def audit(dataset_root: Path) -> dict[str, Any]:
                     raw_3d = archive.read(three_name)
                     rows_2d = numeric_rows(raw_2d.decode("utf-8", errors="replace"))
                     rows_3d = numeric_rows(raw_3d.decode("utf-8", errors="replace"))
-                    count = min(len(rows_2d), len(rows_3d))
-                    rows_2d = rows_2d[:count]
-                    rows_3d = rows_3d[:count]
+                    if len(rows_2d) != len(rows_3d):
+                        raise ValueError(
+                            "camera-specific 2-D and shared 3-D row counts differ: "
+                            f"{sequence}:{camera}:{frame:06d}:"
+                            f"{len(rows_2d)}!={len(rows_3d)}"
+                        )
+                    count = len(rows_2d)
                     three_d_hashes[sequence][frame][camera] = hashlib.sha256(raw_3d).hexdigest()
                     counts: dict[str, int] = {}
                     for mode in modes:
@@ -255,6 +271,8 @@ def audit(dataset_root: Path) -> dict[str, Any]:
                     ]
                     per_frame[f"{sequence}:{camera}:{frame:06d}"] = {
                         "image_size": [width, height],
+                        "two_d_member": two_name,
+                        "shared_3d_member": three_name,
                         "rows_2d": len(rows_2d),
                         "rows_3d": len(rows_3d),
                         "paired_rows": count,
@@ -373,6 +391,12 @@ def audit(dataset_root: Path) -> dict[str, Any]:
             "archive": ARCHIVE,
             "archive_md5": ARCHIVE_MD5,
             "cameras_present_on_every_sequence": cameras,
+            "coordinate_layout": (
+                "camera-specific 2-D coordinates with one shared cam001 "
+                "3-D carrier per sequence and frame"
+            ),
+            "shared_3d_camera_label": SHARED_3D_CAMERA,
+            "layout_census_id": LAYOUT_CENSUS_ID,
         },
         "readme": readme_evidence(root),
         "cross_camera_3d_payload_identical": three_d_consistency,
