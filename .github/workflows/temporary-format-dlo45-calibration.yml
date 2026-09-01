@@ -1,0 +1,48 @@
+name: Temporary format DLO45 calibration capsule
+
+on:
+  push:
+    branches: [science/deform-dlo45-source-calibrated-covariance-v1]
+    paths:
+      - ".github/workflows/temporary-format-dlo45-calibration.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: science/deform-dlo45-source-calibrated-covariance-v1
+          fetch-depth: 0
+      - name: Apply the repository formatter and remove this helper
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check 'ruff==0.16.5'
+          python -m ruff check --fix \
+            scripts/science/run_deform_dlo45_source_calibrated_query_covariance_v1.py \
+            tests/test_deform_dlo45_source_calibrated_query_covariance_v1.py
+          python -m ruff format \
+            scripts/science/run_deform_dlo45_source_calibrated_query_covariance_v1.py \
+            tests/test_deform_dlo45_source_calibrated_query_covariance_v1.py
+          python -m ruff check \
+            scripts/science/run_deform_dlo45_source_calibrated_query_covariance_v1.py \
+            tests/test_deform_dlo45_source_calibrated_query_covariance_v1.py
+          python -m ruff format --check \
+            scripts/science/run_deform_dlo45_source_calibrated_query_covariance_v1.py \
+            tests/test_deform_dlo45_source_calibrated_query_covariance_v1.py
+          python -m py_compile \
+            scripts/science/run_deform_dlo45_source_calibrated_query_covariance_v1.py
+          git diff --check
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add \
+            scripts/science/run_deform_dlo45_source_calibrated_query_covariance_v1.py \
+            tests/test_deform_dlo45_source_calibrated_query_covariance_v1.py
+          git rm .github/workflows/temporary-format-dlo45-calibration.yml
+          git commit -m 'Format source-calibrated DLO covariance capsule'
+          git push origin HEAD:science/deform-dlo45-source-calibrated-covariance-v1
