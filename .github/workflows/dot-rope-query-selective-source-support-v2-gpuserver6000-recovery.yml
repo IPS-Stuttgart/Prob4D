@@ -21,7 +21,7 @@ permissions:
 
 concurrency:
   group: dot-rope-source-support-v2-gpuserver6000-recovery
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 env:
   REQUEST_PATH: protocols/execution_requests/dot_rope_query_selective_source_support_v2_gpuserver6000.json
@@ -396,7 +396,8 @@ jobs:
           done
 
           if [[ -z "$usable" ]]; then
-            venv="$RUNTIME_CACHE_ROOT/venv"
+            # The previous persistent venv could be left locked by an interrupted pip process. Use the same isolated, per-run runtime strategy that completed the R04-R10 provider.
+            venv="$root/venv"
             /usr/bin/mkdir -p "$RUNTIME_CACHE_ROOT"
             if [[ ! -x "$venv/bin/python" ]]; then
               python -m venv "$venv"
