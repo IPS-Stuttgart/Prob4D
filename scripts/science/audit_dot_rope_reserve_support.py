@@ -52,9 +52,7 @@ def _load_protocol(path: Path) -> dict[str, Any]:
     }
     if set(protocol) != expected or protocol["schema"] != SCHEMA:
         raise ValueError("protocol schema or fields changed")
-    if protocol["evidence_kind"] != (
-        "outcome-blind-two-dimensional-support-qualification"
-    ):
+    if protocol["evidence_kind"] != ("outcome-blind-two-dimensional-support-qualification"):
         raise ValueError("evidence kind changed")
     dataset = protocol["dataset"]
     if dataset != {
@@ -71,9 +69,7 @@ def _load_protocol(path: Path) -> dict[str, Any]:
         "sequence_stop": 70,
         "cameras": [f"cam{index:03d}" for index in range(1, 11)],
         "frames": list(range(1, 8)),
-        "coordinate_member_template": (
-            "{sequence}/coordinates/2d/frame{frame:06d}_{camera}.txt"
-        ),
+        "coordinate_member_template": ("{sequence}/coordinates/2d/frame{frame:06d}_{camera}.txt"),
         "coordinate_columns": [0, 1],
     }:
         raise ValueError("dataset contract changed")
@@ -109,9 +105,7 @@ def _load_protocol(path: Path) -> dict[str, Any]:
         "causal4d_executed": False,
     }:
         raise ValueError("information boundary changed")
-    if not isinstance(protocol["claim_boundary"], str) or not protocol[
-        "claim_boundary"
-    ].strip():
+    if not isinstance(protocol["claim_boundary"], str) or not protocol["claim_boundary"].strip():
         raise ValueError("claim boundary is empty")
     return protocol
 
@@ -135,9 +129,7 @@ def _parse_coordinates(raw: bytes, *, member: str) -> list[tuple[float, float]]:
             x = float(tokens[0])
             y = float(tokens[1])
         except ValueError as error:
-            raise ValueError(
-                f"{member}:{line_number} contains a nonnumeric coordinate"
-            ) from error
+            raise ValueError(f"{member}:{line_number} contains a nonnumeric coordinate") from error
         rows.append((x, y))
     if not rows:
         raise ValueError(f"{member} contains no coordinate rows")
@@ -174,9 +166,7 @@ def _verify_archives(
     protocol: dict[str, Any],
 ) -> tuple[dict[str, Path], list[dict[str, Any]]]:
     metadata = _load_json(metadata_path)
-    if metadata.get("dataset_persistent_id") != protocol["dataset"][
-        "persistent_id"
-    ]:
+    if metadata.get("dataset_persistent_id") != protocol["dataset"]["persistent_id"]:
         raise ValueError("metadata persistent identifier changed")
     files = metadata.get("files")
     if not isinstance(files, list):
@@ -267,27 +257,17 @@ def evaluate(args: argparse.Namespace) -> int:
             args.official_metadata,
             protocol,
         )
-        handles = {
-            name: zipfile.ZipFile(path)
-            for name, path in archives.items()
-        }
+        handles = {name: zipfile.ZipFile(path) for name, path in archives.items()}
         try:
-            name_sets = {
-                name: set(handle.namelist())
-                for name, handle in handles.items()
-            }
+            name_sets = {name: set(handle.namelist()) for name, handle in handles.items()}
             camera_rows: list[dict[str, Any]] = []
             selected_rows: list[dict[str, Any]] = []
             accessed_members: list[dict[str, Any]] = []
             minimum_common = int(
-                protocol["camera_selection_rule"][
-                    "minimum_common_visible_markers"
-                ]
+                protocol["camera_selection_rule"]["minimum_common_visible_markers"]
             )
             minimum_frame = int(
-                protocol["camera_selection_rule"][
-                    "minimum_per_frame_visible_markers"
-                ]
+                protocol["camera_selection_rule"]["minimum_per_frame_visible_markers"]
             )
             template = protocol["dataset"]["coordinate_member_template"]
             for sequence_number in range(
@@ -342,9 +322,7 @@ def evaluate(args: argparse.Namespace) -> int:
                         "maximum_frame_visible_marker_count": max(frame_counts),
                         "minimum_coordinate_row_count": min(marker_row_counts),
                         "maximum_coordinate_row_count": max(marker_row_counts),
-                        "common_marker_indices": ";".join(
-                            str(index) for index in sorted(common)
-                        ),
+                        "common_marker_indices": ";".join(str(index) for index in sorted(common)),
                     }
                     camera_rows.append(row)
                     sequence_camera_rows.append(row)
@@ -359,17 +337,14 @@ def evaluate(args: argparse.Namespace) -> int:
                 )
                 qualified = (
                     int(selected["common_visible_marker_count"]) >= minimum_common
-                    and int(selected["minimum_frame_visible_marker_count"])
-                    >= minimum_frame
+                    and int(selected["minimum_frame_visible_marker_count"]) >= minimum_frame
                 )
                 selected_rows.append(
                     {
                         "sequence": sequence,
                         "archive": archive_name,
                         "selected_camera": selected["camera"],
-                        "common_visible_marker_count": selected[
-                            "common_visible_marker_count"
-                        ],
+                        "common_visible_marker_count": selected["common_visible_marker_count"],
                         "minimum_frame_visible_marker_count": selected[
                             "minimum_frame_visible_marker_count"
                         ],
@@ -384,12 +359,8 @@ def evaluate(args: argparse.Namespace) -> int:
             for handle in handles.values():
                 handle.close()
 
-        qualified = [
-            row["sequence"] for row in selected_rows if row["qualified"]
-        ]
-        unsupported = [
-            row["sequence"] for row in selected_rows if not row["qualified"]
-        ]
+        qualified = [row["sequence"] for row in selected_rows if row["qualified"]]
+        unsupported = [row["sequence"] for row in selected_rows if not row["qualified"]]
         result: dict[str, Any] = {
             "schema": RESULT_SCHEMA,
             "evidence_kind": protocol["evidence_kind"],
@@ -438,9 +409,7 @@ def evaluate(args: argparse.Namespace) -> int:
             "protocol_sha256": _content_id(protocol),
             "repository_revision": args.repository_revision,
             "decision": "technical-failure",
-            "failure": (
-                f"{type(error).__name__}: {' '.join(str(error).split())}"
-            )[:2000],
+            "failure": (f"{type(error).__name__}: {' '.join(str(error).split())}")[:2000],
             "traceback_tail": traceback.format_exc().splitlines()[-30:],
             "information_boundary": protocol["information_boundary"],
             "claim_boundary": protocol["claim_boundary"],

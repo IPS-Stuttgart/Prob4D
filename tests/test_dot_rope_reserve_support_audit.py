@@ -61,10 +61,7 @@ def _make_dataset(root: Path) -> Path:
                     if sequence == "R12":
                         visible = 7
                     for frame in range(1, 8):
-                        member = (
-                            f"{sequence}/coordinates/2d/"
-                            f"frame{frame:06d}_{camera}.txt"
-                        )
+                        member = f"{sequence}/coordinates/2d/frame{frame:06d}_{camera}.txt"
                         archive.writestr(member, _coordinate_rows(visible))
                 archive.writestr(
                     f"{sequence}/coordinates/3d/frame000001_cam001.txt",
@@ -95,9 +92,7 @@ def test_protocol_and_archive_mapping_are_frozen() -> None:
     protocol = module._load_protocol(PROTOCOL)
     assert protocol["dataset"]["sequence_start"] == 11
     assert protocol["dataset"]["sequence_stop"] == 70
-    assert protocol["camera_selection_rule"][
-        "minimum_common_visible_markers"
-    ] == 8
+    assert protocol["camera_selection_rule"]["minimum_common_visible_markers"] == 8
     assert module._archive_for_sequence(11) == "R11-20.zip"
     assert module._archive_for_sequence(20) == "R11-20.zip"
     assert module._archive_for_sequence(21) == "R21-30.zip"
@@ -136,9 +131,7 @@ def test_complete_synthetic_audit_is_deterministic_and_reads_only_2d(
         f"R{index:02d}" for index in range(11, 71) if index != 12
     ]
     assert result["unsupported_sequences"] == ["R12"]
-    selected = {
-        row["sequence"]: row for row in result["selected_cameras"]
-    }
+    selected = {row["sequence"]: row for row in result["selected_cameras"]}
     assert selected["R11"]["selected_camera"] == "cam003"
     assert selected["R11"]["common_visible_marker_count"] == 10
     assert selected["R12"]["selected_camera"] == "cam001"
@@ -163,9 +156,7 @@ def test_complete_synthetic_audit_is_deterministic_and_reads_only_2d(
 def test_protocol_rejects_an_expanded_information_boundary(tmp_path: Path) -> None:
     module = _load_module()
     protocol = json.loads(PROTOCOL.read_text())
-    protocol["information_boundary"][
-        "three_dimensional_coordinate_values_opened"
-    ] = True
+    protocol["information_boundary"]["three_dimensional_coordinate_values_opened"] = True
     path = tmp_path / "changed.json"
     path.write_text(json.dumps(protocol), encoding="utf-8")
     try:
