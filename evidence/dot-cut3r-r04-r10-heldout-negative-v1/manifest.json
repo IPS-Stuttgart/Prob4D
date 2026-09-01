@@ -1,0 +1,45 @@
+{
+  "artifact_files_sha256": {
+    "failure.json": "85dcbc249db06f42f36745e0d9649d1bb14db3778116a2b4fb93dd1e1874b18e",
+    "independent-verification.json": "66e856d75b24b092555bb5946a7037a7ef550d6a462662c36d8d475d09f14db0",
+    "marker-support.json": "14a2f744f344046bbd169acb68f028c390434196bcf806a6db35abab1a7b3dca",
+    "recovery-receipt.json": "ea593fe13f358a3c23061cb4d561b7678a395c1cf79ed52aa3223df5a644d862",
+    "recovery-request.json": "6e451b4f2426cdac94eb4b3a6dfde82c7ebdb20d872c37b36d56f8403fef2696"
+  },
+  "artifact_id": 9817282504,
+  "artifact_name": "dot-rope-cut3r-heldout-evaluation-recovered-v2-5f60d7494dbc67b694b0d011283a0b5bc3093b190c3f1e7fd1978549f48f1051",
+  "artifact_sha256": "3207766f8b48c11e667cf90f61e86c0026a0de024727293d5495cc2214304685",
+  "bayesian_phystwin_executed": false,
+  "causal4d_executed": false,
+  "confirmation_retuning_performed": false,
+  "confirmation_sequences": [
+    "R04",
+    "R05",
+    "R06",
+    "R07",
+    "R08",
+    "R09",
+    "R10"
+  ],
+  "decision": "heldout-support-negative",
+  "frozen_evaluator_revision": "b85dd8e8adb68ffb289868731222151968940317",
+  "marker_support_id": "a2c32a395eaa334238cf19368b14eebf5a5af70f8368e9a01ed8dfc4f616e46a",
+  "marker_support_retained_in_actions_artifact_only": true,
+  "provider_artifact_id": 9797527843,
+  "provider_artifact_sha256": "45cccd5b6f7b7d671cfc86fbcb27232d29faf5dafdeee8d0ea5a9c45ce42ae7c",
+  "provider_rerun": false,
+  "recovery_control_revision": "9d827ffbac97e5cace28ddb7fb023453b8c4c6ba",
+  "reserved_sequences": "R11-R70",
+  "result_id": "efe88e93985e88d42efd8375e24af40b04cfe8bf18bc1352cd83cf2b893861d0",
+  "retained_payloads": [
+    "failure.json",
+    "independent-verification.json",
+    "recovery-receipt.json",
+    "recovery-request.json"
+  ],
+  "schema": "prob4d.dot-cut3r-r04-r10-heldout-negative-evidence.v1",
+  "scientific_inputs_changed": false,
+  "selected_dependence_alpha": 0.85,
+  "workflow_job_id": 99998900477,
+  "workflow_run_id": 33550572437
+}

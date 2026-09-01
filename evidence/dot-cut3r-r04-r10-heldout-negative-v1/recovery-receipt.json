@@ -1,0 +1,21 @@
+{
+  "bayesian_phystwin_executed": false,
+  "causal4d_executed": false,
+  "confirmation_retuning_performed": false,
+  "decision": "heldout-support-negative",
+  "evaluator_exit_status": 4,
+  "provider_artifact_digest": "sha256:45cccd5b6f7b7d671cfc86fbcb27232d29faf5dafdeee8d0ea5a9c45ce42ae7c",
+  "provider_artifact_id": 9797527843,
+  "provider_bundle_id": "57dc11d9e39258a2f620d67e39f1176cafe74252173ead8cb4ba2f76083499ec",
+  "provider_job_id": 99831732392,
+  "provider_rerun": false,
+  "r11_r70_opened": false,
+  "recovery_id": "65ea99495e469989029f330b15b7022ac32d0b55e5066f3d1d1fca7babf59833",
+  "recovery_request_id": "5f60d7494dbc67b694b0d011283a0b5bc3093b190c3f1e7fd1978549f48f1051",
+  "result_id": "efe88e93985e88d42efd8375e24af40b04cfe8bf18bc1352cd83cf2b893861d0",
+  "schema": "prob4d.dot-r04-r10-evaluation-recovery-receipt",
+  "schema_version": 2,
+  "scientific_inputs_changed": false,
+  "target_head_sha": "b85dd8e8adb68ffb289868731222151968940317",
+  "target_run_id": 33500239597
+}
