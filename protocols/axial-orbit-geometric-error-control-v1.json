@@ -1,0 +1,18 @@
+{
+  "schema": "prob4d.axial-orbit-geometric-error-control.v1",
+  "evidence_kind": "designed-geometric-error-bound-control",
+  "seed": 20260902,
+  "case_count": 5000,
+  "point_count_range": [3, 20],
+  "query_dimension_range": [1, 8],
+  "maximum_point_error": 0.08,
+  "maximum_pivot_error": 0.08,
+  "maximum_axis_tangent_perturbation": 0.35,
+  "registered_checks": {
+    "maximum_operator_bound_violation": 1e-12,
+    "minimum_nonzero_ratio_count": 4900,
+    "maximum_actual_to_bound_ratio": 1.000000000001,
+    "minimum_maximum_actual_to_bound_ratio": 0.01
+  },
+  "claim_boundary": "Designed deterministic validation of the supplied simultaneous point, pivot, and unit-axis error contract. Ratio statistics describe this random control distribution only; they do not calibrate a learned provider or establish empirical confidence coverage."
+}
