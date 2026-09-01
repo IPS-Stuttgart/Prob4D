@@ -6,7 +6,9 @@
     "source_protocol_id": "cd57cb81d1aa52707f26bb0f39829e848d15d0a67b064b390b24caf545923690",
     "required_decision": "camera-routing-provider-rank-qualified",
     "minimum_supported_source_sequences": 9,
-    "raw_routing_audit_id": "66724cb78840f4b9ef3becf97e5765924094cf8db6eca2d892c44cfa7edb19b3"
+    "raw_routing_audit_id": "66724cb78840f4b9ef3becf97e5765924094cf8db6eca2d892c44cfa7edb19b3",
+    "source_calibration_id": "943339ac864fda04cc59081bc81a605576b3c90bf0aa996aea00b00335cfc0c7",
+    "selected_dependence_alpha": 0.85
   },
   "target_archive": {
     "name": "R21-30.zip",
@@ -68,6 +70,7 @@
   "factor": {
     "expected_rank": 6,
     "rank_threshold": 0.01,
+    "selected_dependence_alpha": 0.85,
     "prior_standard_deviations_local": [0.05, 0.2, 0.2, 0.2, 0.15, 0.15, 0.15],
     "query_gate": {
       "minimum_direct_observability_fraction": 0.9,
@@ -122,5 +125,5 @@
     "target_side_retuning_allowed": false
   },
   "claim_boundary": "One-shot DOT R21-R30 learned-CUT3R camera-routed query-selective confirmation after source-only R11-R20 rank qualification. It does not authorize target-side retuning, post-outcome camera switching, R31-R70 access, BayesianPhysTwin/Causal4D execution, deployment-safety claims, or state-of-the-art claims.",
-  "protocol_id": "6cfa652c6e5d419dda2b81ccd88ff25f7180a2abc2d3f749d6c8b3e9c1ad1195"
+  "protocol_id": "b9267992484516a88d73637c813ae463f27e4a7b2586f805d394bea45e5f537c"
 }
