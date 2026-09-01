@@ -1,0 +1,40 @@
+{
+  "accounting": {
+    "complete_case_count": 393216,
+    "correlation_count": 6,
+    "independent_unit": "simulated_complete_query_case",
+    "sample_count_per_correlation": 65536
+  },
+  "artifact_payloads_sha256": {
+    "protocols/query-message-overlap-study-v1.json": "231f22630ffdcf05d81ee445f6fcf185b34e761303307a9fb9128f8bc63748fb",
+    "result.json": "5a75ae8e32a23ec022e5509b365e17044b86924b29af4fad582ad26747fcc978",
+    "summary.json": "5c1370b5029219098356f4f446d7620d1ca1d02d185368bd46b7cb69ea482787"
+  },
+  "committed_files_sha256": {
+    "protocols/query-message-overlap-study-v1.json": "231f22630ffdcf05d81ee445f6fcf185b34e761303307a9fb9128f8bc63748fb",
+    "summary.json": "5c1370b5029219098356f4f446d7620d1ca1d02d185368bd46b7cb69ea482787"
+  },
+  "decision": "controlled-overlap-passed",
+  "information_boundary": {
+    "controlled_linear_gaussian_only": true,
+    "dataset_payload_opened": false,
+    "dot_confirmation_access_authorized": false,
+    "dot_source_executed": false,
+    "learned_provider_calibration_established": false,
+    "real_data_utility_established": false,
+    "robot_safety_established": false
+  },
+  "protocol_id": "7425758b5fbe7c0ae7f22bf3cfaa207746bf60881beb59a0c421ff362651b6cf",
+  "result_id": "551e93bbf503909114177cd9607ceaa9743a8abf7dc5ad07e91a065bf9932da9",
+  "schema": "prob4d.query-message-overlap-controlled-evidence.v1",
+  "schema_version": 1,
+  "source": {
+    "artifact_id": 9822877862,
+    "artifact_name": "query-message-overlap-study-v1-08440588fd9b4078fbaca698c6c769964d8f321c",
+    "artifact_sha256": "c5a1a911c87701b57ef0eeb7002a3b69b474867c4a6842b05e80f8f560659b34",
+    "evaluated_head_sha": "8b44e274f4d4dfddec643a18cd5d0f21551b87eb",
+    "repository": "IPS-Stuttgart/Prob4D",
+    "workflow_id": 347918200,
+    "workflow_run_id": 33565333587
+  }
+}
