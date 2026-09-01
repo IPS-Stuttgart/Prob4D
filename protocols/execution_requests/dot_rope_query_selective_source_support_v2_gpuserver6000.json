@@ -1,27 +1,13 @@
 {
-  "schema": "prob4d.dot-rope-query-selective-source-support-request",
-  "schema_version": 2,
-  "request_id": "ad0b04f536c9768705b7d3bfa451631e01574e7512a7d68d02b2151cc80f486a",
-  "protocol_path": "protocols/dot-rope-query-selective-source-support-v2.json",
-  "protocol_git_blob_sha": "71f3e882de5cb3f5060a6f59c45d20c9a8198591",
-  "r04_r10_diagnostic": {
-    "decision": "heldout-support-negative",
-    "result_id": "531272d64eee29f26321030b236db9bd6ae3aadb7e16a1f492ac8140afc801ee",
-    "marker_support_id": "0a03bccbe1545b7d58819dacffb8f384332cde06e7e8a362532bd0b038aec63d",
-    "provider_bundle_id": "57dc11d9e39258a2f620d67e39f1176cafe74252173ead8cb4ba2f76083499ec"
-  },
-  "source_sequences": [
-    "R11",
-    "R12",
-    "R13",
-    "R14",
-    "R15",
-    "R16",
-    "R17",
-    "R18",
-    "R19",
-    "R20"
-  ],
+  "claim_boundary": "Authorize only the sealed DOT rope R11-R20 source/support qualification under protocol v2. R21-R30 and R31-R70 remain unopened; no target-side retuning, BayesianPhysTwin, or Causal4D outcome is authorized.",
+  "causal4d_executed": false,
+  "bayesian_phystwin_executed": false,
+  "post_source_tuning_authorized": false,
+  "confirmation_marker_access_authorized": false,
+  "confirmation_prediction_authorized": false,
+  "source_marker_support_qualification_authorized": true,
+  "normal_view_source_prediction_authorized": true,
+  "reserved_sequences": "R31-R70",
   "confirmation_sequences": [
     "R21",
     "R22",
@@ -34,13 +20,27 @@
     "R29",
     "R30"
   ],
-  "reserved_sequences": "R31-R70",
-  "normal_view_source_prediction_authorized": true,
-  "source_marker_support_qualification_authorized": true,
-  "confirmation_prediction_authorized": false,
-  "confirmation_marker_access_authorized": false,
-  "post_source_tuning_authorized": false,
-  "bayesian_phystwin_executed": false,
-  "causal4d_executed": false,
-  "claim_boundary": "Authorize only the sealed DOT rope R11-R20 source/support qualification under protocol v2. R21-R30 and R31-R70 remain unopened; no target-side retuning, BayesianPhysTwin, or Causal4D outcome is authorized."
+  "source_sequences": [
+    "R11",
+    "R12",
+    "R13",
+    "R14",
+    "R15",
+    "R16",
+    "R17",
+    "R18",
+    "R19",
+    "R20"
+  ],
+  "r04_r10_diagnostic": {
+    "provider_bundle_id": "57dc11d9e39258a2f620d67e39f1176cafe74252173ead8cb4ba2f76083499ec",
+    "marker_support_id": "0a03bccbe1545b7d58819dacffb8f384332cde06e7e8a362532bd0b038aec63d",
+    "result_id": "531272d64eee29f26321030b236db9bd6ae3aadb7e16a1f492ac8140afc801ee",
+    "decision": "heldout-support-negative"
+  },
+  "protocol_git_blob_sha": "71f3e882de5cb3f5060a6f59c45d20c9a8198591",
+  "protocol_path": "protocols/dot-rope-query-selective-source-support-v2.json",
+  "request_id": "ad0b04f536c9768705b7d3bfa451631e01574e7512a7d68d02b2151cc80f486a",
+  "schema_version": 2,
+  "schema": "prob4d.dot-rope-query-selective-source-support-request"
 }
