@@ -1,0 +1,167 @@
+{
+  "schema": "prob4d.tracking-cloth-finite-orbit-evidence.v3",
+  "status": "evaluated-real-geometry-passed",
+  "protocol_id": "9c0fb1a4191743a5038a2f26e521db1640fd5abfc3cac389e851485b7836a472",
+  "result_id": "1441a141a8eccc1ae3a503c701c72e8d702a0bcb17226238f3d32effa3e58111",
+  "source_seal_id": "b6819675387890dd786b22168638f1c1ee33558f88d8d6fa6359a0f6df403e6d",
+  "support_id": "f9867227ef9e5a780c49fbbe3ce646205795d9fda504c13b535523d654ef8812",
+  "run": {
+    "id": 33534703640,
+    "head_sha": "996cd6f66fa0f92128d5d97272dd359a114d0533",
+    "artifact_id": 9811148956,
+    "artifact_name": "tracking-cloth-finite-orbit-real-v3-result-33534703640",
+    "artifact_digest": "sha256:817c86588bc5673529fc4ae41196f88741a23dd36a7347caeeca5bd92d3a177d",
+    "runtime": {
+      "python": "3.12.14",
+      "numpy": "2.3.5",
+      "runner_os": "Linux",
+      "runner_arch": "X64"
+    }
+  },
+  "dataset": {
+    "zenodo_record": "14644526",
+    "archive_md5": "b4868b702f8a42b2ea1069d0f1a3b8f6",
+    "archive_sha256": "14916efa89a26d991c024024cc9449397d3a6f654311e621bb91e9602e231e1a",
+    "csv_count": 120,
+    "source_groups": 24,
+    "target_groups": 15,
+    "target_cases": 1803,
+    "materials": [
+      "cotton",
+      "denim",
+      "wool"
+    ],
+    "target_families": [
+      "Hitting",
+      "Tablecloth"
+    ]
+  },
+  "information_order": {
+    "source_selected_markers": [
+      "1",
+      "20",
+      "5"
+    ],
+    "target_roster_qualified_from_marker_headers_only": true,
+    "target_outcomes_used_for_roster_selection": false,
+    "target_side_retuning": false,
+    "unsupported_target_replacement": false,
+    "raw_payload_uploaded": false,
+    "excluded_self_collision_groups_reported_separately": 27
+  },
+  "aggregate_equal_recording": {
+    "finite_orbit_invariant_acceptance": {
+      "mean": 1.0,
+      "ci95": [
+        1.0,
+        1.0
+      ]
+    },
+    "finite_orbit_radial_rejection": {
+      "mean": 1.0,
+      "ci95": [
+        1.0,
+        1.0
+      ]
+    },
+    "local_gate_harmful_radial_fraction": {
+      "mean": 0.6506017653283832,
+      "ci95": [
+        0.6232076712660415,
+        0.6769935523678514
+      ]
+    },
+    "finite_orbit_harmful_accepted_radial_fraction": {
+      "mean": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    "exact_fallback_fraction": {
+      "mean": 1.0,
+      "ci95": [
+        1.0,
+        1.0
+      ]
+    },
+    "invariant_fallback_rmse_mm": {
+      "mean": 15.060532605879056,
+      "ci95": [
+        14.550414803793053,
+        15.593413117575505
+      ]
+    },
+    "invariant_finite_orbit_rmse_mm": {
+      "mean": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    "radial_local_gate_rmse_mm": {
+      "mean": 337.9311158450958,
+      "ci95": [
+        273.3206088184719,
+        393.36511023639775
+      ]
+    },
+    "radial_finite_orbit_fallback_rmse_mm": {
+      "mean": 197.26342051744308,
+      "ci95": [
+        159.64455637176155,
+        229.62994232293755
+      ]
+    },
+    "radial_local_coverage": {
+      "mean": 0.04854973631594675,
+      "ci95": [
+        0.03798896086038755,
+        0.06067989237863648
+      ]
+    },
+    "radial_finite_orbit_coverage": {
+      "mean": 1.0,
+      "ci95": [
+        1.0,
+        1.0
+      ]
+    },
+    "orbit_interval_coverage": {
+      "mean": 1.0,
+      "ci95": [
+        1.0,
+        1.0
+      ]
+    }
+  },
+  "descriptive_subgroups_not_preregistered": {
+    "Hitting": {
+      "groups": 3,
+      "cases": 323,
+      "mean_local_harmful_radial_fraction": 0.6449246475449684,
+      "mean_local_radial_rmse_mm": 100.10920817990063,
+      "mean_finite_orbit_fallback_rmse_mm": 58.7995561399886
+    },
+    "Tablecloth": {
+      "groups": 12,
+      "cases": 1480,
+      "mean_local_harmful_radial_fraction": 0.6520210447742368,
+      "mean_local_radial_rmse_mm": 397.3865927613947,
+      "mean_finite_orbit_fallback_rmse_mm": 231.8793866118067
+    }
+  },
+  "registered_criteria": {
+    "all_target_groups_contribute": true,
+    "minimum_target_cases": true,
+    "invariant_acceptance": true,
+    "radial_rejection": true,
+    "local_radial_acceptance": true,
+    "finite_no_harmful_accepted_radial": true,
+    "local_exposes_global_failure": true,
+    "exact_fallback": true,
+    "orbit_support_covers_truth": true,
+    "invariant_rmse_improves": true
+  },
+  "claim_boundary": "Held-out public real motion-capture trajectories under a controlled hidden SO(2) gauge and controlled rank-deficient factor. This validates finite-orbit query identifiability and rejection/fallback semantics, not learned visual-provider competence, physical-state recovery, BayesianPhysTwin benefit, arbitrary-cloth generalization, deployment safety, or state of the art."
+}

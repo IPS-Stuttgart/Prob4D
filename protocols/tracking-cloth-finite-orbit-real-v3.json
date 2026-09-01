@@ -1,0 +1,169 @@
+{
+  "schema": "prob4d.tracking-cloth-finite-orbit-real.v3",
+  "evidence_kind": "support-qualified-recording-disjoint-public-real-geometry-replication",
+  "parent_protocol": {
+    "path": "protocols/tracking-cloth-finite-orbit-real-v1.json",
+    "git_blob_sha1": "808d85e29b498ba1e7f92ea4ed67c4f6ec156c6d",
+    "protocol_id": "tracking-cloth-finite-orbit-real-v1"
+  },
+  "support_qualification": {
+    "protocol_path": "protocols/tracking-cloth-finite-orbit-real-v2.json",
+    "protocol_git_blob_sha1": "641d05f1dcae00a2f36888a7e071be64eaf9cb45",
+    "protocol_id": "4652d72f9e8d4c80c69df86b7a48a6f4e307e4131ea3bea04e09deed10db5eb0",
+    "run_id": 33532387635,
+    "head_sha": "164a95c93cba679c911eeced22b48516a90720f2",
+    "artifact_id": 9810268001,
+    "artifact_name": "tracking-cloth-finite-orbit-real-v2-result-33532387635",
+    "artifact_digest": "sha256:c7c61a117c1e3dbcf33997c528fb1703bfae44cbdfb560d176a9880bc04b05e3",
+    "result_id": "5f130c8643c18346ad55e7d5997deefadc20481d14c8024e641ce811f23119e0",
+    "source_seal_id": "1bb2236a087f5d309199fadd1cc2ebcc6a6242eaf6ab4f65a0d077ab9545ba52",
+    "support_id": "2d3b385f69bbeace010412771ad988bc51509cfe61e071cdc6ed0f7803938abb",
+    "status": "target-marker-support-negative",
+    "required_marker_labels": [
+      "1",
+      "20",
+      "5"
+    ],
+    "supported_target_group_count": 15,
+    "unsupported_target_group_count": 27,
+    "target_trajectory_values_parsed": false,
+    "unsupported_groups_replaced": false
+  },
+  "dataset": {
+    "record_name": "Tracking Cloth Deformation",
+    "zenodo_record": "14644526",
+    "archive_filename": "tracking_dataset.zip",
+    "archive_md5": "b4868b702f8a42b2ea1069d0f1a3b8f6",
+    "expected_csv_files": 120,
+    "source_categories": [
+      "shake",
+      "twist"
+    ],
+    "target_category": "support-qualified-hitting-and-tablecloth",
+    "allowed_materials": [
+      "cotton",
+      "denim",
+      "wool"
+    ],
+    "required_size": "A2",
+    "expected_source_files": 24,
+    "expected_target_files": 15,
+    "source_roster_rule": "all A2 shake/twist recordings for cotton, denim, and wool",
+    "target_roster_rule": "all and only v2 header-supported A2 hitting/tablecloth recordings; qualification used marker labels only and no target trajectory values",
+    "target_relative_paths": [
+      "tracking_dataset/Hitting/cotton_A2_hitting.csv",
+      "tracking_dataset/Hitting/denim_A2_hitting.csv",
+      "tracking_dataset/Hitting/wool_A2_hitting.csv",
+      "tracking_dataset/Tablecloth/cotton_A2_full_lay_high_friction.csv",
+      "tracking_dataset/Tablecloth/cotton_A2_full_lay_low_friction.csv",
+      "tracking_dataset/Tablecloth/cotton_A2_half_lay_high_friction.csv",
+      "tracking_dataset/Tablecloth/cotton_A2_half_lay_low_friction.csv",
+      "tracking_dataset/Tablecloth/denim_A2_full_lay_high_friction.csv",
+      "tracking_dataset/Tablecloth/denim_A2_full_lay_low_friction.csv",
+      "tracking_dataset/Tablecloth/denim_A2_half_lay_high_friction.csv",
+      "tracking_dataset/Tablecloth/denim_A2_half_lay_low_friction.csv",
+      "tracking_dataset/Tablecloth/wool_A2_full_lay_high_friction.csv",
+      "tracking_dataset/Tablecloth/wool_A2_full_lay_low_friction.csv",
+      "tracking_dataset/Tablecloth/wool_A2_half_lay_high_friction.csv",
+      "tracking_dataset/Tablecloth/wool_A2_half_lay_low_friction.csv"
+    ],
+    "target_group_ids": [
+      "fbd36a41eb10f416",
+      "afd59392d27f08b3",
+      "cf168ab0197873fb",
+      "5cf93808a151b395",
+      "88a731ead6097e99",
+      "34dc2d9d9de93e92",
+      "d3ab06799512bd40",
+      "a90d95dbc435e2c8",
+      "a32bae11a5823e46",
+      "7374bd3d68c2f3cb",
+      "f01edeab895a2812",
+      "baf57404ea07197d",
+      "cb105e537e22f109",
+      "200c36ac941924f7",
+      "a3d82046cfe4b9ec"
+    ]
+  },
+  "marker_support": {
+    "parser": "strict-motive-multirow-marker-v1",
+    "source_header_audit": {
+      "run_id": 33527941636,
+      "artifact_id": 9808490134,
+      "artifact_digest": "sha256:ba7bc33508c7e88edfa998c24b71d0b70e96d11a3dc8e153487fe1a0176972ee",
+      "allowed_A2_source_recordings": 24,
+      "allowed_A2_common_labels": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14",
+        "15",
+        "16",
+        "17",
+        "18",
+        "19",
+        "20"
+      ],
+      "target_header_or_trajectory_opened": false
+    },
+    "selected_marker_triplet": [
+      "1",
+      "20",
+      "5"
+    ],
+    "selection_source_seal_id": "1bb2236a087f5d309199fadd1cc2ebcc6a6242eaf6ab4f65a0d077ab9545ba52",
+    "maximum_common_marker_count": 20,
+    "target_requirement": "every frozen target group must contain the exact source-selected marker labels; any mismatch terminates without replacement"
+  },
+  "scientific_settings": {
+    "controlled_factor": "unchanged from parent",
+    "inference": "unchanged from parent",
+    "registered_criteria": "unchanged from parent",
+    "source_frames_per_recording": 12,
+    "target_frames_per_recording": 128,
+    "target_frame_count_rationale": "The support-qualified cohort has 15 groups. 128 deterministic samples per group preserves the parent minimum of 1000 total cases without using target trajectory values; ceil(1000/15)=67.",
+    "minimum_target_cases": 1000
+  },
+  "information_order": {
+    "source_header_and_trajectory_access_allowed": true,
+    "target_filename_and_header_metadata_used_for_support_qualification": true,
+    "target_trajectory_values_used_for_support_qualification": false,
+    "target_trajectory_values_opened_before_v3_freeze": false,
+    "marker_triplet_selected_from_source_only": true,
+    "target_side_retuning_allowed": false,
+    "unsupported_target_replacement_allowed": false,
+    "raw_data_publication_authorized": false
+  },
+  "decision": {
+    "terminal_results": [
+      "evaluated-real-geometry-passed",
+      "evaluated-real-geometry-failed",
+      "target-marker-support-negative",
+      "technical-failure"
+    ],
+    "all_target_groups_must_contribute_for_pass": true,
+    "expected_target_groups": 15
+  },
+  "claim_boundary": {
+    "public_real_geometry": true,
+    "recording_disjoint_source_target_motion_families": true,
+    "support_qualified_using_target_headers_only": true,
+    "controlled_rank_deficient_factor": true,
+    "learned_visual_provider": false,
+    "physical_state_identification": false,
+    "bayesian_phystwin_benefit": false,
+    "deployment_safety": false,
+    "state_of_the_art": false
+  },
+  "protocol_id": "9c0fb1a4191743a5038a2f26e521db1640fd5abfc3cac389e851485b7836a472"
+}
