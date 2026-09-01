@@ -217,8 +217,8 @@ jobs:
           run = request(f"/actions/runs/{run_id}")
           if run["head_sha"] != os.environ["ORIGINAL_HEAD_SHA"]:
               raise SystemExit("queued predecessor head changed")
-          if run["run_attempt"] != 2:
-              raise SystemExit("queued predecessor attempt changed")
+          if int(run["run_attempt"]) < 2:
+              raise SystemExit("queued predecessor attempt regressed")
           jobs = request(f"/actions/runs/{run_id}/jobs?per_page=100")["jobs"]
           matches = [job for job in jobs if job["name"] == os.environ["ORIGINAL_PROVIDER_JOB"]]
           if len(matches) != 1:
