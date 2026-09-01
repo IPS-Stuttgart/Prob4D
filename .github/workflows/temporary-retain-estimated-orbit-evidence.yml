@@ -1,0 +1,80 @@
+name: Temporary retain estimated-orbit robustness evidence
+
+on:
+  push:
+    branches:
+      - research/tracking-cloth-estimated-orbit-robustness-v1
+    paths:
+      - ".github/workflows/temporary-retain-estimated-orbit-evidence.yml"
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  retain-and-self-delete:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out writable branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: true
+          clean: true
+      - name: Download latest successful immutable robustness artifact
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          run_id=$(gh run list \
+            --workflow "Tracking Cloth estimated-orbit scientific execution v1" \
+            --branch research/tracking-cloth-estimated-orbit-robustness-v1 \
+            --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+          test -n "$run_id"
+          artifact=$(gh api \
+            "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/artifacts?per_page=100" \
+            --jq '.artifacts[] | select(.name | startswith("tracking-cloth-estimated-orbit-robustness-v1-")) | .name' \
+            | head -n 1)
+          test -n "$artifact"
+          rm -rf /tmp/estimated-orbit-evidence
+          mkdir -p /tmp/estimated-orbit-evidence
+          gh run download "$run_id" --name "$artifact" \
+            --dir /tmp/estimated-orbit-evidence
+          test -f /tmp/estimated-orbit-evidence/result.json
+          test -f /tmp/estimated-orbit-evidence/robustness_curve.csv
+          test -f /tmp/estimated-orbit-evidence/source_seal.json
+          test -f /tmp/estimated-orbit-evidence/summary.md
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          source = Path('/tmp/estimated-orbit-evidence')
+          result = json.loads((source / 'result.json').read_text())
+          assert result['schema'] == 'prob4d.tracking-cloth-finite-orbit-robustness-result.v1'
+          assert result['claim_boundary']['fresh_target_holdout'] is False
+          assert result['claim_boundary']['posthoc_secondary_analysis'] is True
+          destination = Path('evidence/tracking-cloth-finite-orbit-robustness-v1')
+          destination.mkdir(parents=True, exist_ok=True)
+          for name in ('result.json', 'robustness_curve.csv', 'source_seal.json', 'summary.md'):
+              (destination / name).write_bytes((source / name).read_bytes())
+          doc = Path('docs/tracking-cloth-finite-orbit-robustness-v1.md')
+          doc.write_text(
+              '# Estimated-orbit robustness on real cloth trajectories\n\n'
+              + (source / 'summary.md').read_text()
+              + '\n## Interpretation boundary\n\n'
+              + 'This source-calibrated perturbation study addresses sensitivity to an imperfectly estimated gauge axis. '
+              + 'It reuses the already opened v3 target cohort and is therefore secondary robustness evidence, not a new independent holdout. '
+              + 'The hidden SO(2) gauge, query construction, and anchor-noise model remain controlled; no learned-provider or BayesianPhysTwin claim follows from it.\n',
+              encoding='utf-8',
+          )
+          PY
+      - name: Commit compact evidence and remove this workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/temporary-retain-estimated-orbit-evidence.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Retain estimated-orbit robustness evidence"
+          git push origin HEAD:research/tracking-cloth-estimated-orbit-robustness-v1
