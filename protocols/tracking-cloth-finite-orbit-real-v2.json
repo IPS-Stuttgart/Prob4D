@@ -1,0 +1,118 @@
+{
+  "schema": "prob4d.tracking-cloth-finite-orbit-real.v2",
+  "evidence_kind": "recording-disjoint-public-real-geometry-replication",
+  "parent_protocol": {
+    "path": "protocols/tracking-cloth-finite-orbit-real-v1.json",
+    "git_blob_sha1": "808d85e29b498ba1e7f92ea4ed67c4f6ec156c6d",
+    "protocol_id": "tracking-cloth-finite-orbit-real-v1"
+  },
+  "dataset": {
+    "record_name": "Tracking Cloth Deformation",
+    "zenodo_record": "14644526",
+    "archive_filename": "tracking_dataset.zip",
+    "archive_md5": "b4868b702f8a42b2ea1069d0f1a3b8f6",
+    "expected_csv_files": 120,
+    "source_categories": [
+      "shake",
+      "twist"
+    ],
+    "target_category": "collision-family",
+    "allowed_materials": [
+      "cotton",
+      "denim",
+      "wool"
+    ],
+    "excluded_materials": {
+      "polyester": "Source-only header audit found incompatible labelled and unlabeled marker identity namespaces between support modes."
+    },
+    "required_size": "A2",
+    "expected_source_files": 24,
+    "expected_target_files": 42,
+    "source_roster_rule": "all A2 shake/twist recordings for allowed materials, both hands and hanger support modes",
+    "target_roster_rule": "all collision-family recordings for allowed materials; public filename metadata shows all are A2",
+    "roster_audit": {
+      "run_id": 33528274383,
+      "artifact_id": 9808634991,
+      "artifact_digest": "sha256:6b97ab99ac9f8f86d22e9c473cee38f4ffa5f4fdd6ac30b7505634cbd410f9a8",
+      "target_trajectory_values_opened": false
+    }
+  },
+  "marker_support": {
+    "parser": "strict-motive-multirow-marker-v1",
+    "source_header_audit": {
+      "run_id": 33527941636,
+      "artifact_id": 9808490134,
+      "artifact_digest": "sha256:ba7bc33508c7e88edfa998c24b71d0b70e96d11a3dc8e153487fe1a0176972ee",
+      "source_recordings": 64,
+      "marker_count_distribution": [
+        12,
+        20
+      ],
+      "global_common_label_count": 0,
+      "allowed_A2_source_recordings": 24,
+      "allowed_A2_common_labels": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14",
+        "15",
+        "16",
+        "17",
+        "18",
+        "19",
+        "20"
+      ],
+      "target_header_or_trajectory_opened": false
+    },
+    "triplet_selection": "one common labelled A2 marker triplet selected from the 24 allowed source recordings only",
+    "maximum_common_marker_count": 20,
+    "target_requirement": "every target recording must contain the exact source-selected marker labels or the experiment terminates support-negative without replacement"
+  },
+  "information_order": {
+    "source_header_and_trajectory_access_allowed": true,
+    "target_filename_metadata_used_for_roster_only": true,
+    "target_header_or_trajectory_opened_before_source_seal": false,
+    "marker_triplet_selected_from_source_only": true,
+    "target_side_retuning_allowed": false,
+    "unsupported_target_replacement_allowed": false,
+    "raw_data_publication_authorized": false
+  },
+  "inherited_scientific_settings": {
+    "geometry": "unchanged from parent except maximum_common_marker_count=20",
+    "controlled_factor": "unchanged from parent",
+    "inference": "unchanged from parent",
+    "registered_criteria": "unchanged from parent",
+    "minimum_target_cases": 1000
+  },
+  "decision": {
+    "terminal_results": [
+      "evaluated-real-geometry-passed",
+      "evaluated-real-geometry-failed",
+      "target-marker-support-negative",
+      "technical-failure"
+    ],
+    "all_target_groups_must_contribute_for_pass": true,
+    "expected_target_groups": 42
+  },
+  "claim_boundary": {
+    "public_real_geometry": true,
+    "recording_disjoint_source_target_motion_families": true,
+    "controlled_rank_deficient_factor": true,
+    "learned_visual_provider": false,
+    "physical_state_identification": false,
+    "bayesian_phystwin_benefit": false,
+    "deployment_safety": false,
+    "state_of_the_art": false
+  },
+  "protocol_id": "4652d72f9e8d4c80c69df86b7a48a6f4e307e4131ea3bea04e09deed10db5eb0"
+}
