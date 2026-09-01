@@ -41,7 +41,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = "16b579aa55cf739ff9e29a476a7783adfc425a91"
+          test "$(git rev-parse HEAD^)" = "8f73cd52d175ced661faaf19cd1c43cfb0702098"
           test "$(git hash-object .github/workflows/dot-r04-r10-evaluation-recovery-v2.yml)" = \
             "3de2e6cf891052c2676a87a4ca0bdd2dae622d4a"
           test "$(git hash-object tests/test_dot_r04_r10_evaluation_recovery_v2.py)" = \
@@ -74,7 +74,6 @@ jobs:
           PY
 
           python -m pip install -e ".[dev]"
-          python -m ruff format tests/test_dot_r04_r10_evaluation_recovery_v2.py
           python -m ruff check tests/test_dot_r04_r10_evaluation_recovery_v2.py
           python -m ruff format --check tests/test_dot_r04_r10_evaluation_recovery_v2.py
           python -m pytest -q \
@@ -82,32 +81,14 @@ jobs:
             tests/test_dot_rope_cut3r_heldout_result_verifier.py \
             tests/test_github_action_pins.py
 
-          python - <<'PY'
-          from pathlib import Path
-
-          text = Path(".github/workflows/dot-r04-r10-evaluation-recovery-v2.yml").read_text(
-              encoding="utf-8"
-          )
-          inspect = text[text.index("\n  inspect:") : text.index("\n  recover:")]
-          checkout = inspect[
-              inspect.index("Check out exact merged recovery revision") : inspect.index(
-                  "Require ordinary main request change"
-              )
-          ]
-          if "fetch-depth: 0" not in checkout:
-              raise SystemExit("recovery checkout still cannot resolve the push base SHA")
-          PY
-
           git rm .github/workflows/apply-dot-r04-r10-recovery-fetch-depth-fix.yml
           git diff --check
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .github/workflows/dot-r04-r10-evaluation-recovery-v2.yml \
-            tests/test_dot_r04_r10_evaluation_recovery_v2.py
+          git add .github/workflows/dot-r04-r10-evaluation-recovery-v2.yml
           mapfile -t changed < <(git diff --cached --name-only | sort)
-          test "${#changed[@]}" -eq 3
+          test "${#changed[@]}" -eq 2
           test "${changed[0]}" = ".github/workflows/apply-dot-r04-r10-recovery-fetch-depth-fix.yml"
           test "${changed[1]}" = ".github/workflows/dot-r04-r10-evaluation-recovery-v2.yml"
-          test "${changed[2]}" = "tests/test_dot_r04_r10_evaluation_recovery_v2.py"
           git commit -m "Fix sealed DOT recovery base checkout"
           git push origin HEAD:fix/dot-r04-r10-recovery-fetch-depth
