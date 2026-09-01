@@ -214,26 +214,52 @@ jobs:
                   raw = response.read()
               return json.loads(raw) if raw else None
 
-          run = request(f"/actions/runs/{run_id}")
+         run = request(f"/actions/runs/{run_id}")
           if run["head_sha"] != os.environ["ORIGINAL_HEAD_SHA"]:
               raise SystemExit("queued predecessor head changed")
-          if run["run_attempt"] != 2:
-              raise SystemExit("queued predecessor attempt changed")
-          jobs = request(f"/actions/runs/{run_id}/jobs?per_page=100")["jobs"]
-          matches = [job for job in jobs if job["name"] == os.environ["ORIGINAL_PROVIDER_JOB"]]
-          if len(matches) != 1:
-              raise SystemExit("queued predecessor provider job is unavailable")
-          provider = matches[0]
+          attempt_count = int(run["run_attempt"])
+          if attempt_count < 1:
+              raise SystemExit("queued predecessor has no execution attempt")
           artifacts = request(f"/actions/runs/{run_id}/artifacts?per_page=100")
-          untouched = (
-              artifacts["total_count"] == 0
-              and provider.get("conclusion") is None
-              and provider.get("runner_id") in (None, 0)
-              and not provider.get("runner_name")
-              and not provider.get("steps")
-          )
-          if not untouched:
-              raise SystemExit("old confirmation provider may have started; recovery is forbidden")
+          if artifacts["total_count"] != 0:
+              raise SystemExit("old confirmation produced an artifact; recovery is forbidden")
+
+          provider_attempts = []
+          for attempt in range(1, attempt_count + 1):
+              jobs = request(
+                  f"/actions/runs/{run_id}/attempts/{attempt}/jobs?per_page=100"
+              )["jobs"]
+              matches = [
+                  job
+                  for job in jobs
+                  if job["name"] == os.environ["ORIGINAL_PROVIDER_JOB"]
+              ]
+              if len(matches) != 1:
+                  raise SystemExit(
+                      f"queued predecessor provider job is unavailable for attempt {attempt}"
+                  )
+              provider = matches[0]
+              untouched = (
+                  provider.get("conclusion") in (None, "cancelled")
+                  and provider.get("runner_id") in (None, 0)
+                  and not provider.get("runner_name")
+                  and not provider.get("steps")
+              )
+              if not untouched:
+                  raise SystemExit(
+                      f"old confirmation provider attempt {attempt} may have started; "
+                      "recovery is forbidden"
+                  )
+              provider_attempts.append(
+                  {
+                      "attempt": attempt,
+                      "status": provider.get("status"),
+                      "conclusion": provider.get("conclusion"),
+                      "runner_id": provider.get("runner_id"),
+                      "runner_name": provider.get("runner_name") or "",
+                      "steps": provider.get("steps") or [],
+                  }
+              )
 
           if run["status"] in {"queued", "in_progress"}:
               request(f"/actions/runs/{run_id}/cancel", method="POST")
@@ -249,7 +275,8 @@ jobs:
           print(json.dumps({
               "retired_run_id": run_id,
               "retired_conclusion": run["conclusion"],
-              "provider_steps": provider.get("steps") or [],
+              "attempt_count": attempt_count,
+              "provider_attempts": provider_attempts,
               "artifact_count": artifacts["total_count"],
           }, sort_keys=True))
           PY

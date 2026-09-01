@@ -17,7 +17,14 @@ def test_confirmation_workflow_is_single_request_triggered_and_stage_sealed() ->
     assert 'test "$EVENT_DELETED" = "false"' in text
     assert "Prove the old gpuserver4090 run never opened confirmation data" in text
     assert 'ORIGINAL_RUN_ID: "33363832286"' in text
-    assert "old confirmation provider may have started; recovery is forbidden" in text
+    assert "old confirmation provider attempt {attempt} may have started;" in text
+    assert "for attempt in range(1, attempt_count + 1):" in text
+    assert (
+        'f"/actions/runs/{run_id}/attempts/{attempt}/jobs?per_page=100"'
+        in text
+    )
+    assert 'run["run_attempt"] != 2' not in text
+    assert "old confirmation produced an artifact; recovery is forbidden" in text
     assert "normal-view images only" in text
     assert "after provider seal" in text
     assert "R11-R70 remained unopened" in text
