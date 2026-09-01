@@ -1,0 +1,87 @@
+name: Temporary fix bounded-orbit provenance
+
+on:
+  push:
+    branches:
+      - repair/tracking-cloth-finite-orbit-motive-parser-v1
+    paths:
+      - ".github/workflows/temporary-fix-bounded-orbit-provenance.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact branch revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: true
+          clean: true
+      - name: Correct provenance binding and recompute protocol identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          protocol_path = Path("protocols/tracking-cloth-bounded-orbit-robustness-v1.json")
+          protocol = json.loads(protocol_path.read_text(encoding="utf-8"))
+          assert protocol["parent_result"]["protocol_git_blob_sha1"] == (
+              "87c902740221285858942350e489349832044309"
+          )
+          protocol["parent_result"]["protocol_git_blob_sha1"] = (
+              "2b82734df4292d2c47328828e2307942347ca2a7"
+          )
+          assert protocol.pop("protocol_id") == (
+              "5034c1affda01d93c475078a52126113d6c938973692f544abb665b473a5861c"
+          )
+          encoded = json.dumps(protocol, sort_keys=True, separators=(",", ":")).encode()
+          protocol_id = hashlib.sha256(encoded).hexdigest()
+          assert protocol_id == (
+              "6b372b78329a809aee508a68ffd51abeb945fc941c0db29ca996459ddf52f711"
+          )
+          protocol["protocol_id"] = protocol_id
+          protocol_path.write_text(
+              json.dumps(protocol, indent=2, sort_keys=False) + "\n",
+              encoding="utf-8",
+          )
+
+          script_path = Path(
+              "scripts/science/run_tracking_cloth_bounded_orbit_robustness_v1.py"
+          )
+          text = script_path.read_text(encoding="utf-8")
+          replacements = {
+              "5034c1affda01d93c475078a52126113d6c938973692f544abb665b473a5861c": (
+                  "6b372b78329a809aee508a68ffd51abeb945fc941c0db29ca996459ddf52f711"
+              ),
+              "87c902740221285858942350e489349832044309": (
+                  "2b82734df4292d2c47328828e2307942347ca2a7"
+              ),
+          }
+          for old, new in replacements.items():
+              count = text.count(old)
+              assert count >= 1, (old, count)
+              text = text.replace(old, new)
+          script_path.write_text(text, encoding="utf-8")
+
+          test_path = Path("tests/test_tracking_cloth_bounded_orbit_robustness_v1.py")
+          test_text = test_path.read_text(encoding="utf-8")
+          test_text = test_text.replace(
+              "5034c1affda01d93c475078a52126113d6c938973692f544abb665b473a5861c",
+              protocol_id,
+          )
+          test_path.write_text(test_text, encoding="utf-8")
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            protocols/tracking-cloth-bounded-orbit-robustness-v1.json \
+            scripts/science/run_tracking_cloth_bounded_orbit_robustness_v1.py \
+            tests/test_tracking_cloth_bounded_orbit_robustness_v1.py
+          git commit -m "Correct bounded-orbit parent protocol provenance"
+          git push origin HEAD:repair/tracking-cloth-finite-orbit-motive-parser-v1
