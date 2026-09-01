@@ -44,13 +44,10 @@ def test_v3_configures_exact_target_roster_and_preserves_parent_criteria() -> No
     v2 = module._load_v2()
     module._configure_v2(v2, protocol)
     recordings = [
-        SimpleNamespace(relative_path=path)
-        for path in protocol["dataset"]["target_relative_paths"]
+        SimpleNamespace(relative_path=path) for path in protocol["dataset"]["target_relative_paths"]
     ] + [SimpleNamespace(relative_path="tracking_dataset/Self-collisions/excluded.csv")]
     eligible, excluded = v2._subset(recordings, source=False)
-    assert [row.relative_path for row in eligible] == protocol["dataset"][
-        "target_relative_paths"
-    ]
+    assert [row.relative_path for row in eligible] == protocol["dataset"]["target_relative_paths"]
     assert len(excluded) == 1
     parent = v2._load_parent(protocol, PROTOCOL)
     effective = v2._effective_parent(parent)
