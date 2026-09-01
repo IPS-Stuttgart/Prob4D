@@ -1,0 +1,251 @@
+{
+  "schema": "prob4d.dot-rope-query-selective-source-support-protocol",
+  "schema_version": 2,
+  "dataset_doi": "10.13021/ORC2020/XXLVXM",
+  "source_archive": {
+    "name": "R11-20.zip",
+    "md5": "23ce3e7067465d3edabe20b4c7cfa388"
+  },
+  "source_sequences": [
+    "R11",
+    "R12",
+    "R13",
+    "R14",
+    "R15",
+    "R16",
+    "R17",
+    "R18",
+    "R19",
+    "R20"
+  ],
+  "confirmation_sequences": [
+    "R21",
+    "R22",
+    "R23",
+    "R24",
+    "R25",
+    "R26",
+    "R27",
+    "R28",
+    "R29",
+    "R30"
+  ],
+  "reserved_sequences": "R31-R70",
+  "camera": "cam001",
+  "frames": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "windows": {
+    "continuous": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "window_a": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "window_b": [
+      3,
+      4,
+      5,
+      6,
+      7
+    ]
+  },
+  "r04_r10_diagnostic": {
+    "role": "provenance-only motivation for a fresh source-side support qualification; forbidden as a tuning cohort",
+    "decision": "heldout-support-negative",
+    "run_id": 33501330668,
+    "execution_revision": "ac6f0f2ea7e0a4cde40c05c8bf016f61ce4b0127",
+    "artifact_id": 9797984448,
+    "artifact_digest": "sha256:cbd8a7025884d11e0d017ff6554884fcc9126664fc741290596356384b1ee07e",
+    "result_id": "531272d64eee29f26321030b236db9bd6ae3aadb7e16a1f492ac8140afc801ee",
+    "marker_support_id": "0a03bccbe1545b7d58819dacffb8f384332cde06e7e8a362532bd0b038aec63d",
+    "provider_bundle_id": "57dc11d9e39258a2f620d67e39f1176cafe74252173ead8cb4ba2f76083499ec"
+  },
+  "provider": {
+    "name": "CUT3R",
+    "cut3r_revision": "8bc15dc92a6d7fd92920b4ec81540d3dec7d3ecf",
+    "checkpoint_sha256": "45f7e98a0a64dbeb54901ae2b878cd8cd125f20a4497316483f0bd6f109f8103",
+    "device": "cuda",
+    "image_size": 512,
+    "random_seed": 42,
+    "revisit": 1,
+    "update": true,
+    "native_rope_required": true
+  },
+  "coordinate_convention": {
+    "columns": [
+      0,
+      1
+    ],
+    "mode": "pixel-zero-based",
+    "preprocessing_transform": "cut3r-long-edge-resize-512-center-crop-multiple-of-16-pixel-centers",
+    "frozen_from": "R01-R03 source development before R04-R10 access"
+  },
+  "support_selection": {
+    "fit_frame_profiles": [
+      {
+        "id": "compact",
+        "metric_fit_a_frames": [
+          1,
+          2
+        ],
+        "metric_fit_b_frames": [
+          6,
+          7
+        ]
+      },
+      {
+        "id": "expanded",
+        "metric_fit_a_frames": [
+          1,
+          2,
+          3
+        ],
+        "metric_fit_b_frames": [
+          5,
+          6,
+          7
+        ]
+      },
+      {
+        "id": "full-window",
+        "metric_fit_a_frames": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "metric_fit_b_frames": [
+          3,
+          4,
+          5,
+          6,
+          7
+        ]
+      }
+    ],
+    "overlap_groups": [
+      {
+        "id": "overlap-34",
+        "frames": [
+          3,
+          4
+        ]
+      },
+      {
+        "id": "overlap-45",
+        "frames": [
+          4,
+          5
+        ]
+      },
+      {
+        "id": "overlap-345",
+        "frames": [
+          3,
+          4,
+          5
+        ]
+      }
+    ],
+    "marker_group_construction": "pooled-common-marker-indices-with-frame-provenance",
+    "minimum_metric_fit_markers": 6,
+    "minimum_overlap_common_markers": 8,
+    "minimum_overlap_nonempty_frames": 2,
+    "expected_factor_rank": 6,
+    "rank_threshold": 0.01,
+    "minimum_source_supported_sequences_for_promotion": 9,
+    "selection_objective": [
+      "maximize supported source sequences",
+      "maximize rank-six source sequences",
+      "maximize worst normalized support margin",
+      "maximize worst nonzero observable-information condition ratio",
+      "minimize selected frame count",
+      "lexicographically smallest candidate id"
+    ],
+    "outcome_metrics_used_for_selection": false
+  },
+  "downstream_frozen_config": {
+    "methods": [
+      "physical_fallback",
+      "full_rank_only",
+      "observable_subspace_unconditional",
+      "query_aware",
+      "invalid_full_rank_completion"
+    ],
+    "prior_standard_deviations_local": [
+      0.05,
+      0.2,
+      0.2,
+      0.2,
+      0.15,
+      0.15,
+      0.15
+    ],
+    "query_gate": {
+      "minimum_direct_observability_fraction": 0.9,
+      "maximum_worst_supported_variance_ratio": 1.0,
+      "minimum_metric_variance_reduction_fraction": 0.0
+    },
+    "queries": {
+      "centerline_centroid": {
+        "definition": "provider-window-B overlap centroid",
+        "expected_relation_to_axial_nullspace": "locally invariant"
+      },
+      "off_axis_probe": {
+        "definition": "provider-window-B centroid plus one cloud-scale deterministic normal",
+        "expected_relation_to_axial_nullspace": "sensitive"
+      }
+    },
+    "invalid_nullspace_precision_ratio": 1.0,
+    "observation_noise_fraction": 0.02,
+    "exact_fallback_required": true
+  },
+  "confirmation_statistics": {
+    "independent_unit": "complete_sequence",
+    "primary_method": "query_aware",
+    "primary_comparator": "physical_fallback",
+    "primary_point_metric": "rmse_fraction_of_provider_span",
+    "primary_proper_score": "normalized_joint_gaussian_nll_per_dimension",
+    "paired_bootstrap_replicates": 20000,
+    "paired_bootstrap_seed": 20260901,
+    "minimum_supported_confirmation_sequences": 9,
+    "minimum_centroid_acceptance_fraction": 0.9,
+    "minimum_off_axis_rejection_fraction": 0.9,
+    "outcome_oracle_is_diagnostic_only": true
+  },
+  "information_boundary": {
+    "r04_r10_reused_for_tuning": false,
+    "source_provider_sealed_before_source_marker_access": true,
+    "source_support_selection_uses_performance_error": false,
+    "r21_r30_payloads_opened": false,
+    "r31_r70_payloads_opened": false,
+    "bayesian_phystwin_executed": false,
+    "causal4d_executed": false,
+    "dataset_modified": false,
+    "target_side_retuning_allowed": false
+  },
+  "promotion": {
+    "on_source_support_qualified": "freeze the selected support rule and materialize a separate R21-R30 one-shot confirmation protocol/request",
+    "on_source_support_negative": "terminate this provider version without opening R21-R70"
+  },
+  "claim_boundary": "Source/support qualification on DOT rope R11-R20 only after the immutable R04-R10 support-negative diagnostic. The stage may select one support geometry using support counts and rank-six numerical identifiability only; it computes no reconstruction error and may not inspect R21-R70. Any later confirmation must freeze this result before R21-R30 access. No BayesianPhysTwin or Causal4D outcome is authorized.",
+  "protocol_id": "037df0507c8e98f6005955e4dfea457f764289058a698a797a3f1008e9dc0e5f"
+}
