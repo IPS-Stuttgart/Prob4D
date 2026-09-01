@@ -4,6 +4,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github" / "workflows" / "dot-rope-cut3r-heldout-confirmation-v1.yml"
+PREPARE_RUNTIME = ROOT / "scripts/science" / "prepare_cut3r_runtime.py"
 
 
 def test_confirmation_workflow_is_single_request_triggered_and_stage_sealed() -> None:
@@ -48,6 +49,22 @@ def test_confirmation_provider_is_read_only_and_bound_to_gpuserver6000() -> None
     assert provider.index("Predict from marker-free normal-view images only") < provider.index(
         "Upload immutable provider seal before marker evaluation"
     )
+
+
+def test_confirmation_runtime_applies_only_the_hash_bound_curope_repair() -> None:
+    text = PREPARE_RUNTIME.read_text(encoding="utf-8")
+
+    assert "_TRUSTED_HELDOUT_RECOVERY_REQUEST_PATH" in text
+    assert "dot_rope_cut3r_heldout_confirmation_gpuserver6000_v1.json" in text
+    assert "cut3r-curope-torch211-cu126.patch" in text
+    assert "9127464c77b571b9586144cabe24a4eed8667db0" in text
+    assert "7156cd1bb935cb1f0be45e58add53f9c21505c20" in text
+    assert "02ddb0912370a67a49fd2bb91164cf2f1da8648e" in text
+    assert '["git", "apply", "--check", str(patch_path)]' in text
+    assert '["git", "apply", str(patch_path)]' in text
+    assert "tokens.scalar_type()" in text
+    assert "arch=compute_89,code=sm_89" in text
+    assert "scientific_boundary" in text
 
 
 def test_confirmation_marker_evaluation_is_hosted_and_frozen() -> None:
