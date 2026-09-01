@@ -1,0 +1,814 @@
+name: Continue DOT R21-R40 after source qualification v1
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "protocols/execution_requests/continue_dot_r21_r40_after_source_v1.trigger"
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: continue-dot-r21-r40-after-source-v1
+  cancel-in-progress: false
+
+jobs:
+  qualify-freeze-and-trigger:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - name: Check out exact triggering main revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+          clean: true
+
+      - name: Require a sole continuation-trigger change
+        shell: bash
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after }}
+          FORCED: ${{ github.event.forced }}
+          DELETED: ${{ github.event.deleted }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/main"
+          test "$AFTER" = "$(git rev-parse HEAD)"
+          test "$FORCED" = "false"
+          test "$DELETED" = "false"
+          mapfile -t changed < <(git diff --name-only "$BEFORE" "$AFTER" | sort)
+          test ${#changed[@]} -eq 1
+          test "${changed[0]}" = \
+            "protocols/execution_requests/continue_dot_r21_r40_after_source_v1.trigger"
+
+      - name: Wait for the exact R11-R20 source workflow and artifact
+        id: source
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/dot-r11-r20-source"
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          import re
+          import time
+          import urllib.error
+          import urllib.request
+          from pathlib import Path
+
+          api = os.environ["GITHUB_API_URL"].rstrip("/")
+          repo = os.environ["GITHUB_REPOSITORY"]
+          headers = {
+              "Accept": "application/vnd.github+json",
+              "Authorization": f"Bearer {os.environ['GH_TOKEN']}",
+              "User-Agent": "Prob4D-DOT-R11-R40-continuation/1",
+              "X-GitHub-Api-Version": "2022-11-28",
+          }
+
+          def get(url: str) -> dict:
+              request = urllib.request.Request(url, headers=headers)
+              with urllib.request.urlopen(request, timeout=60) as response:
+                  return json.load(response)
+
+          run = None
+          for _ in range(960):
+              url = (
+                  f"{api}/repos/{repo}/actions/workflows/"
+                  "dot-rope-r11-r20-source-v1.yml/runs"
+                  "?branch=main&event=push&per_page=20"
+              )
+              try:
+                  payload = get(url)
+              except urllib.error.HTTPError as error:
+                  if error.code == 404:
+                      time.sleep(15)
+                      continue
+                  raise
+              candidates = [
+                  item
+                  for item in payload.get("workflow_runs", [])
+                  if item.get("head_branch") == "main"
+                  and item.get("event") == "push"
+              ]
+              if candidates:
+                  candidates.sort(key=lambda item: int(item["id"]), reverse=True)
+                  candidate = candidates[0]
+                  if candidate.get("status") == "completed":
+                      run = candidate
+                      break
+              time.sleep(15)
+          if run is None:
+              raise SystemExit("R11-R20 source workflow did not become terminal")
+
+          run_id = int(run["id"])
+          artifact_payload = get(
+              f"{api}/repos/{repo}/actions/runs/{run_id}/artifacts?per_page=100"
+          )
+          artifacts = artifact_payload.get("artifacts", [])
+          matches = [
+              item
+              for item in artifacts
+              if "r11-r20-source-evaluation" in item.get("name", "")
+              and item.get("expired") is False
+          ]
+          if len(matches) != 1:
+              raise SystemExit(
+                  "R11-R20 source run lacks one immutable evaluation artifact"
+              )
+          artifact = matches[0]
+          digest = artifact.get("digest", "")
+          if re.fullmatch(r"sha256:[0-9a-f]{64}", digest) is None:
+              raise SystemExit("source artifact digest is invalid")
+          value = {
+              "run_id": run_id,
+              "run_conclusion": run.get("conclusion"),
+              "run_head_sha": run.get("head_sha"),
+              "artifact_id": int(artifact["id"]),
+              "artifact_name": artifact["name"],
+              "artifact_digest": digest,
+              "download_url": artifact["archive_download_url"],
+          }
+          Path(os.environ["RUNNER_TEMP"], "dot-r11-r20-source-metadata.json").write_text(
+              json.dumps(value, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              for key, item in value.items():
+                  output.write(f"{key}={item}\n")
+          print(json.dumps(value, indent=2, sort_keys=True))
+          PY
+          curl --fail --location \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            --output "$RUNNER_TEMP/dot-r11-r20-source.zip" \
+            "${{ steps.source.outputs.download_url }}"
+          unzip -q "$RUNNER_TEMP/dot-r11-r20-source.zip" \
+            -d "$RUNNER_TEMP/dot-r11-r20-source"
+
+      - name: Qualify source support and freeze its exact receipt
+        id: qualify
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "dot-r11-r20-source"
+          results = sorted(root.rglob("result.json"))
+          failures = sorted(root.rglob("failure.json"))
+          supports = sorted(root.rglob("marker-support.json"))
+          metadata = json.loads(
+              (Path(os.environ["RUNNER_TEMP"]) / "dot-r11-r20-source-metadata.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          if len(supports) != 1:
+              raise SystemExit("source marker-support evidence is unavailable")
+          support = json.loads(supports[0].read_text(encoding="utf-8"))
+          destination = Path(
+              "evidence/dot-r11-r20-source-support-qualification-v1.json"
+          )
+          destination.parent.mkdir(parents=True, exist_ok=True)
+
+          if len(results) != 1:
+              failure = (
+                  json.loads(failures[0].read_text(encoding="utf-8"))
+                  if len(failures) == 1
+                  else {"decision": "source-artifact-incomplete"}
+              )
+              receipt = {
+                  "schema": "prob4d.dot-r11-r20-source-support-qualification",
+                  "schema_version": 1,
+                  "decision": "source-support-not-qualified",
+                  "source_terminal_payload": failure,
+                  "source_run": metadata,
+                  "source_marker_support_id": support.get("support_id"),
+                  "r21_r40_payloads_opened": False,
+                  "r41_r70_payloads_opened": False,
+                  "target_request_created": False,
+              }
+              encoded = json.dumps(
+                  receipt,
+                  sort_keys=True,
+                  separators=(",", ":"),
+                  ensure_ascii=False,
+                  allow_nan=False,
+              ).encode("utf-8")
+              receipt["qualification_id"] = hashlib.sha256(encoded).hexdigest()
+              destination.write_text(
+                  json.dumps(receipt, indent=2, sort_keys=True) + "\n",
+                  encoding="utf-8",
+              )
+              raise SystemExit("R11-R20 ended without a complete source result")
+
+          result = json.loads(results[0].read_text(encoding="utf-8"))
+          result_id = result.get("evaluation_id") or result.get("result_id")
+          support_id = support.get("support_id")
+          if not isinstance(result_id, str) or len(result_id) != 64:
+              raise SystemExit("source result identity is invalid")
+          if not isinstance(support_id, str) or len(support_id) != 64:
+              raise SystemExit("source support identity is invalid")
+
+          required = {
+              f"R{index:02d}": {
+                  "window_pair": False,
+                  "fit_a": False,
+                  "fit_b": False,
+                  "score": False,
+              }
+              for index in range(11, 21)
+          }
+          for row in support.get("collections", []):
+              sequence = row.get("sequence")
+              if sequence not in required:
+                  continue
+              kind = row.get("kind")
+              if kind == "window-pair":
+                  required[sequence]["window_pair"] = (
+                      int(row.get("total_common", 0)) >= 8
+                      and int(row.get("nonempty_frames", 0)) >= 2
+                  )
+              elif kind == "provider-truth":
+                  total = int(row.get("total", 0))
+                  run = row.get("run")
+                  if run == "window_a":
+                      required[sequence]["fit_a"] = total >= 6
+                  elif run == "window_b" and row.get("score_only") is False:
+                      required[sequence]["fit_b"] = total >= 6
+                  elif run == "continuous" and row.get("score_only") is True:
+                      required[sequence]["score"] = total >= 6
+          supported = [
+              sequence
+              for sequence, values in required.items()
+              if all(values.values())
+          ]
+          if len(supported) < 9:
+              raise SystemExit(
+                  f"source support qualified only {len(supported)} of 10 sequences"
+              )
+
+          source_protocol = json.loads(
+              Path("protocols/dot-rope-r11-r20-source-v1.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          source_decision = result.get("decision")
+          source_calibration_id = result.get("source_calibration", {}).get(
+              "calibration_id",
+              "943339ac864fda04cc59081bc81a605576b3c90bf0aa996aea00b00335cfc0c7",
+          )
+          receipt = {
+              "schema": "prob4d.dot-r11-r20-source-support-qualification",
+              "schema_version": 1,
+              "decision": "source-support-qualified",
+              "source_scientific_decision": source_decision,
+              "source_protocol_id": source_protocol["protocol_id"],
+              "source_calibration_id": source_calibration_id,
+              "source_evaluation_id": result_id,
+              "source_marker_support_id": support_id,
+              "source_supported_sequences": supported,
+              "source_supported_sequence_count": len(supported),
+              "selected_support_rule": {
+                  "metric_fit_a_frames": [1, 2, 3],
+                  "metric_fit_b_frames": [5, 6, 7],
+                  "minimum_metric_fit_markers": 6,
+                  "minimum_overlap_common_markers": 8,
+                  "minimum_overlap_nonempty_frames": 2,
+              },
+              "source_run": metadata,
+              "r21_r40_payloads_opened": False,
+              "r41_r70_payloads_opened": False,
+              "target_side_retuning_allowed": False,
+          }
+          encoded = json.dumps(
+              receipt,
+              sort_keys=True,
+              separators=(",", ":"),
+              ensure_ascii=False,
+              allow_nan=False,
+          ).encode("utf-8")
+          receipt["qualification_id"] = hashlib.sha256(encoded).hexdigest()
+          destination.write_text(
+              json.dumps(receipt, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              for key in (
+                  "source_scientific_decision",
+                  "source_protocol_id",
+                  "source_calibration_id",
+                  "source_evaluation_id",
+                  "source_marker_support_id",
+                  "qualification_id",
+              ):
+                  output.write(f"{key}={receipt[key]}\n")
+          print(json.dumps(receipt, indent=2, sort_keys=True))
+          PY
+
+      - name: Generate frozen R21-R40 target protocol, wrapper, workflow, and request
+        shell: bash
+        env:
+          SOURCE_RUN_ID: ${{ steps.source.outputs.run_id }}
+          SOURCE_ARTIFACT_ID: ${{ steps.source.outputs.artifact_id }}
+          SOURCE_ARTIFACT_NAME: ${{ steps.source.outputs.artifact_name }}
+          SOURCE_ARTIFACT_DIGEST: ${{ steps.source.outputs.artifact_digest }}
+          SOURCE_DECISION: ${{ steps.qualify.outputs.source_scientific_decision }}
+          SOURCE_PROTOCOL_ID: ${{ steps.qualify.outputs.source_protocol_id }}
+          SOURCE_CALIBRATION_ID: ${{ steps.qualify.outputs.source_calibration_id }}
+          SOURCE_EVALUATION_ID: ${{ steps.qualify.outputs.source_evaluation_id }}
+          SOURCE_SUPPORT_ID: ${{ steps.qualify.outputs.source_marker_support_id }}
+        run: |
+          set -euo pipefail
+          git pull --ff-only origin main
+          python - <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import json
+          import os
+          import re
+          import textwrap
+          import urllib.request
+          from pathlib import Path
+
+          base_protocol_path = Path("protocols/dot-rope-query-selective-heldout-v1.json")
+          base_workflow_path = Path(
+              ".github/workflows/dot-rope-query-selective-heldout-v1.yml"
+          )
+          protocol_path = Path("protocols/dot-rope-r21-r40-confirmation-v1.json")
+          workflow_path = Path(
+              ".github/workflows/dot-rope-r21-r40-confirmation-v1.yml"
+          )
+          runner_path = Path(
+              "scripts/science/run_dot_rope_r21_r40_confirmation_v1.py"
+          )
+          request_path = Path(
+              "protocols/execution_requests/dot_rope_r21_r40_confirmation_v1.json"
+          )
+          target_sequences = [f"R{index:02d}" for index in range(21, 41)]
+          reserve = "R41-R70"
+
+          def canonical_id(value: dict[str, object]) -> str:
+              encoded = json.dumps(
+                  value,
+                  sort_keys=True,
+                  separators=(",", ":"),
+                  ensure_ascii=False,
+                  allow_nan=False,
+              ).encode("utf-8")
+              return hashlib.sha256(encoded).hexdigest()
+
+          def git_blob_id(value: bytes) -> str:
+              framed = f"blob {len(value)}\0".encode("ascii") + value
+              return hashlib.sha1(framed, usedforsecurity=False).hexdigest()
+
+          request = urllib.request.Request(
+              "https://dataverse.orc.gmu.edu/api/datasets/:persistentId/"
+              "?persistentId=doi:10.13021/ORC2020/XXLVXM",
+              headers={"User-Agent": "Prob4D-DOT-R21-R40-freeze/1"},
+          )
+          with urllib.request.urlopen(request, timeout=60) as response:
+              metadata = json.load(response)
+          files = metadata["data"]["latestVersion"]["files"]
+
+          def publisher_md5(name: str) -> str:
+              matches = [
+                  entry["dataFile"]
+                  for entry in files
+                  if entry["dataFile"].get("filename") == name
+              ]
+              if len(matches) != 1:
+                  raise SystemExit(f"archive identity is ambiguous: {name}")
+              checksum = matches[0].get("checksum") or {}
+              if checksum.get("type") != "MD5":
+                  raise SystemExit(f"archive checksum type changed: {name}")
+              value = checksum.get("value", "").lower()
+              if len(value) != 32:
+                  raise SystemExit(f"archive checksum is invalid: {name}")
+              return value
+
+          md5_r21 = publisher_md5("R21-30.zip")
+          md5_r31 = publisher_md5("R31-40.zip")
+          if md5_r21 != "8aee77f79d1aff6e1f3fd21886b251a0":
+              raise SystemExit("publisher R21-30 checksum changed")
+
+          protocol = json.loads(base_protocol_path.read_text(encoding="utf-8"))
+          protocol["archives"] = [
+              {
+                  "name": "R21-30.zip",
+                  "md5": md5_r21,
+                  "sequences": [f"R{index:02d}" for index in range(21, 31)],
+              },
+              {
+                  "name": "R31-40.zip",
+                  "md5": md5_r31,
+                  "sequences": [f"R{index:02d}" for index in range(31, 41)],
+              },
+          ]
+          protocol["target_sequences"] = target_sequences
+          protocol["reserved_sequences"] = reserve
+          protocol["claim_boundary"] = (
+              "Prospective R21-R40 learned-CUT3R, 2-D-marker-localized, "
+              "3-D-outcome-blind query-selective confirmation after a separate "
+              "R11-R20 source support qualification. R41-R70 remains unopened. "
+              "No target-side retuning, BayesianPhysTwin execution, Causal4D "
+              "execution, deployment-safety claim, or state-of-the-art claim is "
+              "authorized."
+          )
+          protocol["evaluation"]["metric_fit_a_frames"] = [1, 2, 3]
+          protocol["evaluation"]["metric_fit_b_frames"] = [5, 6, 7]
+          protocol["marker_sampling"]["minimum_metric_fit_markers"] = 6
+          protocol["prerequisite"].update(
+              {
+                  "confirmation_sequences": [
+                      f"R{index:02d}" for index in range(11, 21)
+                  ],
+                  "protocol_id": os.environ["SOURCE_PROTOCOL_ID"],
+                  "required_decision": os.environ["SOURCE_DECISION"],
+                  "source_calibration_id": os.environ["SOURCE_CALIBRATION_ID"],
+                  "failure_action": "retain R21-R70 closed on identity failure",
+              }
+          )
+          protocol["statistics"]["minimum_supported_sequences"] = 18
+          boundary = protocol["information_boundary"]
+          boundary["r04_r10_confirmation_reused_for_tuning"] = False
+          boundary["r11_r20_source_support_only"] = True
+          boundary["r21_r40_normal_view_opened_only_after_source"] = True
+          boundary["r41_r70_payloads_opened"] = False
+          boundary["target_side_retuning_allowed"] = False
+          unsigned_protocol = dict(protocol)
+          unsigned_protocol.pop("protocol_id", None)
+          protocol["protocol_id"] = canonical_id(unsigned_protocol)
+          protocol_text = (
+              json.dumps(protocol, indent=2, sort_keys=True, allow_nan=False)
+              + "\n"
+          )
+          protocol_path.write_text(protocol_text, encoding="utf-8", newline="\n")
+          protocol_blob = git_blob_id(protocol_text.encode("utf-8"))
+
+          runner = textwrap.dedent(
+              f'''\
+              #!/usr/bin/env python3
+              """Run the frozen prospective DOT R21-R40 confirmation."""
+
+              from __future__ import annotations
+
+              import importlib.util
+              import sys
+              from pathlib import Path
+
+              BASE = Path(__file__).with_name(
+                  "run_dot_rope_query_selective_heldout.py"
+              )
+              SPEC = importlib.util.spec_from_file_location(
+                  "dot_r21_r40_confirmation_base",
+                  BASE,
+              )
+              if SPEC is None or SPEC.loader is None:
+                  raise RuntimeError("cannot load query-selective implementation")
+              MODULE = importlib.util.module_from_spec(SPEC)
+              sys.modules[SPEC.name] = MODULE
+              SPEC.loader.exec_module(MODULE)
+              MODULE.TARGET_SEQUENCES = [
+                  f"R{{index:02d}}" for index in range(21, 41)
+              ]
+              MODULE.RESERVED_SEQUENCES = "R41-R70"
+              MODULE.ARCHIVES = {{
+                  "R21-30.zip": {{
+                      "md5": "{md5_r21}",
+                      "sequences": [f"R{{index:02d}}" for index in range(21, 31)],
+                  }},
+                  "R31-40.zip": {{
+                      "md5": "{md5_r31}",
+                      "sequences": [f"R{{index:02d}}" for index in range(31, 41)],
+                  }},
+              }}
+              MODULE.PREREQUISITE_PROTOCOL_ID = "{os.environ['SOURCE_PROTOCOL_ID']}"
+              MODULE.PREREQUISITE_DECISION = "{os.environ['SOURCE_DECISION']}"
+              MODULE.SOURCE_CALIBRATION_ID = "{os.environ['SOURCE_CALIBRATION_ID']}"
+
+              if __name__ == "__main__":
+                  raise SystemExit(MODULE.main())
+              '''
+          )
+          runner_path.write_text(runner, encoding="utf-8", newline="\n")
+
+          target_request = {
+              "schema": "prob4d.dot-rope-query-selective-heldout-request",
+              "schema_version": 1,
+              "protocol_path": protocol_path.as_posix(),
+              "protocol_git_blob_sha": protocol_blob,
+              "target_sequences": target_sequences,
+              "reserved_sequences": reserve,
+              "normal_view_prediction_authorized": True,
+              "marker_2d_factor_seal_authorized": True,
+              "marker_3d_scoring_authorized": True,
+              "post_open_tuning_authorized": False,
+              "bayesian_phystwin_executed": False,
+              "causal4d_executed": False,
+              "claim_boundary": protocol["claim_boundary"],
+              "prerequisite": {
+                  "run_id": int(os.environ["SOURCE_RUN_ID"]),
+                  "artifact_id": int(os.environ["SOURCE_ARTIFACT_ID"]),
+                  "artifact_name": os.environ["SOURCE_ARTIFACT_NAME"],
+                  "artifact_digest": os.environ["SOURCE_ARTIFACT_DIGEST"],
+                  "decision": os.environ["SOURCE_DECISION"],
+                  "evaluation_id": os.environ["SOURCE_EVALUATION_ID"],
+                  "marker_support_id": os.environ["SOURCE_SUPPORT_ID"],
+                  "protocol_id": os.environ["SOURCE_PROTOCOL_ID"],
+                  "source_calibration_id": os.environ["SOURCE_CALIBRATION_ID"],
+              },
+          }
+          target_request["request_id"] = canonical_id(target_request)
+          Path("/tmp/dot-rope-r21-r40-request.json").write_text(
+              json.dumps(
+                  target_request,
+                  indent=2,
+                  sort_keys=True,
+                  allow_nan=False,
+              )
+              + "\n",
+              encoding="utf-8",
+              newline="\n",
+          )
+
+          workflow = base_workflow_path.read_text(encoding="utf-8")
+          workflow = re.sub(
+              r"(?m)^name:.*$",
+              "name: DOT R21-R40 prospective query-selective CUT3R confirmation v1",
+              workflow,
+              count=1,
+          )
+          workflow = workflow.replace(
+              "protocols/execution_requests/dot_rope_query_selective_heldout_v1.json",
+              request_path.as_posix(),
+          )
+          workflow = workflow.replace(
+              "protocols/dot-rope-query-selective-heldout-v1.json",
+              protocol_path.as_posix(),
+          )
+          workflow = workflow.replace(
+              "scripts/science/run_dot_rope_query_selective_heldout.py",
+              runner_path.as_posix(),
+          )
+          workflow = re.sub(
+              r"(?ms)\n  prerequisite:\n.*?(?=\n  provider:\n)",
+              "\n",
+              workflow,
+              count=1,
+          )
+          source_job = textwrap.dedent(
+              '''\
+                source_prerequisite:
+                  name: Verify committed R11-R20 source qualification
+                  if: github.event_name == 'push'
+                  needs: authorize
+                  runs-on: ubuntu-latest
+                  timeout-minutes: 15
+                  permissions:
+                    contents: read
+                    actions: read
+                  steps:
+                    - name: Check out exact authorized revision
+                      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+                      with:
+                        ref: ${{ needs.authorize.outputs.head_sha }}
+                        persist-credentials: false
+                        clean: true
+                    - name: Match source receipt and target request
+                      shell: bash
+                      env:
+                        REQUEST_PATH: ${{ env.REQUEST_PATH }}
+                      run: |
+                        set -euo pipefail
+                        python - <<'PY_SOURCE'
+                        import json
+                        import os
+                        from pathlib import Path
+
+                        request = json.loads(
+                            Path(os.environ["REQUEST_PATH"]).read_text()
+                        )
+                        receipt = json.loads(
+                            Path(
+                                "evidence/"
+                                "dot-r11-r20-source-support-qualification-v1.json"
+                            ).read_text()
+                        )
+                        prerequisite = request["prerequisite"]
+                        assert receipt["decision"] == "source-support-qualified"
+                        assert receipt["r21_r40_payloads_opened"] is False
+                        assert receipt["r41_r70_payloads_opened"] is False
+                        assert receipt["target_side_retuning_allowed"] is False
+                        assert prerequisite["run_id"] == receipt["source_run"]["run_id"]
+                        assert prerequisite["artifact_id"] == receipt["source_run"]["artifact_id"]
+                        assert prerequisite["artifact_name"] == receipt["source_run"]["artifact_name"]
+                        assert prerequisite["artifact_digest"] == receipt["source_run"]["artifact_digest"]
+                        assert prerequisite["decision"] == receipt["source_scientific_decision"]
+                        assert prerequisite["evaluation_id"] == receipt["source_evaluation_id"]
+                        assert prerequisite["marker_support_id"] == receipt["source_marker_support_id"]
+                        assert prerequisite["protocol_id"] == receipt["source_protocol_id"]
+                        PY_SOURCE
+              '''
+          )
+          marker = "\n  provider:\n"
+          if marker not in workflow:
+              raise SystemExit("target provider job marker changed")
+          workflow = workflow.replace(marker, "\n" + source_job + marker, 1)
+          workflow = workflow.replace(
+              "needs: [authorize, prerequisite]",
+              "needs: [authorize, source_prerequisite]",
+          )
+          if "needs.prerequisite" in workflow:
+              raise SystemExit("target workflow retains an old prerequisite reference")
+          workflow = workflow.replace("R11-20.zip", "__FIRST_ARCHIVE__")
+          workflow = workflow.replace("R21-30.zip", "__SECOND_ARCHIVE__")
+          workflow = workflow.replace("__FIRST_ARCHIVE__", "R21-30.zip")
+          workflow = workflow.replace("__SECOND_ARCHIVE__", "R31-40.zip")
+          workflow = workflow.replace(
+              "23ce3e7067465d3edabe20b4c7cfa388",
+              md5_r21,
+          )
+          workflow = workflow.replace(
+              "8aee77f79d1aff6e1f3fd21886b251a0",
+              md5_r31,
+          )
+          workflow = workflow.replace(
+              "/home/github-runner/.cache/prob4d/"
+              "dot-r11-r30-cut3r-gpuserver6000-v1",
+              "/home/github-runner/.cache/prob4d/"
+              "dot-r21-r40-cut3r-gpuserver6000-v1",
+          )
+          workflow = workflow.replace(
+              "dot-rope-query-selective-heldout-v1-",
+              "dot-rope-r21-r40-confirmation-v1-",
+          )
+          workflow_path.write_text(workflow, encoding="utf-8", newline="\n")
+
+          test_path = Path("tests/test_dot_r21_r40_confirmation_v1.py")
+          test_path.write_text(
+              textwrap.dedent(
+                  '''\
+                  from __future__ import annotations
+
+                  import json
+                  from pathlib import Path
+
+                  ROOT = Path(__file__).resolve().parents[1]
+
+
+                  def test_target_protocol_preserves_prospective_split() -> None:
+                      protocol = json.loads(
+                          (
+                              ROOT
+                              / "protocols/dot-rope-r21-r40-confirmation-v1.json"
+                          ).read_text()
+                      )
+                      assert protocol["target_sequences"] == [
+                          f"R{index:02d}" for index in range(21, 41)
+                      ]
+                      assert protocol["reserved_sequences"] == "R41-R70"
+                      assert protocol["evaluation"]["metric_fit_a_frames"] == [1, 2, 3]
+                      assert protocol["evaluation"]["metric_fit_b_frames"] == [5, 6, 7]
+                      assert protocol["statistics"]["minimum_supported_sequences"] == 18
+                      boundary = protocol["information_boundary"]
+                      assert boundary["r11_r20_source_support_only"] is True
+                      assert boundary["r41_r70_payloads_opened"] is False
+                      assert boundary["target_side_retuning_allowed"] is False
+
+
+                  def test_target_workflow_is_main_only_and_gpuserver6000() -> None:
+                      workflow = (
+                          ROOT
+                          / ".github/workflows/"
+                          "dot-rope-r21-r40-confirmation-v1.yml"
+                      ).read_text()
+                      assert "branches: [main]" in workflow
+                      assert "refs/heads/main" in workflow
+                      assert "runs-on: [self-hosted, gpuserver6000]" in workflow
+                      assert "R21-30.zip" in workflow
+                      assert "R31-40.zip" in workflow
+                      assert "R11-20.zip" not in workflow
+                      assert "R41-50.zip" not in workflow
+                  '''
+              ),
+              encoding="utf-8",
+              newline="\n",
+          )
+          PY
+
+      - name: Register and validate target control plane before any target request
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          workflow_name = "dot-rope-r21-r40-confirmation-v1.yml"
+          constant = "DOT_ROPE_R21_R40_CONFIRMATION_WORKFLOW"
+          candidates = [
+              Path("tests/_trusted_self_hosted_validation_policy_base.py"),
+              Path("tests/test_trusted_self_hosted_validation_policy.py"),
+          ]
+          for path in candidates:
+              if not path.is_file():
+                  continue
+              text = path.read_text(encoding="utf-8")
+              if workflow_name in text:
+                  break
+              anchor = re.search(
+                  r"(?m)^(DOT_ROPE_[A-Z0-9_]+_WORKFLOW\s*=\s*\(.*?^\))",
+                  text,
+                  re.DOTALL,
+              )
+              if anchor is None:
+                  continue
+              declaration = (
+                  f'\n{constant} = (\n'
+                  f'    WORKFLOW_ROOT / "{workflow_name}"\n'
+                  f')\n'
+              )
+              text = text[: anchor.end()] + declaration + text[anchor.end() :]
+              tuple_match = re.search(
+                  r"TRUSTED_SELF_HOSTED_WORKFLOWS\s*=\s*\((.*?)\n\)",
+                  text,
+                  re.DOTALL,
+              )
+              if tuple_match is not None:
+                  body = tuple_match.group(1)
+                  replacement = (
+                      "TRUSTED_SELF_HOSTED_WORKFLOWS = ("
+                      + body
+                      + f"\n    {constant},"
+                      + "\n)"
+                  )
+                  text = text[: tuple_match.start()] + replacement + text[tuple_match.end() :]
+              path.write_text(text, encoding="utf-8", newline="\n")
+              break
+          PY
+          cp /tmp/dot-rope-r21-r40-request.json \
+            protocols/execution_requests/dot_rope_r21_r40_confirmation_v1.json
+          python -m pip install -e ".[dev]"
+          python -m ruff check \
+            scripts/science/run_dot_rope_r21_r40_confirmation_v1.py \
+            tests/test_dot_r21_r40_confirmation_v1.py
+          python -m ruff format --check \
+            scripts/science/run_dot_rope_r21_r40_confirmation_v1.py \
+            tests/test_dot_r21_r40_confirmation_v1.py
+          python -m pytest -q \
+            tests/test_dot_r21_r40_confirmation_v1.py \
+            tests/test_github_action_pins.py
+          python -m compileall -q \
+            scripts/science/run_dot_rope_r21_r40_confirmation_v1.py
+
+      - name: Commit source receipt and target machinery without its request
+        shell: bash
+        run: |
+          set -euo pipefail
+          request_copy="$RUNNER_TEMP/dot-rope-r21-r40-request.json"
+          cp protocols/execution_requests/dot_rope_r21_r40_confirmation_v1.json \
+            "$request_copy"
+          rm protocols/execution_requests/dot_rope_r21_r40_confirmation_v1.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            evidence/dot-r11-r20-source-support-qualification-v1.json \
+            protocols/dot-rope-r21-r40-confirmation-v1.json \
+            scripts/science/run_dot_rope_r21_r40_confirmation_v1.py \
+            .github/workflows/dot-rope-r21-r40-confirmation-v1.yml \
+            tests/test_dot_r21_r40_confirmation_v1.py \
+            tests/_trusted_self_hosted_validation_policy_base.py \
+            tests/test_trusted_self_hosted_validation_policy.py
+          git add -u
+          git commit -m "Freeze prospective DOT R21-R40 confirmation control plane"
+          git pull --rebase origin main
+          git push origin HEAD:main
+          cp "$request_copy" \
+            protocols/execution_requests/dot_rope_r21_r40_confirmation_v1.json
+
+      - name: Commit the target request as the sole next main change
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add protocols/execution_requests/dot_rope_r21_r40_confirmation_v1.json
+          mapfile -t staged < <(git diff --cached --name-only | sort)
+          test ${#staged[@]} -eq 1
+          test "${staged[0]}" = \
+            "protocols/execution_requests/dot_rope_r21_r40_confirmation_v1.json"
+          git commit -m "Trigger one-shot prospective DOT R21-R40 confirmation"
+          git push origin HEAD:main
