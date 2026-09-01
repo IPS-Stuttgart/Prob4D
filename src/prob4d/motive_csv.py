@@ -155,12 +155,8 @@ def _layout_from_rows(rows: Sequence[Sequence[str]], delimiter: str) -> MotiveLa
             )
             and axes == ("X", "Y", "Z")
         ):
-            label_cells = {
-                header[label_index][column + offset].strip() for offset in range(3)
-            }
-            unique_ids = {
-                header[unique_id_index][column + offset].strip() for offset in range(3)
-            }
+            label_cells = {header[label_index][column + offset].strip() for offset in range(3)}
+            unique_ids = {header[unique_id_index][column + offset].strip() for offset in range(3)}
             if len(label_cells) != 1 or len(unique_ids) != 1:
                 raise ValueError("Motive marker triple has inconsistent identity cells")
             label = next(iter(label_cells))
