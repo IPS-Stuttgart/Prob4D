@@ -1,0 +1,113 @@
+name: Temporary Tracking Cloth source-header audit
+
+on:
+  push:
+    branches:
+      - repair/tracking-cloth-finite-orbit-motive-parser-v1
+    paths:
+      - ".github/workflows/temporary-tracking-cloth-source-header-audit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: temporary-tracking-cloth-source-header-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  ZENODO_URL: https://zenodo.org/records/14644526/files/tracking_dataset.zip?download=1
+  ZENODO_MD5: b4868b702f8a42b2ea1069d0f1a3b8f6
+
+jobs:
+  inspect-source-header:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out exact branch revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          clean: true
+      - name: Download verified public release and retain source header only
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/tracking-cloth-header-audit"
+          rm -rf -- "$root"
+          mkdir -p "$root"
+          curl --fail --location --retry 6 --retry-all-errors \
+            --connect-timeout 30 --output "$root/tracking_dataset.zip" "$ZENODO_URL"
+          printf '%s  %s\n' "$ZENODO_MD5" "$root/tracking_dataset.zip" \
+            | md5sum --check --strict
+          ROOT="$root" python - <<'PY'
+          import csv
+          import hashlib
+          import json
+          import os
+          import zipfile
+          from pathlib import Path
+
+          root = Path(os.environ["ROOT"])
+          archive_path = root / "tracking_dataset.zip"
+          with zipfile.ZipFile(archive_path) as archive:
+              csv_names = sorted(
+                  name for name in archive.namelist()
+                  if name.lower().endswith(".csv") and not name.endswith("/")
+              )
+              if len(csv_names) != 120:
+                  raise SystemExit(f"expected 120 CSVs, found {len(csv_names)}")
+              source = [
+                  name for name in csv_names
+                  if any(token in name.lower() for token in ("shake", "shaking", "twist", "twisting"))
+              ]
+              if not source:
+                  raise SystemExit("source recording filename was not identified")
+              name = source[0]
+              raw = archive.read(name)
+          text = raw.decode("utf-8-sig", errors="strict")
+          sample = text[:32768]
+          try:
+              delimiter = csv.Sniffer().sniff(sample, delimiters=",;\t").delimiter
+          except csv.Error:
+              delimiter = max((",", ";", "\t"), key=sample.count)
+          rows = list(csv.reader(text.splitlines(), delimiter=delimiter))
+          first_numeric = None
+          for index, row in enumerate(rows):
+              try:
+                  float(row[0])
+                  float(row[1])
+              except (IndexError, ValueError):
+                  continue
+              first_numeric = index
+              break
+          if first_numeric is None:
+              raise SystemExit("source recording contains no numeric data row")
+          evidence = {
+              "schema": "prob4d.tracking-cloth-source-header-audit.v1",
+              "archive_md5": os.environ["ZENODO_MD5"],
+              "csv_count": len(csv_names),
+              "source_recording_id": hashlib.sha256(name.encode()).hexdigest()[:16],
+              "source_recording_name": name,
+              "source_file_sha256": hashlib.sha256(raw).hexdigest(),
+              "delimiter": "tab" if delimiter == "\t" else delimiter,
+              "first_numeric_row_zero_based": first_numeric,
+              "header_rows": rows[:first_numeric],
+              "numeric_column_count": len(rows[first_numeric]),
+              "numeric_prefix": rows[first_numeric][:2],
+              "target_trajectory_values_opened": False,
+              "source_trajectory_values_retained": False,
+          }
+          (root / "source-header.json").write_text(
+              json.dumps(evidence, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          archive_path.unlink()
+          PY
+      - name: Upload bounded source-header evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: tracking-cloth-source-header-${{ github.run_id }}
+          path: ${{ runner.temp }}/tracking-cloth-header-audit/source-header.json
+          if-no-files-found: error
+          retention-days: 7
