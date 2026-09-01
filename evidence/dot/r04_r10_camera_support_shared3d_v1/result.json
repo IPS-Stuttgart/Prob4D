@@ -1,0 +1,90 @@
+{
+  "schema": "prob4d.dot-r04-r10-camera-support-shared3d-evidence",
+  "schema_version": 1,
+  "status": "complete",
+  "decision": "multiview-support-available",
+  "scientific_question": "Does the already-open DOT R04-R10 cohort contain sufficient registered marker support under a camera-union observation rule for a separately versioned multiview protocol?",
+  "dataset": {
+    "name": "DOT V29",
+    "archive": "R01-10.zip",
+    "archive_md5": "ca546ff5f22c0279123ccb18509858ee",
+    "sequences": ["R04", "R05", "R06", "R07", "R08", "R09", "R10"],
+    "frames_per_sequence": [1, 2, 3, 4, 5, 6, 7],
+    "common_normal_view_cameras": ["cam001", "cam002", "cam003", "cam004", "cam005"],
+    "coordinate_layout": "camera-specific 2-D coordinates with one shared cam001 3-D carrier per sequence and frame",
+    "shared_3d_camera_label": "cam001",
+    "layout_census_id": "74f090a99d6740ac3388c43493531ea5168291e4c5a709fb74344e45b46b4f19"
+  },
+  "row_alignment": {
+    "camera_frame_pairs_checked": 245,
+    "mismatched_2d_3d_row_counts": 0,
+    "row_count_patterns": {
+      "10_rows": 35,
+      "18_rows": 175,
+      "24_rows": 35
+    },
+    "rule": "shared marker identity by equal row index; silent truncation is forbidden by the corrected evaluator"
+  },
+  "support_result": {
+    "fixed_camera_feasible_candidates": [],
+    "multiview_feasible_coordinate_modes": [
+      "pixel-zero-based",
+      "pixel-one-based",
+      "swapped-pixel-zero-based",
+      "swapped-pixel-one-based"
+    ],
+    "registered_pixel_zero_based_multiview_minima": {
+      "minimum_fit_a_total": 10,
+      "minimum_fit_b_total": 10,
+      "minimum_overlap_total": 15,
+      "minimum_overlap_nonempty_frames": 3
+    },
+    "pixel_zero_based_per_sequence": {
+      "R04": {"fit_a_total": 10, "fit_b_total": 10, "overlap_total": 15, "overlap_nonempty_frames": 3},
+      "R05": {"fit_a_total": 12, "fit_b_total": 13, "overlap_total": 18, "overlap_nonempty_frames": 3},
+      "R06": {"fit_a_total": 14, "fit_b_total": 14, "overlap_total": 21, "overlap_nonempty_frames": 3},
+      "R07": {"fit_a_total": 20, "fit_b_total": 20, "overlap_total": 30, "overlap_nonempty_frames": 3},
+      "R08": {"fit_a_total": 14, "fit_b_total": 14, "overlap_total": 21, "overlap_nonempty_frames": 3},
+      "R09": {"fit_a_total": 18, "fit_b_total": 13, "overlap_total": 26, "overlap_nonempty_frames": 3},
+      "R10": {"fit_a_total": 10, "fit_b_total": 10, "overlap_total": 15, "overlap_nonempty_frames": 3}
+    },
+    "registered_thresholds": {
+      "minimum_fit_a_total": 6,
+      "minimum_fit_b_total": 6,
+      "minimum_overlap_total": 6,
+      "minimum_overlap_nonempty_frames": 2
+    }
+  },
+  "interpretation": {
+    "fixed_cam001_negative_retained": true,
+    "multiview_structural_support_confirmed": true,
+    "new_multiview_performance_claim_authorized": false,
+    "next_protocol_allowed": "A separately versioned camera-union source-gated protocol may be registered before opening R11-R70.",
+    "paper_claim_authorized": false
+  },
+  "provenance": {
+    "base_implementation_sha": "0fed861b9386f6364539883aab697fd53035a5eb",
+    "base_audit_script_git_blob": "5baed0a27e6318c0a951c0997885af0031e118d4",
+    "layout_census_run_id": 33512929079,
+    "layout_census_artifact_id": 9802375802,
+    "layout_census_artifact_sha256": "99d8681e9fd4399f6b1ae2da14feb54f9eb8577006c18d5b0b84ff8869a38521",
+    "corrected_support_run_id": 33513389851,
+    "corrected_support_job_id": 99874305523,
+    "corrected_support_artifact_id": 9802559019,
+    "corrected_support_artifact_sha256": "e31e07ececc6cbe4897eff59f14f43a8c0b1a3c5a6d51cca8daf1c6c8b8a20fd",
+    "base_audit_id": "151df30a35aceaeeee113482d6146888cb491a7b7b3047902f48e8d60fc56b57",
+    "adapted_audit_id": "d66d20e2ec156d098d0c79324a32504829c48a7c616da6571be54b31ddf46db7",
+    "runner_label": "gpuserver6000",
+    "runner_name": "workstation2"
+  },
+  "information_boundary": {
+    "zip_central_directory_read_for_layout_census": true,
+    "r04_r10_image_and_coordinate_payloads_read_for_support_audit": true,
+    "r11_r70_opened": false,
+    "performance_metrics_computed": false,
+    "frozen_fixed_camera_result_reinterpreted": false,
+    "provider_predictions_generated": false,
+    "marker_outcomes_scored": false
+  },
+  "claim_boundary": "The result establishes only that a five-camera union supplies the preregistered marker-count support on already-open R04-R10. It does not establish provider competence, covariance calibration, prediction improvement, a successful new protocol, R11-R70 performance, safety, or state of the art."
+}
