@@ -1,0 +1,8 @@
+{
+  "collect_latest_completed_or_wait": true,
+  "r41_r70_payloads_opened": false,
+  "schema": "prob4d.dot-r21-r40-result-collection-request",
+  "schema_version": 1,
+  "target_request_nonce": "2026-09-02-dot-r21-r40-prospective-v1",
+  "target_workflow_path": ".github/workflows/dot-rope-r21-r40-prospective-v1.yml"
+}
