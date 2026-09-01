@@ -1,0 +1,281 @@
+name: DEFORM DLO4/DLO5 source-calibrated query covariance v1
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/deform-dlo45-source-calibrated-query-covariance-v1.yml"
+      - "CHANGELOG.d/dlo45-source-calibrated-query-covariance-v1.md"
+      - "docs/deform-dlo45-source-calibrated-query-covariance-v1.md"
+      - "protocols/deform-dlo45-source-calibrated-query-covariance-v1.json"
+      - "protocols/execution_requests/deform_dlo45_source_calibrated_query_covariance_v1.json"
+      - "scripts/science/run_deform_dlo45_source_calibrated_query_covariance_v1.py"
+      - "tests/test_deform_dlo45_source_calibrated_query_covariance_v1.py"
+      - "tests/test_trusted_self_hosted_validation_policy.py"
+  push:
+    branches: [science/deform-dlo45-source-calibrated-covariance-v1]
+    paths:
+      - ".github/workflows/deform-dlo45-source-calibrated-query-covariance-v1.yml"
+      - "CHANGELOG.d/dlo45-source-calibrated-query-covariance-v1.md"
+      - "docs/deform-dlo45-source-calibrated-query-covariance-v1.md"
+      - "protocols/deform-dlo45-source-calibrated-query-covariance-v1.json"
+      - "protocols/execution_requests/deform_dlo45_source_calibrated_query_covariance_v1.json"
+      - "scripts/science/run_deform_dlo45_source_calibrated_query_covariance_v1.py"
+      - "tests/test_deform_dlo45_source_calibrated_query_covariance_v1.py"
+      - "tests/test_trusted_self_hosted_validation_policy.py"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deform-dlo45-source-calibrated-query-covariance-v1-${{ github.sha }}
+  cancel-in-progress: false
+
+env:
+  DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/deform/data_set
+  PROTOCOL_PATH: protocols/deform-dlo45-source-calibrated-query-covariance-v1.json
+  REQUEST_PATH: protocols/execution_requests/deform_dlo45_source_calibrated_query_covariance_v1.json
+  PYTHONPATH: src:scripts/science
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+
+jobs:
+  contract:
+    name: Validate no-new-data calibration capsule
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out exact revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          clean: true
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Validate source-only design and focused implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -e ".[dev]"
+          python -m pip check
+          python -m ruff check \
+            scripts/science/run_deform_dlo45_source_calibrated_query_covariance_v1.py \
+            tests/test_deform_dlo45_source_calibrated_query_covariance_v1.py
+          python -m ruff format --check \
+            scripts/science/run_deform_dlo45_source_calibrated_query_covariance_v1.py \
+            tests/test_deform_dlo45_source_calibrated_query_covariance_v1.py
+          python -m pytest -q \
+            tests/test_deform_dlo45_source_calibrated_query_covariance_v1.py \
+            tests/test_trusted_self_hosted_validation_policy.py
+          python -m compileall -q \
+            scripts/science/run_deform_dlo45_source_calibrated_query_covariance_v1.py
+          python scripts/science/run_deform_dlo45_source_calibrated_query_covariance_v1.py \
+            validate \
+            --protocol "$PROTOCOL_PATH" \
+            --request "$REQUEST_PATH"
+
+  source-calibration:
+    name: Freeze query covariance from 112 training trajectories
+    needs: contract
+    if: >-
+      github.event_name == 'push' &&
+      github.actor == 'FlorianPfaff' &&
+      github.repository == 'IPS-Stuttgart/Prob4D' &&
+      github.ref_name == 'science/deform-dlo45-source-calibrated-covariance-v1'
+    environment: trusted-self-hosted-validation
+    runs-on: [self-hosted, Linux, X64, gpuserver4090]
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    outputs:
+      artifact_name: ${{ steps.identity.outputs.artifact_name }}
+      calibration_id: ${{ steps.identity.outputs.calibration_id }}
+    steps:
+      - name: Bind runner and existing source files
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_NAME" = "workstation1"
+          test "$RUNNER_OS" = "Linux"
+          test "$RUNNER_ARCH" = "X64"
+          test -d "$DATASET_ROOT"
+          test "$(find "$DATASET_ROOT/DLO4/train" -maxdepth 1 -type f -name '*.pkl' | wc -l)" -eq 56
+          test "$(find "$DATASET_ROOT/DLO5/train" -maxdepth 1 -type f -name '*.pkl' | wc -l)" -eq 56
+      - name: Check out exact triggering revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          clean: true
+      - name: Set up isolated Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install pinned numerical runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --no-cache-dir "numpy==2.2.6"
+          python -m pip install --disable-pip-version-check --no-deps -e .
+          python -m pip check
+      - name: Calibrate on the training split only
+        id: execute
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/dlo45-source-calibration-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          rm -rf -- "$root"
+          python scripts/science/run_deform_dlo45_source_calibrated_query_covariance_v1.py \
+            calibrate \
+            --dataset-root "$DATASET_ROOT" \
+            --protocol "$PROTOCOL_PATH" \
+            --request "$REQUEST_PATH" \
+            --repository-revision "$GITHUB_SHA" \
+            --output-dir "$root"
+          echo "root=$root" >> "$GITHUB_OUTPUT"
+      - name: Verify source seal and expose identity
+        id: identity
+        shell: bash
+        env:
+          OUTPUT_ROOT: ${{ steps.execute.outputs.root }}
+        run: |
+          set -euo pipefail
+          CALIBRATION="$OUTPUT_ROOT/calibration.json" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          value = json.loads(Path(os.environ["CALIBRATION"]).read_text())
+          assert value["stage"] == "source-calibration"
+          assert value["dataset"]["opened_split"] == "train"
+          assert value["accounting"]["independent_groups"] == 112
+          assert value["information_boundary"]["evaluation_file_contents_opened"] is False
+          assert value["information_boundary"]["new_data_collected"] is False
+          gamma = float(value["calibration"]["inflation_factor"])
+          assert 1.0 <= gamma <= 10.0
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"calibration_id={value['calibration_id']}\n")
+              output.write(f"artifact_name=dlo45-source-calibration-{os.environ['GITHUB_SHA']}\n")
+          PY
+      - name: Upload compact source calibration
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: ${{ steps.identity.outputs.artifact_name }}
+          path: ${{ steps.execute.outputs.root }}/
+          if-no-files-found: error
+          retention-days: 90
+
+  evaluate:
+    name: Apply frozen covariance to the existing 28-file evaluation split
+    needs: [contract, source-calibration]
+    if: >-
+      github.event_name == 'push' &&
+      github.actor == 'FlorianPfaff' &&
+      github.repository == 'IPS-Stuttgart/Prob4D' &&
+      github.ref_name == 'science/deform-dlo45-source-calibrated-covariance-v1'
+    environment: trusted-self-hosted-validation
+    runs-on: [self-hosted, Linux, X64, gpuserver4090]
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Bind runner and existing evaluation files
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_NAME" = "workstation1"
+          test "$RUNNER_OS" = "Linux"
+          test "$RUNNER_ARCH" = "X64"
+          test "$(find "$DATASET_ROOT/DLO4/eval" -maxdepth 1 -type f -name '*.pkl' | wc -l)" -eq 14
+          test "$(find "$DATASET_ROOT/DLO5/eval" -maxdepth 1 -type f -name '*.pkl' | wc -l)" -eq 14
+      - name: Check out exact triggering revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          clean: true
+      - name: Set up isolated Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install pinned numerical runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --no-cache-dir "numpy==2.2.6"
+          python -m pip install --disable-pip-version-check --no-deps -e .
+          python -m pip check
+      - name: Download the source-only calibration seal
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ${{ needs.source-calibration.outputs.artifact_name }}
+          path: ${{ runner.temp }}/dlo45-source-calibration-input
+      - name: Evaluate without changing means or admission
+        id: execute
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/dlo45-calibrated-evaluation-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          rm -rf -- "$root"
+          python scripts/science/run_deform_dlo45_source_calibrated_query_covariance_v1.py \
+            evaluate \
+            --dataset-root "$DATASET_ROOT" \
+            --protocol "$PROTOCOL_PATH" \
+            --request "$REQUEST_PATH" \
+            --calibration "$RUNNER_TEMP/dlo45-source-calibration-input/calibration.json" \
+            --repository-revision "$GITHUB_SHA" \
+            --output-dir "$root"
+          echo "root=$root" >> "$GITHUB_OUTPUT"
+      - name: Verify immutable raw reproduction and no-new-data boundary
+        shell: bash
+        env:
+          OUTPUT_ROOT: ${{ steps.execute.outputs.root }}
+          EXPECTED_CALIBRATION_ID: ${{ needs.source-calibration.outputs.calibration_id }}
+        run: |
+          set -euo pipefail
+          RESULT="$OUTPUT_ROOT/result.json" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          value = json.loads(Path(os.environ["RESULT"]).read_text())
+          assert value["source_calibration"]["calibration_id"] == os.environ[
+              "EXPECTED_CALIBRATION_ID"
+          ]
+          assert value["dataset"]["opened_split"] == "eval"
+          assert value["accounting"]["independent_groups"] == 28
+          assert value["raw_result_reproduction"]["passed"] is True
+          assert value["invariance"]["means_unchanged_by_construction"] is True
+          assert (
+              value["invariance"]["rejected_covariance_unchanged_by_construction"]
+              is True
+          )
+          assert value["information_boundary"]["new_data_collected"] is False
+          assert value["decision"] != "technical-integrity-failure"
+          print(json.dumps({
+              "decision": value["decision"],
+              "result_id": value["result_id"],
+              "inflation_factor": value["source_calibration"]["calibration"][
+                  "inflation_factor"
+              ],
+          }, sort_keys=True))
+          PY
+          cat "$OUTPUT_ROOT/SUMMARY.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload compact evaluation evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: dlo45-source-calibrated-query-covariance-${{ github.sha }}
+          path: ${{ steps.execute.outputs.root }}/
+          if-no-files-found: error
+          retention-days: 90
