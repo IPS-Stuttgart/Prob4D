@@ -11,7 +11,8 @@ ROOT = Path(__file__).resolve().parents[2]
 def main() -> None:
     path = ROOT / "scripts/science/run_dot_rope_cut3r_heldout_confirmation.py"
     text = path.read_text(encoding="utf-8")
-    anchor = "def predict(args: argparse.Namespace) -> int:\n"
+    predict_anchor = "def predict(args: argparse.Namespace) -> int:\n"
+    paired_anchor = "\n\ndef _paired_difference(\n"
     helper = '''def _prepare_exclusive_output(path: Path) -> Path:
     """Remove only a pre-created empty directory before exclusive creation."""
 
@@ -25,25 +26,29 @@ def main() -> None:
 
 
 '''
-    if text.count(anchor) != 1 or "def _prepare_exclusive_output" in text:
+    if text.count(predict_anchor) != 1 or "def _prepare_exclusive_output" in text:
         raise SystemExit("held-out predictor shape changed")
-    text = text.replace(anchor, helper + anchor, 1)
+    start = text.index(predict_anchor)
+    end = text.index(paired_anchor, start)
+    prefix = text[:start]
+    predict = text[start:end]
+    suffix = text[end:]
 
     old_adapted = "    adapted = _base_protocol(protocol)\n"
     new_adapted = (
         "    output_dir = _prepare_exclusive_output(args.output_dir)\n"
         "    adapted = _base_protocol(protocol)\n"
     )
-    if text.count(old_adapted) != 1:
-        raise SystemExit("held-out adapted-protocol assignment changed")
-    text = text.replace(old_adapted, new_adapted, 1)
+    if predict.count(old_adapted) != 1:
+        raise SystemExit("held-out predict protocol assignment changed")
+    predict = predict.replace(old_adapted, new_adapted, 1)
 
     old_output = "                output_dir=args.output_dir,\n"
     new_output = "                output_dir=output_dir,\n"
-    if text.count(old_output) != 1:
+    if predict.count(old_output) != 1:
         raise SystemExit("held-out provider output argument changed")
-    text = text.replace(old_output, new_output, 1)
-    path.write_text(text, encoding="utf-8", newline="\n")
+    predict = predict.replace(old_output, new_output, 1)
+    path.write_text(prefix + helper + predict + suffix, encoding="utf-8", newline="\n")
 
     test = ROOT / "tests/test_dot_rope_cut3r_heldout_output.py"
     test.write_text(
