@@ -1,4 +1,4 @@
-name: Apply DOT provider output directory fix
+name: Export DOT provider output directory fix
 
 on:
   push:
@@ -8,19 +8,18 @@ on:
       - ".github/workflows/apply-dot-provider-output-fix.yml"
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  patch:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+  export:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
     steps:
-      - name: Check out fix branch
+      - name: Check out exact fix branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: fix/dot-r04-r10-provider-output-v1
-          fetch-depth: 0
-          persist-credentials: true
+          persist-credentials: false
           clean: true
 
       - name: Apply bounded workflow and regression-test fix
@@ -80,17 +79,52 @@ def test_confirmation_provider_leaves_output_for_exclusive_creation() -> None:
 
     assert 'test ! -e "$root/provider"' in initialization
     assert initialization.count('"$root/provider"') == 1
+    assert '--output-dir "$root/provider"' in provider
 '''
           test_path.write_text(tests, encoding="utf-8", newline="\n")
 
-          Path(".github/workflows/apply-dot-provider-output-fix.yml").unlink()
+          changelog = Path("CHANGELOG.d/dot-r04-r10-provider-output-v1.md")
+          changelog.write_text(
+              "# Fixed\n\n"
+              "- Leave the frozen DOT R04–R10 provider output path absent until "
+              "the hash-pinned CUT3R predictor creates it exclusively. This fixes "
+              "the pre-inference `FileExistsError` without changing any scientific "
+              "input, cohort, checkpoint, query, comparator, or decision rule.\n",
+              encoding="utf-8",
+              newline="\n",
+          )
           PY
 
-          python -m py_compile tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py
+          python -m py_compile \
+            tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py
           git diff --check
-          git status --short
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "Leave held-out provider output for exclusive creation"
-          git push origin HEAD:fix/dot-r04-r10-provider-output-v1
+          git diff -- \
+            .github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml \
+            tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py \
+            CHANGELOG.d/dot-r04-r10-provider-output-v1.md
+
+      - name: Validate the patched contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -e ".[dev]"
+          python -m ruff check \
+            tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py
+          python -m ruff format --check \
+            tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py
+          python -m pytest -q \
+            tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py \
+            tests/test_trusted_self_hosted_validation_policy.py \
+            tests/test_github_action_pins.py
+
+      - name: Upload exact final files
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: dot-r04-provider-output-fix-${{ github.sha }}
+          path: |
+            .github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml
+            tests/test_dot_rope_cut3r-heldout-confirmation-workflow.py
+            tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py
+            CHANGELOG.d/dot-r04-r10-provider-output-v1.md
+          if-no-files-found: error
+          retention-days: 7
