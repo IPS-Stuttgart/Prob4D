@@ -20,8 +20,9 @@ import hashlib
 import json
 import math
 import re
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 import numpy as np
 
@@ -147,14 +148,14 @@ def _load_parent_protocol(protocol: dict[str, Any]) -> dict[str, Any]:
 def _sample_indices(length: int, maximum: int) -> np.ndarray:
     if length <= 0 or maximum <= 0:
         return np.empty(0, dtype=np.int64)
-    return np.unique(
-        np.linspace(0, length - 1, num=min(length, maximum), dtype=np.int64)
-    )
+    return np.unique(np.linspace(0, length - 1, num=min(length, maximum), dtype=np.int64))
 
 
 def _source_paths(dataset_root: Path) -> list[Path]:
     free_hanging = dataset_root / "tracking_dataset" / "Free-hanging"
-    paths = sorted(path for path in free_hanging.glob("*.csv") if SOURCE_PATTERN.fullmatch(path.name))
+    paths = sorted(
+        path for path in free_hanging.glob("*.csv") if SOURCE_PATTERN.fullmatch(path.name)
+    )
     if len(paths) != 24:
         raise ValueError(f"expected 24 source recordings, found {len(paths)}")
     return paths
@@ -211,8 +212,7 @@ def _hash_direction(*parts: object) -> np.ndarray:
     maximum = float((1 << 64) - 1)
     vector = np.array(
         [
-            2.0 * int.from_bytes(digest[8 * index : 8 * (index + 1)], "big") / maximum
-            - 1.0
+            2.0 * int.from_bytes(digest[8 * index : 8 * (index + 1)], "big") / maximum - 1.0
             for index in range(3)
         ],
         dtype=np.float64,
@@ -363,7 +363,9 @@ def _evaluate_group(
                     counts["outer_false_reject"] += int(not outer_accept and oracle_accept)
 
         if total == 0:
-            raise ValueError(f"target group produced no perturbation cases: {metadata['relative_path']}")
+            raise ValueError(
+                f"target group produced no perturbation cases: {metadata['relative_path']}"
+            )
         threshold_rows = []
         for name, counts in threshold_counts.items():
             threshold_rows.append(
@@ -443,11 +445,7 @@ def _aggregate(
         }
         for threshold_index, threshold_name in enumerate(threshold_names):
             threshold_rows = [
-                next(
-                    item
-                    for item in row["thresholds"]
-                    if item["threshold_name"] == threshold_name
-                )
+                next(item for item in row["thresholds"] if item["threshold_name"] == threshold_name)
                 for row in rows
             ]
             aggregate["thresholds"].append(
@@ -458,10 +456,7 @@ def _aggregate(
                         name: _bootstrap(
                             [float(row[name]) for row in threshold_rows],
                             replicates,
-                            seed
-                            + 1000 * ratio_index
-                            + 100 * threshold_index
-                            + index,
+                            seed + 1000 * ratio_index + 100 * threshold_index + index,
                         )
                         for index, name in enumerate(threshold_metrics)
                     },
@@ -477,10 +472,18 @@ def _summary(result: dict[str, Any]) -> str:
         "",
         f"Result ID: `{result['result_id']}`",
         "",
-        "This secondary study perturbs both anchors and the probe within exact Euclidean error balls on the 15 already evaluated public real-trajectory recordings.",
+        (
+            "This secondary study perturbs both anchors and the probe within "
+            "exact Euclidean error balls on the 15 already evaluated public "
+            "real-trajectory recordings."
+        ),
         "Thresholds are source-only quantiles of the true full radial-orbit width.",
         "",
-        "| point error / anchor span | plug-in containment | outer containment | outer width / true width | q50 plug-in false accept | q50 outer false accept | q50 outer false reject |",
+        (
+            "| point error / anchor span | plug-in containment | outer "
+            "containment | outer width / true width | q50 plug-in false "
+            "accept | q50 outer false accept | q50 outer false reject |"
+        ),
         "|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for row in result["aggregate"]:
@@ -501,7 +504,12 @@ def _summary(result: dict[str, Any]) -> str:
         )
     lines += [
         "",
-        "The outer certificate is conditionally exact only when the declared point-error balls contain the true points. Width inflation quantifies its conservatism; it is not a learned-provider accuracy result.",
+        (
+            "The outer certificate is conditionally exact only when the "
+            "declared point-error balls contain the true points. Width "
+            "inflation quantifies its conservatism; it is not a learned-"
+            "provider accuracy result."
+        ),
     ]
     return "\n".join(lines) + "\n"
 
@@ -572,9 +580,7 @@ def run(args: argparse.Namespace) -> int:
         groups.append(_evaluate_group(cases, metadata, thresholds, protocol))
 
     aggregate = _aggregate(groups, protocol)
-    maximum_violation = max(
-        float(row["maximum_outer_width_violation_mm"]) for row in aggregate
-    )
+    maximum_violation = max(float(row["maximum_outer_width_violation_mm"]) for row in aggregate)
     outer_false_accept = max(
         float(threshold["metrics"]["outer_false_accept"]["mean"])
         for row in aggregate
