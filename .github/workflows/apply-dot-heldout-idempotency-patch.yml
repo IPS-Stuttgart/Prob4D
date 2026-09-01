@@ -1,0 +1,148 @@
+name: Apply DOT held-out recovery idempotency patch
+
+on:
+  push:
+    branches:
+      - fix/dot-r04-r10-recovery-idempotent-v1
+    paths:
+      - ".github/workflows/apply-dot-heldout-idempotency-patch.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out patch branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: fix/dot-r04-r10-recovery-idempotent-v1
+          fetch-depth: 0
+          persist-credentials: true
+          clean: true
+
+      - name: Apply bounded workflow and regression-test changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          workflow = Path(
+              ".github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml"
+          )
+          text = workflow.read_text(encoding="utf-8")
+          start_marker = '          run = request(f"/actions/runs/{run_id}")\n'
+          end_marker = "          PY\n\n  provider:"
+          start = text.index(start_marker)
+          end = text.index(end_marker, start)
+          replacement = '''          run = request(f"/actions/runs/{run_id}")
+          if run["head_sha"] != os.environ["ORIGINAL_HEAD_SHA"]:
+              raise SystemExit("queued predecessor head changed")
+          attempt_count = int(run["run_attempt"])
+          if attempt_count < 1:
+              raise SystemExit("queued predecessor has no execution attempt")
+          artifacts = request(f"/actions/runs/{run_id}/artifacts?per_page=100")
+          if artifacts["total_count"] != 0:
+              raise SystemExit("old confirmation produced an artifact; recovery is forbidden")
+
+          provider_attempts = []
+          for attempt in range(1, attempt_count + 1):
+              jobs = request(
+                  f"/actions/runs/{run_id}/attempts/{attempt}/jobs?per_page=100"
+              )["jobs"]
+              matches = [
+                  job
+                  for job in jobs
+                  if job["name"] == os.environ["ORIGINAL_PROVIDER_JOB"]
+              ]
+              if len(matches) != 1:
+                  raise SystemExit(
+                      f"queued predecessor provider job is unavailable for attempt {attempt}"
+                  )
+              provider = matches[0]
+              untouched = (
+                  provider.get("conclusion") in (None, "cancelled")
+                  and provider.get("runner_id") in (None, 0)
+                  and not provider.get("runner_name")
+                  and not provider.get("steps")
+              )
+              if not untouched:
+                  raise SystemExit(
+                      f"old confirmation provider attempt {attempt} may have started; "
+                      "recovery is forbidden"
+                  )
+              provider_attempts.append(
+                  {
+                      "attempt": attempt,
+                      "status": provider.get("status"),
+                      "conclusion": provider.get("conclusion"),
+                      "runner_id": provider.get("runner_id"),
+                      "runner_name": provider.get("runner_name") or "",
+                      "steps": provider.get("steps") or [],
+                  }
+              )
+
+          if run["status"] in {"queued", "in_progress"}:
+              request(f"/actions/runs/{run_id}/cancel", method="POST")
+              for _ in range(30):
+                  time.sleep(2)
+                  run = request(f"/actions/runs/{run_id}")
+                  if run["status"] == "completed":
+                      break
+              else:
+                  raise SystemExit("old queued confirmation did not cancel")
+          if run["status"] != "completed" or run["conclusion"] != "cancelled":
+              raise SystemExit("old confirmation did not end as an untouched cancellation")
+          print(json.dumps({
+              "retired_run_id": run_id,
+              "retired_conclusion": run["conclusion"],
+              "attempt_count": attempt_count,
+              "provider_attempts": provider_attempts,
+              "artifact_count": artifacts["total_count"],
+          }, sort_keys=True))
+'''
+          workflow.write_text(
+              text[:start] + replacement + text[end:],
+              encoding="utf-8",
+              newline="\n",
+          )
+
+          test_path = Path(
+              "tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py"
+          )
+          tests = test_path.read_text(encoding="utf-8")
+          anchor = (
+              '    assert "old confirmation provider may have started; '
+              'recovery is forbidden" in text\n'
+          )
+          addition = anchor + '''    assert "for attempt in range(1, attempt_count + 1):" in text
+    assert (
+        'f"/actions/runs/{run_id}/attempts/{attempt}/jobs?per_page=100"'
+        in text
+    )
+    assert 'run["run_attempt"] != 2' not in text
+    assert "old confirmation produced an artifact; recovery is forbidden" in text
+'''
+          if tests.count(anchor) != 1:
+              raise SystemExit("workflow-test insertion anchor changed")
+          test_path.write_text(
+              tests.replace(anchor, addition, 1),
+              encoding="utf-8",
+              newline="\n",
+          )
+
+          Path(
+              ".github/workflows/apply-dot-heldout-idempotency-patch.yml"
+          ).unlink()
+          PY
+
+          git diff --check
+          git status --short
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Make held-out predecessor proof idempotent across reruns"
+          git push origin HEAD:fix/dot-r04-r10-recovery-idempotent-v1
