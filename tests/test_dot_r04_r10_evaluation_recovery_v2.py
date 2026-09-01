@@ -42,9 +42,7 @@ def test_recovery_request_is_content_addressed_and_exact() -> None:
             "dot-rope-cut3r-heldout-provider-gpuserver6000-"
             "62d64df1b1b72f2b2aff0b17cf4c7aad245150f9fa1ff67712eedc0f4e109ce6"
         ),
-        "provider_bundle_id": (
-            "57dc11d9e39258a2f620d67e39f1176cafe74252173ead8cb4ba2f76083499ec"
-        ),
+        "provider_bundle_id": ("57dc11d9e39258a2f620d67e39f1176cafe74252173ead8cb4ba2f76083499ec"),
     }
 
 
@@ -55,8 +53,8 @@ def test_recovery_is_hosted_only_and_never_reruns_provider() -> None:
     assert "self-hosted" not in text
     assert "gpuserver4090" not in text
     assert "gpuserver6000]" not in text
-    assert "provider_rerun_authorized\": false" in REQUEST.read_text(encoding="utf-8")
-    assert "provider_rerun\": False" in text
+    assert 'provider_rerun_authorized": false' in REQUEST.read_text(encoding="utf-8")
+    assert 'provider_rerun": False' in text
     assert "actions: read" in text
     assert "contents: write" not in text
     assert "git push" not in text
@@ -86,8 +84,9 @@ def test_provider_seal_precedes_marker_access_and_output_is_exclusive() -> None:
     text = WORKFLOW.read_text(encoding="utf-8")
     recover = text[text.index("\n  recover:") :]
     workspace = recover[
-        recover.index("Initialize output-exclusive hosted workspace") :
-        recover.index("Download exact immutable provider artifact")
+        recover.index("Initialize output-exclusive hosted workspace") : recover.index(
+            "Download exact immutable provider artifact"
+        )
     ]
 
     assert 'mkdir -p "$root/dataset"' in workspace
