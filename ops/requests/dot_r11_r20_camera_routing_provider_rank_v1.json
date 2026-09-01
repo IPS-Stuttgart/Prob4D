@@ -1,0 +1,40 @@
+{
+  "schema": "prob4d.dot-r11-r20-camera-routing-provider-rank-request",
+  "schema_version": 1,
+  "protocol_path": "protocols/dot-rope-query-selective-camera-routing-source-v3.json",
+  "protocol_git_blob_sha": "f5c7992ee508ea5371dc282dc864bca189a750aa",
+  "protocol_id": "cd57cb81d1aa52707f26bb0f39829e848d15d0a67b064b390b24caf545923690",
+  "raw_routing_audit_id": "66724cb78840f4b9ef3becf97e5765924094cf8db6eca2d892c44cfa7edb19b3",
+  "source_sequences": [
+    "R11",
+    "R12",
+    "R13",
+    "R14",
+    "R15",
+    "R16",
+    "R17",
+    "R18",
+    "R19",
+    "R20"
+  ],
+  "confirmation_sequences": [
+    "R21",
+    "R22",
+    "R23",
+    "R24",
+    "R25",
+    "R26",
+    "R27",
+    "R28",
+    "R29",
+    "R30"
+  ],
+  "reserved_sequences": "R31-R70",
+  "routed_marker_free_provider_authorized": true,
+  "source_factor_rank_qualification_authorized": true,
+  "source_reconstruction_error_authorized": false,
+  "source_proper_score_authorized": false,
+  "confirmation_payload_access_authorized": false,
+  "post_source_retuning_authorized": false,
+  "request_id": "75e9cac8d776dac0575dc29d922b1468542cf3bf0ad9949810fc18441341863d"
+}
