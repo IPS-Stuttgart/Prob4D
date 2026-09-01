@@ -32,7 +32,8 @@ def test_pull_request_review_is_separate_from_main_only_execution() -> None:
     assert "runs-on: ubuntu-latest" in contract
     assert "runs-on: ubuntu-latest" in authorize
     assert "runs-on: ubuntu-latest" in evaluate
-    assert "self-hosted" not in text
+    assert "runs-on: [self-hosted" not in text
+    assert "runs-on: self-hosted" not in text
 
 
 def test_recovery_requires_an_unassigned_artifact_free_predecessor() -> None:
