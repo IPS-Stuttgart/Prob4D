@@ -1,0 +1,548 @@
+name: DOT R04-R10 hosted evaluation recovery from sealed provider v1
+
+on:
+  push:
+    branches:
+      - recovery/dot-r04-r10-evaluation-from-seal-v1
+    paths:
+      - ".github/workflows/dot-r04-r10-evaluation-recovery-from-seal-v1.yml"
+      - "protocols/execution_requests/dot_rope_cut3r_heldout_evaluation_recovery_v1.json"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: dot-r04-r10-evaluation-recovery-from-seal-v1
+  cancel-in-progress: false
+
+env:
+  RECOVERY_REQUEST_PATH: protocols/execution_requests/dot_rope_cut3r_heldout_evaluation_recovery_v1.json
+  FROZEN_SHA: b85dd8e8adb68ffb289868731222151968940317
+  SOURCE_RUN_ID: "33500239597"
+  SOURCE_PROVIDER_JOB: Seal marker-free R04-R10 CUT3R predictions on gpuserver6000
+  SOURCE_EVALUATOR_JOB: Evaluate R04-R10 markers only after provider seal
+  SOURCE_ARTIFACT_ID: "9797527843"
+  SOURCE_ARTIFACT_NAME: dot-rope-cut3r-heldout-provider-gpuserver6000-62d64df1b1b72f2b2aff0b17cf4c7aad245150f9fa1ff67712eedc0f4e109ce6
+  SOURCE_ARTIFACT_DIGEST: sha256:45cccd5b6f7b7d671cfc86fbcb27232d29faf5dafdeee8d0ea5a9c45ce42ae7c
+  SOURCE_PROVIDER_BUNDLE_ID: 57dc11d9e39258a2f620d67e39f1176cafe74252173ead8cb4ba2f76083499ec
+  RECOVERY_REQUEST_ID: ce095a67548ad130c85c66ae8ff415949f9079368be2b313e362b46d8cf81cf5
+  REQUEST_ID: 62d64df1b1b72f2b2aff0b17cf4c7aad245150f9fa1ff67712eedc0f4e109ce6
+  PROTOCOL_ID: a83258295d5ecabd95017a775f334173bb48141918832fb1a065a1dff66d16ba
+  ARCHIVE_NAME: R01-10.zip
+  ARCHIVE_BYTES: "1705947395"
+  ARCHIVE_MD5: ca546ff5f22c0279123ccb18509858ee
+  DATASET_API: https://dataverse.orc.gmu.edu/api/datasets/:persistentId/?persistentId=doi:10.13021/ORC2020/XXLVXM
+  DATAFILE_API_ROOT: https://dataverse.orc.gmu.edu/api/access/datafile
+  EVALUATION_ARTIFACT_NAME: dot-rope-cut3r-heldout-evaluation-recovered-from-seal-v1
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+
+jobs:
+  recover:
+    name: Evaluate exact frozen R04-R10 protocol from immutable provider seal
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    outputs:
+      decision: ${{ steps.classify.outputs.decision }}
+      result_id: ${{ steps.classify.outputs.result_id }}
+    steps:
+      - name: Check out recovery request revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          clean: true
+
+      - name: Check out exact frozen evaluator revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.FROZEN_SHA }}
+          path: frozen
+          persist-credentials: false
+          clean: true
+
+      - name: Set up scientific Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: frozen/pyproject.toml
+
+      - name: Install the exact frozen evaluator environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check "numpy==2.5.2" -e ./frozen
+          python -m pip check
+          python - <<'PY'
+          import numpy
+          assert numpy.__version__ == "2.5.2"
+          print({"numpy": numpy.__version__})
+          PY
+
+      - name: Initialize hosted recovery workspace without evaluator output
+        id: workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/dot-r04-r10-evaluation-recovery-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          rm -rf -- "$root"
+          mkdir -p "$root/provider" "$root/dataset" "$root/evidence"
+          test ! -e "$root/evaluation"
+          echo "root=$root" >> "$GITHUB_OUTPUT"
+
+      - name: Validate immutable recovery request and frozen science binding
+        shell: bash
+        env:
+          WORK_ROOT: ${{ steps.workspace.outputs.root }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import subprocess
+          from pathlib import Path
+
+          request_path = Path(os.environ["RECOVERY_REQUEST_PATH"])
+          request = json.loads(request_path.read_text(encoding="utf-8"))
+          unsigned = dict(request)
+          supplied = unsigned.pop("recovery_request_id")
+          canonical = json.dumps(
+              unsigned, sort_keys=True, separators=(",", ":"), allow_nan=False
+          ).encode()
+          measured = hashlib.sha256(canonical).hexdigest()
+          assert supplied == measured == os.environ["RECOVERY_REQUEST_ID"]
+          assert request["schema"] == (
+              "prob4d.dot-rope-cut3r-heldout-evaluation-recovery-request"
+          )
+          assert request["schema_version"] == 1
+          assert request["source_workflow_run_id"] == int(os.environ["SOURCE_RUN_ID"])
+          assert request["source_workflow_head_sha"] == os.environ["FROZEN_SHA"]
+          artifact = request["source_provider_artifact"]
+          assert artifact == {
+              "artifact_id": int(os.environ["SOURCE_ARTIFACT_ID"]),
+              "digest": os.environ["SOURCE_ARTIFACT_DIGEST"],
+              "name": os.environ["SOURCE_ARTIFACT_NAME"],
+              "provider_bundle_id": os.environ["SOURCE_PROVIDER_BUNDLE_ID"],
+          }
+          science = request["frozen_science"]
+          assert science == {
+              "confirmation_sequences": [
+                  "R04", "R05", "R06", "R07", "R08", "R09", "R10"
+              ],
+              "confirmation_tuning_authorized": False,
+              "protocol_id": os.environ["PROTOCOL_ID"],
+              "request_id": os.environ["REQUEST_ID"],
+              "reserved_sequences": "R11-R70",
+              "selected_alpha": 0.85,
+          }
+          assert request["information_boundary"] == {
+              "bayesian_phystwin_executed": False,
+              "causal4d_executed": False,
+              "marker_evaluation_authorized": True,
+              "normal_view_images_reopened": False,
+              "provider_inference_rerun": False,
+              "provider_predictions_reused": True,
+              "r11_r70_opened": False,
+          }
+          frozen = Path("frozen")
+          assert subprocess.check_output(
+              ["git", "-C", str(frozen), "rev-parse", "HEAD"], text=True
+          ).strip() == os.environ["FROZEN_SHA"]
+          protocol = json.loads(
+              (frozen / "protocols/dot-rope-cut3r-heldout-confirmation-v1.json")
+              .read_text(encoding="utf-8")
+          )
+          assert protocol["protocol_id"] == os.environ["PROTOCOL_ID"]
+          assert protocol["source_calibration"]["selected_alpha"] == 0.85
+          assert protocol["uncertainty"]["selected_dependence_alpha"] == 0.85
+          assert protocol["confirmation_sequences"] == [
+              "R04", "R05", "R06", "R07", "R08", "R09", "R10"
+          ]
+          assert protocol["reserved_sequences"] == "R11-R70"
+          receipt = {
+              "schema": "prob4d.dot-r04-r10-hosted-recovery-request-validation",
+              "schema_version": 1,
+              "recovery_request_id": supplied,
+              "frozen_revision": os.environ["FROZEN_SHA"],
+              "protocol_id": os.environ["PROTOCOL_ID"],
+              "request_id": os.environ["REQUEST_ID"],
+              "scientific_inputs_changed": False,
+              "provider_inference_rerun": False,
+              "r11_r70_opened": False,
+          }
+          Path(os.environ["WORK_ROOT"], "evidence", "request-validation.json").write_text(
+              json.dumps(receipt, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(receipt, sort_keys=True))
+          PY
+
+          protocol_blob=$(git -C frozen rev-parse \
+            "HEAD:protocols/dot-rope-cut3r-heldout-confirmation-v1.json")
+          python frozen/scripts/science/run_dot_rope_cut3r_heldout_confirmation.py \
+            validate-request \
+            --request frozen/protocols/execution_requests/dot_rope_cut3r_heldout_confirmation_gpuserver6000_v1.json \
+            --protocol frozen/protocols/dot-rope-cut3r-heldout-confirmation-v1.json \
+            --protocol-git-blob-sha "$protocol_blob"
+
+      - name: Verify exact source run and immutable artifact metadata
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WORK_ROOT: ${{ steps.workspace.outputs.root }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          import urllib.request
+          from pathlib import Path
+
+          api = os.environ["GITHUB_API_URL"].rstrip("/")
+          repo = os.environ["GITHUB_REPOSITORY"]
+          headers = {
+              "Accept": "application/vnd.github+json",
+              "Authorization": f"Bearer {os.environ['GH_TOKEN']}",
+              "User-Agent": "Prob4D-DOT-R04-evaluation-recovery/1",
+              "X-GitHub-Api-Version": "2022-11-28",
+          }
+
+          def get(path):
+              request = urllib.request.Request(
+                  f"{api}/repos/{repo}{path}", headers=headers
+              )
+              with urllib.request.urlopen(request, timeout=60) as response:
+                  return json.load(response)
+
+          run_id = int(os.environ["SOURCE_RUN_ID"])
+          run = get(f"/actions/runs/{run_id}")
+          assert run["status"] == "completed"
+          assert run["head_sha"] == os.environ["FROZEN_SHA"]
+          assert run["path"] == (
+              ".github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml"
+          )
+          jobs = get(f"/actions/runs/{run_id}/jobs?per_page=100")["jobs"]
+          provider = [
+              row for row in jobs if row["name"] == os.environ["SOURCE_PROVIDER_JOB"]
+          ]
+          evaluator = [
+              row for row in jobs if row["name"] == os.environ["SOURCE_EVALUATOR_JOB"]
+          ]
+          assert len(provider) == len(evaluator) == 1
+          assert provider[0]["conclusion"] == "success"
+          assert evaluator[0]["conclusion"] == "failure"
+          steps = {row["name"]: row for row in evaluator[0].get("steps") or []}
+          assert steps["Verify provider seal before downloading marker archive"][
+              "conclusion"
+          ] == "success"
+          assert steps["Download and verify official R01-R10 marker archive"][
+              "conclusion"
+          ] == "success"
+          assert steps["Evaluate the frozen alpha and comparators"]["conclusion"] == (
+              "failure"
+          )
+
+          payload = get(f"/actions/runs/{run_id}/artifacts?per_page=100")
+          artifacts = payload["artifacts"]
+          matches = [
+              row
+              for row in artifacts
+              if row["id"] == int(os.environ["SOURCE_ARTIFACT_ID"])
+              and row["name"] == os.environ["SOURCE_ARTIFACT_NAME"]
+              and row["expired"] is False
+          ]
+          assert len(matches) == 1
+          artifact = matches[0]
+          assert artifact["digest"] == os.environ["SOURCE_ARTIFACT_DIGEST"]
+          assert artifact["workflow_run"]["id"] == run_id
+          assert not any(
+              row["name"].startswith("dot-rope-cut3r-heldout-evaluation-gpuserver6000-")
+              for row in artifacts
+          )
+          receipt = {
+              "schema": "prob4d.dot-r04-r10-hosted-recovery-source-audit",
+              "schema_version": 1,
+              "source_run_id": run_id,
+              "source_head_sha": run["head_sha"],
+              "source_provider_job_id": provider[0]["id"],
+              "source_provider_conclusion": provider[0]["conclusion"],
+              "source_evaluator_job_id": evaluator[0]["id"],
+              "source_evaluator_conclusion": evaluator[0]["conclusion"],
+              "source_artifact_id": artifact["id"],
+              "source_artifact_name": artifact["name"],
+              "source_artifact_digest": artifact["digest"],
+              "provider_sealed_before_marker_evaluation": True,
+              "previous_scientific_result_exists": False,
+              "provider_inference_rerun": False,
+          }
+          Path(os.environ["WORK_ROOT"], "evidence", "source-audit.json").write_text(
+              json.dumps(receipt, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(receipt, sort_keys=True))
+          PY
+
+      - name: Download exact immutable provider artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ${{ env.SOURCE_ARTIFACT_NAME }}
+          path: ${{ steps.workspace.outputs.root }}/provider
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.SOURCE_RUN_ID }}
+
+      - name: Reverify provider seal before marker download
+        shell: bash
+        env:
+          PROVIDER_ROOT: ${{ steps.workspace.outputs.root }}/provider
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          provider = Path(os.environ["PROVIDER_ROOT"])
+          manifest = json.loads((provider / "manifest.json").read_text(encoding="utf-8"))
+          seal = json.loads((provider / "provider-seal.json").read_text(encoding="utf-8"))
+          assert manifest["decision"] == "sealed-provider-predictions"
+          assert manifest["request_id"] == os.environ["REQUEST_ID"]
+          assert manifest["provider_bundle_id"] == os.environ[
+              "SOURCE_PROVIDER_BUNDLE_ID"
+          ]
+          assert manifest["dataset"]["source_sequences"] == [
+              "R04", "R05", "R06", "R07", "R08", "R09", "R10"
+          ]
+          assert manifest["dataset"]["reserved_sequences"] == "R11-R70"
+          assert len(manifest["outputs"]) == 21
+          boundary = manifest["information_boundary"]
+          assert boundary["normal_view_images_opened"] is True
+          assert boundary["two_dimensional_markers_opened"] is False
+          assert boundary["three_dimensional_markers_opened"] is False
+          assert boundary["target_payloads_opened"] is False
+          assert seal["provider_bundle_id"] == manifest["provider_bundle_id"]
+          assert seal["markers_opened"] is False
+          unsigned = dict(seal)
+          supplied = unsigned.pop("seal_id")
+          encoded = json.dumps(
+              unsigned, sort_keys=True, separators=(",", ":"), allow_nan=False
+          ).encode()
+          assert hashlib.sha256(encoded).hexdigest() == supplied
+          for row in seal["files"]:
+              path = provider / row["path"]
+              assert path.is_file()
+              assert path.stat().st_size == row["bytes"]
+              assert hashlib.sha256(path.read_bytes()).hexdigest() == row["sha256"]
+          print({
+              "provider_bundle_id": manifest["provider_bundle_id"],
+              "seal_id": supplied,
+              "output_count": len(manifest["outputs"]),
+          })
+          PY
+
+      - name: Download and verify exact official DOT archive
+        shell: bash
+        env:
+          DATASET_ROOT: ${{ steps.workspace.outputs.root }}/dataset
+        run: |
+          set -euo pipefail
+          read -r file_id publisher_bytes < <(
+            python - <<'PY'
+          import json
+          import os
+          import urllib.request
+
+          request = urllib.request.Request(
+              os.environ["DATASET_API"],
+              headers={
+                  "Accept-Encoding": "identity",
+                  "User-Agent": "Prob4D-DOT-R04-hosted-recovery/1",
+              },
+          )
+          with urllib.request.urlopen(request, timeout=60) as response:
+              metadata = json.load(response)
+          assert metadata["status"] == "OK"
+          matches = [
+              row["dataFile"]
+              for row in metadata["data"]["latestVersion"]["files"]
+              if row["dataFile"].get("filename") == os.environ["ARCHIVE_NAME"]
+          ]
+          assert len(matches) == 1
+          value = matches[0]
+          assert value["checksum"] == {
+              "type": "MD5",
+              "value": os.environ["ARCHIVE_MD5"],
+          }
+          assert int(value["filesize"]) == int(os.environ["ARCHIVE_BYTES"])
+          print(int(value["id"]), int(value["filesize"]))
+          PY
+          )
+          test "$publisher_bytes" = "$ARCHIVE_BYTES"
+          archive="$DATASET_ROOT/$ARCHIVE_NAME"
+          partial="$archive.partial"
+          rm -f -- "$archive" "$partial"
+          curl \
+            --fail --location \
+            --header 'Accept-Encoding: identity' \
+            --retry 30 --retry-all-errors --retry-delay 5 \
+            --connect-timeout 30 --max-time 10800 \
+            --speed-time 300 --speed-limit 1024 \
+            --output "$partial" "$DATAFILE_API_ROOT/$file_id"
+          test "$(stat -c %s "$partial")" = "$ARCHIVE_BYTES"
+          printf '%s  %s\n' "$ARCHIVE_MD5" "$partial" | md5sum --check --strict
+          mv -- "$partial" "$archive"
+
+      - name: Execute exact frozen evaluator once
+        id: execution
+        continue-on-error: true
+        shell: bash
+        env:
+          WORK_ROOT: ${{ steps.workspace.outputs.root }}
+        run: |
+          set -euo pipefail
+          test ! -e "$WORK_ROOT/evaluation"
+          python frozen/scripts/science/run_dot_rope_cut3r_heldout_confirmation.py \
+            evaluate \
+            --protocol frozen/protocols/dot-rope-cut3r-heldout-confirmation-v1.json \
+            --request-id "$REQUEST_ID" \
+            --prob4d-revision "$FROZEN_SHA" \
+            --dataset-root "$WORK_ROOT/dataset" \
+            --provider-bundle "$WORK_ROOT/provider" \
+            --output-dir "$WORK_ROOT/evaluation"
+
+      - name: Independently verify and classify recovered result
+        id: classify
+        if: always() && steps.execution.outcome != 'skipped'
+        shell: bash
+        env:
+          WORK_ROOT: ${{ steps.workspace.outputs.root }}
+          EXECUTION_OUTCOME: ${{ steps.execution.outcome }}
+        run: |
+          set -euo pipefail
+          root="$WORK_ROOT/evaluation"
+          if [[ -f "$root/result.json" ]]; then
+            result="$root/result.json"
+          elif [[ -f "$root/failure.json" ]]; then
+            result="$root/failure.json"
+          else
+            echo "frozen evaluator emitted no result payload" >&2
+            exit 2
+          fi
+          test -f "$root/marker-support.json"
+          python frozen/scripts/science/verify_dot_rope_cut3r_heldout_result.py \
+            "$result" \
+            --marker-support "$root/marker-support.json" \
+            > "$root/independent-verification.json"
+
+          RESULT="$result" python - <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          result_path = Path(os.environ["RESULT"])
+          value = json.loads(result_path.read_text(encoding="utf-8"))
+          verification = json.loads(
+              (result_path.parent / "independent-verification.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          decision = value["decision"]
+          result_id = value.get("evaluation_id") or value.get("result_id")
+          allowed = {
+              "heldout-strong-positive",
+              "heldout-directional-positive",
+              "heldout-mixed-or-negative",
+              "heldout-support-negative",
+              "technical-failure",
+          }
+          assert decision in allowed
+          assert verification["decision"] == decision
+          assert verification["result_id"] == result_id
+          assert re.fullmatch(r"[0-9a-f]{64}", result_id or "")
+          if decision != "technical-failure":
+              assert os.environ["EXECUTION_OUTCOME"] == "success"
+          receipt = {
+              "schema": "prob4d.dot-r04-r10-hosted-evaluation-recovery-receipt",
+              "schema_version": 1,
+              "recovery_request_id": os.environ["RECOVERY_REQUEST_ID"],
+              "source_workflow_run_id": int(os.environ["SOURCE_RUN_ID"]),
+              "source_artifact_id": int(os.environ["SOURCE_ARTIFACT_ID"]),
+              "source_artifact_digest": os.environ["SOURCE_ARTIFACT_DIGEST"],
+              "source_provider_bundle_id": os.environ[
+                  "SOURCE_PROVIDER_BUNDLE_ID"
+              ],
+              "frozen_revision": os.environ["FROZEN_SHA"],
+              "protocol_id": os.environ["PROTOCOL_ID"],
+              "request_id": os.environ["REQUEST_ID"],
+              "decision": decision,
+              "result_id": result_id,
+              "provider_inference_rerun": False,
+              "scientific_inputs_changed": False,
+              "r11_r70_opened": False,
+          }
+          (result_path.parent / "recovery-receipt.json").write_text(
+              json.dumps(receipt, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"decision={decision}\n")
+              output.write(f"result_id={result_id}\n")
+          print(json.dumps(receipt, sort_keys=True))
+          PY
+
+          if [[ -f "$root/SUMMARY.md" ]]; then
+            cat "$root/SUMMARY.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Include pre-evaluation custody receipts
+        if: always()
+        shell: bash
+        env:
+          WORK_ROOT: ${{ steps.workspace.outputs.root }}
+        run: |
+          set -euo pipefail
+          if [[ -d "$WORK_ROOT/evaluation" ]]; then
+            cp "$WORK_ROOT/evidence/request-validation.json" \
+              "$WORK_ROOT/evaluation/recovery-request-validation.json"
+            cp "$WORK_ROOT/evidence/source-audit.json" \
+              "$WORK_ROOT/evaluation/recovery-source-audit.json"
+          fi
+
+      - name: Upload immutable recovered evaluation evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: ${{ env.EVALUATION_ARTIFACT_NAME }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.workspace.outputs.root }}/evaluation/
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Require a bounded terminal classification
+        if: always()
+        shell: bash
+        env:
+          DECISION: ${{ steps.classify.outputs.decision }}
+        run: |
+          set -euo pipefail
+          case "$DECISION" in
+            heldout-strong-positive|heldout-directional-positive|heldout-mixed-or-negative|heldout-support-negative)
+              exit 0
+              ;;
+            technical-failure)
+              exit 3
+              ;;
+            *)
+              echo "No independently verified terminal classification was produced." >&2
+              exit 2
+              ;;
+          esac
