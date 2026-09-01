@@ -228,7 +228,10 @@ def _summary(result: dict[str, Any], base: ModuleType, triplet: tuple[str, str, 
             f"- source recordings: {EXPECTED_SOURCE} A2 shake/twist recordings",
             f"- held-out recordings: {EXPECTED_TARGET} A2 collision-family recordings",
             f"- materials: {', '.join(ALLOWED_MATERIALS)}",
-            "- polyester excluded before target trajectory access because source marker identity namespaces were inconsistent",
+            (
+                "- polyester excluded before target trajectory access because "
+                "source marker identity namespaces were inconsistent"
+            ),
             f"- protocol ID: `{result['protocol_id']}`",
             "",
         ]
@@ -334,7 +337,10 @@ def run(args: argparse.Namespace) -> int:
         )
         return 2
 
-    groups = [base._evaluate_recording(recording, marker_triplet, effective) for recording in target]
+    groups = [
+        base._evaluate_recording(recording, marker_triplet, effective)
+        for recording in target
+    ]
     for group, recording in zip(groups, target, strict=True):
         material, size = _material_and_size(recording.relative_path)
         group["material"] = material
