@@ -15,6 +15,7 @@ REQUEST = (
     ROOT / "protocols/execution_requests/deform_dlo45_source_calibrated_query_covariance_v1.json"
 )
 WORKFLOW = ROOT / ".github/workflows/deform-dlo45-source-calibrated-query-covariance-v1.yml"
+EVIDENCE = ROOT / "evidence/deform-dlo45-source-calibrated-query-covariance-v1"
 
 
 def _module():
@@ -57,14 +58,34 @@ def test_scalar_covariance_inflation_preserves_mean_error_and_repairs_nees() -> 
     assert math.isclose(calibrated, raw / inflation, rel_tol=0.0, abs_tol=1e-12)
 
 
-def test_workflow_is_file_triggered_source_first_and_no_new_data() -> None:
+def test_retained_evidence_records_strong_positive_without_new_data() -> None:
+    calibration = json.loads((EVIDENCE / "source/calibration.json").read_text(encoding="utf-8"))
+    result = json.loads((EVIDENCE / "evaluation/result.json").read_text(encoding="utf-8"))
+    assert calibration["calibration_id"] == (
+        "c1efc8d6fe2ec27d63083ee29b4a677faf1c37b26cd4239b54e4cd7a90a34fcd"
+    )
+    assert result["result_id"] == (
+        "383b78a1a66a02f0f54dffa11e68303cd2ded8c6cf05877a9c7c213fcd92aca4"
+    )
+    assert result["decision"] == "source-calibrated-strong-positive"
+    assert result["information_boundary"]["new_data_collected"] is False
+    assert all(result["criteria"].values())
+
+
+def test_workflow_is_hosted_source_first_and_reproduces_retained_evidence() -> None:
     text = WORKFLOW.read_text(encoding="utf-8")
-    assert "science/deform-dlo45-source-calibrated-covariance-v1" in text
-    assert "deform_dlo45_source_calibrated_query_covariance_v1.json" in text
-    assert "runs-on: [self-hosted, Linux, X64, gpuserver4090]" in text
-    assert 'test "$RUNNER_NAME" = "workstation1"' in text
-    assert "environment: trusted-self-hosted-validation" in text
-    assert "needs: [contract, source-calibration]" in text
+    assert "runs-on: ubuntu-24.04" in text
+    assert "repository: roahmlab/DEFORM" in text
+    assert "b73b8b8ecc033caefa693fab7898741d4e6dbeff" in text
+    assert "Freeze covariance on 112 training trajectories only" in text
+    assert "Apply frozen covariance to the existing 28-file evaluation split" in text
+    assert text.index("Freeze covariance on 112 training trajectories only") < text.index(
+        "Apply frozen covariance to the existing 28-file evaluation split"
+    )
+    assert "Compare reproduced metrics with retained evidence" in text
+    assert "new_data_collected" in text
+    assert "self-hosted" not in text
+    assert "gpuserver4090" not in text
     assert "git push" not in text
     assert "contents: write" not in text
     assert "secrets." not in text
