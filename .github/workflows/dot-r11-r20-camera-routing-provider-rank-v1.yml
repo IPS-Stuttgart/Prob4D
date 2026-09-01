@@ -1,0 +1,583 @@
+name: DOT R11-R20 camera-routing provider-rank v1
+
+on:
+  push:
+    branches: [science/dot-r11-r20-camera-routing-source-v1]
+    paths:
+      - "ops/requests/dot_r11_r20_camera_routing_provider_rank_v1.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dot-r11-r20-camera-routing-provider-rank-v1
+  cancel-in-progress: false
+
+env:
+  REQUEST_PATH: ops/requests/dot_r11_r20_camera_routing_provider_rank_v1.json
+  PROTOCOL_PATH: protocols/dot-rope-query-selective-camera-routing-source-v3.json
+  BASE_V2_PROTOCOL: protocols/dot-rope-query-selective-source-support-v2.json
+  DATASET_ROOT: /home/github-runner/.cache/prob4d/dot-r11-r30-archives-v29
+  SOURCE_ARCHIVE: R11-20.zip
+  SOURCE_MD5: 23ce3e7067465d3edabe20b4c7cfa388
+  CUT3R_REVISION: 8bc15dc92a6d7fd92920b4ec81540d3dec7d3ecf
+  CUT3R_CHECKPOINT_SHA256: 45f7e98a0a64dbeb54901ae2b878cd8cd125f20a4497316483f0bd6f109f8103
+  CUT3R_CHECKPOINT_GDRIVE_ID: 1Asz-ZB3FfpzZYwunhQvNPZEUA8XUNAYD
+  RETAINED_CUT3R_CHECKOUT: /mnt/corsair/prob4d-cut3r-source-freeze-v2-inputs/CUT3R
+  RETAINED_CUT3R_CHECKPOINT: /mnt/corsair/prob4d-cut3r-source-freeze-v2-inputs/cut3r_512_dpt_4_64.pth
+  EXPECTED_PROTOCOL_ID: cd57cb81d1aa52707f26bb0f39829e848d15d0a67b064b390b24caf545923690
+  EXPECTED_RAW_AUDIT_ID: 66724cb78840f4b9ef3becf97e5765924094cf8db6eca2d892c44cfa7edb19b3
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+
+jobs:
+  authorize:
+    name: Authorize exact routed source-provider rank request
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      head_sha: ${{ steps.request.outputs.head_sha }}
+      request_id: ${{ steps.request.outputs.request_id }}
+      protocol_git_blob_sha: ${{ steps.request.outputs.protocol_git_blob_sha }}
+    steps:
+      - name: Check out exact request revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+          clean: true
+      - name: Require exactly one content-addressed request change
+        id: request
+        shell: bash
+        env:
+          EVENT_REF: ${{ github.ref }}
+          EVENT_BEFORE: ${{ github.event.before }}
+          EVENT_AFTER: ${{ github.event.after }}
+          EVENT_FORCED: ${{ github.event.forced }}
+          EVENT_DELETED: ${{ github.event.deleted }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_REF" = "refs/heads/science/dot-r11-r20-camera-routing-source-v1"
+          test "$EVENT_AFTER" = "$(git rev-parse HEAD)"
+          test "$EVENT_FORCED" = "false"
+          test "$EVENT_DELETED" = "false"
+          test "$EVENT_BEFORE" != "0000000000000000000000000000000000000000"
+          mapfile -t changed < <(git diff --name-only "$EVENT_BEFORE" "$EVENT_AFTER" | sort)
+          if [[ ${#changed[@]} -ne 1 || "${changed[0]}" != "$REQUEST_PATH" ]]; then
+            printf 'Expected only %s; changed paths were:\n' "$REQUEST_PATH" >&2
+            printf '  %s\n' "${changed[@]}" >&2
+            exit 2
+          fi
+          REQUEST="$REQUEST_PATH" python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          def content_id(value):
+              return hashlib.sha256(json.dumps(
+                  value, sort_keys=True, separators=(",", ":"),
+                  ensure_ascii=False, allow_nan=False,
+              ).encode("utf-8")).hexdigest()
+
+          request = json.loads(Path(os.environ["REQUEST"]).read_text(encoding="utf-8"))
+          unsigned = dict(request)
+          request_id = unsigned.pop("request_id", None)
+          if content_id(unsigned) != request_id:
+              raise SystemExit("provider-rank request identity mismatch")
+          expected = {
+              "schema": "prob4d.dot-r11-r20-camera-routing-provider-rank-request",
+              "schema_version": 1,
+              "protocol_path": os.environ["PROTOCOL_PATH"],
+              "protocol_git_blob_sha": request["protocol_git_blob_sha"],
+              "protocol_id": os.environ["EXPECTED_PROTOCOL_ID"],
+              "raw_routing_audit_id": os.environ["EXPECTED_RAW_AUDIT_ID"],
+              "source_sequences": [f"R{i:02d}" for i in range(11, 21)],
+              "confirmation_sequences": [f"R{i:02d}" for i in range(21, 31)],
+              "reserved_sequences": "R31-R70",
+              "routed_marker_free_provider_authorized": True,
+              "source_factor_rank_qualification_authorized": True,
+              "source_reconstruction_error_authorized": False,
+              "source_proper_score_authorized": False,
+              "confirmation_payload_access_authorized": False,
+              "post_source_retuning_authorized": False,
+          }
+          comparable = dict(request)
+          comparable.pop("request_id")
+          if comparable != expected:
+              raise SystemExit("provider-rank request content changed")
+          blob = os.popen(f"git rev-parse HEAD:{os.environ['PROTOCOL_PATH']}").read().strip()
+          if blob != request["protocol_git_blob_sha"]:
+              raise SystemExit("request does not bind the exact protocol blob")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"head_sha={os.environ['EVENT_AFTER']}\n")
+              output.write(f"request_id={request_id}\n")
+              output.write(f"protocol_git_blob_sha={blob}\n")
+          PY
+      - name: Validate source-only helpers without DOT access
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile \
+            scripts/science/run_dot_rope_source_support_camera_component_v1.py \
+            scripts/science/materialize_dot_rope_source_camera_components_v1.py \
+            scripts/science/combine_dot_rope_source_camera_components_v1.py
+          tmp=$(mktemp -d)
+          trap 'rm -rf "$tmp"' EXIT
+          python scripts/science/materialize_dot_rope_source_camera_components_v1.py \
+            --protocol "$PROTOCOL_PATH" \
+            --base-v2-protocol "$BASE_V2_PROTOCOL" \
+            --output-dir "$tmp/components"
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path("$tmp/components")
+          PY
+
+  source_rank:
+    name: Seal routed CUT3R source provider then qualify rank on gpuserver6000
+    needs: authorize
+    environment: trusted-self-hosted-validation
+    runs-on: [self-hosted, gpuserver6000]
+    timeout-minutes: 720
+    permissions:
+      contents: read
+    outputs:
+      decision: ${{ steps.result.outputs.decision }}
+      result_id: ${{ steps.result.outputs.result_id }}
+      supported_sequences: ${{ steps.result.outputs.supported_sequences }}
+      provider_seal_id: ${{ steps.seal.outputs.provider_seal_id }}
+    steps:
+      - name: Bind intended GPU runner and source archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_NAME" = "workstation2"
+          test "$RUNNER_OS" = "Linux"
+          test "$RUNNER_ARCH" = "X64"
+          command -v nvidia-smi >/dev/null 2>&1
+          command -v c++ >/dev/null 2>&1
+          command -v md5sum >/dev/null 2>&1
+          test -f "$DATASET_ROOT/$SOURCE_ARCHIVE"
+          test ! -L "$DATASET_ROOT/$SOURCE_ARCHIVE"
+          printf '%s  %s\n' "$SOURCE_MD5" "$DATASET_ROOT/$SOURCE_ARCHIVE" | md5sum --check --strict
+          nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv,noheader
+
+      - name: Initialize isolated source-provider workspace
+        id: workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${RUNNER_TEMP}/dot-r11-r20-camera-rank-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          rm -rf -- "$root"
+          mkdir -p \
+            "$root/home" "$root/cache" "$root/tmp" \
+            "$root/evidence" "$root/components" "$root/providers" "$root/results"
+          echo "root=$root" >> "$GITHUB_OUTPUT"
+          {
+            echo "HOME=$root/home"
+            echo "XDG_CACHE_HOME=$root/cache"
+            echo "PIP_CACHE_DIR=$root/cache/pip"
+            echo "HF_HOME=$root/cache/huggingface"
+            echo "TMPDIR=$root/tmp"
+            echo "TORCH_EXTENSIONS_DIR=$root/cache/torch-extensions"
+            echo "WANDB_MODE=disabled"
+            echo "WANDB_DISABLED=true"
+          } >> "$GITHUB_ENV"
+
+      - name: Check out exact authorized Prob4D revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.authorize.outputs.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+
+      - name: Verify exact protocol and clean checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ needs.authorize.outputs.head_sha }}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test "$(git rev-parse HEAD:$PROTOCOL_PATH)" = "${{ needs.authorize.outputs.protocol_git_blob_sha }}"
+
+      - name: Check out exact public CUT3R revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: CUT3R/CUT3R
+          ref: 8bc15dc92a6d7fd92920b4ec81540d3dec7d3ecf
+          path: external/CUT3R
+          fetch-depth: 1
+          persist-credentials: false
+          clean: true
+
+      - name: Set up bootstrap Python 3.11
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+
+      - name: Select or bootstrap CUDA CUT3R interpreter
+        id: runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          candidates=(
+            "$RETAINED_CUT3R_CHECKOUT/.venv/bin/python"
+            /home/florianpfaff/conda_envs/cut3r/bin/python
+            /home/florianpfaff/miniconda3/envs/cut3r/bin/python
+            /home/github-runner/.conda/envs/cut3r/bin/python
+            /opt/conda/envs/cut3r/bin/python
+          )
+          usable=""
+          for candidate in "${candidates[@]}"; do
+            [[ -x "$candidate" ]] || continue
+            if "$candidate" - <<'PY' >/dev/null 2>&1
+          import accelerate, cv2, einops, h5py, hydra, lpips
+          import numpy, PIL, roma, scipy, sklearn, torch, torchvision, transformers
+          assert torch.cuda.is_available()
+          PY
+            then
+              usable="$candidate"
+              break
+            fi
+          done
+          if [[ -z "$usable" ]]; then
+            venv="$root/venv"
+            python -m venv "$venv"
+            usable="$venv/bin/python"
+            "$usable" -m pip install "pip==25.2" "setuptools==80.9.0" "wheel==0.45.1"
+            "$usable" -m pip install torch==2.11.0 torchvision==0.26.0 \
+              --index-url https://download.pytorch.org/whl/cu126
+            filtered="$root/cut3r-requirements.txt"
+            python - external/CUT3R/requirements.txt "$filtered" <<'PY'
+          import re, sys
+          from pathlib import Path
+          kept=[]
+          for line in Path(sys.argv[1]).read_text(encoding="utf-8").splitlines():
+              if re.match(r"^(torch|torchvision)(?:\s|[<>=!~].*)?$", line.strip(), flags=re.I):
+                  continue
+              kept.append(line)
+          Path(sys.argv[2]).write_text("\n".join(kept)+"\n", encoding="utf-8")
+          PY
+            "$usable" -m pip install -r "$filtered" gdown==5.2.0
+            "$usable" -m pip check
+          fi
+          "$usable" - <<'PY'
+          import torch
+          assert torch.cuda.is_available()
+          print(torch.__version__, torch.version.cuda, torch.cuda.get_device_name(0))
+          PY
+          echo "python=$usable" >> "$GITHUB_OUTPUT"
+
+      - name: Acquire exact frozen CUT3R checkpoint
+        id: checkpoint
+        shell: bash
+        env:
+          RUNTIME_PYTHON: ${{ steps.runtime.outputs.python }}
+        run: |
+          set -euo pipefail
+          selected="$RETAINED_CUT3R_CHECKPOINT"
+          if [[ ! -f "$selected" || "$(sha256sum "$selected" | awk '{print $1}')" != "$CUT3R_CHECKPOINT_SHA256" ]]; then
+            selected="${{ steps.workspace.outputs.root }}/cut3r_512_dpt_4_64.pth"
+            "$RUNTIME_PYTHON" -m pip install gdown==5.2.0
+            OUTPUT="$selected" "$RUNTIME_PYTHON" - <<'PY'
+          import gdown, os
+          value=gdown.download(id=os.environ["CUT3R_CHECKPOINT_GDRIVE_ID"], output=os.environ["OUTPUT"], quiet=False)
+          if value is None:
+              raise SystemExit("CUT3R checkpoint download failed")
+          PY
+          fi
+          test "$(sha256sum "$selected" | awk '{print $1}')" = "$CUT3R_CHECKPOINT_SHA256"
+          echo "path=$selected" >> "$GITHUB_OUTPUT"
+
+      - name: Build hash-pinned native CUT3R RoPE compatibility runtime
+        id: rope
+        shell: bash
+        env:
+          RUNTIME_PYTHON: ${{ steps.runtime.outputs.python }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          checkout="$root/CUT3R"
+          mkdir -p "$checkout"
+          cp -a external/CUT3R/. "$checkout/"
+          test "$(git -C "$checkout" rev-parse HEAD)" = "$CUT3R_REVISION"
+          patch=.github/patches/cut3r-curope-torch211-cu126.patch
+          test "$(sha256sum "$patch" | awk '{print $1}')" = \
+            "9778ec434a6e2d9ae8be162295d60e06d86bf0fbadbb66d516eb46c666ab547d"
+          git -C "$checkout" apply --check "$GITHUB_WORKSPACE/$patch"
+          git -C "$checkout" apply "$GITHUB_WORKSPACE/$patch"
+          git -C "$checkout" diff --check
+          nvcc="$(command -v nvcc || true)"
+          [[ -x "$nvcc" ]] || nvcc=/usr/local/cuda/bin/nvcc
+          test -x "$nvcc"
+          cuda_home=$(dirname "$(dirname "$nvcc")")
+          arch=$("$RUNTIME_PYTHON" - <<'PY'
+          import torch
+          major,minor=torch.cuda.get_device_capability(0)
+          print(f"{major}.{minor}")
+          PY
+          )
+          CUDA_HOME="$cuda_home" TORCH_CUDA_ARCH_LIST="$arch" MAX_JOBS=4 \
+            PYTHONPATH="$GITHUB_WORKSPACE/src:$checkout:$checkout/src" \
+            "$RUNTIME_PYTHON" scripts/science/prepare_cut3r_runtime.py \
+              --cut3r-checkout "$checkout" --build \
+              --output "$root/evidence/runtime-receipt.json"
+          CHECKOUT="$checkout" CHECKPOINT="${{ steps.checkpoint.outputs.path }}" \
+            "$RUNTIME_PYTHON" - <<'PY'
+          import hashlib, os
+          from pathlib import Path
+          checkpoint=Path(os.environ["CHECKPOINT"])
+          if hashlib.sha256(checkpoint.read_bytes()).hexdigest()!=os.environ["CUT3R_CHECKPOINT_SHA256"]:
+              raise SystemExit("checkpoint digest changed")
+          path=Path(os.environ["CHECKOUT"])/"src/dust3r/model.py"
+          source=path.read_bytes()
+          framed=f"blob {len(source)}\0".encode("ascii")+source
+          blob=hashlib.sha1(framed, usedforsecurity=False).hexdigest()
+          if blob!="7ed9f6106fb063686990c874ede99876ebc939ab":
+              raise SystemExit("CUT3R model source changed")
+          old='    ckpt = torch.load(model_path, map_location="cpu")\n'
+          new='    ckpt = torch.load(model_path, map_location="cpu", weights_only=False)\n'
+          text=source.decode("utf-8")
+          if text.count(old)!=1:
+              raise SystemExit("legacy checkpoint loader shape changed")
+          path.write_text(text.replace(old,new,1), encoding="utf-8")
+          PY
+          echo "checkout=$checkout" >> "$GITHUB_OUTPUT"
+
+      - name: Materialize exact routed-camera component protocols
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          "${{ steps.runtime.outputs.python }}" \
+            scripts/science/materialize_dot_rope_source_camera_components_v1.py \
+              --protocol "$PROTOCOL_PATH" \
+              --base-v2-protocol "$BASE_V2_PROTOCOL" \
+              --output-dir "$root/components/protocols"
+
+      - name: Run target-closed synthetic runtime smoke
+        shell: bash
+        env:
+          REQUEST_ID: ${{ needs.authorize.outputs.request_id }}
+          RUNTIME_PYTHON: ${{ steps.runtime.outputs.python }}
+          CHECKPOINT: ${{ steps.checkpoint.outputs.path }}
+          CUT3R_CHECKOUT: ${{ steps.rope.outputs.checkout }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          PYTHONPATH="$GITHUB_WORKSPACE/src:$GITHUB_WORKSPACE/scripts/science" \
+            "$RUNTIME_PYTHON" scripts/science/run_dot_rope_source_support_camera_component_v1.py \
+              --camera cam001 \
+              --source-sequences-json '["R13","R14","R15","R16","R18","R19"]' \
+              runtime-smoke \
+              --protocol "$root/components/protocols/component-cam001.json" \
+              --request-id "$REQUEST_ID" \
+              --prob4d-revision "${{ needs.authorize.outputs.head_sha }}" \
+              --cut3r-checkout "$CUT3R_CHECKOUT" \
+              --checkpoint "$CHECKPOINT" \
+              --runtime-receipt "$root/evidence/runtime-receipt.json" \
+              --output-dir "$root/evidence/smoke"
+
+      - name: Execute routed marker-free source predictions
+        shell: bash
+        env:
+          REQUEST_ID: ${{ needs.authorize.outputs.request_id }}
+          RUNTIME_PYTHON: ${{ steps.runtime.outputs.python }}
+          CHECKPOINT: ${{ steps.checkpoint.outputs.path }}
+          CUT3R_CHECKOUT: ${{ steps.rope.outputs.checkout }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          MANIFEST="$root/components/protocols/manifest.json" "$RUNTIME_PYTHON" - <<'PY' > "$root/components/components.tsv"
+          import json, os
+          from pathlib import Path
+          value=json.loads(Path(os.environ["MANIFEST"]).read_text(encoding="utf-8"))
+          for item in value["components"]:
+              print(item["camera"], json.dumps(item["source_sequences"], separators=(",",":")), item["protocol_file"], sep="\t")
+          PY
+          while IFS=$'\t' read -r camera sequences protocol_file; do
+            destination="$root/providers/$camera/bundle"
+            mkdir -p "$(dirname "$destination")"
+            PYTHONPATH="$GITHUB_WORKSPACE/src:$GITHUB_WORKSPACE/scripts/science" \
+              "$RUNTIME_PYTHON" scripts/science/run_dot_rope_source_support_camera_component_v1.py \
+                --camera "$camera" --source-sequences-json "$sequences" \
+                predict \
+                --protocol "$root/components/protocols/$protocol_file" \
+                --request-id "$REQUEST_ID" \
+                --prob4d-revision "${{ needs.authorize.outputs.head_sha }}" \
+                --dataset-root "$DATASET_ROOT" \
+                --cut3r-checkout "$CUT3R_CHECKOUT" \
+                --checkpoint "$CHECKPOINT" \
+                --runtime-receipt "$root/evidence/runtime-receipt.json" \
+                --output-dir "$destination"
+          done < "$root/components/components.tsv"
+
+      - name: Seal all routed provider components before source marker qualification
+        id: seal
+        shell: bash
+        env:
+          RUNTIME_PYTHON: ${{ steps.runtime.outputs.python }}
+          REQUEST_ID: ${{ needs.authorize.outputs.request_id }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          ROOT="$root" "$RUNTIME_PYTHON" - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          root=Path(os.environ["ROOT"])
+          manifest=json.loads((root/"components/protocols/manifest.json").read_text(encoding="utf-8"))
+          components=[]
+          for item in manifest["components"]:
+              camera=item["camera"]
+              provider=root/"providers"/camera/"bundle"/"manifest.json"
+              value=json.loads(provider.read_text(encoding="utf-8"))
+              if value["decision"]!="sealed-provider-predictions":
+                  raise SystemExit(f"{camera} provider is not sealed")
+              boundary=value["information_boundary"]
+              for key in ("two_dimensional_markers_opened","three_dimensional_markers_opened","target_payloads_opened"):
+                  if boundary.get(key) is not False:
+                      raise SystemExit(f"{camera} provider crossed information boundary")
+              components.append({
+                  "camera":camera,
+                  "source_sequences":item["source_sequences"],
+                  "provider_bundle_id":value["provider_bundle_id"],
+                  "manifest_sha256":hashlib.sha256(provider.read_bytes()).hexdigest(),
+              })
+          seal={
+              "schema":"prob4d.dot-r11-r20-routed-provider-seal",
+              "schema_version":1,
+              "request_id":os.environ["REQUEST_ID"],
+              "parent_protocol_id":os.environ["EXPECTED_PROTOCOL_ID"],
+              "raw_routing_audit_id":os.environ["EXPECTED_RAW_AUDIT_ID"],
+              "components":components,
+              "source_marker_payloads_opened":False,
+              "confirmation_payloads_opened":False,
+          }
+          encoded=json.dumps(seal,sort_keys=True,separators=(",",":")).encode()
+          seal["provider_seal_id"]=hashlib.sha256(encoded).hexdigest()
+          (root/"providers"/"provider-seal.json").write_text(json.dumps(seal,indent=2,sort_keys=True)+"\n",encoding="utf-8")
+          print(seal["provider_seal_id"])
+          with open(os.environ["GITHUB_OUTPUT"],"a",encoding="utf-8") as output:
+              output.write(f"provider_seal_id={seal['provider_seal_id']}\n")
+          PY
+          chmod -R a-w "$root/providers"
+
+      - name: Upload immutable routed source provider before marker access
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: dot-r11-r20-routed-provider-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ steps.workspace.outputs.root }}/providers/
+            ${{ steps.workspace.outputs.root }}/components/protocols/
+            ${{ steps.workspace.outputs.root }}/evidence/runtime-receipt.json
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 6
+
+      - name: Qualify frozen routed cameras using source support and rank only
+        shell: bash
+        env:
+          REQUEST_ID: ${{ needs.authorize.outputs.request_id }}
+          RUNTIME_PYTHON: ${{ steps.runtime.outputs.python }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          while IFS=$'\t' read -r camera sequences protocol_file; do
+            mkdir -p "$root/results/$camera"
+            PYTHONPATH="$GITHUB_WORKSPACE/src:$GITHUB_WORKSPACE/scripts/science" \
+              "$RUNTIME_PYTHON" scripts/science/run_dot_rope_source_support_camera_component_v1.py \
+                --camera "$camera" --source-sequences-json "$sequences" \
+                qualify \
+                --protocol "$root/components/protocols/$protocol_file" \
+                --request-id "$REQUEST_ID" \
+                --prob4d-revision "${{ needs.authorize.outputs.head_sha }}" \
+                --dataset-root "$DATASET_ROOT" \
+                --provider-bundle "$root/providers/$camera/bundle" \
+                --output "$root/results/$camera/result.json"
+          done < "$root/components/components.tsv"
+          "$RUNTIME_PYTHON" scripts/science/combine_dot_rope_source_camera_components_v1.py \
+            --component-manifest "$root/components/protocols/manifest.json" \
+            --results-root "$root/results" \
+            --output "$root/results/result.json"
+
+      - name: Verify and publish routed provider-rank source decision
+        id: result
+        shell: bash
+        env:
+          RUNTIME_PYTHON: ${{ steps.runtime.outputs.python }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          RESULT="$root/results/result.json" "$RUNTIME_PYTHON" - <<'PY'
+          import json, os
+          from pathlib import Path
+          value=json.loads(Path(os.environ["RESULT"]).read_text(encoding="utf-8"))
+          if value["decision"] not in {"camera-routing-provider-rank-qualified","camera-routing-provider-rank-negative"}:
+              raise SystemExit("unexpected source rank decision")
+          boundary=value["information_boundary"]
+          assert boundary["source_reconstruction_error_computed"] is False
+          assert boundary["source_proper_score_computed"] is False
+          assert boundary["r21_r30_payloads_opened"] is False
+          assert boundary["r31_r70_payloads_opened"] is False
+          with open(os.environ["GITHUB_OUTPUT"],"a",encoding="utf-8") as output:
+              output.write(f"decision={value['decision']}\n")
+              output.write(f"result_id={value['result_id']}\n")
+              output.write(f"supported_sequences={value['supported_source_sequences']}\n")
+          with open(os.environ["GITHUB_STEP_SUMMARY"],"a",encoding="utf-8") as output:
+              output.write("## DOT R11-R20 routed CUT3R provider-rank gate\n\n")
+              output.write(f"- decision: **{value['decision']}**\n")
+              output.write(f"- supported source sequences: **{value['supported_source_sequences']}/10**\n")
+              output.write(f"- minimum supported condition ratio: `{value['minimum_supported_condition_ratio']}`\n")
+              output.write(f"- minimum supported support margin: `{value['minimum_supported_margin']}`\n")
+              output.write(f"- result ID: `{value['result_id']}`\n")
+              output.write("- R21-R70 remained unopened; no source error or proper score was computed.\n")
+          PY
+
+      - name: Upload immutable source provider-rank evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: dot-r11-r20-routed-provider-rank-result-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.workspace.outputs.root }}/results/
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Remove isolated provider workspace
+        if: always()
+        shell: bash
+        run: |
+          root="${{ steps.workspace.outputs.root }}"
+          chmod -R u+w "$root" 2>/dev/null || true
+          rm -rf -- "$root"
+
+  summary:
+    name: Publish camera-routing source rank summary
+    if: always()
+    needs: [authorize, source_rank]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Write bounded summary
+        shell: bash
+        env:
+          DECISION: ${{ needs.source_rank.outputs.decision }}
+          RESULT_ID: ${{ needs.source_rank.outputs.result_id }}
+          SUPPORTED: ${{ needs.source_rank.outputs.supported_sequences }}
+          PROVIDER_SEAL_ID: ${{ needs.source_rank.outputs.provider_seal_id }}
+        run: |
+          {
+            echo "## DOT camera-routing source provider-rank v1"
+            echo
+            echo "- provider seal: \`${PROVIDER_SEAL_ID:-unavailable}\`"
+            echo "- source decision: **${DECISION:-unavailable}**"
+            echo "- supported R11-R20 sequences: \`${SUPPORTED:-unavailable}/10\`"
+            echo "- result ID: \`${RESULT_ID:-unavailable}\`"
+            echo "- R21-R30 and R31-R70 remained unopened"
+          } >> "$GITHUB_STEP_SUMMARY"
