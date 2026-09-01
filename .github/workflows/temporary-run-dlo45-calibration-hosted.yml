@@ -1,0 +1,230 @@
+name: Temporary run DLO45 calibration on exact hosted checkout
+
+on:
+  push:
+    branches: [science/deform-dlo45-source-calibrated-covariance-v1]
+    paths:
+      - ".github/workflows/temporary-run-dlo45-calibration-hosted.yml"
+
+permissions:
+  actions: write
+  contents: read
+
+env:
+  OLD_RUN_ID: "33531097474"
+  DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/deform/data_set
+  DEFORM_REVISION: b73b8b8ecc033caefa693fab7898741d4e6dbeff
+  PROTOCOL_PATH: protocols/deform-dlo45-source-calibrated-query-covariance-v1.json
+  REQUEST_PATH: protocols/execution_requests/deform_dlo45_source_calibrated_query_covariance_v1.json
+  PYTHONPATH: src:scripts/science
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Retire the untouched queued self-hosted copy
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          import time
+          import urllib.request
+
+          api = os.environ["GITHUB_API_URL"]
+          repository = os.environ["GITHUB_REPOSITORY"]
+          token = os.environ["GH_TOKEN"]
+          run_id = int(os.environ["OLD_RUN_ID"])
+          headers = {
+              "Accept": "application/vnd.github+json",
+              "Authorization": f"Bearer {token}",
+              "X-GitHub-Api-Version": "2022-11-28",
+          }
+
+          def request(path: str, method: str = "GET"):
+              value = urllib.request.Request(
+                  f"{api}/repos/{repository}{path}",
+                  method=method,
+                  headers=headers,
+              )
+              with urllib.request.urlopen(value, timeout=30) as response:
+                  raw = response.read()
+              return json.loads(raw) if raw else None
+
+          run = request(f"/actions/runs/{run_id}")
+          jobs = request(f"/actions/runs/{run_id}/jobs?per_page=100")["jobs"]
+          source = [
+              job
+              for job in jobs
+              if job["name"] == "Freeze query covariance from 112 training trajectories"
+          ]
+          if len(source) != 1:
+              raise SystemExit("queued source job identity changed")
+          source = source[0]
+          if source["status"] not in {"queued", "completed"}:
+              raise SystemExit("self-hosted source job started; hosted duplicate is forbidden")
+          if source["status"] == "completed" and source.get("conclusion") != "cancelled":
+              raise SystemExit("self-hosted source job already produced an outcome")
+          if run["status"] in {"queued", "in_progress"}:
+              request(f"/actions/runs/{run_id}/cancel", method="POST")
+              for _ in range(45):
+                  time.sleep(2)
+                  run = request(f"/actions/runs/{run_id}")
+                  if run["status"] == "completed":
+                      break
+              else:
+                  raise SystemExit("queued self-hosted copy did not cancel")
+          if run["conclusion"] != "cancelled":
+              raise SystemExit("old run was not retired as a cancellation")
+          print(json.dumps({
+              "retired_run_id": run_id,
+              "source_status_before_cancel": source["status"],
+              "source_steps_before_cancel": source.get("steps") or [],
+          }, sort_keys=True))
+          PY
+
+      - name: Check out exact Prob4D revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          clean: true
+
+      - name: Check out exact official DEFORM revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: roahmlab/DEFORM
+          ref: b73b8b8ecc033caefa693fab7898741d4e6dbeff
+          path: external/DEFORM
+          fetch-depth: 1
+          persist-credentials: false
+          clean: true
+
+      - name: Bind exact public files to the registered dataset path
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C external/DEFORM rev-parse HEAD)" = "$DEFORM_REVISION"
+          test "$(find external/DEFORM/data_set/DLO4/train -maxdepth 1 -type f -name '*.pkl' | wc -l)" -eq 56
+          test "$(find external/DEFORM/data_set/DLO5/train -maxdepth 1 -type f -name '*.pkl' | wc -l)" -eq 56
+          test "$(find external/DEFORM/data_set/DLO4/eval -maxdepth 1 -type f -name '*.pkl' | wc -l)" -eq 14
+          test "$(find external/DEFORM/data_set/DLO5/eval -maxdepth 1 -type f -name '*.pkl' | wc -l)" -eq 14
+          sudo mkdir -p "$(dirname "$DATASET_ROOT")"
+          sudo ln -s "$GITHUB_WORKSPACE/external/DEFORM/data_set" "$DATASET_ROOT"
+          test "$(readlink -f "$DATASET_ROOT")" = "$GITHUB_WORKSPACE/external/DEFORM/data_set"
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Install exact numerical runtime and validate capsule
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --no-cache-dir "numpy==2.2.6"
+          python -m pip install --disable-pip-version-check --no-deps -e .
+          python -m pip check
+          python scripts/science/run_deform_dlo45_source_calibrated_query_covariance_v1.py \
+            validate \
+            --protocol "$PROTOCOL_PATH" \
+            --request "$REQUEST_PATH"
+
+      - name: Freeze covariance on 112 training trajectories only
+        shell: bash
+        run: |
+          set -euo pipefail
+          source="$RUNNER_TEMP/dlo45-source-calibration"
+          rm -rf -- "$source"
+          python scripts/science/run_deform_dlo45_source_calibrated_query_covariance_v1.py \
+            calibrate \
+            --dataset-root "$DATASET_ROOT" \
+            --protocol "$PROTOCOL_PATH" \
+            --request "$REQUEST_PATH" \
+            --repository-revision "$GITHUB_SHA" \
+            --output-dir "$source"
+          CALIBRATION="$source/calibration.json" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          value = json.loads(Path(os.environ["CALIBRATION"]).read_text())
+          assert value["accounting"]["independent_groups"] == 112
+          assert value["information_boundary"]["evaluation_file_contents_opened"] is False
+          assert value["information_boundary"]["new_data_collected"] is False
+          assert 1.0 <= float(value["calibration"]["inflation_factor"]) <= 10.0
+          print(json.dumps({
+              "calibration_id": value["calibration_id"],
+              "inflation_factor": value["calibration"]["inflation_factor"],
+          }, sort_keys=True))
+          PY
+
+      - name: Apply frozen covariance to the existing 28-file evaluation split
+        shell: bash
+        run: |
+          set -euo pipefail
+          source="$RUNNER_TEMP/dlo45-source-calibration"
+          target="$RUNNER_TEMP/dlo45-calibrated-evaluation"
+          rm -rf -- "$target"
+          python scripts/science/run_deform_dlo45_source_calibrated_query_covariance_v1.py \
+            evaluate \
+            --dataset-root "$DATASET_ROOT" \
+            --protocol "$PROTOCOL_PATH" \
+            --request "$REQUEST_PATH" \
+            --calibration "$source/calibration.json" \
+            --repository-revision "$GITHUB_SHA" \
+            --output-dir "$target"
+          RESULT="$target/result.json" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          value = json.loads(Path(os.environ["RESULT"]).read_text())
+          assert value["accounting"]["independent_groups"] == 28
+          assert value["raw_result_reproduction"]["passed"] is True
+          assert value["invariance"]["means_unchanged_by_construction"] is True
+          assert value["invariance"]["admission_unchanged_by_construction"] is True
+          assert value["information_boundary"]["new_data_collected"] is False
+          assert value["decision"] != "technical-integrity-failure"
+          print(json.dumps({
+              "decision": value["decision"],
+              "result_id": value["result_id"],
+          }, sort_keys=True))
+          PY
+          cat "$target/SUMMARY.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Assemble compact evidence package
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/dlo45-source-calibrated-evidence"
+          rm -rf -- "$output"
+          mkdir -p "$output/source" "$output/evaluation"
+          cp "$RUNNER_TEMP/dlo45-source-calibration/calibration.json" "$output/source/"
+          cp "$RUNNER_TEMP/dlo45-calibrated-evaluation/result.json" "$output/evaluation/"
+          cp "$RUNNER_TEMP/dlo45-calibrated-evaluation/SUMMARY.md" "$output/evaluation/"
+          printf '%s\n' "$DEFORM_REVISION" > "$output/deform-revision.txt"
+          sha256sum \
+            "$output/source/calibration.json" \
+            "$output/evaluation/result.json" \
+            "$output/evaluation/SUMMARY.md" \
+            > "$output/SHA256SUMS"
+
+      - name: Upload immutable no-new-data evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: dlo45-source-calibrated-query-covariance-hosted-${{ github.sha }}
+          path: ${{ runner.temp }}/dlo45-source-calibrated-evidence/
+          if-no-files-found: error
+          retention-days: 90
