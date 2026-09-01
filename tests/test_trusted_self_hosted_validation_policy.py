@@ -1,9 +1,10 @@
 """Load the unchanged self-hosted policy suite and extend its reviewed allowlist.
 
 The historical policy implementation is retained byte-for-byte in the adjacent
-non-test module. This wrapper adds separately reviewed DOT continuation and
-Tracking-Cloth query-portfolio workflows before exposing the original test
-functions to pytest.
+non-test module. This wrapper adds the separately reviewed DOT R11--R30,
+DOT R04--R10 recovery/relay/camera-audit, Tracking-Cloth query-portfolio,
+DOT R11--R20 source-support execution, and its fail-closed gpuserver6000
+recovery workflow before exposing the original test functions to pytest.
 """
 
 from __future__ import annotations
@@ -38,6 +39,9 @@ TRACKING_CLOTH_QUERY_PORTFOLIO_WORKFLOW = (
 DOT_ROPE_QUERY_SELECTIVE_SOURCE_SUPPORT_V2_EXECUTION_WORKFLOW = (
     POLICY.WORKFLOW_ROOT / "dot-rope-query-selective-source-support-v2-execute.yml"
 )
+DOT_ROPE_QUERY_SELECTIVE_SOURCE_SUPPORT_V2_RECOVERY_WORKFLOW = (
+    POLICY.WORKFLOW_ROOT / "dot-rope-query-selective-source-support-v2-gpuserver6000-recovery.yml"
+)
 POLICY.TRUSTED_SELF_HOSTED_WORKFLOWS = (
     *POLICY.TRUSTED_SELF_HOSTED_WORKFLOWS,
     DOT_ROPE_QUERY_SELECTIVE_HELDOUT_WORKFLOW,
@@ -46,6 +50,7 @@ POLICY.TRUSTED_SELF_HOSTED_WORKFLOWS = (
     DOT_R04_R10_CAMERA_SUPPORT_AUDIT_WORKFLOW,
     TRACKING_CLOTH_QUERY_PORTFOLIO_WORKFLOW,
     DOT_ROPE_QUERY_SELECTIVE_SOURCE_SUPPORT_V2_EXECUTION_WORKFLOW,
+    DOT_ROPE_QUERY_SELECTIVE_SOURCE_SUPPORT_V2_RECOVERY_WORKFLOW,
 )
 
 for _name, _value in vars(POLICY).items():
