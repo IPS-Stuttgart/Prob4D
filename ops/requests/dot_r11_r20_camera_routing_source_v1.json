@@ -1,0 +1,11 @@
+{
+  "schema": "prob4d.dot-r11-r20-camera-routing-source-audit-request",
+  "schema_version": 1,
+  "source_sequences": "R11-R20",
+  "confirmation_sequences": "R21-R30",
+  "reserve_sequences": "R31-R70",
+  "runner_label": "gpuserver6000",
+  "source_performance_metrics_allowed": false,
+  "confirmation_payload_access_allowed": false,
+  "provider_execution_allowed": false
+}
