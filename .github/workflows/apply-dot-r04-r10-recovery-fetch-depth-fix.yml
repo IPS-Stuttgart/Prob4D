@@ -41,55 +41,36 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = "7bb7addee76658692c9f9f0b5841e76d834b7286"
+          test "$(git rev-parse HEAD^)" = "16b579aa55cf739ff9e29a476a7783adfc425a91"
           test "$(git hash-object .github/workflows/dot-r04-r10-evaluation-recovery-v2.yml)" = \
             "3de2e6cf891052c2676a87a4ca0bdd2dae622d4a"
           test "$(git hash-object tests/test_dot_r04_r10_evaluation_recovery_v2.py)" = \
-            "abcd8b18e75cffd544161b5d17e83366881e2020"
+            "75c94ea5defab962648e4ca71845b347d91708c1"
 
           python - <<'PY'
           from pathlib import Path
 
-          workflow = Path(".github/workflows/dot-r04-r10-evaluation-recovery-v2.yml")
-          text = workflow.read_text(encoding="utf-8")
+          path = Path(".github/workflows/dot-r04-r10-evaluation-recovery-v2.yml")
+          text = path.read_text(encoding="utf-8")
           marker = "      - name: Check out exact merged recovery revision\n"
           start = text.index(marker)
-          next_step = text.index("\n      - name:", start + len(marker))
-          block = text[start:next_step]
+          end = text.index("\n      - name:", start + len(marker))
+          block = text[start:end]
           lines = block.splitlines(keepends=True)
-          ref_indices = [index for index, line in enumerate(lines) if line.startswith("          ref: ")]
+          ref_indices = [
+              index for index, line in enumerate(lines) if line.startswith("          ref: ")
+          ]
           if ref_indices != [3]:
               raise SystemExit(f"unexpected recovery checkout ref layout: {ref_indices}")
           if any(line.startswith("          fetch-depth:") for line in lines):
               raise SystemExit("recovery authorization checkout already has fetch-depth")
           lines.insert(ref_indices[0] + 1, "          fetch-depth: 0\n")
-          updated = text[:start] + "".join(lines) + text[next_step:]
-          if updated.count("          fetch-depth: 0\n") != text.count("          fetch-depth: 0\n") + 1:
+          updated = text[:start] + "".join(lines) + text[end:]
+          if updated.count("          fetch-depth: 0\n") != text.count(
+              "          fetch-depth: 0\n"
+          ) + 1:
               raise SystemExit("exactly one fetch-depth guard was not added")
-          workflow.write_text(updated, encoding="utf-8", newline="\n")
-
-          test_path = Path("tests/test_dot_r04_r10_evaluation_recovery_v2.py")
-          test_text = test_path.read_text(encoding="utf-8")
-          test_name = "test_recovery_authorization_checkout_fetches_base_commit"
-          if test_name in test_text:
-              raise SystemExit("recovery checkout regression test already exists")
-          test_text += '''
-
-
-def test_recovery_authorization_checkout_fetches_base_commit() -> None:
-    text = WORKFLOW.read_text(encoding="utf-8")
-    inspect = text[text.index("\\n  inspect:") : text.index("\\n  recover:")]
-    checkout = inspect[
-        inspect.index("Check out exact merged recovery revision") : inspect.index(
-            "Require ordinary main request change"
-        )
-    ]
-
-    assert "fetch-depth: 0" in checkout
-    assert 'BASE_SHA: ${{ github.event.before }}' in inspect
-    assert 'git diff-tree --no-commit-id --name-only -r "$BASE_SHA" "$HEAD_SHA"' in inspect
-'''
-          test_path.write_text(test_text, encoding="utf-8", newline="\n")
+          path.write_text(updated, encoding="utf-8", newline="\n")
           PY
 
           python -m pip install -e ".[dev]"
@@ -100,6 +81,7 @@ def test_recovery_authorization_checkout_fetches_base_commit() -> None:
             tests/test_dot_r04_r10_evaluation_recovery_v2.py \
             tests/test_dot_rope_cut3r_heldout_result_verifier.py \
             tests/test_github_action_pins.py
+
           python - <<'PY'
           from pathlib import Path
 
@@ -117,11 +99,15 @@ def test_recovery_authorization_checkout_fetches_base_commit() -> None:
           PY
 
           git rm .github/workflows/apply-dot-r04-r10-recovery-fetch-depth-fix.yml
-          test "$(git diff --name-only | sort)" = $'.github/workflows/dot-r04-r10-evaluation-recovery-v2.yml\ntests/test_dot_r04_r10_evaluation_recovery_v2.py'
           git diff --check
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .github/workflows/dot-r04-r10-evaluation-recovery-v2.yml \
             tests/test_dot_r04_r10_evaluation_recovery_v2.py
+          mapfile -t changed < <(git diff --cached --name-only | sort)
+          test "${#changed[@]}" -eq 3
+          test "${changed[0]}" = ".github/workflows/apply-dot-r04-r10-recovery-fetch-depth-fix.yml"
+          test "${changed[1]}" = ".github/workflows/dot-r04-r10-evaluation-recovery-v2.yml"
+          test "${changed[2]}" = "tests/test_dot_r04_r10_evaluation_recovery_v2.py"
           git commit -m "Fix sealed DOT recovery base checkout"
           git push origin HEAD:fix/dot-r04-r10-recovery-fetch-depth
