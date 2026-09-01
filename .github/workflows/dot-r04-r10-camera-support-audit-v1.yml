@@ -1,0 +1,213 @@
+name: DOT R04-R10 camera support audit v1
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/dot-r04-r10-camera-support-audit-v1.yml"
+      - "scripts/science/audit_dot_r04_r10_camera_support.py"
+  push:
+    branches: [main]
+    paths:
+      - "protocols/execution_requests/dot_r04_r10_camera_support_audit_v1.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dot-r04-r10-camera-support-audit-v1-${{ github.ref }}-${{ github.sha }}
+  cancel-in-progress: false
+
+env:
+  REQUEST_PATH: protocols/execution_requests/dot_r04_r10_camera_support_audit_v1.json
+  DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/dot
+  ARCHIVE_NAME: R01-10.zip
+  ARCHIVE_MD5: ca546ff5f22c0279123ccb18509858ee
+
+jobs:
+  contract:
+    name: Validate R04-R10 camera audit control plane
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out reviewed revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          clean: true
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Validate bounded diagnostic implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile scripts/science/audit_dot_r04_r10_camera_support.py
+          python - <<'PY'
+          from pathlib import Path
+          text = Path("scripts/science/audit_dot_r04_r10_camera_support.py").read_text(encoding="utf-8")
+          required = [
+              'SEQUENCES = [f"R{i:02d}" for i in range(4, 11)]',
+              'ARCHIVE = "R01-10.zip"',
+              '"r11_r70_opened": False',
+              '"performance_metrics_computed": False',
+              '"frozen_r04_r10_result_reinterpreted": False',
+          ]
+          for needle in required:
+              if needle not in text:
+                  raise SystemExit(f"missing boundary: {needle}")
+          for forbidden in ("R11-20.zip", "R21-30.zip", "R31-40.zip", "R41-50.zip", "R51-60.zip", "R61-70.zip"):
+              if forbidden in text:
+                  raise SystemExit(f"target archive leaked into diagnostic: {forbidden}")
+          PY
+
+  authorize:
+    name: Authorize one immutable R04-R10 diagnostic request
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      head_sha: ${{ steps.request.outputs.head_sha }}
+      request_id: ${{ steps.request.outputs.request_id }}
+    steps:
+      - name: Check out exact merged revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+          clean: true
+      - name: Require exactly one bounded request-file change
+        id: request
+        shell: bash
+        env:
+          EVENT_REF: ${{ github.ref }}
+          EVENT_BEFORE: ${{ github.event.before }}
+          EVENT_AFTER: ${{ github.event.after }}
+          EVENT_FORCED: ${{ github.event.forced }}
+          EVENT_DELETED: ${{ github.event.deleted }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_REF" = "refs/heads/main"
+          test "$EVENT_AFTER" = "$(git rev-parse HEAD)"
+          test "$EVENT_FORCED" = "false"
+          test "$EVENT_DELETED" = "false"
+          test "$EVENT_BEFORE" != "0000000000000000000000000000000000000000"
+          mapfile -t changed < <(git diff --name-only "$EVENT_BEFORE" "$EVENT_AFTER" | sort)
+          if [[ ${#changed[@]} -ne 1 || "${changed[0]}" != "$REQUEST_PATH" ]]; then
+            printf 'Expected only %s; changed paths were:\n' "$REQUEST_PATH" >&2
+            printf '  %s\n' "${changed[@]}" >&2
+            exit 2
+          fi
+          REQUEST="$REQUEST_PATH" EVENT_AFTER="$EVENT_AFTER" python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path(os.environ["REQUEST"])
+          value = json.loads(path.read_text(encoding="utf-8"))
+          expected = {
+              "schema",
+              "schema_version",
+              "request_id",
+              "sequences",
+              "archive",
+              "r11_r70_opened",
+              "performance_metrics_computed",
+              "frozen_r04_r10_result_reinterpreted",
+          }
+          if set(value) != expected:
+              raise SystemExit("diagnostic request fields changed")
+          if value["schema"] != "prob4d.dot-r04-r10-camera-support-audit-request" or value["schema_version"] != 1:
+              raise SystemExit("diagnostic request schema changed")
+          if value["sequences"] != [f"R{i:02d}" for i in range(4, 11)]:
+              raise SystemExit("diagnostic sequence boundary changed")
+          if value["archive"] != "R01-10.zip":
+              raise SystemExit("diagnostic archive changed")
+          for key in (
+              "r11_r70_opened",
+              "performance_metrics_computed",
+              "frozen_r04_r10_result_reinterpreted",
+          ):
+              if value[key] is not False:
+                  raise SystemExit(f"{key} exceeds the diagnostic boundary")
+          unsigned = dict(value)
+          request_id = unsigned.pop("request_id")
+          encoded = json.dumps(unsigned, sort_keys=True, separators=(",", ":")).encode()
+          if hashlib.sha256(encoded).hexdigest() != request_id:
+              raise SystemExit("diagnostic request identity mismatch")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"head_sha={os.environ['EVENT_AFTER']}\n")
+              output.write(f"request_id={request_id}\n")
+          PY
+
+  audit:
+    name: Audit already-open R04-R10 camera visibility support
+    if: github.event_name == 'push'
+    needs: authorize
+    environment: trusted-self-hosted-validation
+    runs-on: [self-hosted, Linux, X64, gpuserver4090]
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Require intended runner and official R01-R10 archive only
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_NAME" = "workstation1"
+          test "$RUNNER_OS" = "Linux"
+          test "$RUNNER_ARCH" = "X64"
+          test -d "$DATASET_ROOT"
+          test ! -L "$DATASET_ROOT"
+          test -f "$DATASET_ROOT/$ARCHIVE_NAME"
+          printf '%s  %s\n' "$ARCHIVE_MD5" "$DATASET_ROOT/$ARCHIVE_NAME" | md5sum --check --strict
+      - name: Check out exact authorized revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.authorize.outputs.head_sha }}
+          persist-credentials: false
+          clean: true
+      - name: Run support-only multiview diagnostic
+        id: audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/dot-r04-r10-camera-support-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json"
+          summary=$(python scripts/science/audit_dot_r04_r10_camera_support.py \
+            --dataset-root "$DATASET_ROOT" \
+            --output "$out")
+          echo "$summary"
+          RESULT="$out" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          value = json.loads(Path(os.environ["RESULT"]).read_text(encoding="utf-8"))
+          boundary = value["scientific_boundary"]
+          if boundary["r11_r70_opened"] is not False:
+              raise SystemExit("diagnostic crossed R11-R70 boundary")
+          if boundary["performance_metrics_computed"] is not False:
+              raise SystemExit("diagnostic computed performance")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"result={os.environ['RESULT']}\n")
+              output.write(f"decision={value['decision']}\n")
+              output.write(f"audit_id={value['audit_id']}\n")
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary_file:
+              summary_file.write(f"Decision: `{value['decision']}`\n\n")
+              summary_file.write(f"Audit ID: `{value['audit_id']}`\n\n")
+              summary_file.write(f"Cameras: `{value['dataset']['cameras_present_on_every_sequence']}`\n\n")
+              summary_file.write(f"Fixed-camera feasible: `{value['fixed_camera_feasible_candidates']}`\n\n")
+              summary_file.write(f"Multiview feasible modes: `{value['multiview_feasible_coordinate_modes']}`\n")
+          PY
+      - name: Upload bounded support audit
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4.6.2
+        with:
+          name: dot-r04-r10-camera-support-${{ needs.authorize.outputs.request_id }}
+          path: ${{ steps.audit.outputs.result }}
+          if-no-files-found: error
+          retention-days: 90
