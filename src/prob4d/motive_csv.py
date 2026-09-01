@@ -10,9 +10,9 @@ from __future__ import annotations
 
 import csv
 import math
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Sequence
 
 import numpy as np
 from numpy.typing import NDArray
@@ -231,8 +231,14 @@ def _unit_scale_to_mm(units: str | None, coordinates: FloatArray) -> float:
     if normalized in {"mm", "millimeter", "millimeters", "millimetre", "millimetres"}:
         return 1.0
     pair_distances: list[float] = []
+    sample_count = min(12, coordinates.shape[0])
     frame_indices = np.unique(
-        np.linspace(0, max(coordinates.shape[0] - 1, 0), num=min(12, coordinates.shape[0]), dtype=np.int64)
+        np.linspace(
+            0,
+            max(coordinates.shape[0] - 1, 0),
+            num=sample_count,
+            dtype=np.int64,
+        )
     )
     for frame_index in frame_indices:
         frame = coordinates[int(frame_index)]
