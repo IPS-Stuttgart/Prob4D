@@ -64,25 +64,24 @@ jobs:
               "tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py"
           )
           tests = test_path.read_text(encoding="utf-8")
-          anchor = (
-              '    provider = text[text.index("\\n  provider:") : '
-              'text.index("\\n  evaluate:")]\n\n'
-          )
-          addition = anchor + (
-              '    initialization = provider[\n'
-              '        provider.index("Initialize isolated prediction workspace") :\n'
-              '        provider.index("Check out exact authorized Prob4D revision")\n'
-              '    ]\n'
-              '    assert \'test ! -e "$root/provider"\' in initialization\n'
-              '    assert \'"$root/provider" \\\\\' not in initialization\n\n'
-          )
-          if tests.count(anchor) != 1:
-              raise SystemExit("provider workflow test anchor changed")
-          test_path.write_text(
-              tests.replace(anchor, addition, 1),
-              encoding="utf-8",
-              newline="\n",
-          )
+          name = "test_confirmation_provider_leaves_output_for_exclusive_creation"
+          if name in tests:
+              raise SystemExit("exclusive-output regression already exists")
+          tests += '''
+
+
+def test_confirmation_provider_leaves_output_for_exclusive_creation() -> None:
+    text = WORKFLOW.read_text(encoding="utf-8")
+    provider = text[text.index("\\n  provider:") : text.index("\\n  evaluate:")]
+    initialization = provider[
+        provider.index("Initialize isolated prediction workspace") :
+        provider.index("Check out exact authorized Prob4D revision")
+    ]
+
+    assert 'test ! -e "$root/provider"' in initialization
+    assert initialization.count('"$root/provider"') == 1
+'''
+          test_path.write_text(tests, encoding="utf-8", newline="\n")
 
           Path(".github/workflows/apply-dot-provider-output-fix.yml").unlink()
           PY
