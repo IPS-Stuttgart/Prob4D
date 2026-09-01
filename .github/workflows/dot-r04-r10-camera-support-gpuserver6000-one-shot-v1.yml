@@ -20,7 +20,7 @@ jobs:
       DATASET_ROOT: /home/github-runner/.cache/prob4d/dot-r04-r10-cut3r-gpuserver6000-v1/dot-v29
       ARCHIVE_NAME: R01-10.zip
       ARCHIVE_MD5: ca546ff5f22c0279123ccb18509858ee
-      EXPECTED_SCRIPT_SHA256: 25eb1dcff47f8299acbf393d01820569c560cdab6ae0a0a2532305842ef8ff04
+      EXPECTED_SCRIPT_GIT_BLOB: 5baed0a27e6318c0a951c0997885af0031e118d4
     steps:
       - name: Require the intended runner and publisher-verified cached archive
         shell: bash
@@ -48,8 +48,8 @@ jobs:
           set -euo pipefail
           script=scripts/science/audit_dot_r04_r10_camera_support.py
           test -f "$script"
-          actual="$(sha256sum "$script" | cut -d' ' -f1)"
-          test "$actual" = "$EXPECTED_SCRIPT_SHA256"
+          actual="$(git hash-object "$script")"
+          test "$actual" = "$EXPECTED_SCRIPT_GIT_BLOB"
           python3 -m py_compile "$script"
           grep -F 'SEQUENCES = [f"R{i:02d}" for i in range(4, 11)]' "$script"
           grep -F '"r11_r70_opened": False' "$script"
