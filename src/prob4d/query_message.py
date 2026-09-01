@@ -21,8 +21,9 @@ from __future__ import annotations
 
 import hashlib
 import math
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Any, Iterable, Literal, TypeAlias, cast
+from typing import Any, Literal, TypeAlias, cast
 
 import numpy as np
 from numpy.typing import NDArray
