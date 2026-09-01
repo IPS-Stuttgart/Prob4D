@@ -665,9 +665,10 @@ def command_calibrate(args: argparse.Namespace) -> int:
     request = load_json(Path(args.request))
     validate_protocol(protocol)
     validate_request(request, protocol)
-    root = Path(args.dataset_root).resolve(strict=True)
-    if root != Path(request["dataset_root"]):
+    supplied_root = Path(args.dataset_root)
+    if supplied_root != Path(request["dataset_root"]):
         raise ValueError("dataset root changed")
+    root = supplied_root.resolve(strict=True)
     output = Path(args.output_dir)
     output.mkdir(parents=True, exist_ok=False)
     calibration = source_calibrate(root, protocol, request, args.repository_revision)
@@ -689,9 +690,10 @@ def command_evaluate(args: argparse.Namespace) -> int:
     calibration = load_json(Path(args.calibration))
     validate_protocol(protocol)
     validate_request(request, protocol)
-    root = Path(args.dataset_root).resolve(strict=True)
-    if root != Path(request["dataset_root"]):
+    supplied_root = Path(args.dataset_root)
+    if supplied_root != Path(request["dataset_root"]):
         raise ValueError("dataset root changed")
+    root = supplied_root.resolve(strict=True)
     output = Path(args.output_dir)
     output.mkdir(parents=True, exist_ok=False)
     result = target_evaluate(root, protocol, request, calibration, args.repository_revision)
