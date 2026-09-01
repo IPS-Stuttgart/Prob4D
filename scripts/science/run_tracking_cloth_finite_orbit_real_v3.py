@@ -28,6 +28,21 @@ RESULT_SCHEMA = "prob4d.tracking-cloth-finite-orbit-result.v3"
 EXPECTED_SOURCE = 24
 EXPECTED_TARGET = 15
 SELECTED_TRIPLET = ("1", "20", "5")
+QUALIFICATION_PROTOCOL_ID = (
+    "4652d72f9e8d4c80c69df86b7a48a6f4e307e4131ea3bea04e09deed10db5eb0"
+)
+QUALIFICATION_RESULT_ID = (
+    "5f130c8643c18346ad55e7d5997deefadc20481d14c8024e641ce811f23119e0"
+)
+QUALIFICATION_SOURCE_SEAL_ID = (
+    "1bb2236a087f5d309199fadd1cc2ebcc6a6242eaf6ab4f65a0d077ab9545ba52"
+)
+QUALIFICATION_SUPPORT_ID = (
+    "2d3b385f69bbeace010412771ad988bc51509cfe61e071cdc6ed0f7803938abb"
+)
+QUALIFICATION_ARTIFACT_DIGEST = (
+    "sha256:c7c61a117c1e3dbcf33997c528fb1703bfae44cbdfb560d176a9880bc04b05e3"
+)
 EXPECTED_SELECTION = {
     "anchor_distance_q10_mm": 682.8316929700749,
     "probe_radius_median_mm": 343.3444426753403,
@@ -69,6 +84,28 @@ def _load_v2() -> ModuleType:
     return module
 
 
+def _expected_qualification() -> dict[str, Any]:
+    return {
+        "protocol_path": "protocols/tracking-cloth-finite-orbit-real-v2.json",
+        "protocol_git_blob_sha1": "641d05f1dcae00a2f36888a7e071be64eaf9cb45",
+        "protocol_id": QUALIFICATION_PROTOCOL_ID,
+        "run_id": 33532387635,
+        "head_sha": "164a95c93cba679c911eeced22b48516a90720f2",
+        "artifact_id": 9810268001,
+        "artifact_name": "tracking-cloth-finite-orbit-real-v2-result-33532387635",
+        "artifact_digest": QUALIFICATION_ARTIFACT_DIGEST,
+        "result_id": QUALIFICATION_RESULT_ID,
+        "source_seal_id": QUALIFICATION_SOURCE_SEAL_ID,
+        "support_id": QUALIFICATION_SUPPORT_ID,
+        "status": "target-marker-support-negative",
+        "required_marker_labels": list(SELECTED_TRIPLET),
+        "supported_target_group_count": EXPECTED_TARGET,
+        "unsupported_target_group_count": 27,
+        "target_trajectory_values_parsed": False,
+        "unsupported_groups_replaced": False,
+    }
+
+
 def _load_protocol(path: Path) -> dict[str, Any]:
     value = json.loads(path.read_text(encoding="utf-8"))
     if type(value) is not dict:
@@ -88,28 +125,11 @@ def _load_protocol(path: Path) -> dict[str, Any]:
     group_ids = dataset.get("target_group_ids")
     if not isinstance(paths, list) or len(paths) != EXPECTED_TARGET:
         raise ValueError("target path roster changed")
-    if not isinstance(group_ids, list) or group_ids != [_stable_id(path) for path in paths]:
+    if not isinstance(group_ids, list):
+        raise ValueError("target group IDs are missing")
+    if group_ids != [_stable_id(relative_path) for relative_path in paths]:
         raise ValueError("target path/group identity binding changed")
-    qualification = value.get("support_qualification", {})
-    if qualification != {
-        "protocol_path": "protocols/tracking-cloth-finite-orbit-real-v2.json",
-        "protocol_git_blob_sha1": "641d05f1dcae00a2f36888a7e071be64eaf9cb45",
-        "protocol_id": "4652d72f9e8d4c80c69df86b7a48a6f4e307e4131ea3bea04e09deed10db5eb0",
-        "run_id": 33532387635,
-        "head_sha": "164a95c93cba679c911eeced22b48516a90720f2",
-        "artifact_id": 9810268001,
-        "artifact_name": "tracking-cloth-finite-orbit-real-v2-result-33532387635",
-        "artifact_digest": "sha256:c7c61a117c1e3dbcf33997c528fb1703bfae44cbdfb560d176a9880bc04b05e3",
-        "result_id": "5f130c8643c18346ad55e7d5997deefadc20481d14c8024e641ce811f23119e0",
-        "source_seal_id": "1bb2236a087f5d309199fadd1cc2ebcc6a6242eaf6ab4f65a0d077ab9545ba52",
-        "support_id": "2d3b385f69bbeace010412771ad988bc51509cfe61e071cdc6ed0f7803938abb",
-        "status": "target-marker-support-negative",
-        "required_marker_labels": list(SELECTED_TRIPLET),
-        "supported_target_group_count": EXPECTED_TARGET,
-        "unsupported_target_group_count": 27,
-        "target_trajectory_values_parsed": False,
-        "unsupported_groups_replaced": False,
-    }:
+    if value.get("support_qualification") != _expected_qualification():
         raise ValueError("support qualification binding changed")
     marker_support = value.get("marker_support", {})
     if marker_support.get("selected_marker_triplet") != list(SELECTED_TRIPLET):
@@ -121,14 +141,14 @@ def _load_protocol(path: Path) -> dict[str, Any]:
         raise ValueError("target sampling changed")
     if settings.get("minimum_target_cases") != 1000:
         raise ValueError("minimum target case count changed")
-    information_order = value.get("information_order", {})
-    if information_order.get("target_trajectory_values_used_for_support_qualification") is not False:
+    order = value.get("information_order", {})
+    if order.get("target_trajectory_values_used_for_support_qualification") is not False:
         raise ValueError("support qualification accessed target outcomes")
-    if information_order.get("target_trajectory_values_opened_before_v3_freeze") is not False:
+    if order.get("target_trajectory_values_opened_before_v3_freeze") is not False:
         raise ValueError("v3 was not frozen before target trajectory access")
-    if information_order.get("target_side_retuning_allowed") is not False:
+    if order.get("target_side_retuning_allowed") is not False:
         raise ValueError("target-side retuning was enabled")
-    if information_order.get("unsupported_target_replacement_allowed") is not False:
+    if order.get("unsupported_target_replacement_allowed") is not False:
         raise ValueError("unsupported target replacement was enabled")
     return value
 
@@ -140,7 +160,11 @@ def _configure_v2(v2: ModuleType, protocol: dict[str, Any]) -> None:
     original_load_base = v2._load_base
     original_summary = v2._summary
 
-    def subset(recordings: list[Any], *, source: bool) -> tuple[list[Any], list[Any]]:
+    def subset(
+        recordings: list[Any],
+        *,
+        source: bool,
+    ) -> tuple[list[Any], list[Any]]:
         if source:
             return original_subset(recordings, source=True)
         eligible = [row for row in recordings if row.relative_path in target_paths]
@@ -161,7 +185,10 @@ def _configure_v2(v2: ModuleType, protocol: dict[str, Any]) -> None:
         base = original_load_base()
         original_select = base._select_marker_triplet
 
-        def select_marker_triplet(*args: Any, **kwargs: Any) -> tuple[tuple[str, str, str], dict[str, float]]:
+        def select_marker_triplet(
+            *args: Any,
+            **kwargs: Any,
+        ) -> tuple[tuple[str, str, str], dict[str, float]]:
             triplet, details = original_select(*args, **kwargs)
             if triplet != SELECTED_TRIPLET:
                 raise ValueError(f"source-selected triplet changed: {triplet}")
@@ -174,17 +201,27 @@ def _configure_v2(v2: ModuleType, protocol: dict[str, Any]) -> None:
         base._select_marker_triplet = select_marker_triplet
         return base
 
-    def summary(result: dict[str, Any], base: ModuleType, triplet: tuple[str, str, str]) -> str:
+    def summary(
+        result: dict[str, Any],
+        base: ModuleType,
+        triplet: tuple[str, str, str],
+    ) -> str:
         text = original_summary(result, base, triplet)
         text = text.replace(
             "# Tracking Cloth finite-orbit replication v2",
             "# Tracking Cloth support-qualified finite-orbit replication v3",
             1,
         )
-        return text.rstrip() + "\n\n## Header-only support qualification\n\n" + (
-            "The exact 15-recording target roster was frozen from v2 marker-label headers only. "
-            "No target trajectory value was used to select a recording, marker, threshold, or method. "
-            "The 27 incompatible self-collision recordings remain a separately reported support-negative cohort.\n"
+        qualification = (
+            "The exact 15-recording target roster was frozen from v2 marker-label "
+            "headers only. No target trajectory value was used to select a recording, "
+            "marker, threshold, or method. The 27 incompatible self-collision "
+            "recordings remain a separately reported support-negative cohort.\n"
+        )
+        return (
+            text.rstrip()
+            + "\n\n## Header-only support qualification\n\n"
+            + qualification
         )
 
     v2.PROTOCOL_ID = PROTOCOL_ID
