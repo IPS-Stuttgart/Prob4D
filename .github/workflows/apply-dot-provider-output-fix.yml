@@ -1,4 +1,4 @@
-name: Export DOT provider output directory fix
+name: Apply DOT provider output directory fix
 
 on:
   push:
@@ -8,10 +8,10 @@ on:
       - ".github/workflows/apply-dot-provider-output-fix.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  export:
+  patch:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
@@ -19,112 +19,151 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: fix/dot-r04-r10-provider-output-v1
-          persist-credentials: false
+          fetch-depth: 0
+          persist-credentials: true
           clean: true
 
-      - name: Apply bounded workflow and regression-test fix
+      - name: Patch only the held-out output handoff
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
           from pathlib import Path
 
-          workflow = Path(
-              ".github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml"
+          path = Path("scripts/science/run_dot_rope_cut3r_heldout_confirmation.py")
+          text = path.read_text(encoding="utf-8")
+          anchor = "def predict(args: argparse.Namespace) -> int:\n"
+          helper = '''def _prepare_exclusive_output(path: Path) -> Path:
+              """Remove only a pre-created empty directory before exclusive creation."""
+
+              if path.is_symlink():
+                  raise FileExistsError(f"provider output path is a symbolic link: {path}")
+              if path.exists():
+                  if not path.is_dir() or any(path.iterdir()):
+                      raise FileExistsError(f"provider output path is not empty: {path}")
+                  path.rmdir()
+              return path
+
+
+          '''
+          if text.count(anchor) != 1 or "def _prepare_exclusive_output" in text:
+              raise SystemExit("held-out predictor shape changed")
+          text = text.replace(anchor, helper + anchor, 1)
+
+          old_adapted = "    adapted = _base_protocol(protocol)\n"
+          new_adapted = (
+              "    output_dir = _prepare_exclusive_output(args.output_dir)\n"
+              "    adapted = _base_protocol(protocol)\n"
           )
-          text = workflow.read_text(encoding="utf-8")
-          old = (
-              '          /usr/bin/mkdir -p \\\n'
-              '            "$root/home" \\\n'
-              '            "$root/cache" \\\n'
-              '            "$root/tmp" \\\n'
-              '            "$root/evidence" \\\n'
-              '            "$root/provider"\n'
-              '          echo "root=$root" >> "$GITHUB_OUTPUT"\n'
-          )
-          new = (
-              '          /usr/bin/mkdir -p \\\n'
-              '            "$root/home" \\\n'
-              '            "$root/cache" \\\n'
-              '            "$root/tmp" \\\n'
-              '            "$root/evidence"\n'
-              '          test ! -e "$root/provider"\n'
-              '          echo "root=$root" >> "$GITHUB_OUTPUT"\n'
-          )
-          if text.count(old) != 1:
-              raise SystemExit("provider workspace initialization shape changed")
-          workflow.write_text(
-              text.replace(old, new, 1),
+          if text.count(old_adapted) != 1:
+              raise SystemExit("held-out adapted-protocol assignment changed")
+          text = text.replace(old_adapted, new_adapted, 1)
+
+          old_output = "                output_dir=args.output_dir,\n"
+          new_output = "                output_dir=output_dir,\n"
+          if text.count(old_output) != 1:
+              raise SystemExit("held-out provider output argument changed")
+          text = text.replace(old_output, new_output, 1)
+          path.write_text(text, encoding="utf-8", newline="\n")
+
+          test = Path("tests/test_dot_rope_cut3r_heldout_output.py")
+          test.write_text(
+              '''from __future__ import annotations
+
+import importlib.util
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(__file__).resolve().parents[1]
+SCRIPT = ROOT / "scripts/science/run_dot_rope_cut3r_heldout_confirmation.py"
+
+
+def _load_script():
+    spec = importlib.util.spec_from_file_location("dot_heldout_confirmation", SCRIPT)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_precreated_empty_output_is_removed_for_exclusive_provider_creation(
+    tmp_path: Path,
+) -> None:
+    module = _load_script()
+    output = tmp_path / "provider"
+    output.mkdir()
+
+    assert module._prepare_exclusive_output(output) == output
+    assert not output.exists()
+
+
+def test_nonempty_or_symbolic_output_fails_closed(tmp_path: Path) -> None:
+    module = _load_script()
+    nonempty = tmp_path / "nonempty"
+    nonempty.mkdir()
+    (nonempty / "sentinel").write_text("preserve", encoding="utf-8")
+
+    with pytest.raises(FileExistsError, match="not empty"):
+        module._prepare_exclusive_output(nonempty)
+    assert (nonempty / "sentinel").read_text(encoding="utf-8") == "preserve"
+
+    target = tmp_path / "target"
+    target.mkdir()
+    link = tmp_path / "link"
+    link.symlink_to(target, target_is_directory=True)
+    with pytest.raises(FileExistsError, match="symbolic link"):
+        module._prepare_exclusive_output(link)
+''',
               encoding="utf-8",
               newline="\n",
           )
 
-          test_path = Path(
-              "tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py"
-          )
-          tests = test_path.read_text(encoding="utf-8")
-          name = "test_confirmation_provider_leaves_output_for_exclusive_creation"
-          if name in tests:
-              raise SystemExit("exclusive-output regression already exists")
-          tests += '''
-
-
-def test_confirmation_provider_leaves_output_for_exclusive_creation() -> None:
-    text = WORKFLOW.read_text(encoding="utf-8")
-    provider = text[text.index("\\n  provider:") : text.index("\\n  evaluate:")]
-    initialization = provider[
-        provider.index("Initialize isolated prediction workspace") :
-        provider.index("Check out exact authorized Prob4D revision")
-    ]
-
-    assert 'test ! -e "$root/provider"' in initialization
-    assert initialization.count('"$root/provider"') == 1
-    assert '--output-dir "$root/provider"' in provider
-'''
-          test_path.write_text(tests, encoding="utf-8", newline="\n")
-
           changelog = Path("CHANGELOG.d/dot-r04-r10-provider-output-v1.md")
           changelog.write_text(
               "# Fixed\n\n"
-              "- Leave the frozen DOT R04–R10 provider output path absent until "
-              "the hash-pinned CUT3R predictor creates it exclusively. This fixes "
-              "the pre-inference `FileExistsError` without changing any scientific "
-              "input, cohort, checkpoint, query, comparator, or decision rule.\n",
+              "- Permit the frozen DOT R04–R10 wrapper to remove only a pre-created "
+              "empty provider directory before the hash-pinned predictor performs "
+              "its exclusive creation. Nonempty, file, and symbolic-link outputs "
+              "still fail closed; all scientific inputs remain unchanged.\n",
               encoding="utf-8",
               newline="\n",
           )
           PY
 
-          python -m py_compile \
-            tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py
-          git diff --check
-          git diff -- \
-            .github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml \
-            tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py \
-            CHANGELOG.d/dot-r04-r10-provider-output-v1.md
-
-      - name: Validate the patched contract
+      - name: Validate focused contract
         shell: bash
         run: |
           set -euo pipefail
           python -m pip install -e ".[dev]"
+          python -m ruff check --fix \
+            scripts/science/run_dot_rope_cut3r_heldout_confirmation.py \
+            tests/test_dot_rope_cut3r_heldout_output.py
+          python -m ruff format \
+            scripts/science/run_dot_rope_cut3r_heldout_confirmation.py \
+            tests/test_dot_rope_cut3r_heldout_output.py
           python -m ruff check \
-            tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py
+            scripts/science/run_dot_rope_cut3r_heldout_confirmation.py \
+            tests/test_dot_rope_cut3r_heldout_output.py
           python -m ruff format --check \
-            tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py
+            scripts/science/run_dot_rope_cut3r_heldout_confirmation.py \
+            tests/test_dot_rope_cut3r_heldout_output.py
           python -m pytest -q \
-            tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py \
-            tests/test_trusted_self_hosted_validation_policy.py \
-            tests/test_github_action_pins.py
+            tests/test_dot_rope_cut3r_heldout_output.py \
+            tests/test_dot_rope_cut3r_heldout_confirmation.py \
+            tests/test_dot_rope_cut3r_heldout_result_verifier.py
+          git diff --check
 
-      - name: Upload exact final files
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: dot-r04-provider-output-fix-${{ github.sha }}
-          path: |
-            .github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml
-            tests/test_dot_rope_cut3r-heldout-confirmation-workflow.py
-            tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py
+      - name: Commit only non-workflow repair files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            scripts/science/run_dot_rope_cut3r_heldout_confirmation.py \
+            tests/test_dot_rope_cut3r_heldout_output.py \
             CHANGELOG.d/dot-r04-r10-provider-output-v1.md
-          if-no-files-found: error
-          retention-days: 7
+          git diff --cached --check
+          git commit -m "Handle pre-created empty held-out provider output"
+          git push origin HEAD:fix/dot-r04-r10-provider-output-v1
