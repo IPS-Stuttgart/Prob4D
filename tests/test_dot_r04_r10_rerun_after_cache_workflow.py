@@ -19,9 +19,9 @@ def _job(text: str, name: str, *, next_name: str | None = None) -> str:
 def test_recovery_is_default_branch_workflow_run_only() -> None:
     text = _load()
     trigger = (
-        '  workflow_run:\n'
+        "  workflow_run:\n"
         '    workflows: ["DOT R01-R10 gpuserver6000 cache prewarm v1"]\n'
-        '    types: [completed]\n'
+        "    types: [completed]\n"
     )
     assert trigger in text
     recover = _job(text, "recover")
@@ -36,12 +36,10 @@ def test_recovery_is_bound_to_exact_frozen_target() -> None:
     assert 'TARGET_RUN_ID: "33434695566"' in text
     assert "TARGET_HEAD_SHA: 9e1b77b2e70685881db7f188a95a3a91443275e8" in text
     assert (
-        "TARGET_WORKFLOW_PATH: "
-        ".github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml"
+        "TARGET_WORKFLOW_PATH: .github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml"
     ) in text
     assert (
-        "TARGET_PROVIDER_JOB: "
-        "Seal marker-free R04-R10 CUT3R predictions on gpuserver6000"
+        "TARGET_PROVIDER_JOB: Seal marker-free R04-R10 CUT3R predictions on gpuserver6000"
     ) in text
     assert "ARCHIVE_MD5: ca546ff5f22c0279123ccb18509858ee" in text
     assert "frozen target revision changed" in text
