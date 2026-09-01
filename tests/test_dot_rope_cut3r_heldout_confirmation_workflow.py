@@ -71,16 +71,14 @@ def test_confirmation_marker_evaluation_is_hosted_and_frozen() -> None:
     assert "git push" not in text
     assert "secrets." not in text
 
+
 def test_confirmation_provider_reuses_audited_curope_compatibility_patch() -> None:
     text = WORKFLOW.read_text(encoding="utf-8")
     provider = text[text.index("\n  provider:") : text.index("\n  evaluate:")]
 
     assert ".github/patches/cut3r-curope-torch211-cu126.patch" in provider
     assert "9127464c77b571b9586144cabe24a4eed8667db0" in provider
-    assert (
-        "9778ec434a6e2d9ae8be162295d60e06d86bf0fbadbb66d516eb46c666ab547d"
-        in provider
-    )
+    assert "9778ec434a6e2d9ae8be162295d60e06d86bf0fbadbb66d516eb46c666ab547d" in provider
     assert "7156cd1bb935cb1f0be45e58add53f9c21505c20" in provider
     assert "02ddb0912370a67a49fd2bb91164cf2f1da8648e" in provider
     assert 'git -C "$checkout" apply --check "$patch_path"' in provider
