@@ -6,20 +6,6 @@
     "git_blob_sha1": "808d85e29b498ba1e7f92ea4ed67c4f6ec156c6d",
     "protocol_id": "tracking-cloth-finite-orbit-real-v1"
   },
-  "predecessor": {
-    "run_id": 33361712662,
-    "head_sha": "5c4e3b4ebfe38a10b1d1635db62b23c4f1736770",
-    "job_name": "Evaluate held-out collision geometry on gpuserver4090",
-    "artifact_id": 9777455628,
-    "artifact_name": "tracking-cloth-finite-orbit-real-v1-1",
-    "artifact_digest": "sha256:88f0371a63bb00bc7c9619acefa518e3b5dfd6b473be0db8466482ea98de080d",
-    "stderr_sha256": "61b249cdedbc8b31e31b96f6692962090b42b6e5221c71bdbb507d43a013cb88",
-    "process_exit_code": 1,
-    "failure": "fewer than three common 3-D marker groups: []",
-    "target_csv_contents_opened": false,
-    "source_seal_emitted": false,
-    "scientific_result_emitted": false
-  },
   "dataset": {
     "record_name": "Tracking Cloth Deformation",
     "zenodo_record": "14644526",
@@ -128,5 +114,5 @@
     "deployment_safety": false,
     "state_of_the_art": false
   },
-  "protocol_id": "bd0354a4fd1281669b54d13a7485f21d11e5f91ceed3ebbbca629205e3540276"
+  "protocol_id": "4652d72f9e8d4c80c69df86b7a48a6f4e307e4131ea3bea04e09deed10db5eb0"
 }
