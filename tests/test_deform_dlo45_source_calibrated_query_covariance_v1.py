@@ -20,11 +20,16 @@ EVIDENCE = ROOT / "evidence/deform-dlo45-source-calibrated-query-covariance-v1"
 
 def _module():
     name = "dlo45_source_calibrated_query_covariance"
-    spec = importlib.util.spec_from_file_location(name, SCRIPT)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[name] = module
-    spec.loader.exec_module(module)
+    script_path = str(SCRIPT.parent)
+    sys.path.insert(0, script_path)
+    try:
+        spec = importlib.util.spec_from_file_location(name, SCRIPT)
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        spec.loader.exec_module(module)
+    finally:
+        sys.path.remove(script_path)
     return module
 
 
