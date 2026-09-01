@@ -1,9 +1,9 @@
 """Load the unchanged self-hosted policy suite and extend its reviewed allowlist.
 
 The historical policy implementation is retained byte-for-byte in the adjacent
-non-test module. This wrapper adds separately reviewed DOT continuation,
-Tracking-Cloth query-portfolio, and DEFORM DLO4/DLO5 source-calibration
-workflows before exposing the original test functions to pytest.
+non-test module. This wrapper adds separately reviewed DOT continuation and
+Tracking-Cloth query-portfolio workflows before exposing the original test
+functions to pytest.
 """
 
 from __future__ import annotations
@@ -38,9 +38,6 @@ TRACKING_CLOTH_QUERY_PORTFOLIO_WORKFLOW = (
 DOT_ROPE_QUERY_SELECTIVE_SOURCE_SUPPORT_V2_EXECUTION_WORKFLOW = (
     POLICY.WORKFLOW_ROOT / "dot-rope-query-selective-source-support-v2-execute.yml"
 )
-DEFORM_DLO45_SOURCE_CALIBRATED_QUERY_COVARIANCE_WORKFLOW = (
-    POLICY.WORKFLOW_ROOT / "deform-dlo45-source-calibrated-query-covariance-v1.yml"
-)
 POLICY.TRUSTED_SELF_HOSTED_WORKFLOWS = (
     *POLICY.TRUSTED_SELF_HOSTED_WORKFLOWS,
     DOT_ROPE_QUERY_SELECTIVE_HELDOUT_WORKFLOW,
@@ -49,7 +46,6 @@ POLICY.TRUSTED_SELF_HOSTED_WORKFLOWS = (
     DOT_R04_R10_CAMERA_SUPPORT_AUDIT_WORKFLOW,
     TRACKING_CLOTH_QUERY_PORTFOLIO_WORKFLOW,
     DOT_ROPE_QUERY_SELECTIVE_SOURCE_SUPPORT_V2_EXECUTION_WORKFLOW,
-    DEFORM_DLO45_SOURCE_CALIBRATED_QUERY_COVARIANCE_WORKFLOW,
 )
 
 for _name, _value in vars(POLICY).items():
