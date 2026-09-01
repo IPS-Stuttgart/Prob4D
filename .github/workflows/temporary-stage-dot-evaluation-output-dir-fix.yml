@@ -1,0 +1,49 @@
+name: Temporary stage DOT evaluator output-dir fix
+
+on:
+  push:
+    branches: [fix/dot-r04-r10-evaluation-output-dir-v1]
+    paths:
+      - ".github/workflows/temporary-stage-dot-evaluation-output-dir-fix.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out exact branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: fix/dot-r04-r10-evaluation-output-dir-v1
+          persist-credentials: true
+          clean: true
+      - name: Stage exact evaluator workflow fix as ordinary blob
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p tmp
+          source=.github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml
+          target=tmp/patched-dot-rope-cut3r-heldout-confirmation-v1.yml
+          cp "$source" "$target"
+          TARGET="$target" python - <<'PY'
+          import os
+          from pathlib import Path
+
+          path = Path(os.environ['TARGET'])
+          text = path.read_text(encoding='utf-8')
+          old = '          /usr/bin/mkdir -p "$root/provider" "$root/dataset" "$root/evaluation"\n'
+          new = '          /usr/bin/mkdir -p "$root/provider" "$root/dataset"\n'
+          if text.count(old) != 1:
+              raise SystemExit('expected exactly one premature evaluation-directory creation')
+          path.write_text(text.replace(old, new), encoding='utf-8')
+          PY
+          diff -u "$source" "$target" || test $? -eq 1
+          git diff --no-index --check "$source" "$target" || true
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "$target"
+          git commit -m 'Stage DOT evaluator output-dir workflow fix'
+          git push origin HEAD:fix/dot-r04-r10-evaluation-output-dir-v1
