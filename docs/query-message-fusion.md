@@ -210,27 +210,37 @@ Singular or duplicated query coordinates must first be reduced to an independent
 basis. Invalid anchors, negative information increments, incompatible query
 identities, incompatible priors, and weights summing above one fail closed.
 
-## Source-only DOT experiment to register next
+## Registered source-only DOT protocol
 
 The terminal routed-camera study found the intended rank-6 structure in only
-one of ten R11--R20 source sequences. The next experiment should therefore not
+one of ten R11--R20 source sequences. The content-addressed development protocol
+`protocols/dot-r11-r20-query-message-ci-source-v1.json` therefore does not
 condition eligibility on a fixed rank defect.
 
-R11--R20 are already opened and may be used for source development. A new
-protocol should:
+The protocol binds:
 
-1. form full-rank correlation-aware endpoint, centroid, and local-tangent query
-   posteriors from the sealed routed CUT3R predictions;
-2. convert each overlapping window to a prior-anchored message;
-3. compare dense known-dependence fusion where available, naive independent
-   addition, diagonal fusion, factor truncation, query-space CI, and exact
-   fallback;
-4. freeze query definitions, source-selected CI policy, support rules, and all
-   thresholds before any new confirmation access;
-5. require parity to the dense per-window query posterior, no duplicate-window
-   confidence gain, proper-score and coverage reporting, harmful accepted-update
-   accounting, and measured bytes/latency;
-6. keep R21--R30 closed until the source gate passes and reserve R31--R70.
+- the exact sealed routed CUT3R provider artifact from run `33552798863`;
+- the already-open source cohort R11--R20 and the unchanged R11--R20 archive
+  checksum;
+- the two overlapping windows and their identity-bound common anchor prior;
+- a gauge-insensitive centroid query and a gauge-sensitive adverse query;
+- equal-weight query-space CI as the primary source method, selected without
+  source outcomes;
+- dense/continuous, single-window, naive-independent, diagonal, pairwise-CI,
+  and exact-fallback comparators;
+- complete sequence as the independent unit; and
+- posterior parity, duplicate idempotence, RMSE, joint NLL, coverage and width,
+  harmful-update, byte, latency, and factor-rank-stratified endpoints.
+
+Protocol ID:
+
+```text
+50feac697139ab4b61942df8b4e32611fc0f41da2d29884ed81753dd73e77706
+```
+
+The protocol contains no execution request. R21--R30 confirmation and R31--R70
+reserve remain closed. Source completion cannot authorize confirmation; a
+separate one-shot protocol must be frozen before any confirmation access.
 
 The positive paper target is not “rank 6 occurs.” It is that a fixed
 query-message interface retains useful decision-relevant uncertainty across
