@@ -1,24 +1,24 @@
 {
-    "bayesian_phystwin_executed": false,
-    "causal4d_executed": false,
-    "claim_boundary": "Authorize one frozen held-out DOT confirmation on R04-R10 using source-frozen alpha=0.85. Provider predictions must seal before marker evaluation; R11-R70 remain unopened. No confirmation-side tuning, BayesianPhysTwin execution, Causal4D execution, deployment-safety claim, or state-of-the-art claim is authorized.",
-    "confirmation_sequences": [
-        "R04",
-        "R05",
-        "R06",
-        "R07",
-        "R08",
-        "R09",
-        "R10"
-    ],
-    "marker_evaluation_authorized": true,
-    "normal_view_prediction_authorized": true,
-    "protocol_git_blob_sha": "3c15531e94e4df7de20089d806b3209789f3ee3e",
-    "protocol_path": "protocols/dot-rope-cut3r-heldout-confirmation-v1.json",
-    "request_id": "62d64df1b1b72f2b2aff0b17cf4c7aad245150f9fa1ff67712eedc0f4e109ce6",
-    "reserved_sequences": "R11-R70",
-    "schema": "prob4d.dot-rope-cut3r-heldout-confirmation-request",
-    "schema_version": 1,
-    "selected_alpha": 0.85,
-    "source_calibration_id": "943339ac864fda04cc59081bc81a605576b3c90bf0aa996aea00b00335cfc0c7"
+  "bayesian_phystwin_executed": false,
+  "causal4d_executed": false,
+  "claim_boundary": "Authorize one frozen held-out DOT confirmation on R04-R10 using source-frozen alpha=0.85. Provider predictions must seal before marker evaluation; R11-R70 remain unopened. No confirmation-side tuning, BayesianPhysTwin execution, Causal4D execution, deployment-safety claim, or state-of-the-art claim is authorized.",
+  "confirmation_sequences": [
+    "R04",
+    "R05",
+    "R06",
+    "R07",
+    "R08",
+    "R09",
+    "R10"
+  ],
+  "marker_evaluation_authorized": true,
+  "normal_view_prediction_authorized": true,
+  "protocol_git_blob_sha": "3c15531e94e4df7de20089d806b3209789f3ee3e",
+  "protocol_path": "protocols/dot-rope-cut3r-heldout-confirmation-v1.json",
+  "request_id": "62d64df1b1b72f2b2aff0b17cf4c7aad245150f9fa1ff67712eedc0f4e109ce6",
+  "reserved_sequences": "R11-R70",
+  "schema": "prob4d.dot-rope-cut3r-heldout-confirmation-request",
+  "schema_version": 1,
+  "selected_alpha": 0.85,
+  "source_calibration_id": "943339ac864fda04cc59081bc81a605576b3c90bf0aa996aea00b00335cfc0c7"
 }
