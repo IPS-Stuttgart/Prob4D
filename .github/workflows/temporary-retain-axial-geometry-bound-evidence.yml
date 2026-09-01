@@ -1,0 +1,110 @@
+name: Temporary retain axial geometry-bound evidence
+
+on:
+  push:
+    branches:
+      - research/robust-orbit-identifiability-v1
+    paths:
+      - ".github/workflows/temporary-retain-axial-geometry-bound-evidence.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: temporary-retain-axial-geometry-bound-evidence
+  cancel-in-progress: false
+
+env:
+  OUTPUT_DIR: outputs/axial-orbit-geometric-error-control-v1
+  EVIDENCE_DIR: evidence/axial-orbit-geometric-error-control-v1
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+
+jobs:
+  validate-and-retain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: true
+          clean: true
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install exact development environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check -e ".[dev]"
+          python -m pip check
+      - name: Validate and execute complete geometric-bound control
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m ruff check \
+            src/prob4d/axial_orbit_geometry_bound.py \
+            scripts/science/run_axial_orbit_geometric_error_control.py \
+            tests/test_axial_orbit_geometry_bound.py \
+            tests/test_axial_orbit_geometry_control.py
+          python -m ruff format --check \
+            src/prob4d/axial_orbit_geometry_bound.py \
+            scripts/science/run_axial_orbit_geometric_error_control.py \
+            tests/test_axial_orbit_geometry_bound.py \
+            tests/test_axial_orbit_geometry_control.py
+          python -m mypy src/prob4d/axial_orbit_geometry_bound.py
+          python -m pytest -q \
+            tests/test_axial_orbit_geometry_bound.py \
+            tests/test_axial_orbit_geometry_control.py \
+            tests/test_robust_orbit_query.py
+          rm -rf "$OUTPUT_DIR"
+          python scripts/science/run_axial_orbit_geometric_error_control.py \
+            --protocol protocols/axial-orbit-geometric-error-control-v1.json \
+            --output "$OUTPUT_DIR/result.json"
+      - name: Verify and retain result
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          output = Path(os.environ["OUTPUT_DIR"])
+          result = json.loads((output / "result.json").read_text())
+          assert result["decision"] == "passed"
+          assert all(result["registered_checks"].values())
+          assert result["case_count"] == 5000
+          assert result["maximum_operator_bound_violation"] <= 1e-12
+          assert result["actual_to_bound_ratio_quantiles"]["q100"] <= 1.000000000001
+          evidence = Path(os.environ["EVIDENCE_DIR"])
+          if evidence.exists():
+              raise SystemExit("evidence directory already exists")
+          evidence.mkdir(parents=True)
+          (evidence / "result.json").write_bytes((output / "result.json").read_bytes())
+          (evidence / "summary.md").write_bytes((output / "result.md").read_bytes())
+          receipt = {
+              "schema": "prob4d.axial-orbit-geometric-error-retention.v1",
+              "workflow_run_id": int(os.environ["GITHUB_RUN_ID"]),
+              "workflow_run_attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
+              "repository_revision": os.environ["GITHUB_SHA"],
+              "artifact_id": result["artifact_id"],
+              "protocol_sha256": result["protocol_sha256"],
+              "decision": result["decision"],
+              "all_registered_checks_passed": all(result["registered_checks"].values()),
+          }
+          (evidence / "retention.json").write_text(
+              json.dumps(receipt, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$EVIDENCE_DIR"
+          git commit -m "Retain axial geometric error-bound control"
+          git push origin HEAD:research/robust-orbit-identifiability-v1
