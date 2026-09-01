@@ -134,11 +134,7 @@ def _load_parent(protocol: dict[str, Any], protocol_path: Path) -> dict[str, Any
 
 
 def _tokens(path: str) -> set[str]:
-    return {
-        token
-        for token in re.split(r"[^a-z0-9]+", path.casefold())
-        if token
-    }
+    return {token for token in re.split(r"[^a-z0-9]+", path.casefold()) if token}
 
 
 def _material_and_size(relative_path: str) -> tuple[str, str]:
@@ -265,9 +261,7 @@ def run(args: argparse.Namespace) -> int:
         [recording.path for recording in source],
         protocol["marker_support"]["maximum_common_marker_count"],
     )
-    expected_labels = protocol["marker_support"]["source_header_audit"][
-        "allowed_A2_common_labels"
-    ]
+    expected_labels = protocol["marker_support"]["source_header_audit"]["allowed_A2_common_labels"]
     if marker_names != expected_labels:
         raise ValueError("source common marker labels changed")
     source_samples, source_metadata = base._collect_source_samples(
@@ -338,8 +332,7 @@ def run(args: argparse.Namespace) -> int:
         return 2
 
     groups = [
-        base._evaluate_recording(recording, marker_triplet, effective)
-        for recording in target
+        base._evaluate_recording(recording, marker_triplet, effective) for recording in target
     ]
     for group, recording in zip(groups, target, strict=True):
         material, size = _material_and_size(recording.relative_path)
@@ -383,9 +376,7 @@ def run(args: argparse.Namespace) -> int:
     }
     result["result_id"] = _sha256(result)
     _write_json(output_dir / "result.json", result)
-    (output_dir / "summary.md").write_text(
-        _summary(result, base, marker_triplet), encoding="utf-8"
-    )
+    (output_dir / "summary.md").write_text(_summary(result, base, marker_triplet), encoding="utf-8")
     _write_json(
         output_dir / "inventory.json",
         {
