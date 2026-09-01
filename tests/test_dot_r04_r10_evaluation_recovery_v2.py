@@ -160,8 +160,7 @@ def test_recovery_uses_explicit_current_control_request_checkout() -> None:
 
     assert (
         "CONTROL_REQUEST_PATH: "
-        "control/protocols/execution_requests/dot_r04_r10_evaluation_recovery_v2.json"
-        in recover
+        "control/protocols/execution_requests/dot_r04_r10_evaluation_recovery_v2.json" in recover
     )
     assert "ref: ${{ github.sha }}" in control_checkout
     assert "path: control" in control_checkout
