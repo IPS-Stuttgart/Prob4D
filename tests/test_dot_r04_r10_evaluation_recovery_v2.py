@@ -118,3 +118,17 @@ def test_recovery_preserves_frozen_scientific_decision_mapping() -> None:
     assert '"scientific_inputs_changed": False' in text
     assert '"r11_r70_opened": False' in text
     assert "verify_dot_rope_cut3r_heldout_result.py" in text
+
+
+def test_recovery_authorization_checkout_fetches_base_commit() -> None:
+    text = WORKFLOW.read_text(encoding="utf-8")
+    inspect = text[text.index("\n  inspect:") : text.index("\n  recover:")]
+    checkout = inspect[
+        inspect.index("Check out exact merged recovery revision") : inspect.index(
+            "Require ordinary main request change"
+        )
+    ]
+
+    assert "fetch-depth: 0" in checkout
+    assert "BASE_SHA: ${{ github.event.before }}" in inspect
+    assert 'git diff-tree --no-commit-id --name-only -r "$BASE_SHA" "$HEAD_SHA"' in inspect
