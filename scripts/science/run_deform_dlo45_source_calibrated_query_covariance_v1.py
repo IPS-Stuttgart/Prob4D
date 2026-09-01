@@ -19,10 +19,9 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-import numpy as np
-
 import audit_deform_dlo45_observability_v1 as base
 import evaluate_deform_dlo45_query_observability_v1 as original
+import numpy as np
 
 PROTOCOL_SCHEMA = "prob4d.deform-dlo45-source-calibrated-query-covariance.v1"
 REQUEST_SCHEMA = "prob4d.deform-dlo45-source-calibrated-query-covariance-request.v1"
@@ -308,9 +307,7 @@ def source_calibrate(
             + 0.5
             * (
                 3.0 * math.log(inflation)
-                + 3.0
-                * float(row["normalized_nees"])
-                * (1.0 / inflation - 1.0)
+                + 3.0 * float(row["normalized_nees"]) * (1.0 / inflation - 1.0)
             )
         )
 
@@ -367,13 +364,10 @@ def inflate_metrics(row: dict[str, Any], inflation: float) -> dict[str, float | 
     values = np.asarray(row["_nees_values"], dtype=np.float64)
     result = stripped(row)
     result["mean_gaussian_nll"] = float(row["mean_gaussian_nll"]) + 0.5 * (
-        3.0 * math.log(inflation)
-        + 3.0 * float(row["normalized_nees"]) * (1.0 / inflation - 1.0)
+        3.0 * math.log(inflation) + 3.0 * float(row["normalized_nees"]) * (1.0 / inflation - 1.0)
     )
     result["normalized_nees"] = float(row["normalized_nees"]) / inflation
-    result["empirical_90pct_coverage"] = float(
-        np.mean(values <= CHI2_3_90 * inflation)
-    )
+    result["empirical_90pct_coverage"] = float(np.mean(values <= CHI2_3_90 * inflation))
     result["mean_marginal_standard_deviation_mm"] = float(
         row["mean_marginal_standard_deviation_mm"]
     ) * math.sqrt(inflation)
@@ -410,14 +404,11 @@ def aggregate(groups: dict[str, dict[str, dict[str, dict[str, Any]]]], protocol:
                 )
             result[query][method] = method_result
         raw = [value[query]["raw_query_aware"] for value in groups.values()]
-        calibrated = [
-            value[query]["source_calibrated_query_aware"] for value in groups.values()
-        ]
+        calibrated = [value[query]["source_calibrated_query_aware"] for value in groups.values()]
         result[query]["paired_calibrated_vs_raw"] = {
             "nll_improvement": original.mean_ci(
                 [
-                    float(first["mean_gaussian_nll"])
-                    - float(second["mean_gaussian_nll"])
+                    float(first["mean_gaussian_nll"]) - float(second["mean_gaussian_nll"])
                     for first, second in zip(raw, calibrated, strict=True)
                 ],
                 seed=original.stable_seed(seed, f"{query}/calibrated-vs-raw/nll"),
@@ -480,9 +471,7 @@ def target_evaluate(
             groups[group][query] = {
                 "physical_fallback": stripped(fallback),
                 "raw_query_aware": stripped(query_aware),
-                "source_calibrated_query_aware": inflate_metrics(
-                    query_aware, inflation
-                ),
+                "source_calibrated_query_aware": inflate_metrics(query_aware, inflation),
             }
     summary = aggregate(groups, protocol)
     reproduction = expected_raw_reproduction(summary, protocol)
@@ -491,14 +480,10 @@ def target_evaluate(
         return float(summary["segment_centroid"][method][name]["mean"])
 
     raw_coverage = metric("raw_query_aware", "empirical_90pct_coverage")
-    calibrated_coverage = metric(
-        "source_calibrated_query_aware", "empirical_90pct_coverage"
-    )
+    calibrated_coverage = metric("source_calibrated_query_aware", "empirical_90pct_coverage")
     raw_nees = metric("raw_query_aware", "normalized_nees")
     calibrated_nees = metric("source_calibrated_query_aware", "normalized_nees")
-    paired = summary["segment_centroid"]["paired_calibrated_vs_raw"][
-        "nll_improvement"
-    ]
+    paired = summary["segment_centroid"]["paired_calibrated_vs_raw"]["nll_improvement"]
     coverage_band = protocol["inference"]["target_coverage_acceptance_band"]
     nees_band = protocol["inference"]["target_normalized_nees_acceptance_band"]
     criteria = {
@@ -513,13 +498,12 @@ def target_evaluate(
             abs_tol=1e-12,
         ),
         "off_axis_rejections_remain_exact_fallback": float(
-            summary["off_axis_probe"]["source_calibrated_query_aware"]
-            ["exact_fallback_fraction"]["mean"]
+            summary["off_axis_probe"]["source_calibrated_query_aware"]["exact_fallback_fraction"][
+                "mean"
+            ]
         )
         == 1.0,
-        "centroid_nll_improves": metric(
-            "source_calibrated_query_aware", "mean_gaussian_nll"
-        )
+        "centroid_nll_improves": metric("source_calibrated_query_aware", "mean_gaussian_nll")
         < metric("raw_query_aware", "mean_gaussian_nll"),
         "paired_centroid_nll_lower_95_is_positive": float(paired["ci95_lower"]) > 0.0,
         "centroid_nll_still_beats_fallback": metric(
@@ -528,8 +512,7 @@ def target_evaluate(
         < metric("physical_fallback", "mean_gaussian_nll"),
         "centroid_coverage_moves_closer_to_90pct": abs(calibrated_coverage - 0.9)
         < abs(raw_coverage - 0.9),
-        "centroid_nees_moves_closer_to_one": abs(calibrated_nees - 1.0)
-        < abs(raw_nees - 1.0),
+        "centroid_nees_moves_closer_to_one": abs(calibrated_nees - 1.0) < abs(raw_nees - 1.0),
         "centroid_coverage_in_registered_band": float(coverage_band[0])
         <= calibrated_coverage
         <= float(coverage_band[1]),
@@ -632,10 +615,7 @@ def make_summary(result: dict[str, Any]) -> str:
         ("Centroid normalized NEES", "normalized_nees"),
         ("Centroid marginal SD [mm]", "mean_marginal_standard_deviation_mm"),
     ):
-        values = [
-            float(centroid[method][metric]["mean"])
-            for method in METHODS
-        ]
+        values = [float(centroid[method][metric]["mean"]) for method in METHODS]
         rows.append(f"| {label} | {values[0]:.6f} | {values[1]:.6f} | {values[2]:.6f} |")
     rows.extend(
         [

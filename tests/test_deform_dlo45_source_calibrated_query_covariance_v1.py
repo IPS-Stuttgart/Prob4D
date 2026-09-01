@@ -12,13 +12,9 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts/science/run_deform_dlo45_source_calibrated_query_covariance_v1.py"
 PROTOCOL = ROOT / "protocols/deform-dlo45-source-calibrated-query-covariance-v1.json"
 REQUEST = (
-    ROOT
-    / "protocols/execution_requests/deform_dlo45_source_calibrated_query_covariance_v1.json"
+    ROOT / "protocols/execution_requests/deform_dlo45_source_calibrated_query_covariance_v1.json"
 )
-WORKFLOW = (
-    ROOT
-    / ".github/workflows/deform-dlo45-source-calibrated-query-covariance-v1.yml"
-)
+WORKFLOW = ROOT / ".github/workflows/deform-dlo45-source-calibrated-query-covariance-v1.yml"
 
 
 def _module():
