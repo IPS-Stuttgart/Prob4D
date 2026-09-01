@@ -2,8 +2,8 @@
 
 The historical policy implementation is retained byte-for-byte in the adjacent
 non-test module. This wrapper adds the separately reviewed DOT R11--R30,
-DOT R04--R10 recovery/relay, and Tracking-Cloth query-portfolio workflows
-before exposing the original test functions to pytest.
+DOT R04--R10 recovery/relay/camera-audit, and Tracking-Cloth query-portfolio
+workflows before exposing the original test functions to pytest.
 """
 
 from __future__ import annotations
@@ -29,6 +29,9 @@ DOT_ROPE_R04_R10_ARCHIVE_RECOVERY_V2_WORKFLOW = (
 DOT_ROPE_R04_R10_HOSTED_ARCHIVE_RELAY_WORKFLOW = (
     POLICY.WORKFLOW_ROOT / "relay-dot-r04-r10-archive-v1.yml"
 )
+DOT_R04_R10_CAMERA_SUPPORT_AUDIT_WORKFLOW = (
+    POLICY.WORKFLOW_ROOT / "dot-r04-r10-camera-support-audit-v1.yml"
+)
 TRACKING_CLOTH_QUERY_PORTFOLIO_WORKFLOW = (
     POLICY.WORKFLOW_ROOT / "tracking-cloth-query-portfolio-v1.yml"
 )
@@ -37,6 +40,7 @@ POLICY.TRUSTED_SELF_HOSTED_WORKFLOWS = (
     DOT_ROPE_QUERY_SELECTIVE_HELDOUT_WORKFLOW,
     DOT_ROPE_R04_R10_ARCHIVE_RECOVERY_V2_WORKFLOW,
     DOT_ROPE_R04_R10_HOSTED_ARCHIVE_RELAY_WORKFLOW,
+    DOT_R04_R10_CAMERA_SUPPORT_AUDIT_WORKFLOW,
     TRACKING_CLOTH_QUERY_PORTFOLIO_WORKFLOW,
 )
 
