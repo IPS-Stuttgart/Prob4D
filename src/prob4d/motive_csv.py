@@ -108,11 +108,7 @@ def _layout_from_rows(rows: Sequence[Sequence[str]], delimiter: str) -> MotiveLa
             if len(header[index]) >= 5
             and header[index][0].strip().casefold().startswith("frame")
             and "time" in header[index][1].strip().casefold()
-            and sum(
-                cell.strip().upper() in {"X", "Y", "Z"}
-                for cell in header[index][2:]
-            )
-            >= 3
+            and sum(cell.strip().upper() in {"X", "Y", "Z"} for cell in header[index][2:]) >= 3
         ),
         None,
     )
@@ -145,23 +141,21 @@ def _layout_from_rows(rows: Sequence[Sequence[str]], delimiter: str) -> MotiveLa
             header[type_index][column + offset].strip().casefold() for offset in range(3)
         )
         quantities = tuple(
-            header[position_index][column + offset].strip().casefold()
-            for offset in range(3)
+            header[position_index][column + offset].strip().casefold() for offset in range(3)
         )
-        axes = tuple(
-            header[axis_index][column + offset].strip().upper() for offset in range(3)
-        )
-        if marker_types == ("marker", "marker", "marker") and quantities == (
-            "position",
-            "position",
-            "position",
-        ) and axes == ("X", "Y", "Z"):
-            labels = {
-                header[label_index][column + offset].strip() for offset in range(3)
-            }
-            unique_ids = {
-                header[unique_id_index][column + offset].strip() for offset in range(3)
-            }
+        axes = tuple(header[axis_index][column + offset].strip().upper() for offset in range(3))
+        if (
+            marker_types == ("marker", "marker", "marker")
+            and quantities
+            == (
+                "position",
+                "position",
+                "position",
+            )
+            and axes == ("X", "Y", "Z")
+        ):
+            labels = {header[label_index][column + offset].strip() for offset in range(3)}
+            unique_ids = {header[unique_id_index][column + offset].strip() for offset in range(3)}
             if len(labels) != 1 or len(unique_ids) != 1:
                 raise ValueError("Motive marker triple has inconsistent identity cells")
             label = next(iter(labels))
@@ -301,15 +295,19 @@ def read_motive_markers(
     coordinates = np.asarray(frames, dtype=np.float64)
     scale = _unit_scale_to_mm(layout.length_units, coordinates)
     result = coordinates * scale
-    return result, scale, {
-        "delimiter": "tab" if delimiter == "\t" else delimiter,
-        "rows": int(result.shape[0]),
-        "header_rows": layout.header_row_count,
-        "data_start_row_zero_based": layout.data_start_row,
-        "length_units": layout.length_units,
-        "available_marker_count": len(layout.markers),
-        "selected_marker_labels": requested,
-        "first_frame_number": frame_numbers[0],
-        "last_frame_number": frame_numbers[-1],
-        "parser": "strict-motive-multirow-marker-v1",
-    }
+    return (
+        result,
+        scale,
+        {
+            "delimiter": "tab" if delimiter == "\t" else delimiter,
+            "rows": int(result.shape[0]),
+            "header_rows": layout.header_row_count,
+            "data_start_row_zero_based": layout.data_start_row,
+            "length_units": layout.length_units,
+            "available_marker_count": len(layout.markers),
+            "selected_marker_labels": requested,
+            "first_frame_number": frame_numbers[0],
+            "last_frame_number": frame_numbers[-1],
+            "parser": "strict-motive-multirow-marker-v1",
+        },
+    )
