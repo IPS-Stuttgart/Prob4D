@@ -13,8 +13,8 @@ result is uninformative and its radius upper bound is infinite.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import math
+from dataclasses import dataclass
 from typing import TypeAlias
 
 import numpy as np
