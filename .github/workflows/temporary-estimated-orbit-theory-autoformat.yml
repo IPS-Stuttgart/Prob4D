@@ -1,0 +1,40 @@
+name: Temporary estimated-orbit theory autoformat
+
+on:
+  push:
+    branches:
+      - research/tracking-cloth-estimated-orbit-robustness-v1
+    paths:
+      - ".github/workflows/temporary-estimated-orbit-theory-autoformat.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  format-and-self-delete:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: true
+          clean: true
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Format, lint-fix, and self-delete
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check "ruff==0.12.12"
+          python -m ruff check --fix \
+            src/prob4d/orbit_identifiability.py \
+            tests/test_orbit_identifiability.py
+          python -m ruff format \
+            src/prob4d/orbit_identifiability.py \
+            tests/test_orbit_identifiability.py
+          rm .github/workflows/temporary-estimated-orbit-theory-autoformat.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Format robust orbit-identifiability certificate"
+          git push origin HEAD:research/tracking-cloth-estimated-orbit-robustness-v1
