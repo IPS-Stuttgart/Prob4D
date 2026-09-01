@@ -1,0 +1,20 @@
+{
+  "decision": "controlled-overlap-passed",
+  "protocol_id": "7425758b5fbe7c0ae7f22bf3cfaa207746bf60881beb59a0c421ff362651b6cf",
+  "result_id": "551e93bbf503909114177cd9607ceaa9743a8abf7dc5ad07e91a065bf9932da9",
+  "summary": {
+    "ci_improves_over_either_single_window": true,
+    "ci_maximum_normalized_nees": 0.9144093529641725,
+    "ci_minimum_coverage": 0.9214019775390625,
+    "exact_joint_maximum_coverage_error": 0.002386474609375022,
+    "exact_joint_maximum_normalized_nees_error": 0.0046592497125429455,
+    "maximum_api_covariance_error": 0.0,
+    "maximum_api_mean_error": 8.881784197001252e-16,
+    "maximum_duplicate_covariance_error": 0.0,
+    "maximum_duplicate_mean_error": 0.0,
+    "maximum_message_information_error": 0.0,
+    "maximum_message_natural_error": 8.881784197001252e-16,
+    "naive_high_correlation_maximum_coverage": 0.729278564453125,
+    "naive_high_correlation_minimum_normalized_nees": 1.5976369159656016
+  }
+}
