@@ -132,3 +132,20 @@ def test_recovery_authorization_checkout_fetches_base_commit() -> None:
     assert "fetch-depth: 0" in checkout
     assert "BASE_SHA: ${{ github.event.before }}" in inspect
     assert 'git diff-tree --no-commit-id --name-only -r "$BASE_SHA" "$HEAD_SHA"' in inspect
+
+
+def test_recovery_log_redirect_does_not_forward_github_credentials() -> None:
+    text = WORKFLOW.read_text(encoding="utf-8")
+    inspect = text[text.index("\n  inspect:") : text.index("\n  recover:")]
+
+    assert "import urllib.parse" in inspect
+    assert "class CrossOriginSafeRedirectHandler" in inspect
+    assert 'if target.scheme != "https":' in inspect
+    assert '"authorization"' in inspect
+    assert '"x-github-api-version"' in inspect
+    assert "if key.lower() in sensitive:" in inspect
+    assert "redirected.remove_header(key)" in inspect
+    assert (
+        "urllib.request.build_opener(CrossOriginSafeRedirectHandler())" in inspect
+    )
+    assert "urllib.request.urlopen(log_request, timeout=120)" not in inspect
