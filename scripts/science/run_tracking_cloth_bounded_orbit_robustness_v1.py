@@ -32,12 +32,12 @@ from prob4d.bounded_axial_orbit import (
 )
 from prob4d.motive_csv import read_motive_markers
 
-PROTOCOL_ID = "5034c1affda01d93c475078a52126113d6c938973692f544abb665b473a5861c"
+PROTOCOL_ID = "6b372b78329a809aee508a68ffd51abeb945fc941c0db29ca996459ddf52f711"
 PROTOCOL_SCHEMA = "prob4d.tracking-cloth-bounded-orbit-robustness.v1"
 RESULT_SCHEMA = "prob4d.tracking-cloth-bounded-orbit-robustness-result.v1"
 SOURCE_SEAL_SCHEMA = "prob4d.tracking-cloth-bounded-orbit-source-seal.v1"
 PARENT_PROTOCOL_ID = "9c0fb1a4191743a5038a2f26e521db1640fd5abfc3cac389e851485b7836a472"
-PARENT_PROTOCOL_BLOB = "87c902740221285858942350e489349832044309"
+PARENT_PROTOCOL_BLOB = "2b82734df4292d2c47328828e2307942347ca2a7"
 PARENT_RESULT_ID = "1441a141a8eccc1ae3a503c701c72e8d702a0bcb17226238f3d32effa3e58111"
 MARKER_TRIPLET = ("1", "20", "5")
 SOURCE_PATTERN = re.compile(

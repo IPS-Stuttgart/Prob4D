@@ -3,7 +3,7 @@
   "evidence_kind": "post-primary-bounded-generator-robustness-on-public-real-trajectories",
   "parent_result": {
     "protocol_path": "protocols/tracking-cloth-finite-orbit-real-v3.json",
-    "protocol_git_blob_sha1": "87c902740221285858942350e489349832044309",
+    "protocol_git_blob_sha1": "2b82734df4292d2c47328828e2307942347ca2a7",
     "protocol_id": "9c0fb1a4191743a5038a2f26e521db1640fd5abfc3cac389e851485b7836a472",
     "run_id": 33534703640,
     "artifact_id": 9811148956,
@@ -96,5 +96,5 @@
     "deployment_safety": false,
     "state_of_the_art": false
   },
-  "protocol_id": "5034c1affda01d93c475078a52126113d6c938973692f544abb665b473a5861c"
+  "protocol_id": "6b372b78329a809aee508a68ffd51abeb945fc941c0db29ca996459ddf52f711"
 }
