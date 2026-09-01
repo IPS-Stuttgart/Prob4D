@@ -1,0 +1,456 @@
+# workflow-lifecycle: temporary
+# workflow-owner: IPS-Stuttgart maintainers
+name: Temporary recover DOT R04-R10 hosted evaluation v1
+
+on:
+  push:
+    branches: [fix/dot-r04-r10-hosted-evaluation-v1]
+    paths:
+      - "triggers/dot-r04-r10-hosted-evaluation-v1.txt"
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: temporary-dot-r04-r10-hosted-evaluation-v1
+  cancel-in-progress: false
+
+env:
+  SOURCE_RUN_ID: "33500239597"
+  SOURCE_HEAD_SHA: b85dd8e8adb68ffb289868731222151968940317
+  SOURCE_PROVIDER_JOB_ID: "99831732392"
+  SOURCE_EVALUATION_JOB_ID: "99832885343"
+  PROVIDER_ARTIFACT_ID: "9797527843"
+  PROVIDER_ARTIFACT_NAME: dot-rope-cut3r-heldout-provider-gpuserver6000-62d64df1b1b72f2b2aff0b17cf4c7aad245150f9fa1ff67712eedc0f4e109ce6
+  PROVIDER_ARTIFACT_DIGEST: sha256:45cccd5b6f7b7d671cfc86fbcb27232d29faf5dafdeee8d0ea5a9c45ce42ae7c
+  PROVIDER_BUNDLE_ID: 57dc11d9e39258a2f620d67e39f1176cafe74252173ead8cb4ba2f76083499ec
+  REQUEST_ID: 62d64df1b1b72f2b2aff0b17cf4c7aad245150f9fa1ff67712eedc0f4e109ce6
+  PROTOCOL_PATH: protocols/dot-rope-cut3r-heldout-confirmation-v1.json
+  ARCHIVE_NAME: R01-10.zip
+  ARCHIVE_MD5: ca546ff5f22c0279123ccb18509858ee
+  DATASET_API: https://dataverse.orc.gmu.edu/api/datasets/:persistentId/?persistentId=doi:10.13021/ORC2020/XXLVXM
+  DATAFILE_API_ROOT: https://dataverse.orc.gmu.edu/api/access/datafile
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+
+jobs:
+  recover:
+    name: Reuse sealed provider and score frozen R04-R10 protocol
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - name: Check out exact recovery branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: fix/dot-r04-r10-hosted-evaluation-v1
+          fetch-depth: 0
+          persist-credentials: true
+          clean: true
+
+      - name: Check out exact frozen evaluator revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: IPS-Stuttgart/Prob4D
+          ref: ${{ env.SOURCE_HEAD_SHA }}
+          path: frozen
+          persist-credentials: false
+          clean: true
+
+      - name: Set up scientific Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: frozen/pyproject.toml
+
+      - name: Install exact frozen repository package
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -e ./frozen
+          python -m pip check
+
+      - name: Verify exact failed evaluation boundary and immutable provider artifact
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          import urllib.request
+          from pathlib import Path
+          from typing import Any
+
+          api = os.environ["GITHUB_API_URL"].rstrip("/")
+          repo = os.environ["GITHUB_REPOSITORY"]
+          headers = {
+              "Accept": "application/vnd.github+json",
+              "Authorization": f"Bearer {os.environ['GH_TOKEN']}",
+              "User-Agent": "Prob4D-DOT-R04-hosted-evaluation-recovery/1",
+              "X-GitHub-Api-Version": "2022-11-28",
+          }
+
+          def get(path: str) -> dict[str, Any]:
+              request = urllib.request.Request(f"{api}/repos/{repo}{path}", headers=headers)
+              with urllib.request.urlopen(request, timeout=60) as response:
+                  return json.load(response)
+
+          run_id = int(os.environ["SOURCE_RUN_ID"])
+          run = get(f"/actions/runs/{run_id}")
+          expected_run = {
+              "id": run_id,
+              "head_sha": os.environ["SOURCE_HEAD_SHA"],
+              "path": ".github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml",
+              "head_branch": "main",
+              "event": "push",
+              "status": "completed",
+              "conclusion": "failure",
+              "run_attempt": 1,
+          }
+          for key, expected in expected_run.items():
+              if run.get(key) != expected:
+                  raise SystemExit(f"source run metadata changed: {key}")
+
+          jobs = get(f"/actions/runs/{run_id}/jobs?per_page=100").get("jobs", [])
+          by_id = {int(job["id"]): job for job in jobs}
+          provider = by_id.get(int(os.environ["SOURCE_PROVIDER_JOB_ID"]))
+          evaluator = by_id.get(int(os.environ["SOURCE_EVALUATION_JOB_ID"]))
+          if provider is None or evaluator is None:
+              raise SystemExit("source provider/evaluator job identity is unavailable")
+          if provider.get("name") != "Seal marker-free R04-R10 CUT3R predictions on gpuserver6000":
+              raise SystemExit("source provider job name changed")
+          if provider.get("conclusion") != "success":
+              raise SystemExit("source provider is not successful")
+          if evaluator.get("name") != "Evaluate R04-R10 markers only after provider seal":
+              raise SystemExit("source evaluator job name changed")
+          if evaluator.get("conclusion") != "failure":
+              raise SystemExit("source evaluator is not the exact failed job")
+
+          provider_steps = {step.get("name"): step.get("conclusion") for step in provider.get("steps") or []}
+          for name in (
+              "Predict from marker-free normal-view images only",
+              "Seal provider bundle before any marker access",
+              "Upload immutable provider seal before marker evaluation",
+          ):
+              if provider_steps.get(name) != "success":
+                  raise SystemExit(f"provider boundary step changed: {name}")
+
+          evaluation_steps = {step.get("name"): step.get("conclusion") for step in evaluator.get("steps") or []}
+          expected_evaluation_steps = {
+              "Verify provider seal before downloading marker archive": "success",
+              "Download and verify official R01-R10 marker archive": "success",
+              "Evaluate the frozen alpha and comparators": "failure",
+              "Independently verify and classify the held-out result": "failure",
+          }
+          for name, expected in expected_evaluation_steps.items():
+              if evaluation_steps.get(name) != expected:
+                  raise SystemExit(f"evaluation failure boundary changed: {name}")
+
+          artifacts = get(f"/actions/runs/{run_id}/artifacts?per_page=100").get("artifacts", [])
+          matches = [item for item in artifacts if item.get("name") == os.environ["PROVIDER_ARTIFACT_NAME"]]
+          if len(matches) != 1:
+              raise SystemExit("provider artifact is missing or ambiguous")
+          artifact = matches[0]
+          expected_artifact = {
+              "id": int(os.environ["PROVIDER_ARTIFACT_ID"]),
+              "digest": os.environ["PROVIDER_ARTIFACT_DIGEST"],
+              "expired": False,
+          }
+          for key, expected in expected_artifact.items():
+              if artifact.get(key) != expected:
+                  raise SystemExit(f"provider artifact metadata changed: {key}")
+          source = artifact.get("workflow_run") or {}
+          if int(source.get("id", -1)) != run_id or source.get("head_sha") != os.environ["SOURCE_HEAD_SHA"]:
+              raise SystemExit("provider artifact source identity changed")
+
+          receipt = {
+              "schema": "prob4d.dot-r04-r10-hosted-evaluation-recovery-inspection",
+              "schema_version": 1,
+              "source_run_id": run_id,
+              "source_head_sha": os.environ["SOURCE_HEAD_SHA"],
+              "source_provider_job_id": int(os.environ["SOURCE_PROVIDER_JOB_ID"]),
+              "source_evaluation_job_id": int(os.environ["SOURCE_EVALUATION_JOB_ID"]),
+              "provider_artifact_id": int(os.environ["PROVIDER_ARTIFACT_ID"]),
+              "provider_artifact_name": os.environ["PROVIDER_ARTIFACT_NAME"],
+              "provider_artifact_digest": os.environ["PROVIDER_ARTIFACT_DIGEST"],
+              "provider_rerun": False,
+              "scientific_inputs_changed": False,
+              "recovery_scope": "hosted evaluation only",
+          }
+          Path(os.environ["RUNNER_TEMP"], "dot-r04-evaluation-recovery-inspection.json").write_text(
+              json.dumps(receipt, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(receipt, indent=2, sort_keys=True))
+          PY
+
+      - name: Initialize isolated hosted evaluation workspace
+        id: workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/dot-r04-r10-hosted-evaluation-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          rm -rf -- "$root"
+          mkdir -p "$root/provider" "$root/dataset"
+          test ! -e "$root/evaluation"
+          echo "root=$root" >> "$GITHUB_OUTPUT"
+
+      - name: Download exact immutable provider artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ${{ env.PROVIDER_ARTIFACT_NAME }}
+          path: ${{ steps.workspace.outputs.root }}/provider
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.SOURCE_RUN_ID }}
+
+      - name: Reverify provider seal before reacquiring markers
+        shell: bash
+        env:
+          PROVIDER: ${{ steps.workspace.outputs.root }}/provider
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          provider = Path(os.environ["PROVIDER"])
+          manifest = json.loads((provider / "manifest.json").read_text(encoding="utf-8"))
+          seal = json.loads((provider / "provider-seal.json").read_text(encoding="utf-8"))
+          if manifest.get("request_id") != os.environ["REQUEST_ID"]:
+              raise SystemExit("provider request identity changed")
+          if manifest.get("provider_bundle_id") != os.environ["PROVIDER_BUNDLE_ID"]:
+              raise SystemExit("provider bundle identity changed")
+          if seal.get("provider_bundle_id") != os.environ["PROVIDER_BUNDLE_ID"]:
+              raise SystemExit("provider seal bundle identity changed")
+          if seal.get("markers_opened") is not False:
+              raise SystemExit("provider seal reports marker access")
+          unsigned = dict(seal)
+          supplied = unsigned.pop("seal_id")
+          encoded = json.dumps(unsigned, sort_keys=True, separators=(",", ":")).encode()
+          if hashlib.sha256(encoded).hexdigest() != supplied:
+              raise SystemExit("provider seal identity mismatch")
+          for row in seal["files"]:
+              path = provider / row["path"]
+              if not path.is_file() or path.stat().st_size != row["bytes"]:
+                  raise SystemExit(f"provider file size changed: {row['path']}")
+              if hashlib.sha256(path.read_bytes()).hexdigest() != row["sha256"]:
+                  raise SystemExit(f"provider file digest changed: {row['path']}")
+          boundary = manifest.get("information_boundary") or {}
+          if boundary.get("two_dimensional_markers_opened") is not False:
+              raise SystemExit("provider opened 2-D markers")
+          if boundary.get("three_dimensional_markers_opened") is not False:
+              raise SystemExit("provider opened 3-D markers")
+          PY
+
+      - name: Reacquire and verify exact official R01-R10 marker archive
+        shell: bash
+        env:
+          ARCHIVE_PATH: ${{ steps.workspace.outputs.root }}/dataset/R01-10.zip
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          import shutil
+          import urllib.request
+
+          metadata_request = urllib.request.Request(
+              os.environ["DATASET_API"],
+              headers={
+                  "Accept-Encoding": "identity",
+                  "User-Agent": "Prob4D-DOT-R04-hosted-evaluation-recovery/1",
+              },
+          )
+          with urllib.request.urlopen(metadata_request, timeout=60) as response:
+              metadata = json.load(response)
+          if metadata.get("status") != "OK":
+              raise SystemExit("Dataverse metadata request did not return OK")
+          files = metadata["data"]["latestVersion"]["files"]
+          matches = [
+              entry["dataFile"]
+              for entry in files
+              if entry["dataFile"].get("filename") == os.environ["ARCHIVE_NAME"]
+          ]
+          if len(matches) != 1:
+              raise SystemExit("official DOT archive identity is ambiguous")
+          data_file = matches[0]
+          checksum = data_file.get("checksum") or {}
+          if checksum.get("type") != "MD5" or checksum.get("value") != os.environ["ARCHIVE_MD5"]:
+              raise SystemExit("publisher DOT archive checksum changed")
+          expected_bytes = int(data_file["filesize"])
+          download = urllib.request.Request(
+              f"{os.environ['DATAFILE_API_ROOT']}/{data_file['id']}",
+              headers={
+                  "Accept-Encoding": "identity",
+                  "User-Agent": "Prob4D-DOT-R04-hosted-evaluation-recovery/1",
+              },
+          )
+          with urllib.request.urlopen(download, timeout=120) as response, open(
+              os.environ["ARCHIVE_PATH"], "wb"
+          ) as output:
+              shutil.copyfileobj(response, output, length=1024 * 1024)
+          if os.path.getsize(os.environ["ARCHIVE_PATH"]) != expected_bytes:
+              raise SystemExit("official archive byte count changed")
+          PY
+          printf '%s  %s\n' "$ARCHIVE_MD5" "$ARCHIVE_PATH" | md5sum --check --strict
+
+      - name: Evaluate unchanged frozen alpha and comparators
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          test ! -e "$root/evaluation"
+          python frozen/scripts/science/run_dot_rope_cut3r_heldout_confirmation.py \
+            evaluate \
+            --protocol "frozen/$PROTOCOL_PATH" \
+            --request-id "$REQUEST_ID" \
+            --prob4d-revision "$SOURCE_HEAD_SHA" \
+            --dataset-root "$root/dataset" \
+            --provider-bundle "$root/provider" \
+            --output-dir "$root/evaluation"
+          test -s "$root/evaluation/result.json"
+          test -s "$root/evaluation/marker-support.json"
+
+      - name: Independently verify and classify held-out result
+        id: classify
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          python frozen/scripts/science/verify_dot_rope_cut3r_heldout_result.py \
+            "$root/evaluation/result.json" \
+            --marker-support "$root/evaluation/marker-support.json" \
+            > "$root/evaluation/independent-verification.json"
+          ROOT="$root" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["ROOT"])
+          result = json.loads((root / "evaluation/result.json").read_text(encoding="utf-8"))
+          decision = result["decision"]
+          permitted = {
+              "heldout-strong-positive",
+              "heldout-directional-positive",
+              "heldout-mixed-or-negative",
+              "heldout-support-negative",
+          }
+          if decision not in permitted:
+              raise SystemExit(f"held-out decision is outside the scientific roster: {decision}")
+          result_id = result.get("evaluation_id") or result.get("result_id")
+          if not isinstance(result_id, str) or len(result_id) != 64:
+              raise SystemExit("held-out result identity is invalid")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"decision={decision}\n")
+              output.write(f"result_id={result_id}\n")
+          print(json.dumps({"decision": decision, "result_id": result_id}, indent=2))
+          PY
+          if [[ -f "$root/evaluation/SUMMARY.md" ]]; then
+            cat "$root/evaluation/SUMMARY.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Retain compact evidence and stage permanent no-clobber fixes
+        shell: bash
+        env:
+          DECISION: ${{ steps.classify.outputs.decision }}
+          RESULT_ID: ${{ steps.classify.outputs.result_id }}
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          destination=evidence/dot-rope/cut3r-heldout-confirmation-recovery-v1
+          test ! -e "$destination"
+          mkdir -p "$destination"
+          cp -a "$root/evaluation/." "$destination/"
+          cp "$RUNNER_TEMP/dot-r04-evaluation-recovery-inspection.json" \
+            "$destination/inspection.json"
+          python - <<'PY' > "$destination/execution.json"
+          import json
+          import os
+
+          print(json.dumps({
+              "schema": "prob4d.dot-r04-r10-hosted-evaluation-recovery",
+              "schema_version": 1,
+              "source_run_id": int(os.environ["SOURCE_RUN_ID"]),
+              "source_head_sha": os.environ["SOURCE_HEAD_SHA"],
+              "source_provider_job_id": int(os.environ["SOURCE_PROVIDER_JOB_ID"]),
+              "source_failed_evaluation_job_id": int(os.environ["SOURCE_EVALUATION_JOB_ID"]),
+              "provider_artifact_id": int(os.environ["PROVIDER_ARTIFACT_ID"]),
+              "provider_artifact_name": os.environ["PROVIDER_ARTIFACT_NAME"],
+              "provider_artifact_digest": os.environ["PROVIDER_ARTIFACT_DIGEST"],
+              "provider_bundle_id": os.environ["PROVIDER_BUNDLE_ID"],
+              "request_id": os.environ["REQUEST_ID"],
+              "frozen_evaluator_revision": os.environ["SOURCE_HEAD_SHA"],
+              "recovery_workflow_run_id": int(os.environ["GITHUB_RUN_ID"]),
+              "recovery_workflow_run_attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
+              "decision": os.environ["DECISION"],
+              "result_id": os.environ["RESULT_ID"],
+              "provider_rerun": False,
+              "provider_sealed_before_first_marker_access": True,
+              "scientific_inputs_changed": False,
+              "recovery_scope": "hosted evaluation only",
+              "dlo_r11_r70_opened": False,
+              "paper_claim_authorized": False,
+          }, indent=2, sort_keys=True))
+          PY
+          find "$destination" -maxdepth 1 -type f ! -name SHA256SUMS -print0 \
+            | sort -z \
+            | xargs -0 sha256sum \
+            > "$destination/SHA256SUMS"
+
+          python3 tmp/stage_dot_r04_r10_evaluation_output_fixes.py
+          python3 -m py_compile \
+            tmp/stage_dot_r04_r10_evaluation_output_fixes.py \
+            tmp/patched-test-dot-rope-cut3r-heldout-confirmation-workflow.py \
+            tmp/patched-test-dot-r04-r10-postprocess-workflow.py
+          git diff --no-index --check \
+            .github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml \
+            tmp/patched-dot-rope-cut3r-heldout-confirmation-v1.yml || test $? -eq 1
+          git diff --no-index --check \
+            .github/workflows/dot-r04-r10-postprocess-v1.yml \
+            tmp/patched-dot-r04-r10-postprocess-v1.yml || test $? -eq 1
+          git diff --no-index --check \
+            tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py \
+            tmp/patched-test-dot-rope-cut3r-heldout-confirmation-workflow.py || test $? -eq 1
+          git diff --no-index --check \
+            tests/test_dot_r04_r10_postprocess_workflow.py \
+            tmp/patched-test-dot-r04-r10-postprocess-workflow.py || test $? -eq 1
+
+      - name: Commit reviewable evidence and staged ordinary blobs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            evidence/dot-rope/cut3r-heldout-confirmation-recovery-v1 \
+            tmp/patched-dot-rope-cut3r-heldout-confirmation-v1.yml \
+            tmp/patched-dot-r04-r10-postprocess-v1.yml \
+            tmp/patched-test-dot-rope-cut3r-heldout-confirmation-workflow.py \
+            tmp/patched-test-dot-r04-r10-postprocess-workflow.py
+          git diff --cached --check
+          git commit -m 'Retain recovered DOT R04-R10 held-out evaluation'
+          git push origin HEAD:fix/dot-r04-r10-hosted-evaluation-v1
+
+      - name: Upload complete recovered evaluation bundle
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        with:
+          name: dot-r04-r10-hosted-evaluation-recovery-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ steps.workspace.outputs.root }}/evaluation
+            ${{ runner.temp }}/dot-r04-evaluation-recovery-inspection.json
+          if-no-files-found: warn
+          retention-days: 90
