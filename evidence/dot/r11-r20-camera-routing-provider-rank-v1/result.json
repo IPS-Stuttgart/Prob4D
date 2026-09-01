@@ -1,0 +1,178 @@
+{
+  "component_results": [
+    {
+      "camera": "cam001",
+      "component_decision": "source-support-negative",
+      "component_result_id": "e5668d6c125499fdaf65b76c800657d6aded6e8629c396f86736712e07d7e236",
+      "protocol_id": "0ff98eb668cd91df8f240a50d3c2ed792615a40de27958ea774711f270cbe71f",
+      "provider_bundle_id": "14d78d100a62e11e0e51d76491e72f9bb34d30e141a8a510d9bdb69bacb35dff"
+    },
+    {
+      "camera": "cam002",
+      "component_decision": "source-support-negative",
+      "component_result_id": "ffcc09b54bf8a3952f3df4df3bef7b52741ee05139d64c4590332bc9a2149959",
+      "protocol_id": "1dbbaa051fb5061efbd87f2a9841ed7153fbe94cbfe6db004b639c9bb8fedfb2",
+      "provider_bundle_id": "e0c476a039e9610a2849c6dba3996936fbf7f648b68b61d93bc0519fff389dae"
+    },
+    {
+      "camera": "cam005",
+      "component_decision": "source-support-negative",
+      "component_result_id": "2a6334add22b79d4c93809a8cfe7fec7f9754e11c4bc3176f4e96dcb5d0d7996",
+      "protocol_id": "9478b46a16cbe649b50dd59c1ef4ebbea4e8fec128f62da873b24ede3d72ea0e",
+      "provider_bundle_id": "60c56f8c1cc2b07e418d67b01d81c3dc7dd7b369dbeaac9899f029af8f79b818"
+    }
+  ],
+  "decision": "camera-routing-provider-rank-negative",
+  "expected_factor_rank": 6,
+  "fixed_candidate": "expanded__overlap-345",
+  "information_boundary": {
+    "bayesian_phystwin_executed": false,
+    "causal4d_executed": false,
+    "r21_r30_payloads_opened": false,
+    "r31_r70_payloads_opened": false,
+    "source_proper_score_computed": false,
+    "source_reconstruction_error_computed": false
+  },
+  "minimum_supported_condition_ratio": 0.9984359824719174,
+  "minimum_supported_margin": 3.375,
+  "minimum_supported_sequences_for_promotion": 9,
+  "parent_protocol_id": "cd57cb81d1aa52707f26bb0f39829e848d15d0a67b064b390b24caf545923690",
+  "per_sequence": [
+    {
+      "camera": "cam005",
+      "factor_error": null,
+      "factor_rank": 7,
+      "fit_a_total": 12,
+      "fit_b_total": 12,
+      "normalized_support_margin": 1.5,
+      "observable_condition_ratio": 0.34698364274467036,
+      "overlap_common_total": 12,
+      "overlap_nonempty_frames": 3,
+      "sequence": "R11",
+      "supported": false
+    },
+    {
+      "camera": "cam005",
+      "factor_error": null,
+      "factor_rank": 7,
+      "fit_a_total": 19,
+      "fit_b_total": 18,
+      "normalized_support_margin": 2.25,
+      "observable_condition_ratio": 0.03211153247603247,
+      "overlap_common_total": 18,
+      "overlap_nonempty_frames": 3,
+      "sequence": "R12",
+      "supported": false
+    },
+    {
+      "camera": "cam001",
+      "factor_error": null,
+      "factor_rank": 7,
+      "fit_a_total": 21,
+      "fit_b_total": 29,
+      "normalized_support_margin": 3.0,
+      "observable_condition_ratio": 0.04064632630091962,
+      "overlap_common_total": 24,
+      "overlap_nonempty_frames": 3,
+      "sequence": "R13",
+      "supported": false
+    },
+    {
+      "camera": "cam001",
+      "factor_error": null,
+      "factor_rank": 7,
+      "fit_a_total": 9,
+      "fit_b_total": 12,
+      "normalized_support_margin": 1.25,
+      "observable_condition_ratio": 0.16131668405882282,
+      "overlap_common_total": 10,
+      "overlap_nonempty_frames": 3,
+      "sequence": "R14",
+      "supported": false
+    },
+    {
+      "camera": "cam001",
+      "factor_error": null,
+      "factor_rank": 7,
+      "fit_a_total": 9,
+      "fit_b_total": 9,
+      "normalized_support_margin": 1.125,
+      "observable_condition_ratio": 0.020675137764448154,
+      "overlap_common_total": 9,
+      "overlap_nonempty_frames": 3,
+      "sequence": "R15",
+      "supported": false
+    },
+    {
+      "camera": "cam001",
+      "factor_error": null,
+      "factor_rank": 7,
+      "fit_a_total": 9,
+      "fit_b_total": 9,
+      "normalized_support_margin": 1.125,
+      "observable_condition_ratio": 0.103566896569927,
+      "overlap_common_total": 9,
+      "overlap_nonempty_frames": 3,
+      "sequence": "R16",
+      "supported": false
+    },
+    {
+      "camera": "cam002",
+      "factor_error": null,
+      "factor_rank": 7,
+      "fit_a_total": 15,
+      "fit_b_total": 15,
+      "normalized_support_margin": 1.875,
+      "observable_condition_ratio": 0.0967263072510241,
+      "overlap_common_total": 15,
+      "overlap_nonempty_frames": 3,
+      "sequence": "R17",
+      "supported": false
+    },
+    {
+      "camera": "cam001",
+      "factor_error": null,
+      "factor_rank": 6,
+      "fit_a_total": 27,
+      "fit_b_total": 27,
+      "normalized_support_margin": 3.375,
+      "observable_condition_ratio": 0.9984359824719174,
+      "overlap_common_total": 27,
+      "overlap_nonempty_frames": 3,
+      "sequence": "R18",
+      "supported": true
+    },
+    {
+      "camera": "cam001",
+      "factor_error": null,
+      "factor_rank": 7,
+      "fit_a_total": 9,
+      "fit_b_total": 9,
+      "normalized_support_margin": 1.125,
+      "observable_condition_ratio": 0.2610844397680334,
+      "overlap_common_total": 9,
+      "overlap_nonempty_frames": 3,
+      "sequence": "R19",
+      "supported": false
+    },
+    {
+      "camera": "cam005",
+      "factor_error": null,
+      "factor_rank": 7,
+      "fit_a_total": 21,
+      "fit_b_total": 21,
+      "normalized_support_margin": 2.625,
+      "observable_condition_ratio": 0.01681081929186926,
+      "overlap_common_total": 21,
+      "overlap_nonempty_frames": 3,
+      "sequence": "R20",
+      "supported": false
+    }
+  ],
+  "raw_routing_audit_id": "66724cb78840f4b9ef3becf97e5765924094cf8db6eca2d892c44cfa7edb19b3",
+  "result_id": "a1fc018dc7fb504b35f6fbfc422e7a59edaeb71009c6f29c512019d42f949ced",
+  "schema": "prob4d.dot-r11-r20-camera-routing-provider-rank-result",
+  "schema_version": 1,
+  "source_sequence_count": 10,
+  "supported_source_sequences": 1
+}
