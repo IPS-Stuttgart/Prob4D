@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build or verify CUT3R's native RoPE kernel and emit an immutable receipt."""
+"""Build or verify CUT3R's native RoPE kernel and emit immutable receipts."""
 
 from __future__ import annotations
 
@@ -16,10 +16,26 @@ from prob4d.cut3r_runtime_contract import require_compiled_cut3r_rope
 _TRUSTED_REQUEST_PATH = (
     "protocols/execution_requests/dot_rope_cut3r_sealed_runtime_v1.json"
 )
+_TRUSTED_HELDOUT_RECOVERY_REQUEST_PATH = (
+    "protocols/execution_requests/"
+    "dot_rope_cut3r_heldout_confirmation_gpuserver6000_v1.json"
+)
 _TRUSTED_CUT3R_REVISION = "8bc15dc92a6d7fd92920b4ec81540d3dec7d3ecf"
 _TRUSTED_CHECKPOINT_SHA256 = (
     "45f7e98a0a64dbeb54901ae2b878cd8cd125f20a4497316483f0bd6f109f8103"
 )
+_TRUSTED_CUROPE_PATCH_RELATIVE_PATH = Path(
+    ".github/patches/cut3r-curope-torch211-cu126.patch"
+)
+_TRUSTED_CUROPE_PATCH_GIT_BLOB_SHA1 = "9127464c77b571b9586144cabe24a4eed8667db0"
+_TRUSTED_CUROPE_KERNELS_RELATIVE_PATH = Path("src/croco/models/curope/kernels.cu")
+_TRUSTED_CUROPE_KERNELS_GIT_BLOB_SHA1 = "7156cd1bb935cb1f0be45e58add53f9c21505c20"
+_TRUSTED_CUROPE_SETUP_RELATIVE_PATH = Path("src/croco/models/curope/setup.py")
+_TRUSTED_CUROPE_SETUP_GIT_BLOB_SHA1 = "02ddb0912370a67a49fd2bb91164cf2f1da8648e"
+_PATCHED_DISPATCH_CALL = (
+    'AT_DISPATCH_FLOATING_TYPES_AND_HALF(tokens.scalar_type(), "rope_2d_cuda"'
+)
+_PATCHED_SM89_TARGET = 'all_cuda_archs = ["-gencode", "arch=compute_89,code=sm_89"]'
 _TRUSTED_MODEL_RELATIVE_PATH = Path("src/dust3r/model.py")
 _TRUSTED_MODEL_GIT_BLOB_SHA1 = "7ed9f6106fb063686990c874ede99876ebc939ab"
 _ORIGINAL_LOAD_CALL = '    ckpt = torch.load(model_path, map_location="cpu")\n'
@@ -93,11 +109,133 @@ def _trusted_request_selected() -> bool:
     return os.environ.get("REQUEST_PATH") == _TRUSTED_REQUEST_PATH
 
 
+def _trusted_heldout_recovery_selected() -> bool:
+    return os.environ.get("REQUEST_PATH") == _TRUSTED_HELDOUT_RECOVERY_REQUEST_PATH
+
+
 def _require_trusted_runtime_identity() -> None:
     if os.environ.get("CUT3R_REVISION") != _TRUSTED_CUT3R_REVISION:
         raise RuntimeError("trusted CUT3R compatibility revision changed")
     if os.environ.get("CUT3R_CHECKPOINT_SHA256") != _TRUSTED_CHECKPOINT_SHA256:
         raise RuntimeError("trusted CUT3R compatibility checkpoint digest changed")
+
+
+def _resolved_regular_member(root: Path, relative: Path, *, name: str) -> Path:
+    candidate = root / relative
+    if candidate.is_symlink():
+        raise RuntimeError(f"trusted {name} must not be a symbolic link")
+    resolved = candidate.resolve(strict=True)
+    try:
+        resolved.relative_to(root)
+    except ValueError as error:
+        raise RuntimeError(f"trusted {name} escapes its root") from error
+    if not resolved.is_file():
+        raise RuntimeError(f"trusted {name} is not a regular file")
+    return resolved
+
+
+def _prepare_trusted_curope_compatibility(
+    checkout: Path,
+    repository_root: Path,
+) -> dict[str, object] | None:
+    """Apply the exact reviewed PyTorch 2.11/SM89 curope compatibility patch."""
+
+    if not _trusted_heldout_recovery_selected():
+        return None
+    _require_trusted_runtime_identity()
+
+    checkout = checkout.expanduser().resolve(strict=True)
+    repository_root = repository_root.expanduser().resolve(strict=True)
+    patch_path = _resolved_regular_member(
+        repository_root,
+        _TRUSTED_CUROPE_PATCH_RELATIVE_PATH,
+        name="curope compatibility patch",
+    )
+    patch_bytes = patch_path.read_bytes()
+    patch_blob = _git_blob_sha1(patch_bytes)
+    if patch_blob != _TRUSTED_CUROPE_PATCH_GIT_BLOB_SHA1:
+        raise RuntimeError("trusted curope compatibility patch bytes changed")
+
+    source_members = (
+        (
+            "kernels",
+            _TRUSTED_CUROPE_KERNELS_RELATIVE_PATH,
+            _TRUSTED_CUROPE_KERNELS_GIT_BLOB_SHA1,
+        ),
+        (
+            "setup",
+            _TRUSTED_CUROPE_SETUP_RELATIVE_PATH,
+            _TRUSTED_CUROPE_SETUP_GIT_BLOB_SHA1,
+        ),
+    )
+    before: dict[str, dict[str, str]] = {}
+    resolved_members: dict[str, Path] = {}
+    for name, relative, expected_blob in source_members:
+        member = _resolved_regular_member(checkout, relative, name=f"curope {name} source")
+        source = member.read_bytes()
+        source_blob = _git_blob_sha1(source)
+        if source_blob != expected_blob:
+            raise RuntimeError(f"trusted curope {name} source bytes changed")
+        before[name] = {
+            "path": relative.as_posix(),
+            "git_blob_sha1": source_blob,
+            "sha256": hashlib.sha256(source).hexdigest(),
+        }
+        resolved_members[name] = member
+
+    subprocess.run(
+        ["git", "apply", "--check", str(patch_path)],
+        cwd=checkout,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "apply", str(patch_path)],
+        cwd=checkout,
+        check=True,
+    )
+
+    kernels = resolved_members["kernels"].read_text(encoding="utf-8")
+    setup = resolved_members["setup"].read_text(encoding="utf-8")
+    if _PATCHED_DISPATCH_CALL not in kernels or "tokens.type()" in kernels:
+        raise RuntimeError("trusted curope dispatch compatibility was not applied")
+    if _PATCHED_SM89_TARGET not in setup or "cuda.get_gencode_flags()" in setup:
+        raise RuntimeError("trusted curope SM89 build target was not applied")
+
+    after = {
+        name: {
+            "path": relative.as_posix(),
+            "git_blob_sha1": _git_blob_sha1(resolved_members[name].read_bytes()),
+            "sha256": _sha256(resolved_members[name]),
+        }
+        for name, relative, _ in source_members
+    }
+    record: dict[str, object] = {
+        "schema": "prob4d.cut3r-curope-pytorch211-sm89-compatibility",
+        "schema_version": 1,
+        "status": "trusted-curope-pytorch211-sm89-patch-applied",
+        "request_path": _TRUSTED_HELDOUT_RECOVERY_REQUEST_PATH,
+        "cut3r_revision": _TRUSTED_CUT3R_REVISION,
+        "checkpoint_sha256": _TRUSTED_CHECKPOINT_SHA256,
+        "patch": {
+            "path": _TRUSTED_CUROPE_PATCH_RELATIVE_PATH.as_posix(),
+            "git_blob_sha1": patch_blob,
+            "sha256": hashlib.sha256(patch_bytes).hexdigest(),
+        },
+        "members_before": before,
+        "members_after": after,
+        "compatibility_scope": (
+            "Replace the removed Tensor.type() dispatch API and compile CUT3R curope "
+            "only for the registered NVIDIA Ada SM89 provider device."
+        ),
+        "scientific_boundary": (
+            "The patch changes only native extension compilation compatibility; it "
+            "does not change the checkpoint, provider weights, images, source "
+            "calibration, alpha, query definition, cohort, comparator, statistic, or "
+            "decision rule."
+        ),
+    }
+    record["artifact_id"] = _content_id(record)
+    return record
 
 
 def _prepare_trusted_checkpoint_compatibility(
@@ -223,7 +361,18 @@ def _prepare_trusted_smoke_workspace_compatibility(
 def main() -> int:
     args = _parser().parse_args()
     checkout = args.cut3r_checkout.expanduser().resolve(strict=True)
+    repository_root = Path(__file__).resolve().parents[2]
     curope_root = checkout / "src/croco/models/curope"
+
+    curope_compatibility = _prepare_trusted_curope_compatibility(
+        checkout,
+        repository_root,
+    )
+    if curope_compatibility is not None:
+        _write_no_clobber(
+            args.output.with_name("curope-compatibility.json"),
+            curope_compatibility,
+        )
 
     if args.build:
         subprocess.run(
@@ -241,9 +390,7 @@ def main() -> int:
             "verified CUT3R runtime receipt differs from the frozen artifact ID"
         )
     checkpoint_compatibility = _prepare_trusted_checkpoint_compatibility(checkout)
-    smoke_compatibility = _prepare_trusted_smoke_workspace_compatibility(
-        Path(__file__).resolve().parents[2]
-    )
+    smoke_compatibility = _prepare_trusted_smoke_workspace_compatibility(repository_root)
     _write_no_clobber(args.output, receipt)
     if checkpoint_compatibility is not None:
         _write_no_clobber(
