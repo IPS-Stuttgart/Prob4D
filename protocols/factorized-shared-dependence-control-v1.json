@@ -1,0 +1,21 @@
+{
+  "schema": "prob4d.factorized-shared-dependence-control.v1",
+  "evidence_kind": "designed-linear-algebra-control",
+  "seed": 20260901,
+  "group_count": 32,
+  "block_dimension": 3,
+  "latent_rank": 7,
+  "strength": 0.85,
+  "factor_scale": 0.4,
+  "factor_diagonal_offset": 1.5,
+  "sample_count": 20000,
+  "paper_scale_group_count": 2048,
+  "information_boundary": {
+    "provider_predictions_opened": false,
+    "source_outcomes_opened": false,
+    "heldout_outcomes_opened": false,
+    "bayesian_phystwin_executed": false,
+    "causal4d_executed": false
+  },
+  "claim_boundary": "Deterministic algebra, Monte Carlo moment, and storage control for a caller-supplied dependence strength only. No learned-provider competence, empirical calibration, held-out transfer, downstream benefit, safety, or state-of-the-art claim."
+}
