@@ -1,0 +1,266 @@
+name: DEFORM DLO4/DLO5 source-calibrated query covariance v1
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/deform-dlo45-source-calibrated-query-covariance-v1.yml"
+      - "CHANGELOG.d/dlo45-source-calibrated-query-covariance-v1.md"
+      - "docs/deform-dlo45-source-calibrated-query-covariance-v1.md"
+      - "evidence/deform-dlo45-source-calibrated-query-covariance-v1/**"
+      - "protocols/deform-dlo45-source-calibrated-query-covariance-v1.json"
+      - "protocols/execution_requests/deform_dlo45_source_calibrated_query_covariance_v1.json"
+      - "scripts/science/run_deform_dlo45_source_calibrated_query_covariance_v1.py"
+      - "tests/test_deform_dlo45_source_calibrated_query_covariance_v1.py"
+      - "tests/test_trusted_self_hosted_validation_policy.py"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/deform-dlo45-source-calibrated-query-covariance-v1.yml"
+      - "CHANGELOG.d/dlo45-source-calibrated-query-covariance-v1.md"
+      - "docs/deform-dlo45-source-calibrated-query-covariance-v1.md"
+      - "evidence/deform-dlo45-source-calibrated-query-covariance-v1/**"
+      - "protocols/deform-dlo45-source-calibrated-query-covariance-v1.json"
+      - "protocols/execution_requests/deform_dlo45_source_calibrated_query_covariance_v1.json"
+      - "scripts/science/run_deform_dlo45_source_calibrated_query_covariance_v1.py"
+      - "tests/test_deform_dlo45_source_calibrated_query_covariance_v1.py"
+      - "tests/test_trusted_self_hosted_validation_policy.py"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deform-dlo45-source-calibrated-query-covariance-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/deform/data_set
+  DEFORM_REVISION: b73b8b8ecc033caefa693fab7898741d4e6dbeff
+  PROTOCOL_PATH: protocols/deform-dlo45-source-calibrated-query-covariance-v1.json
+  REQUEST_PATH: protocols/execution_requests/deform_dlo45_source_calibrated_query_covariance_v1.json
+  EVIDENCE_ROOT: evidence/deform-dlo45-source-calibrated-query-covariance-v1
+  PYTHONPATH: src:scripts/science
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+
+jobs:
+  contract:
+    name: Validate no-new-data calibration capsule
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Check out exact revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          clean: true
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Validate focused implementation and evidence identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -e ".[dev]"
+          python -m pip check
+          python -m ruff check \
+            scripts/science/run_deform_dlo45_source_calibrated_query_covariance_v1.py \
+            tests/test_deform_dlo45_source_calibrated_query_covariance_v1.py
+          python -m ruff format --check \
+            scripts/science/run_deform_dlo45_source_calibrated_query_covariance_v1.py \
+            tests/test_deform_dlo45_source_calibrated_query_covariance_v1.py
+          python -m pytest -q \
+            tests/test_deform_dlo45_source_calibrated_query_covariance_v1.py \
+            tests/test_trusted_self_hosted_validation_policy.py
+          python -m compileall -q \
+            scripts/science/run_deform_dlo45_source_calibrated_query_covariance_v1.py
+          python scripts/science/run_deform_dlo45_source_calibrated_query_covariance_v1.py \
+            validate \
+            --protocol "$PROTOCOL_PATH" \
+            --request "$REQUEST_PATH"
+          sha256sum --check --strict "$EVIDENCE_ROOT/SHA256SUMS"
+
+  reproduce:
+    name: Reproduce source calibration and existing evaluation
+    needs: contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Check out exact Prob4D revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          clean: true
+
+      - name: Check out exact official DEFORM revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: roahmlab/DEFORM
+          ref: b73b8b8ecc033caefa693fab7898741d4e6dbeff
+          path: external/DEFORM
+          fetch-depth: 1
+          persist-credentials: false
+          clean: true
+
+      - name: Bind exact public files to the registered lexical path
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C external/DEFORM rev-parse HEAD)" = "$DEFORM_REVISION"
+          test "$(find external/DEFORM/data_set/DLO4/train -maxdepth 1 -type f -name '*.pkl' | wc -l)" -eq 56
+          test "$(find external/DEFORM/data_set/DLO5/train -maxdepth 1 -type f -name '*.pkl' | wc -l)" -eq 56
+          test "$(find external/DEFORM/data_set/DLO4/eval -maxdepth 1 -type f -name '*.pkl' | wc -l)" -eq 14
+          test "$(find external/DEFORM/data_set/DLO5/eval -maxdepth 1 -type f -name '*.pkl' | wc -l)" -eq 14
+          sudo mkdir -p "$(dirname "$DATASET_ROOT")"
+          sudo ln -s "$GITHUB_WORKSPACE/external/DEFORM/data_set" "$DATASET_ROOT"
+          test "$(readlink -f "$DATASET_ROOT")" = "$GITHUB_WORKSPACE/external/DEFORM/data_set"
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Install exact numerical runtime and validate the frozen capsule
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --no-cache-dir "numpy==2.2.6"
+          python -m pip install --disable-pip-version-check --no-deps -e .
+          python -m pip check
+          python scripts/science/run_deform_dlo45_source_calibrated_query_covariance_v1.py \
+            validate \
+            --protocol "$PROTOCOL_PATH" \
+            --request "$REQUEST_PATH"
+
+      - name: Freeze covariance on 112 training trajectories only
+        shell: bash
+        run: |
+          set -euo pipefail
+          source="$RUNNER_TEMP/dlo45-source-calibration"
+          rm -rf -- "$source"
+          python scripts/science/run_deform_dlo45_source_calibrated_query_covariance_v1.py \
+            calibrate \
+            --dataset-root "$DATASET_ROOT" \
+            --protocol "$PROTOCOL_PATH" \
+            --request "$REQUEST_PATH" \
+            --repository-revision "$GITHUB_SHA" \
+            --output-dir "$source"
+          CALIBRATION="$source/calibration.json" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          value = json.loads(Path(os.environ["CALIBRATION"]).read_text())
+          assert value["accounting"]["independent_groups"] == 112
+          assert value["information_boundary"]["evaluation_file_contents_opened"] is False
+          assert value["information_boundary"]["new_data_collected"] is False
+          assert 1.0 <= float(value["calibration"]["inflation_factor"]) <= 10.0
+          PY
+
+      - name: Apply frozen covariance to the existing 28-file evaluation split
+        shell: bash
+        run: |
+          set -euo pipefail
+          source="$RUNNER_TEMP/dlo45-source-calibration"
+          target="$RUNNER_TEMP/dlo45-calibrated-evaluation"
+          rm -rf -- "$target"
+          python scripts/science/run_deform_dlo45_source_calibrated_query_covariance_v1.py \
+            evaluate \
+            --dataset-root "$DATASET_ROOT" \
+            --protocol "$PROTOCOL_PATH" \
+            --request "$REQUEST_PATH" \
+            --calibration "$source/calibration.json" \
+            --repository-revision "$GITHUB_SHA" \
+            --output-dir "$target"
+
+      - name: Compare reproduced metrics with retained evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          GENERATED_SOURCE="$RUNNER_TEMP/dlo45-source-calibration/calibration.json" \
+          GENERATED_RESULT="$RUNNER_TEMP/dlo45-calibrated-evaluation/result.json" \
+          RETAINED_SOURCE="$EVIDENCE_ROOT/source/calibration.json" \
+          RETAINED_RESULT="$EVIDENCE_ROOT/evaluation/result.json" \
+          python - <<'PY'
+          import json
+          import math
+          import os
+          from pathlib import Path
+
+          def load(name):
+              return json.loads(Path(os.environ[name]).read_text(encoding="utf-8"))
+
+          generated_source = load("GENERATED_SOURCE")
+          generated_result = load("GENERATED_RESULT")
+          retained_source = load("RETAINED_SOURCE")
+          retained_result = load("RETAINED_RESULT")
+
+          def compare(left, right, path="root"):
+              if isinstance(left, dict) and isinstance(right, dict):
+                  if set(left) != set(right):
+                      raise AssertionError(f"key mismatch at {path}")
+                  for key in left:
+                      compare(left[key], right[key], f"{path}/{key}")
+                  return
+              if isinstance(left, list) and isinstance(right, list):
+                  if len(left) != len(right):
+                      raise AssertionError(f"length mismatch at {path}")
+                  for index, (first, second) in enumerate(zip(left, right, strict=True)):
+                      compare(first, second, f"{path}/{index}")
+                  return
+              if isinstance(left, (int, float)) and isinstance(right, (int, float)):
+                  if not math.isclose(float(left), float(right), rel_tol=1e-12, abs_tol=1e-12):
+                      raise AssertionError(f"numeric mismatch at {path}: {left} != {right}")
+                  return
+              if left != right:
+                  raise AssertionError(f"value mismatch at {path}: {left!r} != {right!r}")
+
+          compare(generated_source["calibration"], retained_source["calibration"], "calibration")
+          compare(
+              generated_source["source_metrics_equal_group"],
+              retained_source["source_metrics_equal_group"],
+              "source_metrics",
+          )
+          compare(
+              generated_result["aggregate_equal_group_results"],
+              retained_result["aggregate_equal_group_results"],
+              "aggregate_results",
+          )
+          compare(generated_result["per_group_results"], retained_result["per_group_results"], "groups")
+          assert generated_result["decision"] == "source-calibrated-strong-positive"
+          assert generated_result["raw_result_reproduction"]["passed"] is True
+          assert generated_result["information_boundary"]["new_data_collected"] is False
+          assert all(generated_result["criteria"].values())
+          print(json.dumps({
+              "decision": generated_result["decision"],
+              "inflation_factor": generated_source["calibration"]["inflation_factor"],
+              "coverage": generated_result["aggregate_equal_group_results"]
+                  ["segment_centroid"]["source_calibrated_query_aware"]
+                  ["empirical_90pct_coverage"]["mean"],
+              "normalized_nees": generated_result["aggregate_equal_group_results"]
+                  ["segment_centroid"]["source_calibrated_query_aware"]
+                  ["normalized_nees"]["mean"],
+          }, sort_keys=True))
+          PY
+          cat "$RUNNER_TEMP/dlo45-calibrated-evaluation/SUMMARY.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload reproduced evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: deform-dlo45-source-calibrated-query-covariance-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/dlo45-source-calibration/calibration.json
+            ${{ runner.temp }}/dlo45-calibrated-evaluation/result.json
+            ${{ runner.temp }}/dlo45-calibrated-evaluation/SUMMARY.md
+          if-no-files-found: error
+          retention-days: 30

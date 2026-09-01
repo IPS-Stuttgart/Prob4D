@@ -1,10 +1,9 @@
 """Load the unchanged self-hosted policy suite and extend its reviewed allowlist.
 
 The historical policy implementation is retained byte-for-byte in the adjacent
-non-test module. This wrapper adds the separately reviewed DOT R11--R30,
-DOT R04--R10 recovery/relay/camera-audit, Tracking-Cloth query-portfolio, and
-DOT R11--R20 source-support execution workflows before exposing the original
-test functions to pytest.
+non-test module. This wrapper adds separately reviewed DOT continuation and
+Tracking-Cloth query-portfolio workflows before exposing the original test
+functions to pytest.
 """
 
 from __future__ import annotations
