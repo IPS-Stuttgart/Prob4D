@@ -1,0 +1,137 @@
+name: Materialize DOT R04-R10 cuRoPE integration v4
+
+on:
+  push:
+    branches:
+      - fix/dot-r04-r10-curope-integration-v4
+    paths:
+      - .github/workflows/materialize-dot-r04-r10-curope-integration-v4.yml
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out construction branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: fix/dot-r04-r10-curope-integration-v4
+          fetch-depth: 0
+          persist-credentials: true
+          clean: true
+
+      - name: Materialize exact workflow and regression-test changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PYCODE'
+          from pathlib import Path
+
+          workflow_path = Path(
+              ".github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml"
+          )
+          test_path = Path(
+              "tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py"
+          )
+          block_path = Path(
+              ".github/materialize/dot-r04-r10-curope-block-v4.txt"
+          )
+          addition_path = Path(
+              ".github/materialize/dot-r04-r10-curope-test-v4.txt"
+          )
+
+          workflow = workflow_path.read_text(encoding="utf-8")
+          anchor = (
+              '          /usr/bin/cp -a external/CUT3R/. "$checkout/"\n'
+              '          test "$(/usr/bin/git -C "$checkout" rev-parse HEAD)" = '
+              '"$CUT3R_REVISION"\n'
+          )
+          count = workflow.count(anchor)
+          if count != 1:
+              raise SystemExit(
+                  f"expected one held-out CUT3R checkout anchor, found {count}"
+              )
+          block = block_path.read_text(encoding="utf-8")
+          if not block.startswith("\n") or not block.endswith("\n\n"):
+              raise SystemExit("workflow insertion block boundary changed")
+          workflow_path.write_text(
+              workflow.replace(anchor, anchor + block, 1),
+              encoding="utf-8",
+              newline="\n",
+          )
+
+          test_text = test_path.read_text(encoding="utf-8")
+          marker = (
+              "def test_confirmation_provider_reuses_audited_"
+              "curope_compatibility_patch()"
+          )
+          if marker in test_text:
+              raise SystemExit("cuRoPE compatibility regression already exists")
+          addition = addition_path.read_text(encoding="utf-8")
+          if not addition.startswith("\n\n") or not addition.endswith("\n"):
+              raise SystemExit("test addition boundary changed")
+          test_path.write_text(
+              test_text.rstrip() + addition,
+              encoding="utf-8",
+              newline="\n",
+          )
+          PYCODE
+
+          helper=.github/workflows/materialize-dot-r04-r10-curope-integration-v4.yml
+          block=.github/materialize/dot-r04-r10-curope-block-v4.txt
+          addition=.github/materialize/dot-r04-r10-curope-test-v4.txt
+          /usr/bin/rm -f -- "$helper" "$block" "$addition"
+          /usr/bin/git diff --check
+
+          mapfile -t changed < <(
+            /usr/bin/git status --short |
+              sed -E 's/^...//' |
+              sort
+          )
+          expected=(
+            .github/materialize/dot-r04-r10-curope-block-v4.txt
+            .github/materialize/dot-r04-r10-curope-test-v4.txt
+            .github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml
+            .github/workflows/materialize-dot-r04-r10-curope-integration-v4.yml
+            tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py
+          )
+          test "${#changed[@]}" -eq "${#expected[@]}"
+          for index in "${!expected[@]}"; do
+            test "${changed[$index]}" = "${expected[$index]}"
+          done
+
+          python3 -m py_compile \
+            tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py
+          python3 - <<'PYCODE'
+          from pathlib import Path
+
+          workflow = Path(
+              ".github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml"
+          ).read_text(encoding="utf-8")
+          assert workflow.count(
+              ".github/patches/cut3r-curope-torch211-cu126.patch"
+          ) == 2
+          assert workflow.count("curope-build-compatibility.json") == 1
+          assert "R04-R10" in workflow
+          assert "R11-R70 remained unopened" in workflow
+          test = Path(
+              "tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py"
+          ).read_text(encoding="utf-8")
+          assert test.count(
+              "test_confirmation_provider_reuses_audited_"
+              "curope_compatibility_patch"
+          ) == 1
+          PYCODE
+
+          /usr/bin/git config user.name "github-actions[bot]"
+          /usr/bin/git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+          /usr/bin/git add -A
+          /usr/bin/git commit -m \
+            "Wire audited cuRoPE compatibility into frozen DOT confirmation"
+          /usr/bin/git push origin \
+            HEAD:fix/dot-r04-r10-curope-integration-v4
