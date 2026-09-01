@@ -558,6 +558,98 @@ jobs:
           /usr/bin/mkdir -p "$checkout"
           /usr/bin/cp -a external/CUT3R/. "$checkout/"
           test "$(/usr/bin/git -C "$checkout" rev-parse HEAD)" = "$CUT3R_REVISION"
+
+          patch_relative=".github/patches/cut3r-curope-torch211-cu126.patch"
+          patch_path="$GITHUB_WORKSPACE/$patch_relative"
+          kernels_relative="src/croco/models/curope/kernels.cu"
+          setup_relative="src/croco/models/curope/setup.py"
+          kernels="$checkout/$kernels_relative"
+          setup="$checkout/$setup_relative"
+          test -f "$patch_path"
+          test "$(/usr/bin/git rev-parse "HEAD:$patch_relative")" = \
+            "9127464c77b571b9586144cabe24a4eed8667db0"
+          test "$(sha256sum "$patch_path" | awk '{print $1}')" = \
+            "9778ec434a6e2d9ae8be162295d60e06d86bf0fbadbb66d516eb46c666ab547d"
+          test "$(/usr/bin/git -C "$checkout" rev-parse "HEAD:$kernels_relative")" = \
+            "7156cd1bb935cb1f0be45e58add53f9c21505c20"
+          test "$(/usr/bin/git -C "$checkout" rev-parse "HEAD:$setup_relative")" = \
+            "02ddb0912370a67a49fd2bb91164cf2f1da8648e"
+          /usr/bin/git -C "$checkout" apply --check "$patch_path"
+          /usr/bin/git -C "$checkout" apply "$patch_path"
+          /usr/bin/git -C "$checkout" diff --check
+          mapfile -t patched_paths < <(
+            /usr/bin/git -C "$checkout" diff --name-only | sort
+          )
+          test "${#patched_paths[@]}" -eq 2
+          test "${patched_paths[0]}" = "$kernels_relative"
+          test "${patched_paths[1]}" = "$setup_relative"
+          grep -F 'tokens.scalar_type()' "$kernels"
+          ! grep -F 'tokens.type()' "$kernels"
+          grep -F 'arch=compute_89,code=sm_89' "$setup"
+
+          PATCH_PATH="$patch_path" \
+            KERNELS_PATH="$kernels" \
+            SETUP_PATH="$setup" \
+            OUTPUT_PATH="$root/evidence/curope-build-compatibility.json" \
+            "$RUNTIME_PYTHON" - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          patch = Path(os.environ["PATCH_PATH"])
+          kernels = Path(os.environ["KERNELS_PATH"])
+          setup = Path(os.environ["SETUP_PATH"])
+          receipt = {
+              "schema": "prob4d.dot-r04-r10-curope-build-compatibility",
+              "schema_version": 1,
+              "cut3r_revision": os.environ["CUT3R_REVISION"],
+              "compatibility_patch": (
+                  ".github/patches/cut3r-curope-torch211-cu126.patch"
+              ),
+              "compatibility_patch_git_blob_sha1": (
+                  "9127464c77b571b9586144cabe24a4eed8667db0"
+              ),
+              "compatibility_patch_sha256": hashlib.sha256(
+                  patch.read_bytes()
+              ).hexdigest(),
+              "source_git_blob_sha1": {
+                  "src/croco/models/curope/kernels.cu": (
+                      "7156cd1bb935cb1f0be45e58add53f9c21505c20"
+                  ),
+                  "src/croco/models/curope/setup.py": (
+                      "02ddb0912370a67a49fd2bb91164cf2f1da8648e"
+                  ),
+              },
+              "patched_sha256": {
+                  "src/croco/models/curope/kernels.cu": hashlib.sha256(
+                      kernels.read_bytes()
+                  ).hexdigest(),
+                  "src/croco/models/curope/setup.py": hashlib.sha256(
+                      setup.read_bytes()
+                  ).hexdigest(),
+              },
+              "cuda_target": "compute_89/sm_89",
+              "pytorch_dispatch_api": "tokens.scalar_type()",
+              "information_boundary": {
+                  "dot_payload_opened": False,
+                  "provider_prediction_run": False,
+                  "marker_payload_opened": False,
+                  "scientific_inputs_changed": False,
+              },
+          }
+          encoded = json.dumps(
+              receipt,
+              sort_keys=True,
+              separators=(",", ":"),
+          ).encode("utf-8")
+          receipt["artifact_id"] = hashlib.sha256(encoded).hexdigest()
+          Path(os.environ["OUTPUT_PATH"]).write_text(
+              json.dumps(receipt, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
           /usr/bin/find "$checkout/src/croco/models/curope" \
             -maxdepth 1 -type f -name '*.so' -delete
           /usr/bin/rm -rf -- "$checkout/src/croco/models/curope/build"

@@ -91,9 +91,7 @@ def test_marker_reader_handles_semicolon_decimal_comma_and_meter_units(tmp_path:
                 "m3_z [m]",
             ]
         )
-        writer.writerow(
-            ["0", "0,0", "0,0", "0,0", "0,0", "0,0", "0,1", "0,03", "0,0", "0,04"]
-        )
+        writer.writerow(["0", "0,0", "0,0", "0,0", "0,0", "0,0", "0,1", "0,03", "0,0", "0,04"])
     values, scale, details = module._read_markers(path, ["m1", "m2", "m3"])
     assert scale == 1000.0
     assert details["rows"] == 1

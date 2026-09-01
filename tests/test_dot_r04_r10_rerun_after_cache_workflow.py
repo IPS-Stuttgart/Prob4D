@@ -2,55 +2,52 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import yaml
-
-
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/dot-r04-r10-rerun-after-cache-v1.yml"
 
 
-def _load() -> tuple[dict, str]:
-    text = WORKFLOW.read_text(encoding="utf-8")
-    value = yaml.safe_load(text)
-    assert isinstance(value, dict)
-    return value, text
+def _load() -> str:
+    return WORKFLOW.read_text(encoding="utf-8")
+
+
+def _job(text: str, name: str, *, next_name: str | None = None) -> str:
+    start = text.index(f"\n  {name}:")
+    end = text.index(f"\n  {next_name}:", start) if next_name is not None else len(text)
+    return text[start:end]
 
 
 def test_recovery_is_default_branch_workflow_run_only() -> None:
-    value, text = _load()
-    triggers = value.get("on", value.get(True))
-    assert triggers["workflow_run"] == {
-        "workflows": ["DOT R01-R10 gpuserver6000 cache prewarm v1"],
-        "types": ["completed"],
-    }
-    recover = value["jobs"]["recover"]
-    condition = recover["if"]
-    assert "github.event.workflow_run.conclusion == 'success'" in condition
-    assert "github.event.workflow_run.event == 'push'" in condition
-    assert "github.event.workflow_run.head_branch == 'main'" in condition
-    assert "ref: main" in text
+    text = _load()
+    trigger = (
+        "  workflow_run:\n"
+        '    workflows: ["DOT R01-R10 gpuserver6000 cache prewarm v1"]\n'
+        "    types: [completed]\n"
+    )
+    assert trigger in text
+    recover = _job(text, "recover")
+    assert "github.event.workflow_run.conclusion == 'success'" in recover
+    assert "github.event.workflow_run.event == 'push'" in recover
+    assert "github.event.workflow_run.head_branch == 'main'" in recover
+    assert "ref: main" in recover
 
 
 def test_recovery_is_bound_to_exact_frozen_target() -> None:
-    value, text = _load()
-    env = value["env"]
-    assert env["TARGET_RUN_ID"] == "33434695566"
-    assert env["TARGET_HEAD_SHA"] == "9e1b77b2e70685881db7f188a95a3a91443275e8"
+    text = _load()
+    assert 'TARGET_RUN_ID: "33434695566"' in text
+    assert "TARGET_HEAD_SHA: 9e1b77b2e70685881db7f188a95a3a91443275e8" in text
     assert (
-        env["TARGET_WORKFLOW_PATH"]
-        == ".github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml"
-    )
+        "TARGET_WORKFLOW_PATH: .github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml"
+    ) in text
     assert (
-        env["TARGET_PROVIDER_JOB"]
-        == "Seal marker-free R04-R10 CUT3R predictions on gpuserver6000"
-    )
-    assert env["ARCHIVE_MD5"] == "ca546ff5f22c0279123ccb18509858ee"
+        "TARGET_PROVIDER_JOB: Seal marker-free R04-R10 CUT3R predictions on gpuserver6000"
+    ) in text
+    assert "ARCHIVE_MD5: ca546ff5f22c0279123ccb18509858ee" in text
     assert "frozen target revision changed" in text
     assert "frozen target workflow changed" in text
 
 
 def test_cache_receipt_information_boundary_is_verified() -> None:
-    _, text = _load()
+    text = _load()
     assert "prob4d.dot-r01-r10-gpuserver6000-cache-prewarm-result" in text
     assert "R01-10.zip" in text
     for boundary in (
@@ -67,7 +64,7 @@ def test_cache_receipt_information_boundary_is_verified() -> None:
 
 
 def test_valid_or_active_scientific_run_is_never_rerun() -> None:
-    _, text = _load()
+    text = _load()
     assert 'decision = "no-op-target-still-active"' in text
     assert 'decision = "no-op-terminal-success"' in text
     assert "target already has a terminal result artifact; rerun forbidden" in text
@@ -77,17 +74,20 @@ def test_valid_or_active_scientific_run_is_never_rerun() -> None:
 
 
 def test_only_hosted_recovery_job_has_actions_write() -> None:
-    value, _ = _load()
-    assert value["jobs"]["contract"]["permissions"] == {"contents": "read"}
-    assert value["jobs"]["recover"]["permissions"] == {
-        "contents": "read",
-        "actions": "write",
-    }
-    assert value["jobs"]["recover"]["runs-on"] == "ubuntu-latest"
+    text = _load()
+    contract = _job(text, "contract", next_name="recover")
+    recover = _job(text, "recover")
+
+    assert "runs-on: ubuntu-latest" in contract
+    assert "permissions:\n      contents: read" in contract
+    assert "actions: write" not in contract
+
+    assert "runs-on: ubuntu-latest" in recover
+    assert "permissions:\n      contents: read\n      actions: write" in recover
 
 
 def test_recovery_does_not_modify_repository_or_science() -> None:
-    _, text = _load()
+    text = _load()
     lowered = text.lower()
     for forbidden in (
         "contents: write",
