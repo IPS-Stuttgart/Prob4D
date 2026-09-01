@@ -243,6 +243,18 @@ def _load_script(filename: str, name: str, expected_blob: str) -> Any:
     return module
 
 
+def _prepare_exclusive_output(path: Path) -> Path:
+    """Remove only a pre-created empty directory before exclusive creation."""
+
+    if path.is_symlink():
+        raise FileExistsError(f"provider output path is a symbolic link: {path}")
+    if path.exists():
+        if not path.is_dir() or any(path.iterdir()):
+            raise FileExistsError(f"provider output path is not empty: {path}")
+        path.rmdir()
+    return path
+
+
 def predict(args: argparse.Namespace) -> int:
     protocol = _load_protocol(args.protocol)
     _require_execution_identity(args.request_id, args.prob4d_revision)
@@ -251,6 +263,7 @@ def predict(args: argparse.Namespace) -> int:
         "dot_cut3r_confirmation_provider",
         BASE_PROVIDER_BLOB,
     )
+    output_dir = _prepare_exclusive_output(args.output_dir)
     adapted = _base_protocol(protocol)
     base._load_protocol = lambda _path: adapted
     return int(
@@ -263,7 +276,7 @@ def predict(args: argparse.Namespace) -> int:
                 cut3r_checkout=args.cut3r_checkout,
                 checkpoint=args.checkpoint,
                 runtime_receipt=args.runtime_receipt,
-                output_dir=args.output_dir,
+                output_dir=output_dir,
             )
         )
     )
