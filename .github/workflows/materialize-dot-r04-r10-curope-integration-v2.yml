@@ -1,0 +1,187 @@
+name: Materialize DOT R04-R10 cuRoPE integration v2
+
+on:
+  push:
+    branches:
+      - fix/dot-r04-r10-curope-integration-v2
+    paths:
+      - .github/workflows/materialize-dot-r04-r10-curope-integration-v2.yml
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out construction branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: fix/dot-r04-r10-curope-integration-v2
+          fetch-depth: 0
+          persist-credentials: true
+          clean: true
+
+      - name: Materialize exact workflow and regression-test changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 --decode > "$RUNNER_TEMP/materialize.py" <<'PYCODE'
+          ZnJvbSBwYXRobGliIGltcG9ydCBQYXRoCgp3b3JrZmxvd19wYXRoID0gUGF0aCgKICAgICIuZ2l0
+          aHViL3dvcmtmbG93cy9kb3Qtcm9wZS1jdXQzci1oZWxkb3V0LWNvbmZpcm1hdGlvbi12MS55bWwi
+          CikKd29ya2Zsb3cgPSB3b3JrZmxvd19wYXRoLnJlYWRfdGV4dChlbmNvZGluZz0idXRmLTgiKQpv
+          bGQgPSAnJycgICAgICAgICAgL3Vzci9iaW4vY3AgLWEgZXh0ZXJuYWwvQ1VUM1IvLiAiJGNoZWNr
+          b3V0IgoKICAgICAgICAgIHRlc3QgIiQoZ2l0IC1DICIkY2hlY2tvdXQiIHJldi1wYXJzZSBIRUFE
+          KSIgPSAiJENVVDNSX1JFVklTSU9OIgonJycKbmV3ID0gJycnICAgICAgICAgIC91c3IvYmluL2Nw
+          IC1hIGV4dGVybmFsL0NVVDNSLy4gIiRjaGVja291dCIKICAgICAgICAgIHRlc3QgIiQoZ2l0IC1D
+          ICIkY2hlY2tvdXQiIHJldi1wYXJzZSBIRUFEKSIgPSAiJENVVDNSX1JFVklTSU9OIgoKICAgICAg
+          ICAgIHBhdGNoX3JlbGF0aXZlPSIuZ2l0aHViL3BhdGNoZXMvY3V0M3ItY3Vyb3BlLXRvcmNoMjEx
+          LWN1MTI2LnBhdGNoIgogICAgICAgICAgcGF0Y2hfcGF0aD0iJEdJVEhVQl9XT1JLU1BBQ0UvJHBh
+          dGNoX3JlbGF0aXZlIgogICAgICAgICAga2VybmVsc19yZWxhdGl2ZT0ic3JjL2Nyb2NvL21vZGVs
+          cy9jdXJvcGUva2VybmVscy5jdSIKICAgICAgICAgIHNldHVwX3JlbGF0aXZlPSJzcmMvY3JvY28v
+          bW9kZWxzL2N1cm9wZS9zZXR1cC5weSIKICAgICAgICAgIGtlcm5lbHM9IiRjaGVja291dC8ka2Vy
+          bmVsc19yZWxhdGl2ZSIKICAgICAgICAgIHNldHVwPSIkY2hlY2tvdXQvJHNldHVwX3JlbGF0aXZl
+          IgogICAgICAgICAgdGVzdCAtZiAiJHBhdGNoX3BhdGgiCiAgICAgICAgICB0ZXN0ICIkKC91c3Iv
+          YmluL2dpdCByZXYtcGFyc2UgIkhFQUQ6JHBhdGNoX3JlbGF0aXZlIikiID0gXAogICAgICAgICAg
+          ICAiOTEyNzQ2NGM3N2I1NzFiOTU4NjE0NGNhYmUyNGE0ZWVkODY2N2RiMCIKICAgICAgICAgIHRl
+          c3QgIiQoc2hhMjU2c3VtICIkcGF0Y2hfcGF0aCIgfCBhd2sgJ3twcmludCAkMX0nKSIgPSBcCiAg
+          ICAgICAgICAgICI2ZjIzNjFlYWM0ZTRiZmMzNjc1ZmFkOTdiY2NhNzZhNjA4NjQxNjA5OWZkMWRk
+          MzU1MzY2OTRiNzUyZjU5NzhmIgogICAgICAgICAgdGVzdCAiJCgvdXNyL2Jpbi9naXQgLUMgIiRj
+          aGVja291dCIgcmV2LXBhcnNlICJIRUFEOiRrZXJuZWxzX3JlbGF0aXZlIikiID0gXAogICAgICAg
+          ICAgICAiNzE1NmNkMWJiOTM1Y2IxZjBiZTQ1ZTU4YWRkNTNmOWMyMTUwNWMyMCIKICAgICAgICAg
+          IHRlc3QgIiQoL3Vzci9iaW4vZ2l0IC1DICIkY2hlY2tvdXQiIHJldi1wYXJzZSAiSEVBRDokc2V0
+          dXBfcmVsYXRpdmUiKSIgPSBcCiAgICAgICAgICAgICIwMmRkYjA5MTIzNzBhNjdhNDlmZDJiYjkx
+          MTY0Y2YyZjFkYTg2NDhlIgogICAgICAgICAgL3Vzci9iaW4vZ2l0IC1DICIkY2hlY2tvdXQiIGFw
+          cGx5IC0tY2hlY2sgIiRwYXRjaF9wYXRoIgogICAgICAgICAgL3Vzci9iaW4vZ2l0IC1DICIkY2hl
+          Y2tvdXQiIGFwcGx5ICIkcGF0Y2hfcGF0aCIKICAgICAgICAgIC91c3IvYmluL2dpdCAtQyAiJGNo
+          ZWNrb3V0IiBkaWZmIC0tY2hlY2sKICAgICAgICAgIG1hcGZpbGUgLXQgcGF0Y2hlZF9wYXRocyA8
+          IDwoCiAgICAgICAgICAgIC91c3IvYmluL2dpdCAtQyAiJGNoZWNrb3V0IiBkaWZmIC0tbmFtZS1v
+          bmx5IHwgc29ydAogICAgICAgICAgKQogICAgICAgICAgdGVzdCAiJHsjcGF0Y2hlZF9wYXRoc1tA
+          XX0iIC1lcSAyCiAgICAgICAgICB0ZXN0ICIke3BhdGNoZWRfcGF0aHNbMF19IiA9ICIka2VybmVs
+          c19yZWxhdGl2ZSIKICAgICAgICAgIHRlc3QgIiR7cGF0Y2hlZF9wYXRoc1sxXX0iID0gIiRzZXR1
+          cF9yZWxhdGl2ZSIKICAgICAgICAgIGdyZXAgLUYgJ3Rva2Vucy5zY2FsYXJfdHlwZSgpJyAiJGtl
+          cm5lbHMiCiAgICAgICAgICAhIGdyZXAgLUYgJ3Rva2Vucy50eXBlKCknICIka2VybmVscyIKICAg
+          ICAgICAgIGdyZXAgLUYgJ2FyY2g9Y29tcHV0ZV84OSxjb2RlPXNtXzg5JyAiJHNldHVwIgoKICAg
+          ICAgICAgIFBBVENIX1BBVEg9IiRwYXRjaF9wYXRoIiBcCiAgICAgICAgICAgIEtFUk5FTFNfUEFU
+          SD0iJGtlcm5lbHMiIFwKICAgICAgICAgICAgU0VUVVBfUEFUSD0iJHNldHVwIiBcCiAgICAgICAg
+          ICAgIE9VVFBVVF9QQVRIPSIkcm9vdC9ldmlkZW5jZS9jdXJvcGUtYnVpbGQtY29tcGF0aWJpbGl0
+          eS5qc29uIiBcCiAgICAgICAgICAgICIkUlVOVElNRV9QWVRIT04iIC0gPDwnUFknCiAgICAgICAg
+          ICBpbXBvcnQgaGFzaGxpYgogICAgICAgICAgaW1wb3J0IGpzb24KICAgICAgICAgIGltcG9ydCBv
+          cwogICAgICAgICAgZnJvbSBwYXRobGliIGltcG9ydCBQYXRoCgogICAgICAgICAgcGF0Y2ggPSBQ
+          YXRoKG9zLmVudmlyb25bIlBBVENIX1BBVEgiXSkKICAgICAgICAgIGtlcm5lbHMgPSBQYXRoKG9z
+          LmVudmlyb25bIktFUk5FTFNfUEFUSCJdKQogICAgICAgICAgc2V0dXAgPSBQYXRoKG9zLmVudmly
+          b25bIlNFVFVQX1BBVEgiXSkKICAgICAgICAgIHJlY2VpcHQgPSB7CiAgICAgICAgICAgICAgInNj
+          aGVtYSI6ICJwcm9iNGQuZG90LXIwNC1yMTAtY3Vyb3BlLWJ1aWxkLWNvbXBhdGliaWxpdHkiLAog
+          ICAgICAgICAgICAgICJzY2hlbWFfdmVyc2lvbiI6IDEsCiAgICAgICAgICAgICAgImN1dDNyX3Jl
+          dmlzaW9uIjogb3MuZW52aXJvblsiQ1VUM1JfUkVWSVNJT04iXSwKICAgICAgICAgICAgICAiY29t
+          cGF0aWJpbGl0eV9wYXRjaCI6ICgKICAgICAgICAgICAgICAgICAgIi5naXRodWIvcGF0Y2hlcy9j
+          dXQzci1jdXJvcGUtdG9yY2gyMTEtY3UxMjYucGF0Y2giCiAgICAgICAgICAgICAgKSwKICAgICAg
+          ICAgICAgICAiY29tcGF0aWJpbGl0eV9wYXRjaF9naXRfYmxvYl9zaGExIjogKAogICAgICAgICAg
+          ICAgICAgICAiOTEyNzQ2NGM3N2I1NzFiOTU4NjE0NGNhYmUyNGE0ZWVkODY2N2RiMCIKICAgICAg
+          ICAgICAgICApLAogICAgICAgICAgICAgICJjb21wYXRpYmlsaXR5X3BhdGNoX3NoYTI1NiI6IGhh
+          c2hsaWIuc2hhMjU2KAogICAgICAgICAgICAgICAgICBwYXRjaC5yZWFkX2J5dGVzKCkKICAgICAg
+          ICAgICAgICApLmhleGRpZ2VzdCgpLAogICAgICAgICAgICAgICJzb3VyY2VfZ2l0X2Jsb2Jfc2hh
+          MSI6IHsKICAgICAgICAgICAgICAgICAgInNyYy9jcm9jby9tb2RlbHMvY3Vyb3BlL2tlcm5lbHMu
+          Y3UiOiAoCiAgICAgICAgICAgICAgICAgICAgICAiNzE1NmNkMWJiOTM1Y2IxZjBiZTQ1ZTU4YWRk
+          NTM5YzIxNTA1YzIwIgogICAgICAgICAgICAgICAgICApLAogICAgICAgICAgICAgICAgICAic3Jj
+          L2Nyb2NvL21vZGVscy9jdXJvcGUvc2V0dXAucHkiOiAoCiAgICAgICAgICAgICAgICAgICAgICAi
+          MDJkZGIwOTEyMzcwYTY3YTQ5ZmQyYmI5MTE2NGNmMmYxZGE4NjQ4ZSIKICAgICAgICAgICAgICAg
+          ICAgKSwKICAgICAgICAgICAgICB9LAogICAgICAgICAgICAgICJwYXRjaGVkX3NoYTI1NiI6IHsK
+          ICAgICAgICAgICAgICAgICAgInNyYy9jcm9jby9tb2RlbHMvY3Vyb3BlL2tlcm5lbHMuY3UiOiBo
+          YXNobGliLnNoYTI1NigKICAgICAgICAgICAgICAgICAgICAgIGtlcm5lbHMucmVhZF9ieXRlcygp
+          CiAgICAgICAgICAgICAgICAgICkuaGV4ZGlnZXN0KCksCiAgICAgICAgICAgICAgICAgICJzcmMv
+          Y3JvY28vbW9kZWxzL2N1cm9wZS9zZXR1cC5weSI6IGhhc2hsaWIuc2hhMjU2KAogICAgICAgICAg
+          ICAgICAgICAgIHNldHVwLnJlYWRfYnl0ZXMoKQogICAgICAgICAgICAgICAgICApLmhleGRpZ2Vz
+          dCgpLAogICAgICAgICAgICAgIH0sCiAgICAgICAgICAgICAgImN1ZGFfdGFyZ2V0IjogImNvbXB1
+          dGVfODkvc21fODkiLAogICAgICAgICAgICAgICJweXRvcmNoX2Rpc3BhdGNoX2FwaSI6ICJ0b2tl
+          bnMuc2NhbGFyX3R5cGUoKSIsCiAgICAgICAgICAgICAgImluZm9ybWF0aW9uX2JvdW5kYXJ5Ijog
+          ewogICAgICAgICAgICAgICAgICAiZG90X3BheWxvYWRfb3BlbmVkIjogRmFsc2UsCiAgICAgICAg
+          ICAgICAgICAgICJwcm92aWRlcl9wcmVkaWN0aW9uX3J1biI6IEZhbHNlLAogICAgICAgICAgICAg
+          ICAgICAibWFya2VyX3BheWxvYWRfb3BlbmVkIjogRmFsc2UsCiAgICAgICAgICAgICAgICAgICJz
+          Y2llbnRpZmljX2lucHV0c19jaGFuZ2VkIjogRmFsc2UsCiAgICAgICAgICAgICAgfSwKICAgICAg
+          ICAgIH0KICAgICAgICAgIGVuY29kZWQgPSBqc29uLmR1bXBzKAogICAgICAgICAgICAgIHJlY2Vp
+          cHQsIHNvcnRfa2V5cz1UcnVlLCBzZXBhcmF0b3JzPSgiLCIsICI6IikKICAgICAgICAgICkuZW5j
+          b2RlKCJ1dGYtOCIpCiAgICAgICAgICByZWNlaXB0WyJhcnRpZmFjdF9pZCJdID0gaGFzaGxpYi5z
+          aGEyNTYoZW5jb2RlZCkuaGV4ZGlnZXN0KCkKICAgICAgICAgIFBhdGgob3MuZW52aXJvblsiT1VU
+          UFVUX1BBVEgiXSkud3JpdGVfdGV4dCgKICAgICAgICAgICAgICBqc29uLmR1bXBzKHJlY2VpcHQs
+          IGluZGVudD0yLCBzb3J0X2tleXM9VHJ1ZSkgKyAiXG4iLAogICAgICAgICAgICAgIGVuY29kaW5n
+          PSJ1dGYtOCIsCiAgICAgICAgICApCiAgICAgICAgICBQWQonJycKaWYgd29ya2Zsb3cuY291bnQo
+          b2xkKSAhPSAxOgogICAgcmFpc2UgU3lzdGVtRXhpdCgiaGVsZC1vdXQgd29ya2Zsb3cgY29uc3Ry
+          dWN0aW9uIGFuY2hvciBjaGFuZ2VkIikKd29ya2Zsb3dfcGF0aC53cml0ZV90ZXh0KAogICAgd29y
+          a2Zsb3cucmVwbGFjZShvbGQsIG5ldywgMSksCiAgICBlbmNvZGluZz0idXRmLTgiLAogICAgbmV3
+          bGluZT0iXG4iLAopCgp0ZXN0X3BhdGggPSBQYXRoKAogICAgInRlc3RzL3Rlc3RfZG90X3JvcGVf
+          Y3V0M3JfaGVsZG91dF9jb25maXJtYXRpb25fd29ya2Zsb3cucHkiCikKdGVzdF90ZXh0ID0gdGVz
+          dF9wYXRoLnJlYWRfdGV4dChlbmNvZGluZz0idXRmLTgiKQphZGRpdGlvbiA9ICcnJwoKZGVmIHRl
+          c3RfY29uZmlybWF0aW9uX3Byb3ZpZGVyX3JldXNlc19hdWRpdGVkX2N1cm9wZV9jb21wYXRpYmls
+          aXR5X3BhdGNoKCkgLT4gTm9uZToKICAgIHRleHQgPSBXT1JLRkxPVy5yZWFkX3RleHQoZW5jb2Rp
+          bmc9InV0Zi04IikKICAgIHByb3ZpZGVyID0gdGV4dFt0ZXh0LmluZGV4KCJcbiAgcHJvdmlkZXI6
+          IikgOiB0ZXh0LmluZGV4KCJcbiAgZXZhbHVhdGU6IildCgogICAgYXNzZXJ0ICIuZ2l0aHViL3Bh
+          dGNoZXMvY3V0M3ItY3Vyb3BlLXRvcmNoMjExLWN1MTI2LnBhdGNoIiBpbiBwcm92aWRlcgogICAg
+          YXNzZXJ0ICI5MTI3NDY0Yzc3YjU3MWI5NTg2MTQ0Y2FiZTI0YTRlZWQ4NjY3ZGIwIiBpbiBwcm92
+          aWRlcgogICAgYXNzZXJ0ICI2ZjIzNjFlYWM0ZTRiZmMzNjc1ZmFkOTdiY2NhNzZhNjA4NjQxNjA5
+          OWZkMWRkMzU1MzY2OTRiNzUyZjU5NzhmIiBpbiBwcm92aWRlcgogICAgYXNzZXJ0ICI3MTU2Y2Qx
+          YmI5MzVjYjFmMGJlNDVlNThhZGQ1M2Y5YzIxNTA1YzIwIiBpbiBwcm92aWRlcgogICAgYXNzZXJ0
+          ICIwMmRkYjA5MTIzNzBhNjdhNDlmZDJiYjkxMTY0Y2YyZjFkYTg2NDhlIiBpbiBwcm92aWRlcgog
+          ICAgYXNzZXJ0ICdnaXQgLUMgIiRjaGVja291dCIgYXBwbHkgLS1jaGVjayAiJHBhdGNoX3BhdGgi
+          JyBpbiBwcm92aWRlcgogICAgYXNzZXJ0ICdnaXQgLUMgIiRjaGVja291dCIgYXBwbHkgIiRwYXRj
+          aF9wYXRoIicgaW4gcHJvdmlkZXIKICAgIGFzc2VydCAidG9rZW5zLnNjYWxhcl90eXBlKCkiIGlu
+          IHByb3ZpZGVyCiAgICBhc3NlcnQgInRva2Vucy50eXBlKCkiIGluIHByb3ZpZGVyCiAgICBhc3Nl
+          cnQgImFyY2g9Y29tcHV0ZV84OSxjb2RlPXNtXzg5IiBpbiBwcm92aWRlcgogICAgYXNzZXJ0ICJj
+          dXJvcGUtYnVpbGQtY29tcGF0aWJpbGl0eS5qc29uIiBpbiBwcm92aWRlcgogICAgYXNzZXJ0ICci
+          ZG90X3BheWxvYWRfb3BlbmVkIjogRmFsc2UnIGluIHByb3ZpZGVyCiAgICBhc3NlcnQgJycic2Np
+          ZW50aWZpY19pbnB1dHNfY2hhbmdlZCI6IEZhbHNlJyBpbiBwcm92aWRlcgonJycKbWFya2VyID0g
+          KAogICAgImRlZiB0ZXN0X2NvbmZpcm1hdGlvbl9wcm92aWRlcl9yZXVzZXNfYXVkaXRlZF8iCiAg
+          ICAiY3Vyb3BlX2NvbXBhdGliaWxpdHlfcGF0Y2goKSIKKQppZiBtYXJrZXIgaW4gdGVzdF90ZXh0
+          OgogICAgcmFpc2UgU3lzdGVtRXhpdCgiY3VSb1BFIGJlZ3Jlc3Npb24gdGVzdCBhbHJlYWR5IGV4
+          aXN0cyIpCnRlc3RfcGF0aC53cml0ZV90ZXh0KAogICAgdGVzdF90ZXh0LnJzdHJpcCgpICsgYWRk
+          aXRpb24gKyAiXG4iLAogICAgZW5jb2Rpbmc9InV0Zi04IiwKICAgIG5ld2xpbmU9IlxuIiwKKQo=
+          PYCODE
+          python3 "$RUNNER_TEMP/materialize.py"
+
+          helper=.github/workflows/materialize-dot-r04-r10-curope-integration-v2.yml
+          /usr/bin/rm -f -- "$helper"
+          /usr/bin/git diff --check
+          mapfile -t changed < <(/usr/bin/git status --short | awk '{print $2}' | sort)
+          expected=(
+            .github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml
+            tests/test_dot_rope-cut3r-heldout-confirmation-workflow.py
+          )
+          test "${#changed[@]}" -eq "${#expected[@]}"
+          for index in "${!expected[@]}"; do
+            test "${changed[$index]}" = "${expected[$index]}"
+          done
+
+          python3 - <<'PYCODE'
+          from pathlib import Path
+
+          workflow = Path(
+              ".github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml"
+          ).read_text(encoding="utf-8")
+          assert workflow.count(
+              ".github/patches/cut3r-curope-torch211-cu126.patch"
+          ) == 2
+          assert workflow.count("curope-build-compatibility.json") == 1
+          assert "R04-R10" in workflow
+          assert "R11-R70 remained unopened" in workflow
+          test = Path(
+              "tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py"
+          ).read_text(encoding="utf-8")
+          assert test.count(
+              "test_confirmation_provider_reuses_audited_"
+              "curope_compatibility_patch"
+          ) == 1
+          PYCODE
+
+          /usr/bin/git config user.name "github-actions[bot]"
+          /usr/bin/git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+          /usr/bin/git add \
+            .github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml \
+            tests/test_dot_rope-cut3r-heldout-confirmation-workflow.py \
+            "$helper"
+          /usr/bin/git commit -m \
+            "Wire audited cuRoPE compatibility into frozen DOT confirmation"
+          /usr/bin/git push origin \
+            HEAD:fix/dot-r04-r10-curope-integration-v2
