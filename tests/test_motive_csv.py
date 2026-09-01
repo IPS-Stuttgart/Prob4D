@@ -36,10 +36,7 @@ def _write_motive(
         id_row.extend([f"ID-{label}"] * 3)
         quantity_row.extend(["Position"] * 3)
         axis_row.extend(["X", "Y", "Z"])
-    assert all(
-        len(row) == width
-        for row in (type_row, label_row, id_row, quantity_row, axis_row)
-    )
+    assert all(len(row) == width for row in (type_row, label_row, id_row, quantity_row, axis_row))
     rows = [
         [
             "Format Version",
