@@ -4,10 +4,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/tracking-cloth-finite-orbit-hosted-recovery-v1.yml"
-REQUEST = (
-    ROOT
-    / "protocols/execution_requests/tracking_cloth_finite_orbit_hosted_recovery_v1.json"
-)
+REQUEST = ROOT / "protocols/execution_requests/tracking_cloth_finite_orbit_hosted_recovery_v1.json"
 
 
 def _job(text: str, name: str, next_name: str | None = None) -> str:
@@ -55,10 +52,7 @@ def test_recovery_requires_an_unassigned_artifact_free_predecessor() -> None:
 def test_official_release_and_information_order_are_fixed() -> None:
     text = WORKFLOW.read_text(encoding="utf-8")
     evaluate = _job(text, "evaluate")
-    assert (
-        "https://zenodo.org/records/14644526/files/tracking_dataset.zip?download=1"
-        in text
-    )
+    assert "https://zenodo.org/records/14644526/files/tracking_dataset.zip?download=1" in text
     assert "b4868b702f8a42b2ea1069d0f1a3b8f6" in text
     assert 'test "$count" -eq 120' in evaluate
     assert "run_tracking_cloth_finite_orbit_real_v1.py" in evaluate
@@ -67,9 +61,7 @@ def test_official_release_and_information_order_are_fixed() -> None:
     assert "Raw dataset payload appeared in evidence" in evaluate
     assert 'result["aggregate"]["target_groups"] == 56' in evaluate
     assert 'result["aggregate"]["total_cases"] >= 1000' in evaluate
-    assert (
-        'result["claim_boundary"]["learned_visual_provider"] is False' in evaluate
-    )
+    assert 'result["claim_boundary"]["learned_visual_provider"] is False' in evaluate
 
 
 def test_external_actions_are_pinned_to_full_commit_shas() -> None:

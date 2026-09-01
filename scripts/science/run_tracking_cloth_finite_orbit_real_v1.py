@@ -256,11 +256,7 @@ def _coordinate_groups(headers: list[str]) -> dict[str, dict[str, str]]:
             continue
         base, axis = key
         groups.setdefault(base, {})[axis] = header
-    return {
-        base: axes
-        for base, axes in groups.items()
-        if set(axes) == {"x", "y", "z"}
-    }
+    return {base: axes for base, axes in groups.items() if set(axes) == {"x", "y", "z"}}
 
 
 def _unit_scale_from_headers(headers: Iterable[str]) -> float | None:
@@ -299,8 +295,7 @@ def _read_markers(
         raise RuntimeError(f"missing selected marker columns in {path}: {missing}")
 
     columns = {
-        marker: [groups[marker][axis] for axis in ("x", "y", "z")]
-        for marker in marker_names
+        marker: [groups[marker][axis] for axis in ("x", "y", "z")] for marker in marker_names
     }
     rows: list[list[list[float]]] = []
     with path.open("r", encoding="utf-8-sig", errors="replace", newline="") as stream:
@@ -322,10 +317,14 @@ def _read_markers(
     )
     if scale is None:
         scale = _automatic_unit_scale(coordinates)
-    return coordinates * scale, scale, {
-        "delimiter": "tab" if delimiter == "\t" else delimiter,
-        "rows": int(coordinates.shape[0]),
-    }
+    return (
+        coordinates * scale,
+        scale,
+        {
+            "delimiter": "tab" if delimiter == "\t" else delimiter,
+            "rows": int(coordinates.shape[0]),
+        },
+    )
 
 
 def _automatic_unit_scale(coordinates: np.ndarray) -> float:
@@ -339,9 +338,7 @@ def _automatic_unit_scale(coordinates: np.ndarray) -> float:
         differences = valid[:, None, :] - valid[None, :, :]
         distances = np.linalg.norm(differences, axis=-1)
         pair_distances.extend(distances[np.triu_indices(valid.shape[0], 1)].tolist())
-    positive = np.asarray(
-        [value for value in pair_distances if value > 0 and math.isfinite(value)]
-    )
+    positive = np.asarray([value for value in pair_distances if value > 0 and math.isfinite(value)])
     if positive.size == 0:
         raise RuntimeError("could not infer coordinate unit from degenerate marker geometry")
     median = float(np.median(positive))
@@ -501,9 +498,7 @@ def _evaluate_recording(
     factor = protocol["controlled_factor"]
     inference = protocol["inference"]
     coordinates, scale, details = _read_markers(recording.path, list(marker_triplet))
-    indices = _sample_indices(
-        coordinates.shape[0], int(geometry["target_frames_per_recording"])
-    )
+    indices = _sample_indices(coordinates.shape[0], int(geometry["target_frames_per_recording"]))
     minimum_anchor = float(geometry["minimum_anchor_distance_mm"])
     minimum_radius = float(geometry["minimum_probe_radius_mm"])
     width_threshold = float(geometry["orbit_width_threshold_mm"])
@@ -556,10 +551,7 @@ def _evaluate_recording(
 
         group_key = _stable_id(recording.relative_path)
         seed = int(factor["hidden_angle_seed"])
-        theta = (
-            2.0 * math.pi * _uniform_from_key(seed, group_key, int(frame_index))
-            - math.pi
-        )
+        theta = 2.0 * math.pi * _uniform_from_key(seed, group_key, int(frame_index)) - math.pi
 
         invariant_truth = axial
         invariant_fallback = axial + float(
@@ -640,9 +632,7 @@ def _evaluate_recording(
                 )
             )
         )
-        metrics["radial_orbit_interval_covered"].append(
-            float(-radius <= radial_truth <= radius)
-        )
+        metrics["radial_orbit_interval_covered"].append(float(-radius <= radial_truth <= radius))
         metrics["radius_mm"].append(radius)
 
     case_count = len(metrics["radius_mm"])
@@ -665,9 +655,7 @@ def _evaluate_recording(
         },
         "harmful_fraction": {
             "local_radial": _mean(metrics["local_harmful_radial"]),
-            "finite_harmful_accepted_radial": _mean(
-                metrics["finite_harmful_accepted_radial"]
-            ),
+            "finite_harmful_accepted_radial": _mean(metrics["finite_harmful_accepted_radial"]),
         },
         "exact_fallback_fraction": _mean(metrics["finite_exact_fallback_radial"]),
         "orbit_interval_coverage": _mean(metrics["radial_orbit_interval_covered"]),
@@ -786,17 +774,14 @@ def _registered_criteria(
 
     return {
         "all_target_groups_contribute": aggregate["target_groups"] == expected_target,
-        "minimum_target_cases": aggregate["total_cases"]
-        >= int(geometry["minimum_target_cases"]),
+        "minimum_target_cases": aggregate["total_cases"] >= int(geometry["minimum_target_cases"]),
         "invariant_acceptance": mean("finite_orbit_acceptance.invariant")
         >= float(registered["minimum_invariant_acceptance"]),
         "radial_rejection": 1.0 - mean("finite_orbit_acceptance.radial")
         >= float(registered["minimum_radial_rejection"]),
         "local_radial_acceptance": mean("local_acceptance.radial")
         >= float(registered["minimum_local_radial_acceptance"]),
-        "finite_no_harmful_accepted_radial": mean(
-            "harmful_fraction.finite_harmful_accepted_radial"
-        )
+        "finite_no_harmful_accepted_radial": mean("harmful_fraction.finite_harmful_accepted_radial")
         <= float(registered["maximum_finite_orbit_harmful_accepted_radial"]),
         "local_exposes_global_failure": mean("harmful_fraction.local_radial")
         >= float(registered["minimum_local_harmful_radial_fraction"]),
@@ -841,9 +826,7 @@ def _make_summary(
         "| Finite-orbit invariant-query acceptance | "
         + _format_estimate(aggregate["finite_orbit_acceptance.invariant"])
         + " |",
-        "| Finite-orbit radial-query rejection | "
-        + _format_estimate(rejection)
-        + " |",
+        "| Finite-orbit radial-query rejection | " + _format_estimate(rejection) + " |",
         "| Local-gate harmful radial updates | "
         + _format_estimate(aggregate["harmful_fraction.local_radial"])
         + " |",
@@ -870,8 +853,7 @@ def _make_summary(
         "",
     ]
     lines.extend(
-        f"- {'PASS' if passed else 'FAIL'} — `{name}`"
-        for name, passed in criteria.items()
+        f"- {'PASS' if passed else 'FAIL'} — `{name}`" for name, passed in criteria.items()
     )
     lines.extend(
         [
@@ -950,9 +932,7 @@ def run(args: argparse.Namespace) -> int:
     source_seal["source_seal_id"] = _sha256_bytes(_canonical_json(source_seal))
     _write_json(output_dir / "source_seal.json", source_seal)
 
-    groups = [
-        _evaluate_recording(recording, marker_triplet, protocol) for recording in target
-    ]
+    groups = [_evaluate_recording(recording, marker_triplet, protocol) for recording in target]
     aggregate = _aggregate_groups(groups, protocol)
     criteria = _registered_criteria(aggregate, protocol)
     status = (
@@ -981,21 +961,15 @@ def run(args: argparse.Namespace) -> int:
     }
     result["result_id"] = _sha256_bytes(_canonical_json(result))
     _write_json(output_dir / "result.json", result)
-    (output_dir / "summary.md").write_text(
-        _make_summary(result, marker_triplet), encoding="utf-8"
-    )
+    (output_dir / "summary.md").write_text(_make_summary(result, marker_triplet), encoding="utf-8")
     _write_json(
         output_dir / "inventory.json",
         {
             "schema": "prob4d.tracking-cloth-finite-orbit-inventory.v1",
             "csv_count": len(csv_paths),
             "classification": classification,
-            "source_group_ids": [
-                _stable_id(recording.relative_path) for recording in source
-            ],
-            "target_group_ids": [
-                _stable_id(recording.relative_path) for recording in target
-            ],
+            "source_group_ids": [_stable_id(recording.relative_path) for recording in source],
+            "target_group_ids": [_stable_id(recording.relative_path) for recording in target],
             "raw_payload_uploaded": False,
         },
     )
