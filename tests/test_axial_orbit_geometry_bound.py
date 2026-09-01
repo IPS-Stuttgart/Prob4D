@@ -29,9 +29,7 @@ def _rotate_about_line(
             [-y, x, 0.0],
         ]
     )
-    rotation = np.eye(3) + np.sin(angle) * skew + (1.0 - np.cos(angle)) * (
-        skew @ skew
-    )
+    rotation = np.eye(3) + np.sin(angle) * skew + (1.0 - np.cos(angle)) * (skew @ skew)
     return (points - pivot) @ rotation.T + pivot
 
 
@@ -75,22 +73,15 @@ def test_geometric_bound_contains_random_projected_coefficient_errors() -> None:
 
         pivot_limit = float(rng.uniform(0.0, 0.08))
         pivot_direction = _unit(rng.normal(size=3))
-        true_pivot = estimated_pivot + pivot_direction * float(
-            rng.uniform(0.0, pivot_limit)
-        )
+        true_pivot = estimated_pivot + pivot_direction * float(rng.uniform(0.0, pivot_limit))
 
         raw_axis_change = rng.normal(size=3)
         raw_axis_change -= estimated_axis * float(raw_axis_change @ estimated_axis)
         if np.linalg.norm(raw_axis_change) == 0.0:
             raw_axis_change = np.roll(estimated_axis, 1)
-            raw_axis_change -= estimated_axis * float(
-                raw_axis_change @ estimated_axis
-            )
+            raw_axis_change -= estimated_axis * float(raw_axis_change @ estimated_axis)
         raw_axis_change = _unit(raw_axis_change)
-        true_axis = _unit(
-            estimated_axis
-            + raw_axis_change * float(rng.uniform(0.0, 0.35))
-        )
+        true_axis = _unit(estimated_axis + raw_axis_change * float(rng.uniform(0.0, 0.35)))
         axis_error = float(np.linalg.norm(true_axis - estimated_axis))
 
         estimate = project_axial_query_coefficients(

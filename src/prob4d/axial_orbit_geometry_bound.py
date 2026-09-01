@@ -185,9 +185,7 @@ def bound_axial_query_coefficient_error(
         name="point_position_error_bounds",
     )
     if point_errors.shape != (points.shape[0],) or np.any(point_errors < 0.0):
-        raise ValueError(
-            "point_position_error_bounds must be a nonnegative vector of length N"
-        )
+        raise ValueError("point_position_error_bounds must be a nonnegative vector of length N")
     axis_error = _nonnegative(
         axis_vector_error_bound,
         name="axis_vector_error_bound",
@@ -224,13 +222,9 @@ def bound_axial_query_coefficient_error(
     true_cosine_norm_bound = np.linalg.norm(estimated_cosine, axis=1) + cosine_errors
     sine_errors = cosine_errors + axis_error * true_cosine_norm_bound
 
-    stacked_frobenius = float(
-        np.sqrt(np.sum(cosine_errors**2) + np.sum(sine_errors**2))
-    )
+    stacked_frobenius = float(np.sqrt(np.sum(cosine_errors**2) + np.sum(sine_errors**2)))
     flattened_weights = weights.reshape(weights.shape[0], -1)
-    query_operator_norm = float(
-        np.linalg.svd(flattened_weights, compute_uv=False)[0]
-    )
+    query_operator_norm = float(np.linalg.svd(flattened_weights, compute_uv=False)[0])
     coefficient_bound = query_operator_norm * stacked_frobenius
     return AxialGeometryCoefficientBound(
         coefficient_operator_error_bound=coefficient_bound,
