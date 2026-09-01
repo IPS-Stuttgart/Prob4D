@@ -244,7 +244,9 @@ def audit(dataset_root: Path) -> dict[str, Any]:
                         indices = valid_indices(rows_2d, width, height, mode)
                         support[sequence][camera][mode][frame] = indices
                         counts[mode] = len(indices)
-                    finite_pairs = [pair for row in rows_2d if (pair := finite_pair(row)) is not None]
+                    finite_pairs = [
+                        pair for row in rows_2d if (pair := finite_pair(row)) is not None
+                    ]
                     repeated = Counter(compact_pair(pair) for pair in finite_pairs)
                     sentinels = [
                         {"value": value, "count": occurrences}
@@ -259,12 +261,18 @@ def audit(dataset_root: Path) -> dict[str, Any]:
                         "support_by_coordinate_hypothesis": counts,
                         "repeated_coordinate_pairs": sentinels,
                         "x_range": (
-                            [min(pair[0] for pair in finite_pairs), max(pair[0] for pair in finite_pairs)]
+                            [
+                                min(pair[0] for pair in finite_pairs),
+                                max(pair[0] for pair in finite_pairs),
+                            ]
                             if finite_pairs
                             else None
                         ),
                         "y_range": (
-                            [min(pair[1] for pair in finite_pairs), max(pair[1] for pair in finite_pairs)]
+                            [
+                                min(pair[1] for pair in finite_pairs),
+                                max(pair[1] for pair in finite_pairs),
+                            ]
                             if finite_pairs
                             else None
                         ),
