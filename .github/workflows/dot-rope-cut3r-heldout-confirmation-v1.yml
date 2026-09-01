@@ -291,8 +291,7 @@ jobs:
             "$root/home" \
             "$root/cache" \
             "$root/tmp" \
-            "$root/evidence" \
-            "$root/provider"
+            "$root/evidence"
           echo "root=$root" >> "$GITHUB_OUTPUT"
           {
             echo "HOME=$root/home"
