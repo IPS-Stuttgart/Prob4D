@@ -9,6 +9,13 @@ from prob4d.dot_rope_cut3r_study import content_id
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts/science/run_dot_rope_query_selective_source_support_v2.py"
 PROTOCOL = ROOT / "protocols/dot-rope-query-selective-source-support-v2.json"
+CONTRACT_WORKFLOW = (
+    ROOT / ".github/workflows/dot-rope-query-selective-source-support-v2.yml"
+)
+EXECUTE_WORKFLOW = (
+    ROOT
+    / ".github/workflows/dot-rope-query-selective-source-support-v2-execute.yml"
+)
 
 SPEC = importlib.util.spec_from_file_location("dot_source_support_v2_test", SCRIPT)
 assert SPEC is not None and SPEC.loader is not None
@@ -98,11 +105,21 @@ def test_source_selector_is_deterministic_and_support_first() -> None:
     assert selected["candidate_id"] == "more-supported"
 
 
-def test_workflow_never_names_confirmation_archive() -> None:
-    workflow = (
-        ROOT / ".github/workflows/dot-rope-query-selective-source-support-v2.yml"
-    ).read_text(encoding="utf-8")
-    assert "R11-20.zip" in workflow
-    assert "R21-30.zip" not in workflow
-    assert "gpuserver4090" in workflow
-    assert "workstation1" in workflow
+def test_pr_review_cannot_reach_self_hosted_runner() -> None:
+    contract = CONTRACT_WORKFLOW.read_text(encoding="utf-8")
+    assert "pull_request:" in contract
+    assert "runs-on: ubuntu-latest" in contract
+    assert "self-hosted" not in contract
+    assert "gpuserver4090" not in contract
+
+
+def test_execution_is_push_only_and_source_archive_only() -> None:
+    execute = EXECUTE_WORKFLOW.read_text(encoding="utf-8")
+    assert "push:" in execute
+    assert "pull_request:" not in execute
+    assert "pull_request_target:" not in execute
+    assert "R11-20.zip" in execute
+    assert "R21-30.zip" not in execute
+    assert "gpuserver4090" in execute
+    assert "workstation1" in execute
+    assert "environment: trusted-self-hosted-validation" in execute
