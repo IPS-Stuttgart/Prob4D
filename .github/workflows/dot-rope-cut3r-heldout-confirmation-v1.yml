@@ -227,7 +227,7 @@ jobs:
           artifacts = request(f"/actions/runs/{run_id}/artifacts?per_page=100")
           untouched = (
               artifacts["total_count"] == 0
-              and provider.get("conclusion") is None
+              and provider.get("conclusion") in (None, "cancelled")
               and provider.get("runner_id") in (None, 0)
               and not provider.get("runner_name")
               and not provider.get("steps")
