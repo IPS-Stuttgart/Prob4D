@@ -1044,7 +1044,12 @@ jobs:
           }
           if decision not in permitted:
               raise SystemExit("held-out decision is outside the frozen roster")
-          if decision != "technical-failure" and os.environ["EXECUTION_OUTCOME"] != "success":
+          expected_outcome = (
+              "failure"
+              if decision in {"heldout-support-negative", "technical-failure"}
+              else "success"
+          )
+          if os.environ["EXECUTION_OUTCOME"] != expected_outcome:
               raise SystemExit("scientific result and process outcome disagree")
           values = {
               "decision": decision,
