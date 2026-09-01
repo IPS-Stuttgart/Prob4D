@@ -47,7 +47,17 @@ def main() -> int:
 
     def load_script(filename: str, name: str, expected_blob: str):
         loaded = original_load_script(filename, name, expected_blob)
+        if filename == "run_dot_rope_cut3r_native_provider.py":
+            original_make_synthetic_frames = loaded._make_synthetic_frames
+
+            def make_synthetic_frames(destination: Path, count: int):
+                # TemporaryDirectory creates its root before the provider receives it.
+                # The frozen helper requires a previously nonexistent destination.
+                return original_make_synthetic_frames(destination / "frames", count)
+
+            loaded._make_synthetic_frames = make_synthetic_frames
         if filename == "audit_dot_rope_marker_support.py":
+
             def coordinate_member(sequence: str, dimension: int, frame: int) -> str:
                 camera = known.camera if dimension == 2 else SHARED_3D_CAMERA
                 return (
