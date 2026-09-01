@@ -1,0 +1,21 @@
+{
+  "branch": "science/deform-dlo45-source-calibrated-covariance-v1",
+  "claim_boundary": "Post-hoc source-only covariance repair on already-opened evaluation data; no new recording, target-side retuning, learned-provider, BayesianPhysTwin, or Causal4D claim.",
+  "dataset_root": "/mnt/seagate10tb/florianpfaff/datasets/deform/data_set",
+  "execution_authorized": true,
+  "existing_eval_reanalysis_authorized": true,
+  "new_data_collection_authorized": false,
+  "original_result_id": "1ac8cd083b39877888ea0eb2f4b9400ca89eda09436f25f5f0a6f43b154b1007",
+  "protocol_id": "d2ab11f88c81653c8ff38c4412409ba11fe65bce828914d9a693e1fc8f68fe41",
+  "request_id": "1eaba06f7a85c3e4eb58c80701b2a6c387132ec1c26b670859bce5735e69d6be",
+  "requested_action": "fit one scalar query-covariance inflation on DLO4/DLO5 train trajectories, then apply it without changing means or admission to the existing 28-file evaluation split",
+  "runner_labels": [
+    "self-hosted",
+    "Linux",
+    "X64",
+    "gpuserver4090"
+  ],
+  "schema": "prob4d.deform-dlo45-source-calibrated-query-covariance-request.v1",
+  "schema_version": 1,
+  "source_calibration_authorized": true
+}
