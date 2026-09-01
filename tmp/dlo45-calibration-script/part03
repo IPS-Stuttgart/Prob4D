@@ -1,0 +1,160 @@
+    def metric(method: str, name: str) -> float:
+        return float(summary["segment_centroid"][method][name]["mean"])
+
+    raw_coverage = metric("raw_query_aware", "empirical_90pct_coverage")
+    calibrated_coverage = metric(
+        "source_calibrated_query_aware", "empirical_90pct_coverage"
+    )
+    raw_nees = metric("raw_query_aware", "normalized_nees")
+    calibrated_nees = metric("source_calibrated_query_aware", "normalized_nees")
+    paired = summary["segment_centroid"]["paired_calibrated_vs_raw"][
+        "nll_improvement"
+    ]
+    coverage_band = protocol["inference"]["target_coverage_acceptance_band"]
+    nees_band = protocol["inference"]["target_normalized_nees_acceptance_band"]
+    criteria = {
+        "raw_target_reproduces_immutable_result": bool(reproduction["passed"]),
+        "source_calibration_is_target_closed": (
+            calibration["information_boundary"]["evaluation_file_contents_opened"] is False
+        ),
+        "centroid_rmse_is_unchanged": math.isclose(
+            metric("raw_query_aware", "rmse_mm"),
+            metric("source_calibrated_query_aware", "rmse_mm"),
+            rel_tol=0.0,
+            abs_tol=1e-12,
+        ),
+        "off_axis_rejections_remain_exact_fallback": float(
+            summary["off_axis_probe"]["source_calibrated_query_aware"]
+            ["exact_fallback_fraction"]["mean"]
+        )
+        == 1.0,
+        "centroid_nll_improves": metric(
+            "source_calibrated_query_aware", "mean_gaussian_nll"
+        )
+        < metric("raw_query_aware", "mean_gaussian_nll"),
+        "paired_centroid_nll_lower_95_is_positive": float(paired["ci95_lower"]) > 0.0,
+        "centroid_nll_still_beats_fallback": metric(
+            "source_calibrated_query_aware", "mean_gaussian_nll"
+        )
+        < metric("physical_fallback", "mean_gaussian_nll"),
+        "centroid_coverage_moves_closer_to_90pct": abs(calibrated_coverage - 0.9)
+        < abs(raw_coverage - 0.9),
+        "centroid_nees_moves_closer_to_one": abs(calibrated_nees - 1.0)
+        < abs(raw_nees - 1.0),
+        "centroid_coverage_in_registered_band": float(coverage_band[0])
+        <= calibrated_coverage
+        <= float(coverage_band[1]),
+        "centroid_nees_in_registered_band": float(nees_band[0])
+        <= calibrated_nees
+        <= float(nees_band[1]),
+    }
+    invariants = all(
+        criteria[name]
+        for name in (
+            "raw_target_reproduces_immutable_result",
+            "source_calibration_is_target_closed",
+            "centroid_rmse_is_unchanged",
+            "off_axis_rejections_remain_exact_fallback",
+        )
+    )
+    directional = all(
+        criteria[name]
+        for name in (
+            "centroid_nll_improves",
+            "centroid_nll_still_beats_fallback",
+            "centroid_coverage_moves_closer_to_90pct",
+            "centroid_nees_moves_closer_to_one",
+        )
+    )
+    if invariants and directional and all(criteria.values()):
+        decision = "source-calibrated-strong-positive"
+    elif invariants and directional:
+        decision = "source-calibrated-directional-positive"
+    elif invariants:
+        decision = "source-calibrated-mixed-or-negative"
+    else:
+        decision = "technical-integrity-failure"
+
+    result: dict[str, Any] = {
+        "schema": RESULT_SCHEMA,
+        "schema_version": 1,
+        "protocol_id": protocol["protocol_id"],
+        "request_id": request["request_id"],
+        "repository_revision": revision,
+        "stage": "existing-evaluation-reanalysis",
+        "decision": decision,
+        "source_calibration": calibration,
+        "dataset": {
+            "opened_split": "eval",
+            "independent_group_definition": "one official evaluation trajectory file",
+            "manifest": manifest(dataset_root, "eval", 14),
+        },
+        "accounting": {
+            "independent_groups": len(groups),
+            "nested_cases": int(
+                sum(
+                    int(value["segment_centroid"]["raw_query_aware"]["count"])
+                    for value in groups.values()
+                )
+            ),
+        },
+        "aggregate_equal_group_results": summary,
+        "per_group_results": groups,
+        "raw_result_reproduction": reproduction,
+        "invariance": {
+            "means_unchanged_by_construction": True,
+            "admission_unchanged_by_construction": True,
+            "rejected_covariance_unchanged_by_construction": True,
+        },
+        "criteria": criteria,
+        "information_boundary": {
+            "source_calibration_opened_train_split_only": True,
+            "target_split_previously_opened": True,
+            "target_split_opened_for_this_reanalysis": True,
+            "new_data_collected": False,
+            "target_side_retuning_permitted": False,
+        },
+        "claim_boundary": protocol["claim_boundary"],
+    }
+    result["result_id"] = content_id(result, "result_id")
+    return result
+
+
+def make_summary(result: dict[str, Any]) -> str:
+    centroid = result["aggregate_equal_group_results"]["segment_centroid"]
+    paired = centroid["paired_calibrated_vs_raw"]["nll_improvement"]
+    rows = [
+        "# Source-calibrated DLO4/DLO5 query covariance",
+        "",
+        f"Decision: **{result['decision']}**",
+        "",
+        f"- Calibration ID: `{result['source_calibration']['calibration_id']}`",
+        f"- Result ID: `{result['result_id']}`",
+        "- No new data were collected.",
+        "- Means, factors, admission, and exact rejected-query fallback are unchanged.",
+        "",
+        "| Equal-trajectory result | Fallback | Raw query-aware | Source-calibrated |",
+        "|---|---:|---:|---:|",
+    ]
+    for label, metric in (
+        ("Centroid RMSE [mm]", "rmse_mm"),
+        ("Centroid Gaussian NLL", "mean_gaussian_nll"),
+        ("Centroid 90% coverage", "empirical_90pct_coverage"),
+        ("Centroid normalized NEES", "normalized_nees"),
+        ("Centroid marginal SD [mm]", "mean_marginal_standard_deviation_mm"),
+    ):
+        values = [
+            float(centroid[method][metric]["mean"])
+            for method in METHODS
+        ]
+        rows.append(f"| {label} | {values[0]:.6f} | {values[1]:.6f} | {values[2]:.6f} |")
+    rows.extend(
+        [
+            "",
+            "Paired calibrated-versus-raw NLL improvement: "
+            f"`{paired['mean']:.6f}` "
+            f"[`{paired['ci95_lower']:.6f}`, `{paired['ci95_upper']:.6f}`].",
+            "",
+            "## Registered checks",
+            "",
+        ]
