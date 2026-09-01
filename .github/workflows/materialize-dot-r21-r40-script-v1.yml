@@ -1,0 +1,186 @@
+name: Materialize DOT R21-R40 evaluator v1
+
+on:
+  push:
+    branches: [science/dot-query-selective-r21-r40-v1]
+    paths:
+      - "protocols/execution_requests/materialize_dot_r21_r40_script_v1.trigger"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: materialize-dot-r21-r40-script-v1
+  cancel-in-progress: false
+
+jobs:
+  materialize:
+    name: Derive target evaluator mechanically
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out exact branch revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: science/dot-query-selective-r21-r40-v1
+          fetch-depth: 0
+          persist-credentials: true
+          clean: true
+
+      - name: Apply exact target-roster and custody substitutions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("scripts/science/run_dot_rope_query_selective_r21_r40.py")
+          text = path.read_text(encoding="utf-8")
+          original = text
+
+          constants_old = '''PROTOCOL_SCHEMA = "prob4d.dot-rope-query-selective-heldout-protocol"
+          REQUEST_SCHEMA = "prob4d.dot-rope-query-selective-heldout-request"
+          PROVIDER_SCHEMA = "prob4d.dot-rope-query-selective-provider-bundle"
+          SEAL_SCHEMA = "prob4d.dot-rope-query-selective-prediction-seal"
+          RESULT_SCHEMA = "prob4d.dot-rope-query-selective-heldout-result"
+          FAILURE_SCHEMA = "prob4d.dot-rope-query-selective-heldout-failure"
+          SCHEMA_VERSION = 1
+
+          TARGET_SEQUENCES = [f"R{index:02d}" for index in range(11, 31)]
+          RESERVED_SEQUENCES = "R31-R70"
+          ARCHIVES = {
+              "R11-20.zip": {
+                  "md5": "23ce3e7067465d3edabe20b4c7cfa388",
+                  "sequences": [f"R{index:02d}" for index in range(11, 21)],
+              },
+              "R21-30.zip": {
+                  "md5": "8aee77f79d1aff6e1f3fd21886b251a0",
+                  "sequences": [f"R{index:02d}" for index in range(21, 31)],
+              },
+          }
+          CAMERA = "cam001"
+          FRAMES = list(range(1, 8))
+          BASE_PROVIDER_BLOB = "612c8ae61b0a64d464256a11992b46c486c88012"
+          POOLED_EVALUATOR_BLOB = "6195e70997f0e9582251c08772b1e423a3062ad6"
+          PREREQUISITE_PROTOCOL_ID = "a83258295d5ecabd95017a775f334173bb48141918832fb1a065a1dff66d16ba"
+          PREREQUISITE_DECISION = "heldout-strong-positive"
+          SOURCE_CALIBRATION_ID = "943339ac864fda04cc59081bc81a605576b3c90bf0aa996aea00b00335cfc0c7"
+          SELECTED_DEPENDENCE_ALPHA = 0.85
+          '''
+          constants_new = '''PROTOCOL_SCHEMA = "prob4d.dot-rope-query-selective-r21-r40-protocol"
+          REQUEST_SCHEMA = "prob4d.dot-rope-query-selective-r21-r40-request"
+          PROVIDER_SCHEMA = "prob4d.dot-rope-query-selective-r21-r40-provider-bundle"
+          SEAL_SCHEMA = "prob4d.dot-rope-query-selective-r21-r40-prediction-seal"
+          RESULT_SCHEMA = "prob4d.dot-rope-query-selective-r21-r40-result"
+          FAILURE_SCHEMA = "prob4d.dot-rope-query-selective-r21-r40-failure"
+          SCHEMA_VERSION = 1
+
+          TARGET_SEQUENCES = [f"R{index:02d}" for index in range(21, 41)]
+          RESERVED_SEQUENCES = "R41-R70"
+          ARCHIVES = {
+              "R21-30.zip": {
+                  "md5": "8aee77f79d1aff6e1f3fd21886b251a0",
+                  "sequences": [f"R{index:02d}" for index in range(21, 31)],
+              },
+              "R31-40.zip": {
+                  "md5": "8a96081d20af9fa486fafa8e24e54442",
+                  "sequences": [f"R{index:02d}" for index in range(31, 41)],
+              },
+          }
+          CAMERA = "cam001"
+          FRAMES = list(range(1, 8))
+          BASE_PROVIDER_BLOB = "612c8ae61b0a64d464256a11992b46c486c88012"
+          POOLED_EVALUATOR_BLOB = "6195e70997f0e9582251c08772b1e423a3062ad6"
+          PREREQUISITE_PROTOCOL_ID = "037df0507c8e98f6005955e4dfea457f764289058a698a797a3f1008e9dc0e5f"
+          PREREQUISITE_DECISION = "source-support-qualified"
+          SOURCE_SUPPORT_PROTOCOL_ID = PREREQUISITE_PROTOCOL_ID
+          SPLIT_COMMITMENT_ID = "abb7076b5c3d75425ba8850e25cda3b173c3b2ca200f82ed1d1ada1b35d0cec4"
+          SELECTED_DEPENDENCE_ALPHA = 0.85
+          '''
+          if text.count(constants_old) != 1:
+              raise SystemExit("tested evaluator constant block changed")
+          text = text.replace(constants_old, constants_new, 1)
+
+          substitutions = {
+              "DOT R11--R30": "DOT R21--R40",
+              "strong-positive R04--R10 prerequisite": "source-qualified R11--R20 prerequisite",
+              "R11--R30": "R21--R40",
+              "R11-R30": "R21-R40",
+              "R31-R70": "R41-R70",
+              "r11-r30": "r21-r40",
+              "r11_r30": "r21_r40",
+              "r31-r70": "r41-r70",
+              "r31_r70": "r41_r70",
+              "SOURCE_CALIBRATION_ID": "SOURCE_SUPPORT_PROTOCOL_ID",
+              '"source_calibration_id"': '"source_support_protocol_id"',
+              '"evaluation_id"': '"source_result_id"',
+              '"marker_support_id"': '"selected_support_rule_id"',
+              "did not pass the strong-positive gate": "did not pass the source-support qualification gate",
+          }
+          for old, new in substitutions.items():
+              text = text.replace(old, new)
+
+          expected_set = '        "protocol_path",\n        "request_id",\n'
+          replacement_set = (
+              '        "protocol_path",\n'
+              '        "request_id",\n'
+              '        "split_commitment_id",\n'
+          )
+          if text.count(expected_set) != 1:
+              raise SystemExit("request field set insertion point changed")
+          text = text.replace(expected_set, replacement_set, 1)
+
+          request_check = '''    if request["reserved_sequences"] != RESERVED_SEQUENCES:
+              raise ValueError("request reserve changed")
+          '''
+          request_check_new = '''    if request["reserved_sequences"] != RESERVED_SEQUENCES:
+              raise ValueError("request reserve changed")
+          if request["split_commitment_id"] != SPLIT_COMMITMENT_ID:
+              raise ValueError("request split commitment changed")
+          '''
+          if text.count(request_check) != 1:
+              raise SystemExit("request split-check insertion point changed")
+          text = text.replace(request_check, request_check_new, 1)
+
+          protocol_check = '''    if protocol.get("reserved_sequences") != RESERVED_SEQUENCES:
+              raise ValueError("reserved sequence boundary changed")
+          '''
+          protocol_check_new = '''    if protocol.get("reserved_sequences") != RESERVED_SEQUENCES:
+              raise ValueError("reserved sequence boundary changed")
+          if protocol.get("split_commitment_id") != SPLIT_COMMITMENT_ID:
+              raise ValueError("split commitment changed")
+          '''
+          if text.count(protocol_check) != 1:
+              raise SystemExit("protocol split-check insertion point changed")
+          text = text.replace(protocol_check, protocol_check_new, 1)
+
+          if text == original:
+              raise SystemExit("mechanical derivation changed nothing")
+          forbidden = (
+              "range(11, 31)",
+              'RESERVED_SEQUENCES = "R31-R70"',
+              '"R11-20.zip": {',
+              "heldout-strong-positive",
+              "SOURCE_CALIBRATION_ID",
+              '"evaluation_id"',
+              '"marker_support_id"',
+          )
+          for token in forbidden:
+              if token in text:
+                  raise SystemExit(f"legacy token remains: {token}")
+          path.write_text(text, encoding="utf-8", newline="\n")
+          PY
+          python -m compileall -q scripts/science/run_dot_rope_query_selective_r21_r40.py
+          git diff --check
+          test "$(git diff --name-only)" = \
+            "scripts/science/run_dot_rope_query_selective_r21_r40.py"
+
+      - name: Commit the mechanically derived evaluator
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/science/run_dot_rope_query_selective_r21_r40.py
+          git commit -m "Materialize frozen DOT R21-R40 evaluator"
+          git push origin HEAD:science/dot-query-selective-r21-r40-v1
