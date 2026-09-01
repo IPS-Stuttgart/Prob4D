@@ -7,8 +7,10 @@ on:
       - "src/prob4d/query_message.py"
       - "scripts/science/run_query_message_overlap_study_v1.py"
       - "protocols/query-message-overlap-study-v1.json"
+      - "evidence/query-message-overlap-controlled-v1/**"
       - "tests/test_query_message.py"
       - "tests/test_query_message_overlap_study_v1.py"
+      - "tests/test_query_message_overlap_evidence.py"
   push:
     branches: [main]
     paths:
@@ -16,8 +18,10 @@ on:
       - "src/prob4d/query_message.py"
       - "scripts/science/run_query_message_overlap_study_v1.py"
       - "protocols/query-message-overlap-study-v1.json"
+      - "evidence/query-message-overlap-controlled-v1/**"
       - "tests/test_query_message.py"
       - "tests/test_query_message_overlap_study_v1.py"
+      - "tests/test_query_message_overlap_evidence.py"
   workflow_dispatch:
 
 permissions:
@@ -62,7 +66,7 @@ jobs:
           python -m pip install -e ".[dev]"
           python -m pip check
 
-      - name: Validate the registered implementation
+      - name: Validate the registered implementation and retained evidence
         shell: bash
         run: |
           set -euo pipefail
@@ -70,12 +74,14 @@ jobs:
             src/prob4d/query_message.py \
             scripts/science/run_query_message_overlap_study_v1.py \
             tests/test_query_message.py \
-            tests/test_query_message_overlap_study_v1.py
+            tests/test_query_message_overlap_study_v1.py \
+            tests/test_query_message_overlap_evidence.py
           python -m pytest -q \
             tests/test_query_message.py \
-            tests/test_query_message_overlap_study_v1.py
+            tests/test_query_message_overlap_study_v1.py \
+            tests/test_query_message_overlap_evidence.py
 
-      - name: Execute twice and require byte-identical evidence
+      - name: Execute twice and require byte-identical retained evidence
         shell: bash
         run: |
           set -euo pipefail
@@ -93,20 +99,47 @@ jobs:
           cmp \
             build/query-message-overlap-v1/first/summary.json \
             build/query-message-overlap-v1/second/summary.json
+          cmp \
+            build/query-message-overlap-v1/first/summary.json \
+            evidence/query-message-overlap-controlled-v1/summary.json
           python - <<'PY'
+          import hashlib
           import json
           from pathlib import Path
 
-          path = Path("build/query-message-overlap-v1/first/result.json")
-          value = json.loads(path.read_text(encoding="utf-8"))
-          if value["decision"] != "controlled-overlap-passed":
+          generated = Path("build/query-message-overlap-v1/first")
+          evidence = Path("evidence/query-message-overlap-controlled-v1")
+          protocol = Path("protocols/query-message-overlap-study-v1.json")
+          result = json.loads((generated / "result.json").read_text(encoding="utf-8"))
+          manifest = json.loads((evidence / "manifest.json").read_text(encoding="utf-8"))
+          if result["decision"] != "controlled-overlap-passed":
               raise SystemExit("controlled overlap study did not pass")
-          if not all(value["checks"].values()):
+          if not all(result["checks"].values()):
               raise SystemExit("one or more registered checks failed")
-          print(json.dumps(value["summary"], indent=2, sort_keys=True))
-          print(f"result_id={value['result_id']}")
+          if result["protocol_id"] != manifest["protocol_id"]:
+              raise SystemExit("generated protocol identity changed")
+          if result["result_id"] != manifest["result_id"]:
+              raise SystemExit("generated result identity changed")
+          expected = manifest["artifact_payloads_sha256"]
+          observed = {
+              "result.json": hashlib.sha256(
+                  (generated / "result.json").read_bytes()
+              ).hexdigest(),
+              "summary.json": hashlib.sha256(
+                  (generated / "summary.json").read_bytes()
+              ).hexdigest(),
+              "protocols/query-message-overlap-study-v1.json": hashlib.sha256(
+                  protocol.read_bytes()
+              ).hexdigest(),
+          }
+          if observed != expected:
+              raise SystemExit(
+                  "regenerated payload hashes differ from retained evidence"
+              )
+          print(json.dumps(result["summary"], indent=2, sort_keys=True))
+          print(f"result_id={result['result_id']}")
+          print(json.dumps(observed, indent=2, sort_keys=True))
           PY
-          sha256sum build/query-message-overlap-v1/first/*.json
 
       - name: Upload immutable controlled evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v6.0.0
@@ -116,5 +149,7 @@ jobs:
             build/query-message-overlap-v1/first/result.json
             build/query-message-overlap-v1/first/summary.json
             protocols/query-message-overlap-study-v1.json
+            evidence/query-message-overlap-controlled-v1/README.md
+            evidence/query-message-overlap-controlled-v1/manifest.json
           if-no-files-found: error
           retention-days: 30
