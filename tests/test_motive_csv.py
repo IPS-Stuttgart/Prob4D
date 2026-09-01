@@ -36,7 +36,10 @@ def _write_motive(
         id_row.extend([f"ID-{label}"] * 3)
         quantity_row.extend(["Position"] * 3)
         axis_row.extend(["X", "Y", "Z"])
-    assert all(len(row) == width for row in (type_row, label_row, id_row, quantity_row, axis_row))
+    assert all(
+        len(row) == width
+        for row in (type_row, label_row, id_row, quantity_row, axis_row)
+    )
     rows = [
         [
             "Format Version",
@@ -104,7 +107,29 @@ def test_common_labels_are_naturally_sorted_across_column_orders(tmp_path: Path)
     second = tmp_path / "second.csv"
     labels = [str(index) for index in range(1, 21)]
     _write_motive(first, labels, order=list(reversed(range(20))))
-    _write_motive(second, labels, order=[14, 9, 4, 19, 3, 13, 18, 8, 1, 2, 12, 17, 7, 6, 11, 16, 0, 10, 5, 15])
+    order = [
+        14,
+        9,
+        4,
+        19,
+        3,
+        13,
+        18,
+        8,
+        1,
+        2,
+        12,
+        17,
+        7,
+        6,
+        11,
+        16,
+        0,
+        10,
+        5,
+        15,
+    ]
+    _write_motive(second, labels, order=order)
     assert common_marker_labels([first, second], 20) == labels
 
 
