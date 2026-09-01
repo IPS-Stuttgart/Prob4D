@@ -1,0 +1,93 @@
+diff --git a/.github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml b/.github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml
+--- a/.github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml
++++ b/.github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml
+@@ -546,6 +546,78 @@ jobs:
+           /usr/bin/find "$checkout/src/croco/models/curope" \
+             -maxdepth 1 -type f -name '*.so' -delete
+           /usr/bin/rm -rf -- "$checkout/src/croco/models/curope/build"
++
++          compatibility_patch="$GITHUB_WORKSPACE/.github/patches/cut3r-curope-torch211-cu126.patch"
++          kernels=src/croco/models/curope/kernels.cu
++          setup=src/croco/models/curope/setup.py
++          expected_kernels_blob=7156cd1bb935cb1f0be45e58add53f9c21505c20
++          expected_setup_blob=02ddb0912370a67a49fd2bb91164cf2f1da8648e
++          test -f "$compatibility_patch"
++          test "$(/usr/bin/git -C "$checkout" hash-object "$kernels")" = \
++            "$expected_kernels_blob"
++          test "$(/usr/bin/git -C "$checkout" hash-object "$setup")" = \
++            "$expected_setup_blob"
++          /usr/bin/git -C "$checkout" apply --check "$compatibility_patch"
++          /usr/bin/git -C "$checkout" apply "$compatibility_patch"
++          /usr/bin/git -C "$checkout" diff --check
++          modified=$(/usr/bin/git -C "$checkout" diff --name-only | sort)
++          expected=$(printf '%s\n%s\n' "$kernels" "$setup" | sort)
++          test "$modified" = "$expected"
++          grep -F 'tokens.scalar_type()' "$checkout/$kernels"
++          if grep -F 'tokens.type()' "$checkout/$kernels"; then
++            echo "deprecated tensor type dispatch remains" >&2
++            exit 2
++          fi
++          grep -F 'arch=compute_89,code=sm_89' "$checkout/$setup"
++          patch_sha256=$(sha256sum "$compatibility_patch" | awk '{print $1}')
++          kernels_post_blob=$(/usr/bin/git -C "$checkout" hash-object "$kernels")
++          setup_post_blob=$(/usr/bin/git -C "$checkout" hash-object "$setup")
++          PATCH_SHA256="$patch_sha256" \
++            KERNELS_POST_BLOB="$kernels_post_blob" \
++            SETUP_POST_BLOB="$setup_post_blob" \
++            RECEIPT="$root/evidence/curope-compatibility.json" \
++            python - <<'PY'
++          import hashlib
++          import json
++          import os
++          from pathlib import Path
++
++          record = {
++              "schema": "prob4d.dot-r04-r10-curope-compatibility",
++              "schema_version": 1,
++              "cut3r_revision": os.environ["CUT3R_REVISION"],
++              "patch_path": ".github/patches/cut3r-curope-torch211-cu126.patch",
++              "patch_sha256": os.environ["PATCH_SHA256"],
++              "kernels_pre_blob": "7156cd1bb935cb1f0be45e58add53f9c21505c20",
++              "kernels_post_blob": os.environ["KERNELS_POST_BLOB"],
++              "setup_pre_blob": "02ddb0912370a67a49fd2bb91164cf2f1da8648e",
++              "setup_post_blob": os.environ["SETUP_POST_BLOB"],
++              "dispatch_change": "tokens.type() -> tokens.scalar_type()",
++              "compile_target": "compute_89/sm_89",
++              "model_weights_changed": False,
++              "provider_equations_changed": False,
++              "provider_inputs_changed": False,
++              "scientific_protocol_changed": False,
++              "dot_payload_opened_by_patch_step": False,
++          }
++          canonical = json.dumps(
++              record,
++              sort_keys=True,
++              separators=(",", ":"),
++          ).encode()
++          record["artifact_id"] = hashlib.sha256(canonical).hexdigest()
++          Path(os.environ["RECEIPT"]).write_text(
++              json.dumps(record, indent=2, sort_keys=True) + "\n",
++              encoding="utf-8",
++          )
++          print(json.dumps({"artifact_id": record["artifact_id"]}, sort_keys=True))
++          PY
+ 
+           nvcc=""
+           for candidate in \
+             "$(dirname "$(dirname "${CUDA_HOME:-/usr/local/cuda}")")/bin/nvcc" \
+diff --git a/tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py b/tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py
+--- a/tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py
++++ b/tests/test_dot_rope_cut3r_heldout_confirmation_workflow.py
+@@ -84,6 +84,12 @@ def test_registered_dot_heldout_workflow_is_structurally_complete() -> None:
+     assert "torch.load" in provider
+     assert "weights_only=False" in provider
+     assert "prepare_cut3r_runtime.py" in provider
++    assert ".github/patches/cut3r-curope-torch211-cu126.patch" in provider
++    assert "7156cd1bb935cb1f0be45e58add53f9c21505c20" in provider
++    assert "02ddb0912370a67a49fd2bb91164cf2f1da8648e" in provider
++    assert "tokens.scalar_type()" in provider
++    assert "compute_89/sm_89" in provider
++    assert "curope-compatibility.json" in provider
+     assert "normal-view" in provider
+     assert "markers" not in provider.lower()
+     assert "R11" not in provider
