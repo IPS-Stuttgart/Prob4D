@@ -1,0 +1,44 @@
+name: Temporary assemble DLO45 calibration evaluator
+
+on:
+  push:
+    branches: [science/deform-dlo45-source-calibrated-covariance-v1]
+    paths:
+      - ".github/workflows/temporary-assemble-dlo45-calibration-script.yml"
+      - "tmp/dlo45-calibration-script/**"
+
+permissions:
+  contents: write
+
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: science/deform-dlo45-source-calibrated-covariance-v1
+          fetch-depth: 0
+      - name: Assemble, attest, and clean staging files
+        shell: bash
+        run: |
+          set -euo pipefail
+          target=scripts/science/run_deform_dlo45_source_calibrated_query_covariance_v1.py
+          mkdir -p "$(dirname "$target")"
+          cat tmp/dlo45-calibration-script/part00 \
+              tmp/dlo45-calibration-script/part01 \
+              tmp/dlo45-calibration-script/part02 \
+              tmp/dlo45-calibration-script/part03 \
+              tmp/dlo45-calibration-script/part04 > "$target"
+          printf '%s  %s\n' \
+            '50a02ba47be5d763c5628a53ec5789a161d40a5393db22a00fddfb68695ae624' \
+            "$target" | sha256sum --check --strict
+          python -m py_compile "$target"
+          chmod 755 "$target"
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add "$target"
+          git rm -r tmp/dlo45-calibration-script
+          git rm .github/workflows/temporary-assemble-dlo45-calibration-script.yml
+          git commit -m 'Add source-calibrated DLO4/DLO5 covariance evaluator'
+          git push origin HEAD:science/deform-dlo45-source-calibrated-covariance-v1
