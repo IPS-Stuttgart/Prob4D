@@ -1,0 +1,188 @@
+name: Temporary Tracking Cloth bounded-orbit robustness v1
+
+on:
+  push:
+    branches:
+      - repair/tracking-cloth-finite-orbit-motive-parser-v1
+    paths:
+      - ".github/workflows/temporary-tracking-cloth-bounded-orbit-robustness-v1.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: temporary-tracking-cloth-bounded-orbit-robustness-v1
+  cancel-in-progress: false
+
+env:
+  ZENODO_URL: https://zenodo.org/records/14644526/files/tracking_dataset.zip?download=1
+  ZENODO_MD5: b4868b702f8a42b2ea1069d0f1a3b8f6
+  PROTOCOL_PATH: protocols/tracking-cloth-bounded-orbit-robustness-v1.json
+  OUTPUT_DIR: outputs/tracking-cloth-bounded-orbit-robustness-v1
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+
+jobs:
+  robustness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Check out exact branch revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Install exact development environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check -e ".[dev]"
+          python -m pip install --disable-pip-version-check "numpy==2.3.5"
+          python -m pip check
+
+      - name: Validate implementation and frozen protocol
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m ruff check \
+            src/prob4d/bounded_axial_orbit.py \
+            scripts/science/run_tracking_cloth_bounded_orbit_robustness_v1.py \
+            tests/test_bounded_axial_orbit.py \
+            tests/test_tracking_cloth_bounded_orbit_robustness_v1.py
+          python -m ruff format --check \
+            src/prob4d/bounded_axial_orbit.py \
+            scripts/science/run_tracking_cloth_bounded_orbit_robustness_v1.py \
+            tests/test_bounded_axial_orbit.py \
+            tests/test_tracking_cloth_bounded_orbit_robustness_v1.py
+          python -m mypy src/prob4d/bounded_axial_orbit.py
+          python -m pytest -q \
+            tests/test_bounded_axial_orbit.py \
+            tests/test_tracking_cloth_bounded_orbit_robustness_v1.py \
+            tests/test_motive_csv.py
+          python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          path = Path("protocols/tracking-cloth-bounded-orbit-robustness-v1.json")
+          value = json.loads(path.read_text())
+          supplied = value.pop("protocol_id")
+          encoded = json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
+          assert supplied == "5034c1affda01d93c475078a52126113d6c938973692f544abb665b473a5861c"
+          assert hashlib.sha256(encoded).hexdigest() == supplied
+          PY
+
+      - name: Download and verify official release
+        id: dataset
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/tracking-cloth-bounded-orbit-$GITHUB_RUN_ID"
+          rm -rf -- "$root" "$OUTPUT_DIR"
+          mkdir -p "$root/data" "$root/evidence"
+          archive="$root/tracking_dataset.zip"
+          curl --fail --location --retry 8 --retry-all-errors \
+            --connect-timeout 30 --max-time 3600 \
+            --output "$archive" "$ZENODO_URL"
+          printf '%s  %s\n' "$ZENODO_MD5" "$archive" | md5sum --check --strict
+          unzip -q "$archive" -d "$root/data"
+          count=$(find "$root/data" -type f -iname '*.csv' -printf '.' | wc -c)
+          test "$count" -eq 120
+          echo "root=$root" >> "$GITHUB_OUTPUT"
+          echo "data=$root/data" >> "$GITHUB_OUTPUT"
+
+      - name: Execute bounded-generator robustness study
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/science/run_tracking_cloth_bounded_orbit_robustness_v1.py \
+            --dataset-root "${{ steps.dataset.outputs.data }}" \
+            --protocol "$PROTOCOL_PATH" \
+            --output-dir "$OUTPUT_DIR" \
+            --source-revision "$(git rev-parse HEAD)"
+
+      - name: Verify mathematical invariants and bounded evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          output = Path(os.environ["OUTPUT_DIR"])
+          result = json.loads((output / "result.json").read_text())
+          source = json.loads((output / "source_seal.json").read_text())
+          assert result["schema"] == (
+              "prob4d.tracking-cloth-bounded-orbit-robustness-result.v1"
+          )
+          assert result["protocol_id"] == (
+              "5034c1affda01d93c475078a52126113d6c938973692f544abb665b473a5861c"
+          )
+          assert result["parent_result"]["result_id"] == (
+              "1441a141a8eccc1ae3a503c701c72e8d702a0bcb17226238f3d32effa3e58111"
+          )
+          assert result["target_group_count"] == 15
+          assert result["target_case_count"] >= 1000
+          assert source["source_group_count"] == 24
+          assert source["target_trajectory_values_opened_before_source_seal"] is False
+          checks = result["mathematical_checks"]
+          assert checks["all_outer_bounds_contained_true_orbits"] is True
+          assert checks["all_outer_gates_had_zero_false_acceptance"] is True
+          assert checks["zero_error_matched_oracle"] is True
+          assert result["self_collision_header_audit"] == {
+              "audit_id": "8e062f5ac4a8521b51cf616986331614f1bc91b5ca1d4971ed7647a5c4bc2ed9",
+              "target_trajectory_values_parsed": False,
+              "compatible_source_target_namespace_pairs": 0,
+              "disposition": "not forced into the outcome study",
+          }
+          assert set(path.name for path in output.iterdir()) == {
+              "aggregate.csv",
+              "result.json",
+              "source_seal.json",
+              "summary.md",
+          }
+          print({
+              "result_id": result["result_id"],
+              "source_seal_id": result["source_seal_id"],
+              "target_groups": result["target_group_count"],
+              "target_cases": result["target_case_count"],
+              "checks": checks,
+          })
+          PY
+
+      - name: Remove raw public data before evidence publication
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.dataset.outputs.root }}"
+          rm -rf -- "$root/data" "$root/tracking_dataset.zip"
+          if find "$OUTPUT_DIR" -type f -iname '*.csv' ! -name 'aggregate.csv' \
+              -print -quit | grep -q .; then
+            echo "unexpected raw CSV in evidence" >&2
+            exit 3
+          fi
+          if [[ -f "$OUTPUT_DIR/summary.md" ]]; then
+            cat "$OUTPUT_DIR/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload compact robustness result
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: tracking-cloth-bounded-orbit-robustness-v1-${{ github.run_id }}
+          path: outputs/tracking-cloth-bounded-orbit-robustness-v1/
+          if-no-files-found: error
+          retention-days: 30
