@@ -1,4 +1,4 @@
-name: One-shot DOT R04-R10 corrected camera support audit on gpuserver6000
+name: One-shot DOT R04-R10 retained CUT3R cache census
 
 on:
   push:
@@ -11,138 +11,117 @@ permissions:
   contents: read
 
 jobs:
-  audit:
+  census:
     environment: trusted-self-hosted-validation
     runs-on: [self-hosted, gpuserver6000]
-    timeout-minutes: 30
+    timeout-minutes: 15
     env:
-      EXACT_MAIN_SHA: 0fed861b9386f6364539883aab697fd53035a5eb
-      DATASET_ROOT: /home/github-runner/.cache/prob4d/dot-r04-r10-cut3r-gpuserver6000-v1/dot-v29
-      ARCHIVE_NAME: R01-10.zip
+      CACHE_ROOT: /home/github-runner/.cache/prob4d/dot-r04-r10-cut3r-gpuserver6000-v1
       ARCHIVE_MD5: ca546ff5f22c0279123ccb18509858ee
-      EXPECTED_SCRIPT_GIT_BLOB: 5baed0a27e6318c0a951c0997885af0031e118d4
-      LAYOUT_CENSUS_ID: 74f090a99d6740ac3388c43493531ea5168291e4c5a709fb74344e45b46b4f19
+      CHECKPOINT_SHA256: 45f7e98a0a64dbeb54901ae2b878cd8cd125f20a4497316483f0bd6f109f8103
     steps:
-      - name: Require intended runner and publisher-verified archive
+      - name: Inventory reusable marker-free cache without reading reserved payloads
+        id: census
         shell: bash
         run: |
           set -euo pipefail
-          test "$RUNNER_NAME" = "workstation2"
-          test "$RUNNER_OS" = "Linux"
-          test "$RUNNER_ARCH" = "X64"
-          test -f "$DATASET_ROOT/$ARCHIVE_NAME"
-          test ! -L "$DATASET_ROOT/$ARCHIVE_NAME"
-          printf '%s  %s\n' "$ARCHIVE_MD5" "$DATASET_ROOT/$ARCHIVE_NAME" | md5sum --check --strict
+          test "$RUNNER_NAME" = workstation2
+          test -d "$CACHE_ROOT"
+          test -f "$CACHE_ROOT/dot-v29/R01-10.zip"
+          printf '%s  %s\n' "$ARCHIVE_MD5" "$CACHE_ROOT/dot-v29/R01-10.zip" | md5sum --check --strict
+          output="$RUNNER_TEMP/dot-r04-r10-retained-cache-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json"
+          CACHE_ROOT="$CACHE_ROOT" OUTPUT="$output" python3 - <<'PY'
+          from __future__ import annotations
 
-      - name: Check out exact reviewed main implementation
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ env.EXACT_MAIN_SHA }}
-          persist-credentials: false
-          clean: true
-
-      - name: Bind the exact audit and apply only the census-proven carrier correction
-        id: adapter
-        shell: bash
-        run: |
-          set -euo pipefail
-          source=scripts/science/audit_dot_r04_r10_camera_support.py
-          test "$(git hash-object "$source")" = "$EXPECTED_SCRIPT_GIT_BLOB"
-          adapted="$RUNNER_TEMP/audit_dot_r04_r10_camera_support_shared_3d.py"
-          SOURCE="$source" ADAPTED="$adapted" python3 - <<'PY'
-          import os
-          from pathlib import Path
-
-          source = Path(os.environ["SOURCE"])
-          adapted = Path(os.environ["ADAPTED"])
-          text = source.read_text(encoding="utf-8")
-          old = '                    three_name = member(sequence, 3, frame, camera)\n'
-          new = '                    three_name = member(sequence, 3, frame, "cam001")\n'
-          if text.count(old) != 1:
-              raise SystemExit("shared-3D adapter marker is not unique")
-          adapted.write_text(text.replace(old, new, 1), encoding="utf-8")
-          PY
-          python3 -m py_compile "$adapted"
-          grep -F 'three_name = member(sequence, 3, frame, "cam001")' "$adapted"
-          echo "script=$adapted" >> "$GITHUB_OUTPUT"
-
-      - name: Run corrected support-only audit and bind layout provenance
-        id: audit
-        shell: bash
-        run: |
-          set -euo pipefail
-          raw="$RUNNER_TEMP/dot-r04-r10-camera-support-raw-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json"
-          final="$RUNNER_TEMP/dot-r04-r10-camera-support-shared-3d-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json"
-          python3 "${{ steps.adapter.outputs.script }}" \
-            --dataset-root "$DATASET_ROOT" \
-            --output "$raw" | tee "$RUNNER_TEMP/dot-camera-support-summary.json"
-          RAW="$raw" FINAL="$final" python3 - <<'PY'
           import hashlib
           import json
           import os
           from pathlib import Path
 
-          raw = Path(os.environ["RAW"])
-          final = Path(os.environ["FINAL"])
-          value = json.loads(raw.read_text(encoding="utf-8"))
-          boundary = value["scientific_boundary"]
-          expected_sequences = [f"R{i:02d}" for i in range(4, 11)]
-          if boundary["sequences_opened"] != expected_sequences:
-              raise SystemExit("diagnostic sequence boundary changed")
-          if boundary["r11_r70_opened"] is not False:
-              raise SystemExit("diagnostic crossed R11-R70 boundary")
-          if boundary["performance_metrics_computed"] is not False:
-              raise SystemExit("diagnostic computed performance")
-          if boundary["frozen_r04_r10_result_reinterpreted"] is not False:
-              raise SystemExit("diagnostic reinterpreted the terminal result")
-          if not all(
-              all(frames.values())
-              for frames in value["cross_camera_3d_payload_identical"].values()
-          ):
-              raise SystemExit("shared 3-D carrier consistency check failed")
-          value["layout_adapter"] = {
-              "layout_census_id": os.environ["LAYOUT_CENSUS_ID"],
-              "archive_layout": (
-                  "camera-specific 2-D coordinates with one shared cam001 3-D "
-                  "carrier per sequence/frame"
-              ),
-              "shared_3d_camera_label": "cam001",
-              "index_alignment_rule": "row-index identity after equal-length truncation",
-              "performance_metrics_computed": False,
+          root = Path(os.environ["CACHE_ROOT"]).resolve(strict=True)
+          allowed_json_names = {
+              "manifest.json",
+              "runtime-receipt.json",
+              "result.json",
+              "marker-support.json",
           }
-          unsigned = dict(value)
-          unsigned.pop("audit_id", None)
-          encoded = json.dumps(
-              unsigned, sort_keys=True, separators=(",", ":"), allow_nan=False
-          ).encode()
-          value["adapted_audit_id"] = hashlib.sha256(encoded).hexdigest()
-          final.write_text(
-              json.dumps(value, indent=2, sort_keys=True, allow_nan=False) + "\n",
+
+          def sha256(path: Path) -> str:
+              digest = hashlib.sha256()
+              with path.open("rb") as stream:
+                  for block in iter(lambda: stream.read(1024 * 1024), b""):
+                      digest.update(block)
+              return digest.hexdigest()
+
+          files = []
+          manifests = {}
+          for path in sorted(root.rglob("*")):
+              if not path.is_file() or path.is_symlink():
+                  continue
+              relative = path.relative_to(root).as_posix()
+              suffix = path.suffix.lower()
+              record = {
+                  "path": relative,
+                  "bytes": path.stat().st_size,
+              }
+              if suffix in {".json", ".npz", ".pth", ".so"}:
+                  record["sha256"] = sha256(path)
+              files.append(record)
+              if path.name in allowed_json_names and path.stat().st_size <= 2_000_000:
+                  try:
+                      value = json.loads(path.read_text(encoding="utf-8"))
+                  except (UnicodeDecodeError, json.JSONDecodeError):
+                      continue
+                  manifests[relative] = {
+                      key: value.get(key)
+                      for key in (
+                          "schema",
+                          "schema_version",
+                          "decision",
+                          "provider_bundle_id",
+                          "artifact_id",
+                          "evaluation_id",
+                          "request_id",
+                          "protocol_id",
+                          "information_boundary",
+                      )
+                      if key in value
+                  }
+
+          result = {
+              "schema": "prob4d.dot-r04-r10-retained-cut3r-cache-census",
+              "schema_version": 1,
+              "cache_root": root.as_posix(),
+              "files": files,
+              "safe_json_summaries": manifests,
+              "scientific_boundary": {
+                  "archive_payload_read": False,
+                  "marker_payload_read": False,
+                  "provider_prediction_array_read": False,
+                  "r11_r70_opened": False,
+                  "performance_metrics_computed": False,
+              },
+          }
+          encoded = json.dumps(result, sort_keys=True, separators=(",", ":")).encode()
+          result["census_id"] = hashlib.sha256(encoded).hexdigest()
+          Path(os.environ["OUTPUT"]).write_text(
+              json.dumps(result, indent=2, sort_keys=True) + "\n",
               encoding="utf-8",
           )
           print(json.dumps({
-              "decision": value["decision"],
-              "adapted_audit_id": value["adapted_audit_id"],
-              "common_cameras": value["dataset"]["cameras_present_on_every_sequence"],
-              "fixed_camera_feasible_candidates": value["fixed_camera_feasible_candidates"],
-              "multiview_feasible_coordinate_modes": value[
-                  "multiview_feasible_coordinate_modes"
-              ],
+              "census_id": result["census_id"],
+              "file_count": len(files),
+              "json_summaries": sorted(manifests),
+              "top_level": sorted(path.name for path in root.iterdir()),
           }, indent=2, sort_keys=True))
-          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
-              output.write(f"result={final}\n")
-          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
-              summary.write(f"Decision: `{value['decision']}`\n\n")
-              summary.write(f"Adapted audit ID: `{value['adapted_audit_id']}`\n\n")
-              summary.write(f"Common cameras: `{value['dataset']['cameras_present_on_every_sequence']}`\n\n")
-              summary.write(f"Fixed-camera feasible candidates: `{value['fixed_camera_feasible_candidates']}`\n\n")
-              summary.write(f"Multiview feasible modes: `{value['multiview_feasible_coordinate_modes']}`\n")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as stream:
+              stream.write(f"result={os.environ['OUTPUT']}\n")
           PY
 
-      - name: Upload bounded corrected support audit
+      - name: Upload bounded retained-cache census
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
         with:
-          name: dot-r04-r10-camera-support-shared-3d-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ steps.audit.outputs.result }}
+          name: dot-r04-r10-retained-cache-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.census.outputs.result }}
           if-no-files-found: error
           retention-days: 90
