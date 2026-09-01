@@ -1,0 +1,145 @@
+name: Axial orbit geometric error bound
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/axial-orbit-geometric-error-bound.yml"
+      - "src/prob4d/axial_orbit_geometry_bound.py"
+      - "src/prob4d/robust_orbit_query.py"
+      - "tests/test_axial_orbit_geometry_bound.py"
+      - "tests/test_robust_orbit_query.py"
+      - "docs/axial-orbit-geometric-error-bound.md"
+  push:
+    branches:
+      - research/robust-orbit-identifiability-v1
+    paths:
+      - ".github/workflows/axial-orbit-geometric-error-bound.yml"
+      - "src/prob4d/axial_orbit_geometry_bound.py"
+      - "src/prob4d/robust_orbit_query.py"
+      - "tests/test_axial_orbit_geometry_bound.py"
+      - "tests/test_robust_orbit_query.py"
+      - "docs/axial-orbit-geometric-error-bound.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: axial-orbit-geometric-error-bound-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+
+jobs:
+  validate:
+    name: Geometric-to-coefficient error contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install exact development environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check -e ".[dev]"
+          python -m pip check
+
+      - name: Lint, format, and type-check bound implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m ruff check \
+            src/prob4d/axial_orbit_geometry_bound.py \
+            tests/test_axial_orbit_geometry_bound.py
+          python -m ruff format --check \
+            src/prob4d/axial_orbit_geometry_bound.py \
+            tests/test_axial_orbit_geometry_bound.py
+          python -m mypy src/prob4d/axial_orbit_geometry_bound.py
+
+      - name: Run adversarial geometric-bound tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pytest -q \
+            tests/test_axial_orbit_geometry_bound.py \
+            tests/test_robust_orbit_query.py
+
+      - name: Verify practical end-to-end certificate composition
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import numpy as np
+
+          from prob4d.axial_orbit_geometry_bound import (
+              bound_axial_query_coefficient_error,
+              project_axial_query_coefficients,
+          )
+          from prob4d.robust_orbit_query import certify_axial_linear_query
+
+          points = np.array(
+              [
+                  [-0.5, 0.0, 0.0],
+                  [0.5, 0.0, 0.0],
+                  [0.0, 0.2, 0.0],
+              ]
+          )
+          weights = np.zeros((2, 3, 3))
+          weights[0, 2, 1] = 1.0
+          weights[1, 2, 2] = 1.0
+          coefficients = project_axial_query_coefficients(
+              points,
+              axis=[1.0, 0.0, 0.0],
+              pivot=[0.0, 0.0, 0.0],
+              query_weights=weights,
+          )
+          budget = bound_axial_query_coefficient_error(
+              points,
+              estimated_axis=[1.0, 0.0, 0.0],
+              estimated_pivot=[0.0, 0.0, 0.0],
+              query_weights=weights,
+              point_position_error_bounds=[0.001, 0.001, 0.002],
+              axis_vector_error_bound=0.005,
+              pivot_position_error_bound=0.001,
+          )
+          certificate = certify_axial_linear_query(
+              coefficients,
+              coefficient_error_bound=budget.coefficient_operator_error_bound,
+              invariance_tolerance=0.05,
+          )
+          assert certificate.decision == "certified-variant"
+          assert certificate.update_admitted is False
+          print(
+              json.dumps(
+                  {
+                      "estimated_diameter": certificate.estimated_diameter,
+                      "lower_diameter": certificate.lower_diameter,
+                      "upper_diameter": certificate.upper_diameter,
+                      "geometric_coefficient_error_bound": budget.coefficient_operator_error_bound,
+                      "decision": certificate.decision,
+                  },
+                  sort_keys=True,
+              )
+          )
+          PY
