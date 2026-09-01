@@ -1,4 +1,4 @@
-# Execution trigger after exact Ruff formatting.
+# Corrected parent-protocol provenance binding.
 name: Temporary Tracking Cloth bounded-orbit robustness v1
 
 on:
@@ -80,7 +80,7 @@ jobs:
           value = json.loads(path.read_text())
           supplied = value.pop("protocol_id")
           encoded = json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
-          assert supplied == "5034c1affda01d93c475078a52126113d6c938973692f544abb665b473a5861c"
+          assert supplied == "6b372b78329a809aee508a68ffd51abeb945fc941c0db29ca996459ddf52f711"
           assert hashlib.sha256(encoded).hexdigest() == supplied
           PY
 
@@ -129,7 +129,7 @@ jobs:
               "prob4d.tracking-cloth-bounded-orbit-robustness-result.v1"
           )
           assert result["protocol_id"] == (
-              "5034c1affda01d93c475078a52126113d6c938973692f544abb665b473a5861c"
+              "6b372b78329a809aee508a68ffd51abeb945fc941c0db29ca996459ddf52f711"
           )
           assert result["parent_result"]["result_id"] == (
               "1441a141a8eccc1ae3a503c701c72e8d702a0bcb17226238f3d32effa3e58111"
