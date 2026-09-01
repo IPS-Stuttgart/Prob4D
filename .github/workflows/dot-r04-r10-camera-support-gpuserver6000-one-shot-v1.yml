@@ -1,0 +1,101 @@
+name: One-shot DOT R04-R10 camera support audit on gpuserver6000
+
+on:
+  push:
+    branches:
+      - ops/dot-camera-audit-gpuserver6000-v1
+    paths:
+      - .github/workflows/dot-r04-r10-camera-support-gpuserver6000-one-shot-v1.yml
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    environment: trusted-self-hosted-validation
+    runs-on: [self-hosted, gpuserver6000]
+    timeout-minutes: 30
+    env:
+      EXACT_MAIN_SHA: 0fed861b9386f6364539883aab697fd53035a5eb
+      DATASET_ROOT: /home/github-runner/.cache/prob4d/dot-r04-r10-cut3r-gpuserver6000-v1/dot-v29
+      ARCHIVE_NAME: R01-10.zip
+      ARCHIVE_MD5: ca546ff5f22c0279123ccb18509858ee
+      EXPECTED_SCRIPT_SHA256: 25eb1dcff47f8299acbf393d01820569c560cdab6ae0a0a2532305842ef8ff04
+    steps:
+      - name: Require the intended runner and publisher-verified cached archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_NAME" = "workstation2"
+          test "$RUNNER_OS" = "Linux"
+          test "$RUNNER_ARCH" = "X64"
+          test -d "$DATASET_ROOT"
+          test ! -L "$DATASET_ROOT"
+          test -f "$DATASET_ROOT/$ARCHIVE_NAME"
+          test ! -L "$DATASET_ROOT/$ARCHIVE_NAME"
+          printf '%s  %s\n' "$ARCHIVE_MD5" "$DATASET_ROOT/$ARCHIVE_NAME" | md5sum --check --strict
+
+      - name: Check out the exact reviewed main implementation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.EXACT_MAIN_SHA }}
+          persist-credentials: false
+          clean: true
+
+      - name: Verify the support-only evaluator identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          script=scripts/science/audit_dot_r04_r10_camera_support.py
+          test -f "$script"
+          actual="$(sha256sum "$script" | cut -d' ' -f1)"
+          test "$actual" = "$EXPECTED_SCRIPT_SHA256"
+          python3 -m py_compile "$script"
+          grep -F 'SEQUENCES = [f"R{i:02d}" for i in range(4, 11)]' "$script"
+          grep -F '"r11_r70_opened": False' "$script"
+          grep -F '"performance_metrics_computed": False' "$script"
+          grep -F '"frozen_r04_r10_result_reinterpreted": False' "$script"
+
+      - name: Run the bounded support-only multiview diagnostic
+        id: audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/dot-r04-r10-camera-support-gpuserver6000-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json"
+          python3 scripts/science/audit_dot_r04_r10_camera_support.py \
+            --dataset-root "$DATASET_ROOT" \
+            --output "$out" | tee "$RUNNER_TEMP/dot-camera-support-summary.json"
+          RESULT="$out" python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path(os.environ["RESULT"])
+          value = json.loads(path.read_text(encoding="utf-8"))
+          boundary = value["scientific_boundary"]
+          expected_sequences = [f"R{i:02d}" for i in range(4, 11)]
+          if boundary["sequences_opened"] != expected_sequences:
+              raise SystemExit("diagnostic sequence boundary changed")
+          if boundary["r11_r70_opened"] is not False:
+              raise SystemExit("diagnostic crossed R11-R70 boundary")
+          if boundary["performance_metrics_computed"] is not False:
+              raise SystemExit("diagnostic computed a performance metric")
+          if boundary["frozen_r04_r10_result_reinterpreted"] is not False:
+              raise SystemExit("diagnostic reinterpreted the terminal frozen result")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"result={path}\n")
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              summary.write(f"Decision: `{value['decision']}`\n\n")
+              summary.write(f"Audit ID: `{value['audit_id']}`\n\n")
+              summary.write(f"Common cameras: `{value['dataset']['cameras_present_on_every_sequence']}`\n\n")
+              summary.write(f"Fixed-camera feasible candidates: `{value['fixed_camera_feasible_candidates']}`\n\n")
+              summary.write(f"Multiview feasible coordinate modes: `{value['multiview_feasible_coordinate_modes']}`\n")
+          PY
+
+      - name: Upload the bounded diagnostic result
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        with:
+          name: dot-r04-r10-camera-support-gpuserver6000-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.audit.outputs.result }}
+          if-no-files-found: error
+          retention-days: 90
