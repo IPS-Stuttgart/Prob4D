@@ -1,0 +1,171 @@
+{
+  "schema": "prob4d.dot-rope-query-selective-camera-routing-source-protocol",
+  "schema_version": 3,
+  "dataset_doi": "10.13021/ORC2020/XXLVXM",
+  "source_archive": {
+    "name": "R11-20.zip",
+    "md5": "23ce3e7067465d3edabe20b4c7cfa388"
+  },
+  "source_sequences": [
+    "R11",
+    "R12",
+    "R13",
+    "R14",
+    "R15",
+    "R16",
+    "R17",
+    "R18",
+    "R19",
+    "R20"
+  ],
+  "confirmation_sequences": [
+    "R21",
+    "R22",
+    "R23",
+    "R24",
+    "R25",
+    "R26",
+    "R27",
+    "R28",
+    "R29",
+    "R30"
+  ],
+  "reserved_sequences": "R31-R70",
+  "camera_roster": [
+    "cam001",
+    "cam002",
+    "cam003",
+    "cam004",
+    "cam005"
+  ],
+  "frames": [1, 2, 3, 4, 5, 6, 7],
+  "windows": {
+    "continuous": [1, 2, 3, 4, 5, 6, 7],
+    "window_a": [1, 2, 3, 4, 5],
+    "window_b": [3, 4, 5, 6, 7]
+  },
+  "routing_development": {
+    "source_audit_run_id": 33527652881,
+    "source_audit_head_sha": "8aa0d3d643dcb3d72f930c25846353dd9d5b6c40",
+    "source_audit_artifact_id": 9808467255,
+    "source_audit_artifact_digest": "sha256:1b3abc1405583bb81532ebda15110c196b5d03808883244e9e18282fd5b6323e",
+    "source_audit_id": "66724cb78840f4b9ef3becf97e5765924094cf8db6eca2d892c44cfa7edb19b3",
+    "decision": "camera-routing-source-support-eligible",
+    "selected_candidate": "expanded__overlap-345",
+    "metric_fit_a_frames": [1, 2, 3],
+    "metric_fit_b_frames": [5, 6, 7],
+    "overlap_frames": [3, 4, 5],
+    "supported_source_sequences": 10,
+    "worst_selected_camera_support_margin": 1.125,
+    "selected_camera_routing": {
+      "R11": "cam005",
+      "R12": "cam005",
+      "R13": "cam001",
+      "R14": "cam001",
+      "R15": "cam001",
+      "R16": "cam001",
+      "R17": "cam002",
+      "R18": "cam001",
+      "R19": "cam001",
+      "R20": "cam005"
+    },
+    "provider_execution_cameras": ["cam001", "cam002", "cam005"],
+    "selection_rule": "For each source sequence, choose the lexicographically smallest normal-view camera meeting the frozen pixel-zero-based 2-D support thresholds under the selected frame geometry. No reconstruction error, NLL, proper score, or provider prediction entered this routing decision."
+  },
+  "provider": {
+    "name": "CUT3R",
+    "cut3r_revision": "8bc15dc92a6d7fd92920b4ec81540d3dec7d3ecf",
+    "checkpoint_sha256": "45f7e98a0a64dbeb54901ae2b878cd8cd125f20a4497316483f0bd6f109f8103",
+    "device": "cuda",
+    "image_size": 512,
+    "random_seed": 42,
+    "revisit": 1,
+    "update": true,
+    "native_rope_required": true
+  },
+  "coordinate_convention": {
+    "columns": [0, 1],
+    "mode": "pixel-zero-based",
+    "preprocessing_transform": "cut3r-long-edge-resize-512-center-crop-multiple-of-16-pixel-centers",
+    "frozen_from": "R01-R03 source development before R04-R10 access"
+  },
+  "provider_rank_gate": {
+    "metric_fit_a_frames": [1, 2, 3],
+    "metric_fit_b_frames": [5, 6, 7],
+    "overlap_frames": [3, 4, 5],
+    "minimum_metric_fit_markers": 6,
+    "minimum_overlap_common_markers": 8,
+    "minimum_overlap_nonempty_frames": 2,
+    "expected_factor_rank": 6,
+    "rank_threshold": 0.01,
+    "minimum_source_supported_sequences_for_promotion": 9,
+    "camera_fallback_after_rank_failure": false,
+    "outcome_metrics_used": false
+  },
+  "confirmation_camera_rule": {
+    "provider_prediction_camera_roster": ["cam001", "cam002", "cam003", "cam004", "cam005"],
+    "provider_seal_before_target_marker_access": true,
+    "after_provider_seal_open_only_2d_for_routing_and_factor": true,
+    "routing_rule": "Choose the lexicographically smallest camera meeting the frozen raw 2-D support thresholds under expanded/overlap-345. If its learned-provider overlap factor is not rank six, mark that target sequence unsupported; do not switch cameras based on factor rank or outcomes.",
+    "three_dimensional_outcomes_opened_only_after_prediction_seal": true
+  },
+  "downstream_frozen_config": {
+    "methods": [
+      "physical_fallback",
+      "full_rank_only",
+      "observable_subspace_unconditional",
+      "query_aware",
+      "invalid_full_rank_completion"
+    ],
+    "prior_standard_deviations_local": [0.05, 0.2, 0.2, 0.2, 0.15, 0.15, 0.15],
+    "query_gate": {
+      "minimum_direct_observability_fraction": 0.9,
+      "maximum_worst_supported_variance_ratio": 1.0,
+      "minimum_metric_variance_reduction_fraction": 0.0
+    },
+    "queries": {
+      "centerline_centroid": {
+        "definition": "provider-window-B overlap centroid",
+        "expected_relation_to_axial_nullspace": "locally invariant"
+      },
+      "off_axis_probe": {
+        "definition": "provider-window-B centroid plus one cloud-scale deterministic normal",
+        "expected_relation_to_axial_nullspace": "sensitive"
+      }
+    },
+    "invalid_nullspace_precision_ratio": 1.0,
+    "observation_noise_fraction": 0.02,
+    "exact_fallback_required": true
+  },
+  "confirmation_statistics": {
+    "independent_unit": "complete_sequence",
+    "primary_method": "query_aware",
+    "primary_comparator": "physical_fallback",
+    "primary_point_metric": "rmse_fraction_of_provider_span",
+    "primary_proper_score": "normalized_joint_gaussian_nll_per_dimension",
+    "paired_bootstrap_replicates": 20000,
+    "paired_bootstrap_seed": 20260901,
+    "minimum_supported_confirmation_sequences": 9,
+    "minimum_centroid_acceptance_fraction": 0.9,
+    "minimum_off_axis_rejection_fraction": 0.9,
+    "outcome_oracle_is_diagnostic_only": true
+  },
+  "information_boundary": {
+    "r04_r10_reused_for_tuning": false,
+    "r11_r20_is_source_development": true,
+    "source_reconstruction_error_used_for_routing_or_rank_gate": false,
+    "source_proper_score_used_for_routing_or_rank_gate": false,
+    "r21_r30_payloads_opened": false,
+    "r31_r70_payloads_opened": false,
+    "bayesian_phystwin_executed": false,
+    "causal4d_executed": false,
+    "dataset_modified": false,
+    "target_side_retuning_allowed": false
+  },
+  "promotion": {
+    "on_provider_rank_qualified": "freeze this routing and factor rule and materialize a separate R21-R30 one-shot confirmation request",
+    "on_provider_rank_negative": "terminate camera-routing CUT3R provider version without opening R21-R70"
+  },
+  "claim_boundary": "R11-R20 is source development only. The source camera rule may use raw marker support and provider-factor rank but no reconstruction error or proper score. R21-R30 remains a one-shot confirmation and R31-R70 remains reserve. A later positive result would establish only learned-CUT3R marker-localized query-selective factor use on DOT rope.",
+  "protocol_id": "cd57cb81d1aa52707f26bb0f39829e848d15d0a67b064b390b24caf545923690"
+}
