@@ -30,3 +30,6 @@ This is transparently a post-hoc source-only calibration repair because the 28
 evaluation trajectories were opened by the earlier experiment. It is not a new
 confirmation cohort. No target-side tuning is allowed, and a directional or
 negative result is retained without changing the source rule.
+
+The GitHub workflow is started by a reviewed file change and runs the source
+calibration before the existing evaluation reanalysis.
