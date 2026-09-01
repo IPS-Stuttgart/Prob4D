@@ -879,7 +879,7 @@ jobs:
           set -euo pipefail
           root="$RUNNER_TEMP/prob4d-dot-r04-r10-evaluation-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
           /usr/bin/rm -rf -- "$root"
-          /usr/bin/mkdir -p "$root/provider" "$root/dataset" "$root/evaluation"
+          /usr/bin/mkdir -p "$root/provider" "$root/dataset"
           echo "root=$root" >> "$GITHUB_OUTPUT"
 
       - name: Check out exact authorized revision
