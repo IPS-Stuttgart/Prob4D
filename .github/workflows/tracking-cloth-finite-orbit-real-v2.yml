@@ -1,0 +1,499 @@
+name: Tracking Cloth finite-orbit real geometry v2
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/tracking-cloth-finite-orbit-real-v2.yml"
+      - "src/prob4d/motive_csv.py"
+      - "protocols/tracking-cloth-finite-orbit-real-v2.json"
+      - "scripts/science/run_tracking_cloth_finite_orbit_real_v2.py"
+      - "tests/test_motive_csv.py"
+      - "tests/test_tracking_cloth_finite_orbit_real_v2.py"
+      - "tests/test_tracking_cloth_finite_orbit_real_v2_workflow.py"
+  push:
+    branches:
+      - repair/tracking-cloth-finite-orbit-motive-parser-v1
+    paths:
+      - ".github/workflows/tracking-cloth-finite-orbit-real-v2.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: tracking-cloth-finite-orbit-real-v2-${{ github.ref }}-${{ github.sha }}
+  cancel-in-progress: false
+
+env:
+  ZENODO_DOI: 10.5281/zenodo.14644526
+  ZENODO_URL: https://zenodo.org/records/14644526/files/tracking_dataset.zip?download=1
+  ZENODO_MD5: b4868b702f8a42b2ea1069d0f1a3b8f6
+  PROTOCOL_PATH: protocols/tracking-cloth-finite-orbit-real-v2.json
+  PROTOCOL_ID: 4652d72f9e8d4c80c69df86b7a48a6f4e307e4131ea3bea04e09deed10db5eb0
+  PARENT_PROTOCOL_PATH: protocols/tracking-cloth-finite-orbit-real-v1.json
+  PARENT_PROTOCOL_BLOB: 808d85e29b498ba1e7f92ea4ed67c4f6ec156c6d
+  BASE_SCRIPT_BLOB: 081da94007493480b1e8efb8169c1c642bed1761
+  PREDECESSOR_RUN_ID: "33361712662"
+  PREDECESSOR_HEAD_SHA: 5c4e3b4ebfe38a10b1d1635db62b23c4f1736770
+  PREDECESSOR_JOB_NAME: Evaluate held-out collision geometry on gpuserver4090
+  PREDECESSOR_ARTIFACT_ID: "9777455628"
+  PREDECESSOR_ARTIFACT_NAME: tracking-cloth-finite-orbit-real-v1-1
+  PREDECESSOR_ARTIFACT_DIGEST: sha256:88f0371a63bb00bc7c9619acefa518e3b5dfd6b473be0db8466482ea98de080d
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+
+jobs:
+  contract:
+    name: Validate parser and frozen replication contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out exact reviewed revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          clean: true
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install exact development environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check "numpy==2.3.5"
+          python -m pip install --disable-pip-version-check -e ".[dev]"
+          python -m pip check
+      - name: Verify frozen identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object "$PARENT_PROTOCOL_PATH")" = "$PARENT_PROTOCOL_BLOB"
+          test "$(git hash-object scripts/science/run_tracking_cloth_finite_orbit_real_v1.py)" = \
+            "$BASE_SCRIPT_BLOB"
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path(os.environ["PROTOCOL_PATH"])
+          value = json.loads(path.read_text(encoding="utf-8"))
+          supplied = value.pop("protocol_id")
+          encoded = json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
+          assert supplied == os.environ["PROTOCOL_ID"]
+          assert hashlib.sha256(encoded).hexdigest() == supplied
+          assert value["parent_protocol"]["git_blob_sha1"] == os.environ[
+              "PARENT_PROTOCOL_BLOB"
+          ]
+          assert value["dataset"]["expected_source_files"] == 24
+          assert value["dataset"]["expected_target_files"] == 42
+          assert value["information_order"]["target_side_retuning_allowed"] is False
+          assert value["information_order"]["unsupported_target_replacement_allowed"] is False
+          PY
+      - name: Lint, format-check, type-check, and test focused implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m ruff check \
+            src/prob4d/motive_csv.py \
+            scripts/science/run_tracking_cloth_finite_orbit_real_v2.py \
+            tests/test_motive_csv.py \
+            tests/test_tracking_cloth_finite_orbit_real_v2.py \
+            tests/test_tracking_cloth_finite_orbit_real_v2_workflow.py
+          python -m ruff format --check \
+            src/prob4d/motive_csv.py \
+            scripts/science/run_tracking_cloth_finite_orbit_real_v2.py \
+            tests/test_motive_csv.py \
+            tests/test_tracking_cloth_finite_orbit_real_v2.py \
+            tests/test_tracking_cloth_finite_orbit_real_v2_workflow.py
+          python -m mypy src/prob4d/motive_csv.py
+          python -m pytest -q \
+            tests/test_motive_csv.py \
+            tests/test_tracking_cloth_finite_orbit_real_v2.py \
+            tests/test_tracking_cloth_finite_orbit_real_v2_workflow.py \
+            tests/test_tracking_cloth_finite_orbit_real_v1.py \
+            tests/test_github_action_pins.py
+          python -m compileall -q \
+            src/prob4d/motive_csv.py \
+            scripts/science/run_tracking_cloth_finite_orbit_real_v2.py
+
+  evaluate:
+    name: Run one frozen recording-disjoint replication
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Check out exact validated revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          clean: true
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install pinned numerical runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check "numpy==2.3.5"
+          python -m pip install --disable-pip-version-check --no-deps -e .
+          python -m pip check
+      - name: Initialize isolated workspace
+        id: workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/tracking-cloth-finite-orbit-v2-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          rm -rf -- "$root"
+          mkdir -p "$root/data" "$root/predecessor" "$root/custody"
+          echo "root=$root" >> "$GITHUB_OUTPUT"
+      - name: Verify exact predecessor run and artifact metadata
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ROOT="${{ steps.workspace.outputs.root }}" python - <<'PY'
+          import json
+          import os
+          import urllib.request
+          from pathlib import Path
+
+          api = os.environ["GITHUB_API_URL"]
+          repository = os.environ["GITHUB_REPOSITORY"]
+          headers = {
+              "Accept": "application/vnd.github+json",
+              "Authorization": f"Bearer {os.environ['GH_TOKEN']}",
+              "User-Agent": "Prob4D-Tracking-Cloth-v2/1",
+              "X-GitHub-Api-Version": "2022-11-28",
+          }
+
+          def get(path):
+              request = urllib.request.Request(
+                  f"{api}/repos/{repository}{path}", headers=headers
+              )
+              with urllib.request.urlopen(request, timeout=60) as response:
+                  return json.load(response)
+
+          run_id = int(os.environ["PREDECESSOR_RUN_ID"])
+          run = get(f"/actions/runs/{run_id}")
+          assert run["head_sha"] == os.environ["PREDECESSOR_HEAD_SHA"]
+          assert run["status"] == "completed" and run["conclusion"] == "failure"
+          jobs = get(f"/actions/runs/{run_id}/jobs?per_page=100")["jobs"]
+          matches = [row for row in jobs if row["name"] == os.environ["PREDECESSOR_JOB_NAME"]]
+          assert len(matches) == 1
+          assert matches[0].get("runner_name") == "workstation1"
+          artifacts = get(f"/actions/runs/{run_id}/artifacts?per_page=100")["artifacts"]
+          matches = [
+              row for row in artifacts
+              if int(row["id"]) == int(os.environ["PREDECESSOR_ARTIFACT_ID"])
+          ]
+          assert len(matches) == 1
+          artifact = matches[0]
+          assert artifact["name"] == os.environ["PREDECESSOR_ARTIFACT_NAME"]
+          assert artifact["digest"] == os.environ["PREDECESSOR_ARTIFACT_DIGEST"]
+          receipt = {
+              "schema": "prob4d.tracking-cloth-finite-orbit-v1-custody.v1",
+              "run_id": run_id,
+              "head_sha": run["head_sha"],
+              "job_id": matches[0].get("workflow_run", {}).get("id"),
+              "runner_name": "workstation1",
+              "artifact_id": int(artifact["id"]),
+              "artifact_name": artifact["name"],
+              "artifact_digest": artifact["digest"],
+          }
+          Path(os.environ["ROOT"], "custody", "predecessor-metadata.json").write_text(
+              json.dumps(receipt, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+      - name: Download exact predecessor artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ${{ env.PREDECESSOR_ARTIFACT_NAME }}
+          path: ${{ steps.workspace.outputs.root }}/predecessor
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.PREDECESSOR_RUN_ID }}
+      - name: Prove predecessor was a parser-only technical failure
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="${{ steps.workspace.outputs.root }}" python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["ROOT"])
+          artifact = root / "predecessor"
+          files = sorted(
+              path.relative_to(artifact).as_posix()
+              for path in artifact.rglob("*") if path.is_file()
+          )
+          assert files == [
+              "process-exit-code.txt",
+              "runtime.json",
+              "stderr.txt",
+              "stdout.txt",
+          ]
+          expected = {
+              "process-exit-code.txt": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+              "runtime.json": "c3d3f2610fb748d3896168a8b7b5dc50770b82f9e4b685b678c288861725d6ec",
+              "stderr.txt": "61b249cdedbc8b31e31b96f6692962090b42b6e5221c71bdbb507d43a013cb88",
+              "stdout.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          }
+          for name, digest in expected.items():
+              assert hashlib.sha256((artifact / name).read_bytes()).hexdigest() == digest
+          assert (artifact / "process-exit-code.txt").read_text().strip() == "1"
+          stderr = (artifact / "stderr.txt").read_text(encoding="utf-8")
+          assert "fewer than three common 3-D marker groups: []" in stderr
+          runtime = json.loads((artifact / "runtime.json").read_text(encoding="utf-8"))
+          assert runtime["python"] == "3.10.12"
+          assert runtime["numpy"] == "2.2.6"
+          if list(artifact.rglob("source_seal.json")) or list(artifact.rglob("result.json")):
+              raise SystemExit("predecessor unexpectedly contains scientific evidence")
+          receipt = {
+              "schema": "prob4d.tracking-cloth-finite-orbit-v1-parser-failure.v1",
+              "process_exit_code": 1,
+              "stderr_sha256": expected["stderr.txt"],
+              "failure": "fewer than three common 3-D marker groups: []",
+              "source_seal_emitted": False,
+              "scientific_result_emitted": False,
+              "target_csv_contents_opened": False,
+              "basis": "the frozen implementation fails in source common-marker discovery before source sealing and target evaluation",
+          }
+          (root / "custody" / "predecessor-failure.json").write_text(
+              json.dumps(receipt, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+      - name: Download, verify, and extract official public release
+        id: data
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          archive="$root/tracking_dataset.zip"
+          curl --fail --location --retry 8 --retry-all-errors \
+            --connect-timeout 30 --max-time 3600 \
+            --output "$archive" "$ZENODO_URL"
+          printf '%s  %s\n' "$ZENODO_MD5" "$archive" | md5sum --check --strict
+          unzip -q "$archive" -d "$root/data"
+          count=$(find "$root/data" -type f -iname '*.csv' -printf '.' | wc -c)
+          test "$count" -eq 120
+          ARCHIVE="$archive" ROOT="$root" COUNT="$count" python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          archive = Path(os.environ["ARCHIVE"])
+          receipt = {
+              "schema": "prob4d.tracking-cloth-official-release-receipt.v1",
+              "doi": os.environ["ZENODO_DOI"],
+              "zenodo_record": "14644526",
+              "archive_filename": archive.name,
+              "archive_bytes": archive.stat().st_size,
+              "archive_md5": os.environ["ZENODO_MD5"],
+              "archive_sha256": hashlib.sha256(archive.read_bytes()).hexdigest(),
+              "csv_count": int(os.environ["COUNT"]),
+          }
+          Path(os.environ["ROOT"], "custody", "official-release.json").write_text(
+              json.dumps(receipt, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          echo "dataset=$root/data" >> "$GITHUB_OUTPUT"
+      - name: Run the exact frozen v2 replication
+        id: experiment
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          set +e
+          python scripts/science/run_tracking_cloth_finite_orbit_real_v2.py \
+            --dataset-root "${{ steps.data.outputs.dataset }}" \
+            --protocol "$PROTOCOL_PATH" \
+            --output-dir "$root/evaluation" \
+            --source-revision "$(git rev-parse HEAD)" \
+            > "$root/stdout.txt" 2> "$root/stderr.txt"
+          status=$?
+          set -e
+          printf '%s\n' "$status" > "$root/process-exit-code.txt"
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+      - name: Remove raw public release before evidence upload
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          rm -rf -- "$root/data" "$root/tracking_dataset.zip" "$root/predecessor"
+          if find "$root/evaluation" -type f \( -iname '*.csv' -o -iname '*.zip' \) \
+              -print -quit 2>/dev/null | grep -q .; then
+            echo "Raw dataset payload appeared in evidence" >&2
+            exit 3
+          fi
+      - name: Independently verify terminal scientific result
+        id: result
+        if: always()
+        shell: bash
+        env:
+          PROCESS_EXIT: ${{ steps.experiment.outputs.exit_code }}
+        run: |
+          set -euo pipefail
+          ROOT="${{ steps.workspace.outputs.root }}" python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["ROOT"])
+          evaluation = root / "evaluation"
+          result_path = evaluation / "result.json"
+          seal_path = evaluation / "source_seal.json"
+          support_path = evaluation / "target_support.json"
+          if not (result_path.is_file() and seal_path.is_file() and support_path.is_file()):
+              stderr = (root / "stderr.txt").read_text(encoding="utf-8", errors="replace")
+              raise SystemExit("replication emitted no terminal result: " + stderr[-2000:])
+          result = json.loads(result_path.read_text(encoding="utf-8"))
+          source_seal = json.loads(seal_path.read_text(encoding="utf-8"))
+          support = json.loads(support_path.read_text(encoding="utf-8"))
+
+          def verify_id(value, field):
+              unsigned = dict(value)
+              supplied = unsigned.pop(field)
+              encoded = json.dumps(unsigned, sort_keys=True, separators=(",", ":")).encode()
+              assert hashlib.sha256(encoded).hexdigest() == supplied
+              return supplied
+
+          verify_id(source_seal, "source_seal_id")
+          verify_id(support, "support_id")
+          verify_id(result, "result_id")
+          assert result["schema"] == "prob4d.tracking-cloth-finite-orbit-result.v2"
+          assert result["protocol_id"] == os.environ["PROTOCOL_ID"]
+          assert source_seal["protocol_id"] == os.environ["PROTOCOL_ID"]
+          assert source_seal["source_revision"] == os.environ["GITHUB_SHA"]
+          assert source_seal["eligible_source_group_count"] == 24
+          assert source_seal["eligible_target_group_count_from_filename_metadata"] == 42
+          assert source_seal["common_marker_labels"] == [str(index) for index in range(1, 21)]
+          assert source_seal["target_header_opened"] is False
+          assert source_seal["target_trajectory_opened"] is False
+          assert support["source_seal_id"] == source_seal["source_seal_id"]
+          assert support["target_trajectory_values_parsed"] is False
+          assert support["unsupported_groups_replaced"] is False
+          assert len(support["supported"]) + len(support["unsupported"]) == 42
+          allowed = {
+              "evaluated-real-geometry-passed",
+              "evaluated-real-geometry-failed",
+              "target-marker-support-negative",
+          }
+          assert result["status"] in allowed
+          status = int(os.environ.get("PROCESS_EXIT") or -1)
+          assert status == (0 if result["status"] == "evaluated-real-geometry-passed" else 2)
+          if result["status"] == "target-marker-support-negative":
+              assert support["unsupported"]
+              assert not (evaluation / "inventory.json").exists()
+              expected_files = {
+                  "result.json",
+                  "source_seal.json",
+                  "summary.md",
+                  "target_support.json",
+              }
+          else:
+              assert not support["unsupported"]
+              assert len(support["supported"]) == 42
+              assert result["cohort"]["source_groups"] == 24
+              assert result["cohort"]["target_groups"] == 42
+              assert result["cohort"]["excluded_source_groups"] == 40
+              assert result["cohort"]["excluded_target_groups"] == 14
+              aggregate = result["aggregate"]
+              assert aggregate["target_groups"] == 42
+              assert len(result["groups"]) == 42
+              assert len({row["group_id"] for row in result["groups"]}) == 42
+              assert all(row["material"] in {"cotton", "denim", "wool"} for row in result["groups"])
+              assert all(row["size"] == "A2" for row in result["groups"])
+              if result["status"] == "evaluated-real-geometry-passed":
+                  assert aggregate["total_cases"] >= 1000
+                  assert result["criteria"] and all(result["criteria"].values())
+              else:
+                  assert result["criteria"] and not all(result["criteria"].values())
+              expected_files = {
+                  "inventory.json",
+                  "result.json",
+                  "source_seal.json",
+                  "summary.md",
+                  "target_support.json",
+              }
+          actual_files = {path.name for path in evaluation.iterdir() if path.is_file()}
+          assert actual_files == expected_files
+          receipt = {
+              "schema": "prob4d.tracking-cloth-finite-orbit-v2-verification.v1",
+              "status": result["status"],
+              "result_id": result["result_id"],
+              "source_seal_id": source_seal["source_seal_id"],
+              "support_id": support["support_id"],
+              "source_groups": 24,
+              "target_groups": 42,
+              "unsupported_target_group_count": len(support["unsupported"]),
+              "unsupported target group was replaced": False,
+              "scientific_settings_changed_after_target_access": False,
+          }
+          (root / "custody" / "result-verification.json").write_text(
+              json.dumps(receipt, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as stream:
+              stream.write(f"status={result['status']}\n")
+              stream.write(f"result_id={result['result_id']}\n")
+          PY
+      - name: Publish compact result summary
+        if: always()
+        shell: bash
+        run: |
+          summary="${{ steps.workspace.outputs.root }}/evaluation/summary.md"
+          if [[ -f "$summary" ]]; then
+            cat "$summary" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No scientific summary was emitted." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload compact immutable evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: tracking-cloth-finite-orbit-real-v2-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ steps.workspace.outputs.root }}/custody/
+            ${{ steps.workspace.outputs.root }}/evaluation/
+            ${{ steps.workspace.outputs.root }}/runtime.json
+            ${{ steps.workspace.outputs.root }}/stdout.txt
+            ${{ steps.workspace.outputs.root }}/stderr.txt
+            ${{ steps.workspace.outputs.root }}/process-exit-code.txt
+          if-no-files-found: warn
+          retention-days: 90
+      - name: Require one registered terminal result
+        if: always()
+        env:
+          STATUS: ${{ steps.result.outputs.status }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$STATUS" in
+            evaluated-real-geometry-passed|evaluated-real-geometry-failed|target-marker-support-negative)
+              ;;
+            *)
+              exit 3
+              ;;
+          esac
