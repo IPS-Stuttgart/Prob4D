@@ -1,0 +1,136 @@
+{
+  "calibration": {
+    "chi_square_3d_90": 6.251388631170325,
+    "minimum_inflation": 1.0,
+    "query": "segment_centroid",
+    "rule": "max(moment_nees_factor,equal_group_weighted_coverage_factor,1)",
+    "target_coverage": 0.9,
+    "weighting": "equal trajectory weight; equal case weight within trajectory"
+  },
+  "claim_boundary": [
+    "No new data are collected; the experiment uses only the existing official DEFORM DLO4/DLO5 files.",
+    "The scalar covariance inflation is selected from the 112 training trajectories only.",
+    "The 28 evaluation trajectories were opened by the earlier immutable experiment, so this is a transparent post-hoc source-only repair rather than a fresh confirmation cohort.",
+    "Means, factors, query-gate decisions, and exact rejected-query fallback remain unchanged.",
+    "The result does not establish learned-provider, BayesianPhysTwin, Causal4D, deployment-safety, or state-of-the-art claims."
+  ],
+  "dataset": {
+    "dataset_root": "/mnt/seagate10tb/florianpfaff/datasets/deform/data_set",
+    "dlo_types": [
+      "DLO4",
+      "DLO5"
+    ],
+    "expected_source_files_per_type": 56,
+    "expected_target_files_per_type": 14,
+    "independent_group": "one official trajectory file",
+    "name": "DEFORM",
+    "official_repository": "roahmlab/DEFORM",
+    "official_revision": "b73b8b8ecc033caefa693fab7898741d4e6dbeff",
+    "source_split": "train",
+    "target_split": "eval"
+  },
+  "design": {
+    "absolute_twist_range_rad": [
+      0.4,
+      0.8
+    ],
+    "base_rotation_std_rad": 0.08,
+    "correspondence_noise_sigma_m": 0.002,
+    "frame_stride": 25,
+    "log_scale_std": 0.02,
+    "prior_standard_deviations_local": [
+      0.05,
+      0.2,
+      0.2,
+      0.2,
+      0.15,
+      0.15,
+      0.15
+    ],
+    "probe_radius_cloud_scale_factor": 1.0,
+    "rank_threshold": 0.01,
+    "segment_length": 4,
+    "source_seed": 20260902,
+    "target_seed": 20260831,
+    "translation_std_m": 0.02
+  },
+  "inference": {
+    "bootstrap_replicates": 5000,
+    "bootstrap_seed": 20260904,
+    "target_coverage_acceptance_band": [
+      0.85,
+      0.95
+    ],
+    "target_normalized_nees_acceptance_band": [
+      0.75,
+      1.25
+    ]
+  },
+  "information_boundary": {
+    "bayesian_phystwin_execution_authorized": false,
+    "causal4d_execution_authorized": false,
+    "learned_provider_execution_authorized": false,
+    "new_data_collection_authorized": false,
+    "posthoc_method_repair": true,
+    "source_stage_opens_train_only": true,
+    "target_side_retuning_authorized": false,
+    "target_split_previously_opened": true,
+    "uses_only_existing_public_files": true
+  },
+  "original_result_binding": {
+    "absolute_tolerance": 1e-10,
+    "artifact_id": 9737419711,
+    "expected_raw_equal_group_metrics": {
+      "off_axis_probe": {
+        "physical_fallback": {
+          "accepted_fraction": 0.0,
+          "empirical_90pct_coverage": 0.8843192470498066,
+          "exact_fallback_fraction": 1.0,
+          "mean_gaussian_nll": -7.219100536598772,
+          "mean_marginal_standard_deviation_mm": 22.633953122849167,
+          "normalized_nees": 1.0246055917712462,
+          "rmse_mm": 22.77336269287101
+        },
+        "query_aware": {
+          "accepted_fraction": 0.0,
+          "empirical_90pct_coverage": 0.8843192470498066,
+          "exact_fallback_fraction": 1.0,
+          "mean_gaussian_nll": -7.219100536598772,
+          "mean_marginal_standard_deviation_mm": 22.633953122849167,
+          "normalized_nees": 1.0246055917712462,
+          "rmse_mm": 22.77336269287101
+        }
+      },
+      "segment_centroid": {
+        "physical_fallback": {
+          "accepted_fraction": 0.0,
+          "empirical_90pct_coverage": 0.9025295293362066,
+          "exact_fallback_fraction": 1.0,
+          "mean_gaussian_nll": -8.294308847354003,
+          "mean_marginal_standard_deviation_mm": 15.172393153382291,
+          "normalized_nees": 1.0245736803801908,
+          "rmse_mm": 15.479331264094228
+        },
+        "query_aware": {
+          "accepted_fraction": 1.0,
+          "empirical_90pct_coverage": 0.7414907180073176,
+          "exact_fallback_fraction": 0.0,
+          "mean_gaussian_nll": -15.55291061092018,
+          "mean_marginal_standard_deviation_mm": 0.8618703676974985,
+          "normalized_nees": 2.0199984511899625,
+          "rmse_mm": 0.9798554161387603
+        }
+      }
+    },
+    "result_id": "1ac8cd083b39877888ea0eb2f4b9400ca89eda09436f25f5f0a6f43b154b1007",
+    "workflow_run_id": 33330222025
+  },
+  "protocol_id": "d2ab11f88c81653c8ff38c4412409ba11fe65bce828914d9a693e1fc8f68fe41",
+  "query_gate": {
+    "maximum_worst_supported_variance_ratio": 1.0,
+    "minimum_direct_observability_fraction": 0.9,
+    "minimum_metric_variance_reduction_fraction": 0.0
+  },
+  "schema": "prob4d.deform-dlo45-source-calibrated-query-covariance.v1",
+  "schema_version": 1
+}
