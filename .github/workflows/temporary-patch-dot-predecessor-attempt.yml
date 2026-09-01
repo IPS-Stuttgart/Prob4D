@@ -7,7 +7,7 @@ on:
       - ".github/workflows/temporary-patch-dot-predecessor-attempt.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   patch:
@@ -18,17 +18,16 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: fix/dot-r04-r10-predecessor-attempt-v1
-          persist-credentials: false
+          persist-credentials: true
           clean: true
-      - name: Patch only the stale attempt-number assertion
+      - name: Stage the exact patched workflow as an ordinary repository blob
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/patched/.github/workflows"
+          mkdir -p tmp
           cp .github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml \
-            "$RUNNER_TEMP/patched/.github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml"
-          TARGET="$RUNNER_TEMP/patched/.github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml" \
-          python - <<'PY'
+            tmp/patched-dot-rope-cut3r-heldout-confirmation-v1.yml
+          TARGET=tmp/patched-dot-rope-cut3r-heldout-confirmation-v1.yml python - <<'PY'
           import os
           from pathlib import Path
 
@@ -40,12 +39,11 @@ jobs:
               raise SystemExit('expected exactly one stale predecessor-attempt assertion')
           path.write_text(text.replace(old, new), encoding='utf-8')
           PY
-          diff -u .github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml \
-            "$RUNNER_TEMP/patched/.github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml" || test $? -eq 1
-      - name: Upload exact patched workflow
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: patched-dot-confirmation-workflow
-          path: ${{ runner.temp }}/patched/.github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml
-          if-no-files-found: error
-          retention-days: 1
+          git diff --no-index --check \
+            .github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml \
+            tmp/patched-dot-rope-cut3r-heldout-confirmation-v1.yml || true
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add tmp/patched-dot-rope-cut3r-heldout-confirmation-v1.yml
+          git commit -m 'Stage patched DOT confirmation workflow blob'
+          git push origin HEAD:fix/dot-r04-r10-predecessor-attempt-v1
