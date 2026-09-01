@@ -1,4 +1,4 @@
-name: One-shot DOT R04-R10 archive layout census on gpuserver6000
+name: One-shot DOT R04-R10 corrected camera support audit on gpuserver6000
 
 on:
   push:
@@ -11,16 +11,19 @@ permissions:
   contents: read
 
 jobs:
-  census:
+  audit:
     environment: trusted-self-hosted-validation
     runs-on: [self-hosted, gpuserver6000]
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
+      EXACT_MAIN_SHA: 0fed861b9386f6364539883aab697fd53035a5eb
       DATASET_ROOT: /home/github-runner/.cache/prob4d/dot-r04-r10-cut3r-gpuserver6000-v1/dot-v29
       ARCHIVE_NAME: R01-10.zip
       ARCHIVE_MD5: ca546ff5f22c0279123ccb18509858ee
+      EXPECTED_SCRIPT_GIT_BLOB: 5baed0a27e6318c0a951c0997885af0031e118d4
+      LAYOUT_CENSUS_ID: 74f090a99d6740ac3388c43493531ea5168291e4c5a709fb74344e45b46b4f19
     steps:
-      - name: Verify intended runner and official archive
+      - name: Require intended runner and publisher-verified archive
         shell: bash
         run: |
           set -euo pipefail
@@ -31,101 +34,115 @@ jobs:
           test ! -L "$DATASET_ROOT/$ARCHIVE_NAME"
           printf '%s  %s\n' "$ARCHIVE_MD5" "$DATASET_ROOT/$ARCHIVE_NAME" | md5sum --check --strict
 
-      - name: Enumerate camera, 2-D, and 3-D carrier identities without reading payloads
-        id: census
+      - name: Check out exact reviewed main implementation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.EXACT_MAIN_SHA }}
+          persist-credentials: false
+          clean: true
+
+      - name: Bind the exact audit and apply only the census-proven carrier correction
+        id: adapter
         shell: bash
         run: |
           set -euo pipefail
-          out="$RUNNER_TEMP/dot-r04-r10-layout-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json"
-          ARCHIVE="$DATASET_ROOT/$ARCHIVE_NAME" OUTPUT="$out" python3 - <<'PY'
-          from __future__ import annotations
+          source=scripts/science/audit_dot_r04_r10_camera_support.py
+          test "$(git hash-object "$source")" = "$EXPECTED_SCRIPT_GIT_BLOB"
+          adapted="$RUNNER_TEMP/audit_dot_r04_r10_camera_support_shared_3d.py"
+          SOURCE="$source" ADAPTED="$adapted" python3 - <<'PY'
+          import os
+          from pathlib import Path
 
+          source = Path(os.environ["SOURCE"])
+          adapted = Path(os.environ["ADAPTED"])
+          text = source.read_text(encoding="utf-8")
+          old = '                    three_name = member(sequence, 3, frame, camera)\n'
+          new = '                    three_name = member(sequence, 3, frame, "cam001")\n'
+          if text.count(old) != 1:
+              raise SystemExit("shared-3D adapter marker is not unique")
+          adapted.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
+          python3 -m py_compile "$adapted"
+          grep -F 'three_name = member(sequence, 3, frame, "cam001")' "$adapted"
+          echo "script=$adapted" >> "$GITHUB_OUTPUT"
+
+      - name: Run corrected support-only audit and bind layout provenance
+        id: audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          raw="$RUNNER_TEMP/dot-r04-r10-camera-support-raw-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json"
+          final="$RUNNER_TEMP/dot-r04-r10-camera-support-shared-3d-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json"
+          python3 "${{ steps.adapter.outputs.script }}" \
+            --dataset-root "$DATASET_ROOT" \
+            --output "$raw" | tee "$RUNNER_TEMP/dot-camera-support-summary.json"
+          RAW="$raw" FINAL="$final" python3 - <<'PY'
           import hashlib
           import json
           import os
-          import re
-          import zipfile
-          from collections import defaultdict
           from pathlib import Path
 
-          archive_path = Path(os.environ["ARCHIVE"])
-          output = Path(os.environ["OUTPUT"])
-          sequences = [f"R{i:02d}" for i in range(4, 11)]
-          frames = range(1, 8)
-          image_re = re.compile(r"^(R(?:0[4-9]|10))/images/normal_view/frame(\d{6})_(cam\d+)\.jpg$")
-          two_re = re.compile(r"^(R(?:0[4-9]|10))/coordinates/2d/frame(\d{6})(?:_(cam\d+))?\.txt$")
-          three_re = re.compile(r"^(R(?:0[4-9]|10))/coordinates/3d/frame(\d{6})(?:_(cam\d+))?\.txt$")
-
-          records = {
-              seq: {
-                  str(frame): {"images": [], "coordinates_2d": [], "coordinates_3d": []}
-                  for frame in frames
-              }
-              for seq in sequences
+          raw = Path(os.environ["RAW"])
+          final = Path(os.environ["FINAL"])
+          value = json.loads(raw.read_text(encoding="utf-8"))
+          boundary = value["scientific_boundary"]
+          expected_sequences = [f"R{i:02d}" for i in range(4, 11)]
+          if boundary["sequences_opened"] != expected_sequences:
+              raise SystemExit("diagnostic sequence boundary changed")
+          if boundary["r11_r70_opened"] is not False:
+              raise SystemExit("diagnostic crossed R11-R70 boundary")
+          if boundary["performance_metrics_computed"] is not False:
+              raise SystemExit("diagnostic computed performance")
+          if boundary["frozen_r04_r10_result_reinterpreted"] is not False:
+              raise SystemExit("diagnostic reinterpreted the terminal result")
+          if not all(
+              all(frames.values())
+              for frames in value["cross_camera_3d_payload_identical"].values()
+          ):
+              raise SystemExit("shared 3-D carrier consistency check failed")
+          value["layout_adapter"] = {
+              "layout_census_id": os.environ["LAYOUT_CENSUS_ID"],
+              "archive_layout": (
+                  "camera-specific 2-D coordinates with one shared cam001 3-D "
+                  "carrier per sequence/frame"
+              ),
+              "shared_3d_camera_label": "cam001",
+              "index_alignment_rule": "row-index identity after equal-length truncation",
+              "performance_metrics_computed": False,
           }
-          with zipfile.ZipFile(archive_path, "r") as archive:
-              names = archive.namelist()
-              for name in names:
-                  for kind, regex in (
-                      ("images", image_re),
-                      ("coordinates_2d", two_re),
-                      ("coordinates_3d", three_re),
-                  ):
-                      match = regex.match(name)
-                      if match is None:
-                          continue
-                      sequence = match.group(1)
-                      frame = int(match.group(2))
-                      if sequence in records and frame in frames:
-                          records[sequence][str(frame)][kind].append(name)
-                      break
-              examples = {
-                  "R04_frame1_coordinate_members": sorted(
-                      name for name in names
-                      if name.startswith("R04/coordinates/") and "frame000001" in name
-                  ),
-                  "R04_frame1_image_members": sorted(
-                      name for name in names
-                      if name.startswith("R04/images/normal_view/frame000001")
-                  ),
-              }
-
-          for sequence in records:
-              for frame in records[sequence].values():
-                  for kind in frame:
-                      frame[kind].sort()
-
-          result = {
-              "schema": "prob4d.dot-r04-r10-archive-layout-census",
-              "schema_version": 1,
-              "archive": archive_path.name,
-              "archive_md5": os.environ["ARCHIVE_MD5"],
-              "sequences": sequences,
-              "frames": list(frames),
-              "records": records,
-              "examples": examples,
-              "scientific_boundary": {
-                  "zip_member_payloads_read": False,
-                  "r11_r70_opened": False,
-                  "performance_metrics_computed": False,
-                  "frozen_result_reinterpreted": False,
-              },
-          }
-          encoded = json.dumps(result, sort_keys=True, separators=(",", ":")).encode()
-          result["census_id"] = hashlib.sha256(encoded).hexdigest()
-          output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          unsigned = dict(value)
+          unsigned.pop("audit_id", None)
+          encoded = json.dumps(
+              unsigned, sort_keys=True, separators=(",", ":"), allow_nan=False
+          ).encode()
+          value["adapted_audit_id"] = hashlib.sha256(encoded).hexdigest()
+          final.write_text(
+              json.dumps(value, indent=2, sort_keys=True, allow_nan=False) + "\n",
+              encoding="utf-8",
+          )
           print(json.dumps({
-              "census_id": result["census_id"],
-              **examples,
+              "decision": value["decision"],
+              "adapted_audit_id": value["adapted_audit_id"],
+              "common_cameras": value["dataset"]["cameras_present_on_every_sequence"],
+              "fixed_camera_feasible_candidates": value["fixed_camera_feasible_candidates"],
+              "multiview_feasible_coordinate_modes": value[
+                  "multiview_feasible_coordinate_modes"
+              ],
           }, indent=2, sort_keys=True))
-          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as stream:
-              stream.write(f"result={output}\n")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"result={final}\n")
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              summary.write(f"Decision: `{value['decision']}`\n\n")
+              summary.write(f"Adapted audit ID: `{value['adapted_audit_id']}`\n\n")
+              summary.write(f"Common cameras: `{value['dataset']['cameras_present_on_every_sequence']}`\n\n")
+              summary.write(f"Fixed-camera feasible candidates: `{value['fixed_camera_feasible_candidates']}`\n\n")
+              summary.write(f"Multiview feasible modes: `{value['multiview_feasible_coordinate_modes']}`\n")
           PY
 
-      - name: Upload bounded archive-layout census
+      - name: Upload bounded corrected support audit
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
         with:
-          name: dot-r04-r10-layout-census-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ steps.census.outputs.result }}
+          name: dot-r04-r10-camera-support-shared-3d-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.audit.outputs.result }}
           if-no-files-found: error
           retention-days: 90
