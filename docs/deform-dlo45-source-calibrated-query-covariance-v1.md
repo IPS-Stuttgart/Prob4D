@@ -32,4 +32,5 @@ confirmation cohort. No target-side tuning is allowed, and a directional or
 negative result is retained without changing the source rule.
 
 The GitHub workflow is started by a reviewed file change and runs the source
-calibration before the existing evaluation reanalysis.
+calibration before the existing evaluation reanalysis. Temporary repair helpers
+are removed before the scientific execution.
