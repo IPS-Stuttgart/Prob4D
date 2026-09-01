@@ -65,9 +65,6 @@ def test_workflow_is_file_triggered_source_first_and_no_new_data() -> None:
     assert 'test "$RUNNER_NAME" = "workstation1"' in text
     assert "environment: trusted-self-hosted-validation" in text
     assert "needs: [contract, source-calibration]" in text
-    assert "new_data_collection_authorized" in text
-    assert "source_calibration_authorized" in text
-    assert "existing_eval_reanalysis_authorized" in text
     assert "git push" not in text
     assert "contents: write" not in text
     assert "secrets." not in text

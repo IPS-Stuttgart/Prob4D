@@ -80,6 +80,14 @@ def content_id(value: dict[str, Any], key: str) -> str:
     return hashlib.sha256(canonical_bytes(payload)).hexdigest()
 
 
+def mahalanobis(error: np.ndarray, covariance: np.ndarray) -> float:
+    """Return the squared Mahalanobis distance for a positive covariance."""
+
+    vector = np.asarray(error, dtype=np.float64)
+    matrix = np.asarray(covariance, dtype=np.float64)
+    return float(vector @ np.linalg.solve(matrix, vector))
+
+
 def load_json(path: Path) -> dict[str, Any]:
     value = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(value, dict):
