@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Run the frozen DOT R11--R30 query-selective CUT3R experiment.
+"""Run the frozen DOT R21--R40 query-selective CUT3R experiment.
 
-The control plane requires a strong-positive R04--R10 prerequisite. CUT3R point
+The control plane requires a source-qualified R11--R20 prerequisite. CUT3R point
 maps are sealed before any target marker access. A separate factor-seal command
 then reads only 2-D marker locations on the overlap frames, constructs the
 rank-deficient factors and all query predictions, and content-addresses those
@@ -40,33 +40,34 @@ from prob4d.query_observability import (
 )
 from prob4d.sim3 import Sim3
 
-PROTOCOL_SCHEMA = "prob4d.dot-rope-query-selective-heldout-protocol"
-REQUEST_SCHEMA = "prob4d.dot-rope-query-selective-heldout-request"
-PROVIDER_SCHEMA = "prob4d.dot-rope-query-selective-provider-bundle"
-SEAL_SCHEMA = "prob4d.dot-rope-query-selective-prediction-seal"
-RESULT_SCHEMA = "prob4d.dot-rope-query-selective-heldout-result"
-FAILURE_SCHEMA = "prob4d.dot-rope-query-selective-heldout-failure"
+PROTOCOL_SCHEMA = "prob4d.dot-rope-query-selective-r21-r40-protocol"
+REQUEST_SCHEMA = "prob4d.dot-rope-query-selective-r21-r40-request"
+PROVIDER_SCHEMA = "prob4d.dot-rope-query-selective-r21-r40-provider-bundle"
+SEAL_SCHEMA = "prob4d.dot-rope-query-selective-r21-r40-prediction-seal"
+RESULT_SCHEMA = "prob4d.dot-rope-query-selective-r21-r40-result"
+FAILURE_SCHEMA = "prob4d.dot-rope-query-selective-r21-r40-failure"
 SCHEMA_VERSION = 1
 
-TARGET_SEQUENCES = [f"R{index:02d}" for index in range(11, 31)]
-RESERVED_SEQUENCES = "R31-R70"
+TARGET_SEQUENCES = [f"R{index:02d}" for index in range(21, 41)]
+RESERVED_SEQUENCES = "R41-R70"
 ARCHIVES = {
-    "R11-20.zip": {
-        "md5": "23ce3e7067465d3edabe20b4c7cfa388",
-        "sequences": [f"R{index:02d}" for index in range(11, 21)],
-    },
     "R21-30.zip": {
         "md5": "8aee77f79d1aff6e1f3fd21886b251a0",
         "sequences": [f"R{index:02d}" for index in range(21, 31)],
+    },
+    "R31-40.zip": {
+        "md5": "8a96081d20af9fa486fafa8e24e54442",
+        "sequences": [f"R{index:02d}" for index in range(31, 41)],
     },
 }
 CAMERA = "cam001"
 FRAMES = list(range(1, 8))
 BASE_PROVIDER_BLOB = "612c8ae61b0a64d464256a11992b46c486c88012"
 POOLED_EVALUATOR_BLOB = "6195e70997f0e9582251c08772b1e423a3062ad6"
-PREREQUISITE_PROTOCOL_ID = "a83258295d5ecabd95017a775f334173bb48141918832fb1a065a1dff66d16ba"
-PREREQUISITE_DECISION = "heldout-strong-positive"
-SOURCE_CALIBRATION_ID = "943339ac864fda04cc59081bc81a605576b3c90bf0aa996aea00b00335cfc0c7"
+PREREQUISITE_PROTOCOL_ID = "037df0507c8e98f6005955e4dfea457f764289058a698a797a3f1008e9dc0e5f"
+PREREQUISITE_DECISION = "source-support-qualified"
+SOURCE_SUPPORT_PROTOCOL_ID = PREREQUISITE_PROTOCOL_ID
+SPLIT_COMMITMENT_ID = "abb7076b5c3d75425ba8850e25cda3b173c3b2ca200f82ed1d1ada1b35d0cec4"
 SELECTED_DEPENDENCE_ALPHA = 0.85
 METHODS = (
     "physical_fallback",
@@ -191,13 +192,15 @@ def _load_protocol(path: Path) -> dict[str, Any]:
         raise ValueError("target sequence roster changed")
     if protocol.get("reserved_sequences") != RESERVED_SEQUENCES:
         raise ValueError("reserved sequence boundary changed")
+    if protocol.get("split_commitment_id") != SPLIT_COMMITMENT_ID:
+        raise ValueError("split commitment changed")
     if protocol.get("camera") != CAMERA or protocol.get("frames") != FRAMES:
         raise ValueError("camera or frame roster changed")
     if protocol.get("prerequisite", {}).get("protocol_id") != PREREQUISITE_PROTOCOL_ID:
         raise ValueError("prerequisite protocol changed")
     if protocol.get("prerequisite", {}).get("required_decision") != PREREQUISITE_DECISION:
         raise ValueError("prerequisite decision changed")
-    if protocol.get("prerequisite", {}).get("source_calibration_id") != SOURCE_CALIBRATION_ID:
+    if protocol.get("prerequisite", {}).get("source_support_protocol_id") != SOURCE_SUPPORT_PROTOCOL_ID:
         raise ValueError("source calibration identity changed")
     if (
         float(protocol.get("prerequisite", {}).get("selected_dependence_alpha"))
@@ -215,14 +218,14 @@ def _load_protocol(path: Path) -> dict[str, Any]:
     required_false = (
         "r04_r10_confirmation_reused_for_tuning",
         "target_side_retuning_allowed",
-        "r31_r70_payloads_opened",
+        "r41_r70_payloads_opened",
         "bayesian_phystwin_executed",
         "causal4d_executed",
         "dataset_modified",
     )
     if any(boundary.get(name) is not False for name in required_false):
         raise ValueError("information boundary changed")
-    if boundary.get("provider_predictions_sealed_before_any_r11_r30_marker_access") is not True:
+    if boundary.get("provider_predictions_sealed_before_any_r21_r40_marker_access") is not True:
         raise ValueError("provider/marker custody changed")
     if boundary.get("factor_and_query_decisions_sealed_before_3d_marker_access") is not True:
         raise ValueError("prediction/outcome custody changed")
@@ -248,6 +251,7 @@ def validate_request(
         "protocol_git_blob_sha",
         "protocol_path",
         "request_id",
+        "split_commitment_id",
         "reserved_sequences",
         "schema",
         "schema_version",
@@ -266,6 +270,8 @@ def validate_request(
         raise ValueError("request target roster changed")
     if request["reserved_sequences"] != RESERVED_SEQUENCES:
         raise ValueError("request reserve changed")
+    if request["split_commitment_id"] != SPLIT_COMMITMENT_ID:
+        raise ValueError("request split commitment changed")
     for name in (
         "normal_view_prediction_authorized",
         "marker_2d_factor_seal_authorized",
@@ -286,19 +292,19 @@ def validate_request(
         "artifact_id",
         "artifact_name",
         "decision",
-        "evaluation_id",
-        "marker_support_id",
+        "source_result_id",
+        "selected_support_rule_id",
         "protocol_id",
         "run_id",
-        "source_calibration_id",
+        "source_support_protocol_id",
     }
     if not isinstance(prerequisite, dict) or set(prerequisite) != expected_prerequisite:
         raise ValueError("prerequisite binding fields changed")
     if prerequisite["protocol_id"] != PREREQUISITE_PROTOCOL_ID:
         raise ValueError("request prerequisite protocol changed")
     if prerequisite["decision"] != PREREQUISITE_DECISION:
-        raise ValueError("request prerequisite did not pass the strong-positive gate")
-    if prerequisite["source_calibration_id"] != SOURCE_CALIBRATION_ID:
+        raise ValueError("request prerequisite did not pass the source-support qualification gate")
+    if prerequisite["source_support_protocol_id"] != SOURCE_SUPPORT_PROTOCOL_ID:
         raise ValueError("request prerequisite source calibration changed")
     for name in ("run_id", "artifact_id"):
         if not isinstance(prerequisite[name], int) or prerequisite[name] <= 0:
@@ -309,8 +315,8 @@ def validate_request(
     if not isinstance(digest, str) or not digest.startswith("sha256:"):
         raise ValueError("prerequisite artifact_digest must be a GitHub SHA-256 digest")
     _hex(digest.removeprefix("sha256:"), name="artifact digest", length=64)
-    _hex(prerequisite["evaluation_id"], name="evaluation_id", length=64)
-    _hex(prerequisite["marker_support_id"], name="marker_support_id", length=64)
+    _hex(prerequisite["source_result_id"], name="source_result_id", length=64)
+    _hex(prerequisite["selected_support_rule_id"], name="selected_support_rule_id", length=64)
     unsigned = dict(request)
     request_id = unsigned.pop("request_id", None)
     _hex(request_id, name="request_id", length=64)
@@ -449,11 +455,11 @@ def predict(args: argparse.Namespace) -> int:
             "two_dimensional_markers_opened": False,
             "three_dimensional_markers_opened": False,
             "provider_residuals_opened": False,
-            "r31_r70_payloads_opened": False,
+            "r41_r70_payloads_opened": False,
             "bayesian_phystwin_executed": False,
             "causal4d_executed": False,
         },
-        "decision": "sealed-r11-r30-provider-predictions",
+        "decision": "sealed-r21-r40-provider-predictions",
     }
     manifest["provider_bundle_id"] = content_id(manifest)
     _write_json(output / "manifest.json", manifest)
@@ -490,7 +496,7 @@ def _verify_provider_bundle(
         raise ValueError("provider bundle request changed")
     if manifest.get("prob4d_revision") != revision:
         raise ValueError("provider bundle revision changed")
-    if manifest.get("decision") != "sealed-r11-r30-provider-predictions":
+    if manifest.get("decision") != "sealed-r21-r40-provider-predictions":
         raise ValueError("provider bundle is not sealed")
     boundary = manifest.get("information_boundary") or {}
     if boundary.get("two_dimensional_markers_opened") is not False:
@@ -956,7 +962,7 @@ def seal(args: argparse.Namespace) -> int:
             "three_dimensional_markers_opened": False,
             "predictions_and_admission_complete": True,
             "post_seal_tuning_authorized": False,
-            "r31_r70_payloads_opened": False,
+            "r41_r70_payloads_opened": False,
         },
         "decision": "predictions-sealed-before-3d-outcomes",
         "claim_boundary": protocol["claim_boundary"],
@@ -1364,7 +1370,7 @@ def evaluate(args: argparse.Namespace) -> int:
             "two_dimensional_markers_opened_for_factor_localization": True,
             "three_dimensional_markers_opened_only_for_final_scoring": True,
             "post_open_tuning_performed": False,
-            "r31_r70_payloads_opened": False,
+            "r41_r70_payloads_opened": False,
             "bayesian_phystwin_executed": False,
             "causal4d_executed": False,
         },
@@ -1373,7 +1379,7 @@ def evaluate(args: argparse.Namespace) -> int:
     result["result_id"] = content_id(result)
     _write_json(output / "result.json", result)
     lines = [
-        "# DOT R11-R30 query-selective learned-provider result",
+        "# DOT R21-R40 query-selective learned-provider result",
         "",
         f"Decision: **{classification}**",
         "",
@@ -1404,7 +1410,7 @@ def evaluate(args: argparse.Namespace) -> int:
     lines.extend(
         [
             "",
-            "R31-R70 remained unopened. No target-side tuning, BayesianPhysTwin, "
+            "R41-R70 remained unopened. No target-side tuning, BayesianPhysTwin, "
             "or Causal4D execution was performed.",
         ]
     )
@@ -1444,7 +1450,7 @@ def _technical_failure(
         "traceback_tail": traceback.format_exc().splitlines()[-20:],
         "information_boundary": {
             "post_failure_retuning_authorized": False,
-            "r31_r70_payloads_opened": False,
+            "r41_r70_payloads_opened": False,
         },
     }
     failure["result_id"] = content_id(failure)
