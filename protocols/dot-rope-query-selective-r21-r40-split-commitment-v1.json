@@ -1,0 +1,94 @@
+{
+  "archives": [
+    {
+      "md5": "23ce3e7067465d3edabe20b4c7cfa388",
+      "name": "R11-20.zip",
+      "role": "source"
+    },
+    {
+      "md5": "8aee77f79d1aff6e1f3fd21886b251a0",
+      "name": "R21-30.zip",
+      "role": "confirmation"
+    },
+    {
+      "md5": "8a96081d20af9fa486fafa8e24e54442",
+      "name": "R31-40.zip",
+      "role": "confirmation"
+    }
+  ],
+  "claim_boundary": "This file commits the R11-R20 source, R21-R40 confirmation, and R41-R70 reserve split before the R11-R20 source-support outcome is known. It authorizes no data access or execution.",
+  "commitment_id": "abb7076b5c3d75425ba8850e25cda3b173c3b2ca200f82ed1d1ada1b35d0cec4",
+  "confirmation_gate": {
+    "harmful_accepted_update_bound": 0.01,
+    "minimum_centerline_acceptance_fraction": 0.9,
+    "minimum_off_axis_rejection_fraction": 0.9,
+    "minimum_supported_sequences": 18,
+    "report_coverage_and_normalized_nees_without_target_side_recalibration": true,
+    "require_exact_fallback_for_every_rejection": true,
+    "require_positive_lower_95pct_sequence_bootstrap_bound_for_centerline_nll_improvement": true,
+    "require_positive_lower_95pct_sequence_bootstrap_bound_for_centerline_rmse_improvement": true
+  },
+  "confirmation_sequences": [
+    "R21",
+    "R22",
+    "R23",
+    "R24",
+    "R25",
+    "R26",
+    "R27",
+    "R28",
+    "R29",
+    "R30",
+    "R31",
+    "R32",
+    "R33",
+    "R34",
+    "R35",
+    "R36",
+    "R37",
+    "R38",
+    "R39",
+    "R40"
+  ],
+  "information_boundary": {
+    "bayesian_phystwin_executed": false,
+    "causal4d_executed": false,
+    "factor_and_query_predictions_must_be_sealed_before_target_3d_outcome_access": true,
+    "provider_predictions_must_be_sealed_before_target_marker_access": true,
+    "r21_r40_payloads_opened": false,
+    "r41_r70_payloads_opened": false,
+    "source_support_must_be_frozen_before_any_r21_r40_payload_access": true,
+    "target_side_retuning_allowed": false
+  },
+  "reserved_sequences": "R41-R70",
+  "schema": "prob4d.dot-rope-query-selective-r21-r40-split-commitment",
+  "schema_version": 1,
+  "source_sequences": [
+    "R11",
+    "R12",
+    "R13",
+    "R14",
+    "R15",
+    "R16",
+    "R17",
+    "R18",
+    "R19",
+    "R20"
+  ],
+  "support_selection": {
+    "bounded_fallback_stage": "if and only if the primary source stage is support-negative, qualify a deterministic per-sequence camera rule over cam001-cam005 using R11-R20 only",
+    "forbidden_selection_inputs": [
+      "query RMSE",
+      "Gaussian NLL",
+      "coverage",
+      "NEES",
+      "R21-R40 payloads or outcomes"
+    ],
+    "primary_stage": "existing source-support v2 on R11-R20 using cam001",
+    "selection_inputs": [
+      "2-D marker support counts after provider sealing",
+      "factor rank",
+      "observable-information conditioning"
+    ]
+  }
+}
