@@ -145,7 +145,5 @@ def test_recovery_log_redirect_does_not_forward_github_credentials() -> None:
     assert '"x-github-api-version"' in inspect
     assert "if key.lower() in sensitive:" in inspect
     assert "redirected.remove_header(key)" in inspect
-    assert (
-        "urllib.request.build_opener(CrossOriginSafeRedirectHandler())" in inspect
-    )
+    assert "urllib.request.build_opener(CrossOriginSafeRedirectHandler())" in inspect
     assert "urllib.request.urlopen(log_request, timeout=120)" not in inspect
