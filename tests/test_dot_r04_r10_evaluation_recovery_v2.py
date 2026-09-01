@@ -73,9 +73,11 @@ def test_recovery_binds_exact_failure_and_sealed_artifact() -> None:
         "45cccd5b6f7b7d671cfc86fbcb27232d29faf5dafdeee8d0ea5a9c45ce42ae7c",
         "57dc11d9e39258a2f620d67e39f1176cafe74252173ead8cb4ba2f76083499ec",
         "held-out evaluator emitted no result payload",
-        "FileExistsError",
     ):
         assert value in text
+    request_text = REQUEST.read_text(encoding="utf-8")
+    assert "FileExistsError" in request_text
+    assert 'request_payload["failure_contract"]["exact_error_fragment"]' in text
     assert "a terminal evaluation artifact already exists" in text
     assert "provider artifact digest changed" in text
 
