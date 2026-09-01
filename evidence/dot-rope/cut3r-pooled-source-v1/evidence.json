@@ -1,0 +1,162 @@
+{
+  "aggregate_methods": [
+    {
+      "covered_95_count": 3,
+      "mean_mahalanobis": 7.552763166029883,
+      "mean_normalized_nll_per_dimension": 0.7665063894782334,
+      "mean_predictive_sd_fraction_of_span": 1.056488250615809,
+      "method": "pointwise_quadratic",
+      "sequence_count": 3
+    },
+    {
+      "covered_95_count": 1,
+      "mean_mahalanobis": 375.18809236735416,
+      "mean_normalized_nll_per_dimension": 5.2070303551421775,
+      "mean_predictive_sd_fraction_of_span": 0.06564182894467284,
+      "method": "cluster_bootstrap_fallback",
+      "sequence_count": 3
+    },
+    {
+      "covered_95_count": 1,
+      "mean_mahalanobis": 616.7392746234306,
+      "mean_normalized_nll_per_dimension": 10.617586455242337,
+      "mean_predictive_sd_fraction_of_span": 1.198703750685696,
+      "method": "dominant_rotation_orbit",
+      "sequence_count": 3
+    },
+    {
+      "covered_95_count": 1,
+      "mean_mahalanobis": 919.9776606843046,
+      "mean_normalized_nll_per_dimension": 16.895744419825878,
+      "mean_predictive_sd_fraction_of_span": 1.0564882506158095,
+      "method": "shared_quadratic_curvature",
+      "sequence_count": 3
+    },
+    {
+      "covered_95_count": 1,
+      "mean_mahalanobis": 925.2105684424038,
+      "mean_normalized_nll_per_dimension": 17.003450583812352,
+      "mean_predictive_sd_fraction_of_span": 0.9983068337775681,
+      "method": "tensor_gauss_hermite",
+      "sequence_count": 3
+    },
+    {
+      "covered_95_count": 1,
+      "mean_mahalanobis": 1148.2317997711514,
+      "mean_normalized_nll_per_dimension": 21.64624517064006,
+      "mean_predictive_sd_fraction_of_span": 0.9993712926541631,
+      "method": "axis_spherical_radial",
+      "sequence_count": 3
+    },
+    {
+      "covered_95_count": 1,
+      "mean_mahalanobis": 1480.7428840860548,
+      "mean_normalized_nll_per_dimension": 28.678446844634646,
+      "mean_predictive_sd_fraction_of_span": 1.9894234376553541,
+      "method": "scalar_inflation",
+      "sequence_count": 3
+    },
+    {
+      "covered_95_count": 1,
+      "mean_mahalanobis": 1936.6204993095891,
+      "mean_normalized_nll_per_dimension": 38.001729615516915,
+      "mean_predictive_sd_fraction_of_span": 0.9949406423760333,
+      "method": "local_first_order",
+      "sequence_count": 3
+    }
+  ],
+  "claim_boundary": "Source-development pooled-marker evaluation of the immutable CUT3R provider bundle from workflow run 33329701704 on DOT R01-R03 only. The hosted marker-support audit in workflow run 33338130219 established that the current columns-0-1 pixel-zero-based convention is feasible when support is pooled across the registered frames. No normal-view pixels are decoded during evaluation; R04-R70 remain unopened. This does not establish held-out transfer, independent calibration, BayesianPhysTwin benefit, Causal4D benefit, safety, or state of the art.",
+  "decision": {
+    "current_stitching_promoted": false,
+    "next_step": "freeze an independent held-out DOT cohort before any new normal-view or marker payload access; compare pointwise quadratic, shared quadratic curvature, local first order, and a source-frozen correlation-tempering family without changing provider means",
+    "shared_quadratic_curvature_promoted": false,
+    "status": "source-positive-for-dependence-diagnostic-only"
+  },
+  "evaluation_id": "9f900046ba2700bbc7476a4a5cd9c0da87b7bbe124c3109572eeae989fe09acd",
+  "evidence_id": "2e2e4a7d61312f8b7b371dcd571c152e154474808b1bda8e4d2b6ac12c19ddaa",
+  "execution_revision": "585e1b16042e9653fdcd151a90a56033bf0e47a2",
+  "marker_audit": {
+    "audit_id": "2b045cf62d1a4e385987def7c36674490130216e6bceb4883b4d86e445ec6049",
+    "decision": "current-convention-pooled-support-feasible",
+    "run_id": 33338130219,
+    "selected_coordinate_candidate": "columns-0-1:pixel-zero-based"
+  },
+  "marker_support_id": "ac450e19654c8f2192069c5db9330de765ef5e4a87f36abffd37ec850551d52f",
+  "marker_support_json_sha256": "94d8c212664eb6c0d689f289af21a994c0617294443824f86ef5d18d48dc2a35",
+  "provider": {
+    "bundle_id": "952421d140731b2a6eb99df3cbd348653e04863fa457aaa490be31fe0b4c06a7",
+    "reserved_sequences": "R04-R70",
+    "run_id": 33329701704,
+    "source_sequences": [
+      "R01",
+      "R02",
+      "R03"
+    ]
+  },
+  "result_json_sha256": "bdb2f825659cabe08cdf4377626904a51dae510e69340d85867fb20047c4567a",
+  "schema": "prob4d.dot-rope-cut3r-pooled-source-evidence",
+  "schema_version": 1,
+  "sequences": [
+    {
+      "point_metrics": {
+        "continuous_rmse": 13.163306459477573,
+        "continuous_rmse_fraction_of_span": 0.09497317967336769,
+        "estimated_stitch_rmse": 14.18968872148919,
+        "estimated_stitch_rmse_fraction_of_span": 0.102378521734169,
+        "identity_stitch_rmse": 15.544871129699875,
+        "identity_stitch_rmse_fraction_of_span": 0.1121561549406429,
+        "oracle_window_rmse": 7.629322960830471,
+        "oracle_window_rmse_fraction_of_span": 0.05504552086329373,
+        "truth_span": 138.60025014165993
+      },
+      "query_dimension": 24,
+      "query_fixed_mean_error_fraction_of_span": 0.35598299408136863,
+      "sequence": "R01"
+    },
+    {
+      "point_metrics": {
+        "continuous_rmse": 12.344444809592574,
+        "continuous_rmse_fraction_of_span": 0.06643146424886662,
+        "estimated_stitch_rmse": 15.114726713077788,
+        "estimated_stitch_rmse_fraction_of_span": 0.08133969917310167,
+        "identity_stitch_rmse": 6.904244776105877,
+        "identity_stitch_rmse_fraction_of_span": 0.03715510070188727,
+        "oracle_window_rmse": 5.4967093296636085,
+        "oracle_window_rmse_fraction_of_span": 0.02958046756677196,
+        "truth_span": 185.82225981573455
+      },
+      "query_dimension": 24,
+      "query_fixed_mean_error_fraction_of_span": 0.11066644220156885,
+      "sequence": "R02"
+    },
+    {
+      "point_metrics": {
+        "continuous_rmse": 7.1035770600392905,
+        "continuous_rmse_fraction_of_span": 0.05113562321170002,
+        "estimated_stitch_rmse": 8.063695190300434,
+        "estimated_stitch_rmse_fraction_of_span": 0.05804710436166085,
+        "identity_stitch_rmse": 7.957405468935514,
+        "identity_stitch_rmse_fraction_of_span": 0.057281969965700195,
+        "oracle_window_rmse": 4.664985351969208,
+        "oracle_window_rmse_fraction_of_span": 0.033581241004384595,
+        "truth_span": 138.91640726916899
+      },
+      "query_dimension": 24,
+      "query_fixed_mean_error_fraction_of_span": 0.2671846968026064,
+      "sequence": "R03"
+    }
+  ],
+  "source_findings": {
+    "best_registered_uncertainty_method": "pointwise_quadratic",
+    "estimated_stitch_better_than_continuous_sequences": [],
+    "estimated_stitch_better_than_identity_sequences": [
+      "R01"
+    ],
+    "pointwise_and_shared_quadratic_equal_mean_sd_fraction_of_span": true,
+    "pointwise_vs_local_nll_per_dim_improvement": 37.235223226038684,
+    "pointwise_vs_shared_quadratic_nll_per_dim_improvement": 16.129238030347643
+  },
+  "workflow_artifact_id": 9746429825,
+  "workflow_artifact_sha256": "67bae296584da8fdb30e87dddbdf8b4bd5f2dfa163fe81fa98a57f8c1992c72a",
+  "workflow_run_id": 33338269873
+}
