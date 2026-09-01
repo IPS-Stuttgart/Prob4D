@@ -1,0 +1,56 @@
+{
+  "evaluation_job_id": 99832885343,
+  "failure_contract": {
+    "evaluation_conclusion": "failure",
+    "evaluator_output_created": false,
+    "exact_error_fragment": "FileExistsError: [Errno 17] File exists: '/home/runner/work/_temp/prob4d-dot-r04-r10-evaluation-33500239597-1/evaluation'",
+    "marker_archive_verified": true,
+    "provider_conclusion": "success",
+    "provider_seal_verified": true,
+    "scientific_result_emitted": false
+  },
+  "frozen_science": {
+    "checkpoint_sha256": "45f7e98a0a64dbeb54901ae2b878cd8cd125f20a4497316483f0bd6f109f8103",
+    "confirmation_sequences": [
+      "R04",
+      "R05",
+      "R06",
+      "R07",
+      "R08",
+      "R09",
+      "R10"
+    ],
+    "cut3r_revision": "8bc15dc92a6d7fd92920b4ec81540d3dec7d3ecf",
+    "dot_archive_md5": "ca546ff5f22c0279123ccb18509858ee",
+    "dot_archive_name": "R01-10.zip",
+    "original_request_id": "62d64df1b1b72f2b2aff0b17cf4c7aad245150f9fa1ff67712eedc0f4e109ce6",
+    "protocol_git_blob_sha": "3c15531e94e4df7de20089d806b3209789f3ee3e",
+    "protocol_id": "a83258295d5ecabd95017a775f334173bb48141918832fb1a065a1dff66d16ba",
+    "reserved_sequences": "R11-R70",
+    "selected_alpha": 0.85,
+    "source_calibration_id": "943339ac864fda04cc59081bc81a605576b3c90bf0aa996aea00b00335cfc0c7"
+  },
+  "information_boundary": {
+    "bayesian_phystwin_executed": false,
+    "causal4d_executed": false,
+    "confirmation_retuning_authorized": false,
+    "marker_evaluation_authorized": true,
+    "provider_rerun_authorized": false,
+    "r11_r70_opened": false,
+    "sealed_provider_predictions_reused": true
+  },
+  "provider_artifact": {
+    "digest": "sha256:45cccd5b6f7b7d671cfc86fbcb27232d29faf5dafdeee8d0ea5a9c45ce42ae7c",
+    "id": 9797527843,
+    "name": "dot-rope-cut3r-heldout-provider-gpuserver6000-62d64df1b1b72f2b2aff0b17cf4c7aad245150f9fa1ff67712eedc0f4e109ce6",
+    "provider_bundle_id": "57dc11d9e39258a2f620d67e39f1176cafe74252173ead8cb4ba2f76083499ec"
+  },
+  "provider_job_id": 99831732392,
+  "request_id": "5f60d7494dbc67b694b0d011283a0b5bc3093b190c3f1e7fd1978549f48f1051",
+  "schema": "prob4d.dot-r04-r10-evaluation-recovery-request",
+  "schema_version": 2,
+  "target_head_sha": "b85dd8e8adb68ffb289868731222151968940317",
+  "target_run_attempt": 1,
+  "target_run_id": 33500239597,
+  "target_workflow_path": ".github/workflows/dot-rope-cut3r-heldout-confirmation-v1.yml"
+}

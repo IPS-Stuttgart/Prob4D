@@ -1,0 +1,44 @@
+{
+  "claim_boundary": "Independent held-out DOT rope confirmation on R04-R10 for the source-frozen alpha=0.85 shared-dependence model. R11-R70 remain unopened. No parameter, provider, coordinate convention, support rule, window, mean, comparator, or threshold may be changed after confirmation access. The result can establish only the registered held-out CUT3R query-uncertainty/dependence claim; it does not establish BayesianPhysTwin benefit, Causal4D benefit, deployment safety, or state of the art.",
+  "decision": "heldout-support-negative",
+  "failure": "ValueError: pooled provider/truth support is below its registered minimum",
+  "information_boundary": {
+    "bayesian_phystwin_executed": false,
+    "causal4d_executed": false,
+    "confirmation_2d_markers_opened_after_provider_seal": true,
+    "confirmation_3d_markers_opened_after_provider_seal": true,
+    "opened_sequences": [
+      "R04",
+      "R05",
+      "R06",
+      "R07",
+      "R08",
+      "R09",
+      "R10"
+    ],
+    "reserved_sequences": "R11-R70",
+    "sealed_confirmation_provider_predictions_opened": true
+  },
+  "marker_support_id": "a2c32a395eaa334238cf19368b14eebf5a5af70f8368e9a01ed8dfc4f616e46a",
+  "repository_revision": "b85dd8e8adb68ffb289868731222151968940317",
+  "request_id": "62d64df1b1b72f2b2aff0b17cf4c7aad245150f9fa1ff67712eedc0f4e109ce6",
+  "result_id": "efe88e93985e88d42efd8375e24af40b04cfe8bf18bc1352cd83cf2b893861d0",
+  "schema": "prob4d.dot-rope-cut3r-heldout-failure",
+  "schema_version": 1,
+  "selected_dependence_alpha": 0.85,
+  "source_calibration_id": "943339ac864fda04cc59081bc81a605576b3c90bf0aa996aea00b00335cfc0c7",
+  "traceback_tail": [
+    "Traceback (most recent call last):",
+    "  File \"/home/runner/work/Prob4D/Prob4D/frozen/scripts/science/run_dot_rope_cut3r_heldout_confirmation.py\", line 427, in evaluate",
+    "    base.evaluate(",
+    "  File \"/home/runner/work/Prob4D/Prob4D/frozen/scripts/science/run_dot_rope_cut3r_native_provider.py\", line 944, in evaluate",
+    "    sequence_result, rows = _sequence_evaluation(",
+    "                            ^^^^^^^^^^^^^^^^^^^^^",
+    "  File \"/home/runner/work/Prob4D/Prob4D/frozen/scripts/science/run_dot_rope_cut3r_native_provider.py\", line 769, in _sequence_evaluation",
+    "    a_source, a_truth = _collect_provider_truth(runs[\"window_a\"], frame_payloads, fit_a_frames)",
+    "                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
+    "  File \"/home/runner/work/Prob4D/Prob4D/frozen/scripts/science/evaluate_dot_rope_cut3r_pooled.py\", line 514, in _collect_provider_truth",
+    "    raise ValueError(\"pooled provider/truth support is below its registered minimum\")",
+    "ValueError: pooled provider/truth support is below its registered minimum"
+  ]
+}
