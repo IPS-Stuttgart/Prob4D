@@ -385,7 +385,17 @@ jobs:
     permissions:
       contents: read
       actions: read
+    env:
+      CONTROL_REQUEST_PATH: control/protocols/execution_requests/dot_r04_r10_evaluation_recovery_v2.json
     steps:
+      - name: Check out exact merged recovery control revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: control
+          persist-credentials: false
+          clean: true
+
       - name: Check out exact frozen evaluator revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -597,6 +607,23 @@ jobs:
               raise SystemExit("recovered result and evaluator exit status disagree")
           if re.fullmatch(r"[0-9a-f]{64}", result_id or "") is None:
               raise SystemExit("recovered result identity is invalid")
+          control_request = json.loads(
+              Path(os.environ["CONTROL_REQUEST_PATH"]).read_text(encoding="utf-8")
+          )
+          supplied_request_id = control_request.get("request_id")
+          unsigned_request = dict(control_request)
+          unsigned_request.pop("request_id", None)
+          encoded_request = json.dumps(
+              unsigned_request,
+              sort_keys=True,
+              separators=(",", ":"),
+              ensure_ascii=False,
+              allow_nan=False,
+          ).encode("utf-8")
+          if hashlib.sha256(encoded_request).hexdigest() != supplied_request_id:
+              raise SystemExit("recovery request content address changed")
+          if supplied_request_id != os.environ["RECOVERY_REQUEST_ID"]:
+              raise SystemExit("recovery request identity changed")
           recovery = {
               "schema": "prob4d.dot-r04-r10-evaluation-recovery-receipt",
               "schema_version": 2,
@@ -628,14 +655,13 @@ jobs:
               json.dumps(recovery, indent=2, sort_keys=True) + "\n",
               encoding="utf-8",
           )
-          Path(os.environ["REQUEST_PATH"]).resolve().read_text(encoding="utf-8")
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
               output.write(f"decision={decision}\n")
               output.write(f"result_id={result_id}\n")
               output.write(f"recovery_id={recovery['recovery_id']}\n")
           print(json.dumps(recovery, indent=2, sort_keys=True))
           PY
-          cp "$REQUEST_PATH" "$root/recovery-request.json"
+          cp "$CONTROL_REQUEST_PATH" "$root/recovery-request.json"
           if [[ -f "$root/SUMMARY.md" ]]; then
             cat "$root/SUMMARY.md" >> "$GITHUB_STEP_SUMMARY"
           fi
