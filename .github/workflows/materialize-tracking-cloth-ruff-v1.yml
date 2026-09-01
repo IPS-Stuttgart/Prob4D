@@ -1,0 +1,68 @@
+name: Materialize Tracking Cloth Ruff formatting v1
+
+on:
+  push:
+    branches:
+      - fix/dot-r04-r10-curope-integration-v4
+    paths:
+      - .github/workflows/materialize-tracking-cloth-ruff-v1.yml
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: fix/dot-r04-r10-curope-integration-v4
+          fetch-depth: 0
+          persist-credentials: true
+          clean: true
+
+      - name: Apply the repository's canonical formatter
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check "ruff==0.16.5"
+          python3 -m ruff format \
+            scripts/science/run_tracking_cloth_finite_orbit_real_v1.py \
+            tests/test_tracking_cloth_finite_orbit_real_v1.py \
+            tests/test_tracking_cloth_finite_orbit_hosted_recovery_v1.py
+
+          helper=.github/workflows/materialize-tracking-cloth-ruff-v1.yml
+          /usr/bin/rm -f -- "$helper"
+          /usr/bin/git diff --check
+          python3 -m ruff format --check \
+            scripts/science/run_tracking_cloth_finite_orbit_real_v1.py \
+            tests/test_tracking_cloth_finite_orbit_real_v1.py \
+            tests/test_tracking_cloth_finite_orbit_hosted_recovery_v1.py
+
+          mapfile -t changed < <(
+            /usr/bin/git status --short |
+              sed -E 's/^...//' |
+              sort
+          )
+          expected=(
+            .github/workflows/materialize-tracking-cloth-ruff-v1.yml
+            scripts/science/run_tracking_cloth_finite_orbit_real_v1.py
+            tests/test_tracking_cloth_finite_orbit_hosted_recovery_v1.py
+            tests/test_tracking_cloth_finite_orbit_real_v1.py
+          )
+          test "${#changed[@]}" -eq "${#expected[@]}"
+          for index in "${!expected[@]}"; do
+            test "${changed[$index]}" = "${expected[$index]}"
+          done
+
+          /usr/bin/git config user.name "github-actions[bot]"
+          /usr/bin/git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+          /usr/bin/git add -A
+          /usr/bin/git commit -m \
+            "Apply canonical formatting to Tracking Cloth recovery files"
+          /usr/bin/git push origin \
+            HEAD:fix/dot-r04-r10-curope-integration-v4
