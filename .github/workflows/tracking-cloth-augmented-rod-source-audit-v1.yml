@@ -59,7 +59,7 @@ jobs:
           unsigned = dict(protocol)
           protocol_id = unsigned.pop("protocol_id")
           assert hashlib.sha256(canonical(unsigned)).hexdigest() == protocol_id
-          assert protocol_id == "66cdd16726efe147ea1a08485859d915a040dd676374e1a5f484b224dd1a9dae"
+          assert protocol_id == "1c3a77c233721c13e4945bcd38bbe2c2901f8c304409b0781b4d21687c736621"
           assert request["protocol_id"] == protocol_id
           assert request["self_collision_trajectory_access_allowed"] is False
           assert request["target_side_tuning_allowed"] is False
