@@ -5,6 +5,7 @@
     "minimum_median_pair_distance_mm": 1.0,
     "minimum_valid_fraction": 0.1,
     "ranking_metrics": [
+      "negative_median_distance_mm",
       "relative_90_spread",
       "relative_mad",
       "combined_stability"
@@ -41,6 +42,6 @@
     "source_hitting_trajectory_access_allowed": true,
     "target_side_tuning_allowed": false
   },
-  "protocol_id": "1c3a77c233721c13e4945bcd38bbe2c2901f8c304409b0781b4d21687c736621",
+  "protocol_id": "2bea48ef99e14f7677df1c91dfe7545ce31db205e27db314f53de39bfb4e0eee",
   "schema": "prob4d.tracking-cloth-augmented-rod-source-audit.v1"
 }
