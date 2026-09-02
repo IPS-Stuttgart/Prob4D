@@ -1,0 +1,28 @@
+{
+  "schema": "prob4d.recursive-task-compression-controlled.v1",
+  "evidence_class": "controlled-linear-gaussian-mechanism",
+  "seed": 20260902,
+  "state_dimension": 20,
+  "current_task_dimension": 3,
+  "expected_recursive_closure_dimension": 4,
+  "observation_dimension": 12,
+  "original_shared_factor_rank": 8,
+  "expected_closure_factor_rank": 4,
+  "expected_current_task_factor_rank": 3,
+  "update_count": 8,
+  "closure_mean_parity_absolute_tolerance": 1e-12,
+  "closure_covariance_parity_absolute_tolerance": 1e-12,
+  "current_task_first_update_parity_absolute_tolerance": 1e-12,
+  "minimum_recursive_failure_absolute_error": 0.001,
+  "violation_transition_state_index": 4,
+  "violation_transition_coefficient": 0.2,
+  "expected_violated_closure_dimension": 5,
+  "claim_boundary": {
+    "linear_time_invariant_only": true,
+    "functional_observer_novelty_claimed": false,
+    "observation_likelihood_preserved": false,
+    "nonlinear_recursive_exactness_established": false,
+    "real_robot_evidence_established": false,
+    "closed_loop_control_benefit_established": false
+  }
+}
