@@ -57,7 +57,6 @@ dev = [
 
 [project.scripts]
 prob4d = "prob4d.cli:main"
-proof4d-verify = "prob4d_independent_verifier.proof_carrying:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
