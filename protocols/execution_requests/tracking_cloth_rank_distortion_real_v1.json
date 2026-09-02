@@ -1,7 +1,7 @@
 {
   "schema": "prob4d.self-hosted-experiment-request.v1",
   "request_id": "tracking-cloth-rank-distortion-real-v1",
-  "request_sequence": 1,
+  "request_sequence": 2,
   "method_parent_revision": "baaebd29d576c77be77b97b75383a3a9dd89eaef",
   "branch": "research/tracking-cloth-rank-distortion-real-v1",
   "runner_labels": ["self-hosted", "gpuserver4090"],
