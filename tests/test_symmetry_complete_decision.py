@@ -70,10 +70,12 @@ def test_continuous_group_can_certify_no_uniformly_good_action() -> None:
         losses,
         action_loss_lipschitz_by_quotient=[0.0, 1.0],
         regret_tolerance=0.5,
+        lipschitz_bound_certified=True,
     )
 
     np.testing.assert_allclose(certificate.sampled_worst_case_regret, [1.0, 1.0])
     assert certificate.status == "certified-no-admissible-action"
+    assert certificate.bounds_certified
     assert certificate.fallback_required
     assert not certificate.has_tolerance_admissible_action
 
@@ -97,13 +99,16 @@ def test_continuous_group_certifies_bounded_regret_without_point_completion() ->
         losses,
         action_loss_lipschitz_by_quotient=[0.0, 1.0],
         regret_tolerance=math.pi / 64.0 + 1e-12,
+        lipschitz_bound_certified=True,
     )
 
     assert certificate.status == "certified-admissible"
     assert certificate.tolerance_admissible_action_mask[0]
     assert not certificate.tolerance_admissible_action_mask[1]
     assert certificate.minimax_upper_action_index == 0
-    assert certificate.minimax_upper_worst_case_regret == pytest.approx(math.pi / 64.0)
+    assert certificate.minimax_upper_worst_case_regret == pytest.approx(
+        math.pi / 64.0
+    )
 
 
 def test_coarse_cover_can_leave_decision_undetermined() -> None:
@@ -123,6 +128,7 @@ def test_coarse_cover_can_leave_decision_undetermined() -> None:
         losses,
         action_loss_lipschitz_by_quotient=[0.0, 1.0],
         regret_tolerance=0.9,
+        lipschitz_bound_certified=True,
     )
 
     assert certificate.sampled_worst_case_regret[0] == pytest.approx(0.0)
@@ -130,6 +136,45 @@ def test_coarse_cover_can_leave_decision_undetermined() -> None:
     assert certificate.sampled_worst_case_regret[1] > 0.9
     assert certificate.status == "undetermined"
     assert certificate.fallback_required
+
+
+def test_custom_decision_cover_requires_explicit_certificate() -> None:
+    quadrature = CompactGroupQuadratureV1.uniform_circle(
+        8,
+        group_id="s1",
+    )
+    belief = SymmetryCompleteBeliefV1.with_reference_group_law(
+        [1.0],
+        quadrature,
+        belief_id="posterior",
+    )
+    angle = quadrature.nodes[:, 0]
+    losses = np.stack((np.zeros_like(angle), 1.0 + np.cos(angle)), axis=1)[None, :, :]
+
+    uncertified = certify_compact_group_decision(
+        belief,
+        losses,
+        action_loss_lipschitz_by_quotient=[0.0, 1.0],
+        cover_radius_by_quotient=0.01,
+        regret_tolerance=0.1,
+        lipschitz_bound_certified=True,
+    )
+    assert uncertified.status == "scope-not-certified"
+    assert not uncertified.cover_radius_certified
+    assert uncertified.fallback_required
+
+    certified = certify_compact_group_decision(
+        belief,
+        losses,
+        action_loss_lipschitz_by_quotient=[0.0, 1.0],
+        cover_radius_by_quotient=0.01,
+        regret_tolerance=0.1,
+        cover_radius_certified=True,
+        lipschitz_bound_certified=True,
+    )
+    assert certified.status == "certified-admissible"
+    assert certified.bounds_certified
+    assert certified.tolerance_admissible_action_mask[0]
 
 
 def test_uncertified_decision_cover_fails_closed() -> None:
@@ -169,7 +214,9 @@ def test_decision_certificate_arrays_are_immutable() -> None:
         cover_radius_certified=True,
     )
     belief = SymmetryCompleteBeliefV1.with_reference_group_law(
-        [1.0], quadrature, belief_id="posterior"
+        [1.0],
+        quadrature,
+        belief_id="posterior",
     )
     certificate = certify_compact_group_decision(
         belief,
