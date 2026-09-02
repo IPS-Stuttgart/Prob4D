@@ -1,0 +1,38 @@
+{
+  "artifact": {
+    "digest": "sha256:fc873742ab6c8bcc022a42ce5b9c4c6b808f27ec30e8cc0f46d902b5809e034c",
+    "id": 9848722738,
+    "name": "deform-dlo45-falsification-witness-33635740556"
+  },
+  "classification": "retrospective public-data falsification diagnostic",
+  "dataset": {
+    "commit": "b73b8b8ecc033caefa693fab7898741d4e6dbeff",
+    "repository": "roahmlab/DEFORM"
+  },
+  "evaluated_revision": "294af7fffeced18e13c06f76a0aaae016e2beb48",
+  "information_order": {
+    "held_outcomes_opened_during_selection": false,
+    "prospective_claim_eligible": false,
+    "target_query_reselection": false
+  },
+  "result_files": {
+    "comparison_json_sha256": "81963886e5a8bd5b9d071c7625c8b251be7393e25e681701556774fe32a9c687",
+    "source_receipt_json_sha256": "3feccba0d07602da017c9ff340ac40d69f48252079b5bf46bb8e97c1fd3c97e9",
+    "witness_json_sha256": "3770edebefa83b67f27e19707190def0d8a614171e7b8844860aa94e0caa50b6"
+  },
+  "schema_name": "prob4d.deform-dlo45-falsification-witness-manifest",
+  "schema_version": 1,
+  "source_artifact": {
+    "digest": "sha256:758ba7c4c30ca7570c3c34583ef942b555b87db3c78a03b2601a5d6b9e391e5e",
+    "id": 9848703491,
+    "name": "deform-dlo45-witness-source-33635740556"
+  },
+  "statistical_units": {
+    "held_case_count": 106400,
+    "held_independent_trajectory_count": 28,
+    "source_fit_trajectory_count": 80,
+    "source_witness_trajectory_count": 32
+  },
+  "witness_id": "04db55d4037d594d03c58cdb661c1f0c8329e28f16b4d526df88f3db0aca9fab",
+  "workflow_run": 33635740556
+}
