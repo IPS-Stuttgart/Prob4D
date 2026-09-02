@@ -188,18 +188,12 @@ def _equivariant_action_coupling_study() -> dict[str, Any]:
             np.count_nonzero(certificate.tolerance_admissible_action_mask)
         ),
         "maximum_absolute_loss_range": certificate.maximum_sample_absolute_loss_range,
-        "maximum_pairwise_difference_range": (
-            certificate.maximum_sample_pairwise_difference_range
-        ),
+        "maximum_pairwise_difference_range": (certificate.maximum_sample_pairwise_difference_range),
         "missing_coupling_receipt_status": missing_receipt.status,
         "actionwise_lipschitz_status": actionwise.status,
-        "actionwise_lipschitz_minimum_upper_regret": (
-            actionwise.minimax_upper_worst_case_regret
-        ),
+        "actionwise_lipschitz_minimum_upper_regret": (actionwise.minimax_upper_worst_case_regret),
         "pairwise_equivariance_status": pairwise.status,
-        "pairwise_equivariance_minimum_upper_regret": (
-            pairwise.minimax_upper_worst_case_regret
-        ),
+        "pairwise_equivariance_minimum_upper_regret": (pairwise.minimax_upper_worst_case_regret),
         "fixed_frame_status": fixed_certificate.status,
         "fixed_frame_pairwise_difference_range": (
             fixed_certificate.maximum_sample_pairwise_difference_range
