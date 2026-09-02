@@ -9,10 +9,13 @@ on:
       - "docs/proof-carrying-factors.md"
       - "examples/proof4d/**"
       - "pyproject.toml"
+      - "requirements/ci/quality.txt"
       - "scripts/generate_proof_carrying_factor_examples.py"
       - "src/prob4d/proof_carrying_factor.py"
+      - "src/prob4d/proof_carrying_orbit.py"
       - "src/prob4d_independent_verifier/**"
       - "tests/test_proof_carrying_factor*.py"
+      - "tests/test_proof_carrying_orbit.py"
   pull_request:
     branches: [main]
     paths:
@@ -21,10 +24,13 @@ on:
       - "docs/proof-carrying-factors.md"
       - "examples/proof4d/**"
       - "pyproject.toml"
+      - "requirements/ci/quality.txt"
       - "scripts/generate_proof_carrying_factor_examples.py"
       - "src/prob4d/proof_carrying_factor.py"
+      - "src/prob4d/proof_carrying_orbit.py"
       - "src/prob4d_independent_verifier/**"
       - "tests/test_proof_carrying_factor*.py"
+      - "tests/test_proof_carrying_orbit.py"
   workflow_dispatch:
 
 permissions:
@@ -40,7 +46,7 @@ env:
 
 jobs:
   source-contract:
-    name: Source contract / Python ${{ matrix.python }}
+    name: Runtime contract / Python ${{ matrix.python }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -58,43 +64,35 @@ jobs:
           python-version: ${{ matrix.python }}
           cache: pip
           cache-dependency-path: pyproject.toml
-      - name: Install the lightweight development environment
-        run: python -m pip install -e ".[dev]"
+      - name: Install the lightweight runtime test environment
+        run: python -m pip install -e . "pytest==9.1.1"
       - name: Check generated certificates
         run: python scripts/generate_proof_carrying_factor_examples.py --check
-      - name: Lint and type-check the certificate implementation
-        shell: bash
-        run: |
-          set -euo pipefail
-          files=(
-            src/prob4d/proof_carrying_factor.py
-            src/prob4d_independent_verifier/proof_carrying.py
-            scripts/generate_proof_carrying_factor_examples.py
-            tests/test_proof_carrying_factor.py
-            tests/test_proof_carrying_factor_full_rank.py
-          )
-          python -m ruff check "${files[@]}"
-          python -m ruff format --check "${files[@]}"
-          python -m mypy \
-            --config-file pyproject.toml \
-            src/prob4d/proof_carrying_factor.py \
-            src/prob4d_independent_verifier/proof_carrying.py
-      - name: Run producer, verifier, tamper, and fallback tests
+      - name: Run local, global-orbit, tamper, and fallback tests
         run: >-
           python -m pytest -q
           tests/test_proof_carrying_factor.py
           tests/test_proof_carrying_factor_full_rank.py
+          tests/test_proof_carrying_orbit.py
           --junitxml=proof4d-${{ matrix.python }}.xml
-      - name: Exercise execution-gate exit codes
+      - name: Exercise fail-closed module exit codes
         shell: bash
         run: |
           set -euo pipefail
-          proof4d-verify examples/proof4d/linear-query-supported.json --compact
+          python -m prob4d_independent_verifier.proof_carrying \
+            examples/proof4d/linear-query-supported.json --compact
           set +e
-          proof4d-verify examples/proof4d/linear-query-rejected.json --compact
-          status=$?
+          python -m prob4d_independent_verifier.proof_carrying \
+            examples/proof4d/linear-query-rejected.json --compact
+          local_status=$?
+          python -m prob4d_independent_verifier.orbit_advantage \
+            examples/proof4d/axial-action-rejected.json --compact
+          orbit_status=$?
           set -e
-          test "$status" -eq 2
+          test "$local_status" -eq 2
+          test "$orbit_status" -eq 2
+          python -m prob4d_independent_verifier.orbit_advantage \
+            examples/proof4d/axial-action-supported.json --compact
       - name: Upload verification report
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -104,8 +102,50 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+  static-contract:
+    name: Pinned formatting and typing contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            requirements/ci/quality.txt
+      - name: Install the repository-pinned quality environment
+        run: python -m pip install -e . -r requirements/ci/quality.txt
+      - name: Lint and type-check both certificate families
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=(
+            src/prob4d/proof_carrying_factor.py
+            src/prob4d/proof_carrying_orbit.py
+            src/prob4d_independent_verifier/proof_carrying.py
+            src/prob4d_independent_verifier/orbit_advantage.py
+            scripts/generate_proof_carrying_factor_examples.py
+            tests/test_proof_carrying_factor.py
+            tests/test_proof_carrying_factor_full_rank.py
+            tests/test_proof_carrying_orbit.py
+          )
+          python -m ruff check "${files[@]}"
+          python -m ruff format --check "${files[@]}"
+          python -m mypy \
+            --config-file pyproject.toml \
+            src/prob4d/proof_carrying_factor.py \
+            src/prob4d/proof_carrying_orbit.py \
+            src/prob4d_independent_verifier/proof_carrying.py \
+            src/prob4d_independent_verifier/orbit_advantage.py
+
   installed-wheel:
-    name: Installed-wheel independent verifier
+    name: Installed-wheel independent verifiers
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -123,16 +163,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python -m pip install build
+          python -m pip install "build==1.6.0"
           python -m build --wheel
           python -m venv "$RUNNER_TEMP/proof4d-wheel"
           python_bin="$RUNNER_TEMP/proof4d-wheel/bin/python"
           "$python_bin" -m pip install dist/*.whl
           "$python_bin" -m pip check
-          "$RUNNER_TEMP/proof4d-wheel/bin/proof4d-verify" \
+          "$python_bin" -I -m prob4d_independent_verifier.proof_carrying \
             examples/proof4d/linear-query-supported.json \
-            --compact > installed-wheel-report.json
-      - name: Verify the wheel does not couple the independent checker to Prob4D imports
+            --compact > installed-wheel-local-report.json
+          "$python_bin" -I -m prob4d_independent_verifier.orbit_advantage \
+            examples/proof4d/axial-action-supported.json \
+            --compact > installed-wheel-orbit-report.json
+      - name: Verify neither independent checker imports its producer
         shell: bash
         run: |
           set -euo pipefail
@@ -142,25 +185,29 @@ jobs:
           from importlib.util import find_spec
           from pathlib import Path
 
-          spec = find_spec("prob4d_independent_verifier.proof_carrying")
-          if spec is None or spec.origin is None:
-              raise SystemExit("installed verifier module was not found")
-          tree = ast.parse(Path(spec.origin).read_text(encoding="utf-8"))
-          for node in ast.walk(tree):
-              if isinstance(node, ast.Import):
-                  names = [alias.name for alias in node.names]
-              elif isinstance(node, ast.ImportFrom):
-                  names = [node.module or ""]
-              else:
-                  continue
-              if any(name == "prob4d" or name.startswith("prob4d.") for name in names):
-                  raise SystemExit(f"independent verifier imports producer: {names}")
+          for module in (
+              "prob4d_independent_verifier.proof_carrying",
+              "prob4d_independent_verifier.orbit_advantage",
+          ):
+              spec = find_spec(module)
+              if spec is None or spec.origin is None:
+                  raise SystemExit(f"installed verifier module was not found: {module}")
+              tree = ast.parse(Path(spec.origin).read_text(encoding="utf-8"))
+              for node in ast.walk(tree):
+                  if isinstance(node, ast.Import):
+                      names = [alias.name for alias in node.names]
+                  elif isinstance(node, ast.ImportFrom):
+                      names = [node.module or ""]
+                  else:
+                      continue
+                  if any(name == "prob4d" or name.startswith("prob4d.") for name in names):
+                      raise SystemExit(f"independent verifier imports producer: {module}: {names}")
           PY
-      - name: Upload installed-wheel report
+      - name: Upload installed-wheel reports
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: proof4d-installed-wheel-report
-          path: installed-wheel-report.json
+          name: proof4d-installed-wheel-reports
+          path: installed-wheel-*-report.json
           if-no-files-found: warn
           retention-days: 14
