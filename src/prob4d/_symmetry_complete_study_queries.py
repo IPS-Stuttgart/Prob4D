@@ -52,6 +52,7 @@ def _cover_verification_study(
                 query_id=f"random-harmonic-{node_count}-{case_index}",
                 lipschitz_by_quotient=lipschitz,
                 tolerance=0.0,
+                lipschitz_bound_certified=True,
             )
             lower = certificate.maximum_sample_diameter
             upper = certificate.maximum_upper_diameter
