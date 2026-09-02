@@ -1,0 +1,117 @@
+name: Temporary normalize DEFORM information-contract adapter v1
+
+on:
+  push:
+    branches: [science/information-contract-benchmark-public-dlo-v1]
+    paths:
+      - "tools/tmp/fix_information_contract_deform_adapter_v1.json"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: temp-fix-information-contract-deform-adapter-v1
+  cancel-in-progress: false
+
+jobs:
+  normalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out exact branch revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install development runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -e ".[dev]"
+          python -m pip check
+
+      - name: Make dynamic test import dataclass-safe
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("tests/test_information_contract_deform_dlo45_adapter.py")
+          text = path.read_text(encoding="utf-8")
+          if "import sys\n" not in text:
+              text = text.replace(
+                  "import importlib.util\n",
+                  "import importlib.util\nimport sys\n",
+                  1,
+              )
+          old = "adapter = importlib.util.module_from_spec(SPEC)\nSPEC.loader.exec_module(adapter)\n"
+          new = (
+              "adapter = importlib.util.module_from_spec(SPEC)\n"
+              "sys.modules[SPEC.name] = adapter\n"
+              "SPEC.loader.exec_module(adapter)\n"
+          )
+          if old in text:
+              text = text.replace(old, new, 1)
+          elif new not in text:
+              raise SystemExit("dynamic adapter import block changed unexpectedly")
+          path.write_text(text, encoding="utf-8")
+          PY
+
+      - name: Normalize and validate the complete focused change
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=(
+            benchmarks/information_contract_v1/adapters/deform_dlo45_retrospective_v1.py
+            tests/test_information_contract_deform_dlo45_adapter.py
+            src/prob4d/information_contract_sealed.py
+            src/prob4d/information_contract_sealed_smoke.py
+            tests/test_information_contract_sealed.py
+          )
+          python -m ruff check --fix "${files[@]}"
+          python -m ruff format "${files[@]}"
+          python -m ruff check "${files[@]}"
+          python -m ruff format --check "${files[@]}"
+          python -m pytest -q -p no:cacheprovider \
+            tests/test_information_contract_benchmark.py \
+            tests/test_information_contract_sealed.py \
+            tests/test_information_contract_deform_dlo45_adapter.py
+          python -m py_compile \
+            benchmarks/information_contract_v1/adapters/deform_dlo45_retrospective_v1.py
+
+      - name: Commit only normalization and remove temporary trigger
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm \
+            .github/workflows/temp-fix-information-contract-deform-adapter-v1.yml \
+            tools/tmp/fix_information_contract_deform_adapter_v1.json
+          git add \
+            benchmarks/information_contract_v1/adapters/deform_dlo45_retrospective_v1.py \
+            tests/test_information_contract_deform_dlo45_adapter.py
+          mapfile -t staged < <(git diff --cached --name-only | LC_ALL=C sort)
+          expected=(
+            .github/workflows/temp-fix-information-contract-deform-adapter-v1.yml
+            benchmarks/information_contract_v1/adapters/deform_dlo45_retrospective_v1.py
+            tests/test_information_contract_deform_dlo45_adapter.py
+            tools/tmp/fix_information_contract_deform_adapter_v1.json
+          )
+          test "${#staged[@]}" -eq "${#expected[@]}"
+          for index in "${!expected[@]}"; do
+            test "${staged[$index]}" = "${expected[$index]}"
+          done
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Normalize public DEFORM benchmark adapter"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
