@@ -23,6 +23,8 @@ from prob4d_independent_verifier.orbit_advantage import (
     verify_proof_carrying_orbit_action,
 )
 
+_FULL_CIRCLE = AngleArc()
+
 
 def _digest(value: bytes) -> str:
     return "sha256:" + hashlib.sha256(value).hexdigest()
@@ -42,7 +44,7 @@ def _certificate(
     fallback: HarmonicQuery | None = None,
     candidate: HarmonicQuery | None = None,
     scope_admitted: bool = True,
-    arc: AngleArc | None = AngleArc(),
+    arc: AngleArc | None = _FULL_CIRCLE,
 ) -> dict[str, object]:
     return build_axial_orbit_action_certificate(
         fallback_loss=_query(4.0, 0.0, 0.0) if fallback is None else fallback,
