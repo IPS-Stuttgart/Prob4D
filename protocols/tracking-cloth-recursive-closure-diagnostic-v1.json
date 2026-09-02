@@ -1,0 +1,42 @@
+{
+  "schema": "prob4d.tracking-cloth-recursive-closure-diagnostic.v1",
+  "protocol_id": "tracking-cloth-recursive-closure-diagnostic-v1",
+  "dataset": {
+    "name": "Tracking Cloth Deformation",
+    "doi": "10.5281/zenodo.14644526",
+    "official_release_md5": "b4868b702f8a42b2ea1069d0f1a3b8f6",
+    "expected_csv_files": 120,
+    "expected_compatible_recordings": 80
+  },
+  "lag_frames": 6,
+  "horizon_frames": 12,
+  "stride_frames": 4,
+  "maximum_windows_per_recording": 96,
+  "model": {
+    "state": "complete future marker displacement at the registered horizon",
+    "observation": "registered lag displacement rescaled to the horizon",
+    "affine_centering": true,
+    "ridge_relative_to_median_state_variance": 1e-06
+  },
+  "rank_relative_tolerances": [1e-12, 1e-06, 0.001],
+  "tasks": [
+    "centroid",
+    "one_central_marker",
+    "four_evenly_spaced_markers"
+  ],
+  "diagnostics": [
+    "effective observation-map rank",
+    "task-only dynamics closure dimension",
+    "strict task-plus-observation closure dimension"
+  ],
+  "selection_rule": "all compatible A2/A3 recordings from the already-open public release; no held-out score, no model selection, no target-performance metric",
+  "claim_boundary": {
+    "retrospective_structural_diagnostic_only": true,
+    "independent_confirmation": false,
+    "predictive_improvement_established": false,
+    "recursive_compression_benefit_established": false,
+    "closed_loop_control_benefit_established": false,
+    "learned_visual_provider_established": false,
+    "state_of_the_art_claimed": false
+  }
+}
