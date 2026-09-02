@@ -8,29 +8,28 @@ on:
       - "src/prob4d/posterior_rank_distortion.py"
       - "src/prob4d/posterior_preserving_compression.py"
       - "tests/test_posterior_rank_distortion.py"
+      - "protocols/posterior-rank-distortion-controlled-v1.json"
+      - "scripts/science/run_posterior_rank_distortion_study.py"
       - "docs/posterior-rank-distortion*.md"
-      - "scripts/science/apply_rank_distortion_degeneracy_patch.py"
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: posterior-rank-distortion-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   theorem:
-    if: github.actor != 'github-actions[bot]'
-    name: Patch, validate, and commit degeneracy semantics
+    name: Generalized-eigen theorem and dense controls
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - name: Check out branch
+      - name: Check out exact revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: research/query-rank-distortion-frontier-v1
-          persist-credentials: true
+          persist-credentials: false
           clean: true
 
       - name: Set up Python
@@ -38,38 +37,20 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Apply reviewed repeated-eigenvalue semantics
-        run: python scripts/science/apply_rank_distortion_degeneracy_patch.py
-
-      - name: Install focused development environment
+      - name: Install development environment
         run: |
           python -m pip install --disable-pip-version-check -e ".[dev]"
           python -m pip install --disable-pip-version-check "numpy>=1.24,<2.3"
 
-      - name: Format and validate patch
+      - name: Check focused source quality
         run: |
-          python -m ruff format \
+          python -m ruff format --check \
             src/prob4d/posterior_rank_distortion.py \
             tests/test_posterior_rank_distortion.py
           python -m ruff check \
             src/prob4d/posterior_rank_distortion.py \
             tests/test_posterior_rank_distortion.py
           python -m mypy src/prob4d/posterior_rank_distortion.py
-          python -m pytest -q tests/test_posterior_rank_distortion.py
 
-      - name: Commit validated patch
-        shell: bash
-        run: |
-          set -euo pipefail
-          git add \
-            src/prob4d/posterior_rank_distortion.py \
-            tests/test_posterior_rank_distortion.py \
-            docs/posterior-rank-distortion-theory.md
-          if git diff --cached --quiet; then
-            echo "No patch changes remain."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "Expose non-unique rank-distortion boundaries"
-          git push origin HEAD:research/query-rank-distortion-frontier-v1
+      - name: Run independent dense theorem tests
+        run: python -m pytest -q tests/test_posterior_rank_distortion.py
