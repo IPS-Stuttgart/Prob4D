@@ -146,7 +146,11 @@ def recursive_linear_task_closure(
     reports that fact rather than manufacturing a smaller recursive claim.
     """
     transition = _array(state_transition, "state_transition")
-    if transition.ndim != 2 or transition.shape[0] < 1 or transition.shape[0] != transition.shape[1]:
+    if (
+        transition.ndim != 2
+        or transition.shape[0] < 1
+        or transition.shape[0] != transition.shape[1]
+    ):
         raise ValueError("state_transition must be a nonempty square matrix")
     dimension = transition.shape[0]
     task = _array(task_matrix, "task_matrix")
