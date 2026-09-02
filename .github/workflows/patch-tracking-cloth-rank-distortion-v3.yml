@@ -1,0 +1,111 @@
+name: Patch tracking-cloth rank-distortion study v3
+
+on:
+  push:
+    branches:
+      - research/tracking-cloth-rank-distortion-real-v1
+    paths:
+      - .github/workflows/patch-tracking-cloth-rank-distortion-v3.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: patch-tracking-cloth-rank-distortion-real-v1-v3
+  cancel-in-progress: false
+
+jobs:
+  patch-test-and-commit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: research/tracking-cloth-rank-distortion-real-v1
+          persist-credentials: true
+          clean: true
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Normalize copied script header
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("scripts/science/run_tracking_cloth_rank_distortion.py")
+          text = path.read_text(encoding="utf-8")
+          old = '''"""Evaluate posterior-preserving shared-noise compression on real cloth trajectories.
+
+          The script reads only CSV trajectory files from the verified Tracking Cloth
+          Deformation dataset. It performs recording-disjoint cross-validation, writes
+          compact derived evidence, and never copies raw trajectories into its outputs.
+          """'''
+          new = '''"""Recording-disjoint posterior-preserving compression on real cloth trajectories.
+
+          This experiment uses the public Tracking Cloth Deformation dataset's motion-capture
+          CSV files.  It fits one local Gaussian query/observation model per cloth size and
+          recording-disjoint fold, constructs a full structured observation covariance, and
+          compares the full posterior with exact posterior-preserving shared-factor reduction.
+
+          The script never exports raw trajectories and makes no learned-provider claim.
+          """'''
+          if text.count(old) != 1:
+              raise SystemExit("copied script header did not match the verified source")
+          path.write_text(text.replace(old, new), encoding="utf-8")
+          PY
+
+      - name: Apply deterministic transformation
+        run: python scripts/science/_apply_tracking_cloth_rank_distortion_patch.py
+
+      - name: Install focused environment
+        run: |
+          python -m pip install --disable-pip-version-check \
+            "numpy==2.2.6" "pytest==9.1.1" "ruff==0.16.5" >/dev/null
+          python -m pip install --disable-pip-version-check \
+            --no-deps -e . >/dev/null
+
+      - name: Format and validate transformed study
+        shell: bash
+        run: |
+          set -o pipefail
+          {
+            python -m ruff format \
+              scripts/science/run_tracking_cloth_rank_distortion.py \
+              tests/test_tracking_cloth_rank_distortion.py
+            python -m ruff check \
+              scripts/science/run_tracking_cloth_rank_distortion.py \
+              tests/test_tracking_cloth_rank_distortion.py
+            python -m py_compile scripts/science/run_tracking_cloth_rank_distortion.py
+            python -m pytest -q \
+              tests/test_posterior_rank_distortion.py \
+              tests/test_tracking_cloth_rank_distortion.py
+          } 2>&1 | tee validation.log
+
+      - name: Upload compact validation diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v6.0.0
+        with:
+          name: tracking-cloth-rank-distortion-patch-diagnostics-v3
+          path: validation.log
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Commit validated study implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            scripts/science/run_tracking_cloth_rank_distortion.py \
+            tests/test_tracking_cloth_rank_distortion.py
+          if git diff --cached --quiet; then
+            echo "Transformation already committed."
+            exit 0
+          fi
+          git commit -m "Implement real-cloth posterior rank-distortion study"
+          git push origin HEAD:research/tracking-cloth-rank-distortion-real-v1
