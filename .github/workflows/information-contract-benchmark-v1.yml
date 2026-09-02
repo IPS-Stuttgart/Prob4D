@@ -5,22 +5,31 @@ on:
     branches:
       - main
       - science/information-contract-benchmark-v1
+      - science/information-contract-benchmark-sealed-v1
     paths:
       - ".github/workflows/information-contract-benchmark-v1.yml"
       - "benchmarks/information_contract_v1/**"
       - "docs/information-contract-benchmark.md"
+      - "docs/information-contract-sealed-submissions.md"
       - "src/prob4d/information_contract_benchmark.py"
       - "src/prob4d/information_contract_benchmark_smoke.py"
+      - "src/prob4d/information_contract_sealed.py"
+      - "src/prob4d/information_contract_sealed_smoke.py"
       - "tests/test_information_contract_benchmark.py"
+      - "tests/test_information_contract_sealed.py"
   pull_request:
     branches: [main]
     paths:
       - ".github/workflows/information-contract-benchmark-v1.yml"
       - "benchmarks/information_contract_v1/**"
       - "docs/information-contract-benchmark.md"
+      - "docs/information-contract-sealed-submissions.md"
       - "src/prob4d/information_contract_benchmark.py"
       - "src/prob4d/information_contract_benchmark_smoke.py"
+      - "src/prob4d/information_contract_sealed.py"
+      - "src/prob4d/information_contract_sealed_smoke.py"
       - "tests/test_information_contract_benchmark.py"
+      - "tests/test_information_contract_sealed.py"
   workflow_dispatch:
 
 permissions:
@@ -38,7 +47,7 @@ jobs:
   unit:
     name: Contract tests on Python ${{ matrix.python }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -64,13 +73,18 @@ jobs:
           python -m ruff check \
             src/prob4d/information_contract_benchmark.py \
             src/prob4d/information_contract_benchmark_smoke.py \
-            tests/test_information_contract_benchmark.py
-          python -m pytest -q tests/test_information_contract_benchmark.py
+            src/prob4d/information_contract_sealed.py \
+            src/prob4d/information_contract_sealed_smoke.py \
+            tests/test_information_contract_benchmark.py \
+            tests/test_information_contract_sealed.py
+          python -m pytest -q \
+            tests/test_information_contract_benchmark.py \
+            tests/test_information_contract_sealed.py
 
   deterministic-smoke:
-    name: Generate, replay, and retain the complete scorecard
+    name: Generate, replay, and retain complete scorecards
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Check out exact revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -87,7 +101,7 @@ jobs:
         run: |
           python -m pip install -e .
           python -m pip check
-      - name: Generate and evaluate deterministic smoke suite
+      - name: Generate and evaluate deterministic self-contained smoke
         shell: bash
         run: |
           set -euo pipefail
@@ -111,16 +125,69 @@ jobs:
               aggregate["equal_group_mean"]["dependence_nll_gain_per_dimension"]
               > 0.0
           )
-          assert aggregate["equal_group_mean"]["gauge_false_accept_fraction"] == 0.0
+          assert (
+              aggregate["equal_group_mean"]["gauge_false_accept_fraction"]
+              == 0.0
+          )
           assert aggregate["equal_group_mean"]["exact_fallback_fraction"] == 1.0
           print(json.dumps(aggregate, indent=2, sort_keys=True))
           PY
-          sha256sum "$root"/*
-      - name: Upload complete deterministic scorecard
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v6.0.0
+      - name: Generate and evaluate truth-separated sealed smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/information-contract-sealed"
+          python -m prob4d.information_contract_sealed smoke "$root"
+          python -m prob4d.information_contract_sealed evaluate \
+            "$root/challenge/challenge.json" \
+            "$root/submission/submission.json" \
+            "$root/replayed.json"
+          cmp "$root/result.json" "$root/replayed.json"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "information-contract-sealed"
+          result = json.loads((root / "result.json").read_text(encoding="utf-8"))
+          assert result["information_order"]["claim_class"] == (
+              "retrospective-diagnostic"
+          )
+          assert result["information_order"]["prospective_claim_eligible"] is False
+          aggregate = result["aggregate"]
+          assert aggregate["contract"]["all_cases_pass"] is True
+          finite = aggregate["finite_query"]
+          assert finite["status"] == "evaluated"
+          assert finite["local_admits_finite_rejects_count"] == 2
+          assert (
+              finite["equal_group_mean"][
+                  "finite_query_false_accept_fraction"
+              ]
+              == 0.0
+          )
+          for case in result["cases"]:
+              communication = case["metrics"]["communication"]
+              assert communication["payload_file_bytes"] == case["payloads"][
+                  "submission"
+              ]["size_bytes"]
+              assert (
+                  communication["merged_evaluation_payload_file_bytes"]
+                  > communication["payload_file_bytes"]
+              )
+          print(json.dumps(aggregate, indent=2, sort_keys=True))
+          PY
+          sha256sum \
+            "$root/challenge/"* \
+            "$root/submission/"* \
+            "$root/result.json" \
+            "$root/replayed.json"
+      - name: Upload complete deterministic scorecards
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
         with:
-          name: information-contract-smoke-${{ github.sha }}
-          path: ${{ runner.temp }}/information-contract-smoke/
+          name: information-contract-smokes-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/information-contract-smoke/
+            ${{ runner.temp }}/information-contract-sealed/
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
