@@ -1,0 +1,57 @@
+{
+  "schema_name": "prob4d.information-contract-deform-adapter-protocol",
+  "schema_version": 1,
+  "protocol_id": "prob4d-information-contract-deform-dlo45-retrospective-v1",
+  "status": "retrospective-diagnostic-frozen",
+  "information_order": {
+    "claim_class": "retrospective-diagnostic",
+    "prospective_claim_eligible": false,
+    "reason": "The public DEFORM DLO4/DLO5 evaluation trajectories and prior derived results were already open before this adapter was registered."
+  },
+  "dataset": {
+    "repository": "roahmlab/DEFORM",
+    "commit": "b73b8b8ecc033caefa693fab7898741d4e6dbeff",
+    "dlos": ["DLO4", "DLO5"],
+    "source_partition": "train",
+    "held_partition": "eval",
+    "source_trajectories_per_dlo": 56,
+    "held_trajectories_per_dlo": 14,
+    "frames_per_trajectory": 500,
+    "nodes_per_frame": 12
+  },
+  "window": {
+    "prefix_frames": 5,
+    "forecast_horizon_frames": 25,
+    "stride_frames": 25,
+    "internal_node_slice": [2, 10],
+    "known_action_nodes": [0, 1, 10, 11],
+    "decay": 0.85
+  },
+  "prediction": {
+    "method_id": "source-calibrated-anchor-transport-velocity",
+    "uses_held_internal_future": false,
+    "uses_current_prefix": true,
+    "uses_registered_future_action_nodes": true,
+    "target_tuning": false,
+    "target_retries": false
+  },
+  "covariance": {
+    "fit_partition": "train-only",
+    "shared_component": "per-window common 3-D residual translation covariance",
+    "conditional_component": "row residual after removing the per-window common translation",
+    "jitter_m2": 1e-10,
+    "controls": [
+      "full-source-fitted-low-rank",
+      "same-mean-marginal-matched-diagonal",
+      "same-mean-overconfident-scale-0.01"
+    ]
+  },
+  "benchmark_tasks": ["forecast", "calibration", "dependence", "communication"],
+  "aggregation": {
+    "case": "one forecast window",
+    "group_id": "one complete physical trajectory",
+    "primary": "equal complete-trajectory weight",
+    "windows_as_independent_units": false
+  },
+  "claim_boundary": "This adapter is a retrospective public-data integration and anti-leakage test. It can validate exact scorecard reproduction, source-only covariance construction, equal-trajectory aggregation, and ranking differences between point and probabilistic metrics. It cannot establish a prospective provider ranking, unseen-object generalization, calibrated deployment uncertainty, query/decision safety, or state of the art."
+}
