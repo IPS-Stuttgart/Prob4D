@@ -23,6 +23,7 @@ env:
   DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/dot
   ARCHIVE_NAME: R11-20.zip
   ARCHIVE_MD5: 23ce3e7067465d3edabe20b4c7cfa388
+  EVALUATION_PYTHON: /home/github-runner/.cache/prob4d/cut3r-runtime-v1/venv/bin/python
   PYTHONHASHSEED: "0"
   PYTHONUNBUFFERED: "1"
   PYTHONDONTWRITEBYTECODE: "1"
@@ -129,15 +130,16 @@ jobs:
           persist-credentials: false
           clean: true
 
-      - name: Verify exact source and local runtime
+      - name: Verify exact source and retained local runtime
         shell: bash
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
-          python3 - <<'PY'
+          test -x "$EVALUATION_PYTHON"
+          "$EVALUATION_PYTHON" - <<'PY'
           import numpy
-          print(f"python/numpy ready: {numpy.__version__}")
+          print(f"retained python/numpy ready: {numpy.__version__}")
           PY
 
       - name: Download exact sealed routed-provider artifact
@@ -157,7 +159,7 @@ jobs:
           test -f "$archive"
           test ! -L "$archive"
           printf '%s  %s\n' "$ARCHIVE_MD5" "$archive" | md5sum --check --strict
-          python3 - <<'PY'
+          "$EVALUATION_PYTHON" - <<'PY'
           import os
           import zipfile
           from pathlib import Path, PurePosixPath
@@ -189,7 +191,7 @@ jobs:
           root="${{ steps.workspace.outputs.root }}"
           protocol_blob=$(git hash-object "$PROTOCOL_PATH")
           set +e
-          PYTHONPATH=src python3 \
+          PYTHONPATH=src "$EVALUATION_PYTHON" \
             scripts/science/run_dot_r11_r20_query_message_real_v1.py \
               evaluate \
               --dataset-root "$DATASET_ROOT" \
@@ -201,7 +203,7 @@ jobs:
               --protocol-git-blob-sha1 "$protocol_blob" \
               > "$root/logs/first.stdout" 2> "$root/logs/first.stderr"
           first_status=$?
-          PYTHONPATH=src python3 \
+          PYTHONPATH=src "$EVALUATION_PYTHON" \
             scripts/science/run_dot_r11_r20_query_message_real_v1.py \
               evaluate \
               --dataset-root "$DATASET_ROOT" \
@@ -273,7 +275,7 @@ jobs:
           set -euo pipefail
           test "$FIRST_EXIT" = "0"
           test "$SECOND_EXIT" = "0"
-          python3 - <<'PY'
+          "$EVALUATION_PYTHON" - <<'PY'
           import json
           import os
           from pathlib import Path
