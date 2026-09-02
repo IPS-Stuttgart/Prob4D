@@ -29,6 +29,11 @@ from ._symmetry_complete_decision import (
     CompactGroupDecisionCertificateV1,
     certify_compact_group_decision,
 )
+from ._symmetry_complete_pairwise import (
+    PAIRWISE_GAUGE_DECISION_CLAIM_BOUNDARY,
+    GaugeCoupledPairwiseDecisionCertificateV1,
+    certify_gauge_coupled_pairwise_decision,
+)
 from ._symmetry_complete_point import (
     PointCompletionAuditV1,
     audit_point_completion,
@@ -48,8 +53,10 @@ __all__ = [
     "CompactGroupDecisionCertificateV1",
     "CompactGroupQuadratureV1",
     "GaugeCoupledActionCertificateV1",
+    "GaugeCoupledPairwiseDecisionCertificateV1",
     "GaugeCouplingReceiptV1",
     "OrbitInvarianceCertificateV1",
+    "PAIRWISE_GAUGE_DECISION_CLAIM_BOUNDARY",
     "PointCompletionAuditV1",
     "SYMMETRY_COMPLETE_BELIEF_CLAIM_BOUNDARY",
     "SYMMETRY_COMPLETE_BELIEF_VERSION",
@@ -60,6 +67,7 @@ __all__ = [
     "certify_compact_group_decision",
     "certify_compact_group_query",
     "certify_gauge_coupled_action_orbit",
+    "certify_gauge_coupled_pairwise_decision",
     "pushforward_shared_group_query",
     "update_symmetry_complete_belief",
 ]
