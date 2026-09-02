@@ -1,0 +1,56 @@
+{
+  "schema": "prob4d.recursive-symmetry-filter-study-protocol",
+  "schema_version": 1,
+  "protocol_id": "recursive-symmetry-filter-study-v1",
+  "scientific_question": "Can repeated invariant evidence identify a quotient-level action while retaining complete unresolved gauge uncertainty exactly?",
+  "group": {
+    "family": "finite cyclic approximations to SO(2)",
+    "cardinalities": [8, 16, 32, 64],
+    "initial_conditional": "uniform",
+    "prediction": "equivariant cyclic increment kernel with probabilities 0.75 at +1 and 0.25 at -1"
+  },
+  "quotient": {
+    "classes": 2,
+    "initial_mass": [0.5, 0.5],
+    "transition": "identity",
+    "invariant_likelihood_per_update": [0.8, 0.2],
+    "update_count": 6
+  },
+  "actions": [
+    {
+      "index": 0,
+      "name": "class-0 equivariant action"
+    },
+    {
+      "index": 1,
+      "name": "class-1 equivariant action"
+    },
+    {
+      "index": 2,
+      "name": "caller-owned fallback"
+    }
+  ],
+  "loss_by_quotient": {
+    "class_0": [0.0, 2.0, 1.0],
+    "class_1": [2.0, 0.0, 1.0],
+    "pairwise_group_lipschitz": 0.0
+  },
+  "symmetry_breaking_control": {
+    "likelihood": "exp(4 cos(theta))",
+    "purpose": "show that gauge information is added only by explicitly gauge-sensitive evidence"
+  },
+  "registered_requirements": {
+    "every_invariant_update_zero_group_information": true,
+    "every_invariant_update_exactly_preserves_conditional_group_law": true,
+    "quotient_entropy_strictly_decreases": true,
+    "conditional_group_entropy_remains_log_cardinality": true,
+    "final_class_0_mass_minimum": 0.9997,
+    "final_selected_action": 0,
+    "final_selected_action_regret_upper_maximum": 1e-12,
+    "symmetry_breaking_group_information_minimum": 0.4,
+    "kl_chain_rule_error_maximum": 1e-12,
+    "byte_identical_replay_required": true
+  },
+  "statistical_status": "deterministic controlled mechanism",
+  "claim_boundary": "The quotient model, group action, transition, invariant likelihood, and loss are supplied. The study does not discover a physical symmetry, validate a learned provider, establish a continuous-group approximation guarantee, verify target transport, or certify deployment safety."
+}
