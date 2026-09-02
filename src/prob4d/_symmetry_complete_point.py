@@ -31,7 +31,7 @@ class PointCompletionAuditV1:
         indices = np.asarray(self.selected_group_node_by_quotient)
         if indices.dtype.kind not in "iu" or indices.ndim != 1:
             raise ValueError("selected_group_node_by_quotient must be an integer vector")
-        immutable = np.frombuffer(
+        immutable: NDArray[np.int64] = np.frombuffer(
             np.ascontiguousarray(indices, dtype=np.int64).tobytes(order="C"),
             dtype=np.dtype("<i8"),
         )
