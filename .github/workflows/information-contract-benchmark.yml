@@ -60,10 +60,10 @@ jobs:
         run: |
           set -euo pipefail
           suite=benchmarks/information_contract_v1/controlled_suite.json
-          python -m prob4d.information_contract_benchmark \
-            "$suite" --output "$RUNNER_TEMP/report-a.json"
-          python -m prob4d.information_contract_benchmark \
-            "$suite" --output "$RUNNER_TEMP/report-b.json"
+          python -m prob4d.information_contract_benchmark evaluate \
+            "$suite" "$RUNNER_TEMP/report-a.json"
+          python -m prob4d.information_contract_benchmark evaluate \
+            "$suite" "$RUNNER_TEMP/report-b.json"
           cmp "$RUNNER_TEMP/report-a.json" "$RUNNER_TEMP/report-b.json"
 
       - name: Enforce multi-axis and information-boundary semantics
