@@ -17,7 +17,6 @@ import hashlib
 import io
 import json
 import math
-import os
 import pickle
 import re
 import shutil
@@ -254,14 +253,11 @@ def _prediction_and_truth(
     left_displacement = future_left - current_left
     right_displacement = future_right - current_right
     blend = weights[None, :, :]
-    anchor_displacement = (
-        (1.0 - blend) * left_displacement[:, None, :]
-        + blend * right_displacement[:, None, :]
-    )
+    anchor_displacement = (1.0 - blend) * left_displacement[
+        :, None, :
+    ] + blend * right_displacement[:, None, :]
     steps = np.arange(1, spec.horizon_frames + 1, dtype=np.float64)
-    velocity_factor = (
-        spec.decay * (1.0 - np.power(spec.decay, steps)) / (1.0 - spec.decay)
-    )
+    velocity_factor = spec.decay * (1.0 - np.power(spec.decay, steps)) / (1.0 - spec.decay)
     prediction = (
         current_internal[None, ...]
         + anchor_displacement
@@ -315,9 +311,7 @@ def _fit_source_covariance(
 
 def _payload_keys(case: dict[str, Any]) -> tuple[str, str]:
     path_keys = [
-        key
-        for key, value in case.items()
-        if isinstance(value, str) and value.endswith(".npz")
+        key for key, value in case.items() if isinstance(value, str) and value.endswith(".npz")
     ]
     if len(path_keys) != 1:
         raise ValueError(f"template case must expose one NPZ path, got {path_keys}")
@@ -687,9 +681,7 @@ def _evaluate(
         "equal_trajectory_forecast_rmse_m": full_rmse,
         "systems": {
             mode: {
-                "gaussian_nll_per_dimension": _metric(
-                    result, "gaussian_nll_per_dimension"
-                ),
+                "gaussian_nll_per_dimension": _metric(result, "gaussian_nll_per_dimension"),
                 "normalized_nees": _metric(result, "normalized_nees"),
                 "marginal_coverage": _metric(result, "marginal_coverage"),
                 "dependence_nll_gain_per_dimension": _metric(

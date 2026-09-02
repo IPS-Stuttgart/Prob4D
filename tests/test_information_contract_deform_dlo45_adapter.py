@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -15,6 +16,7 @@ MODULE_PATH = (
 SPEC = importlib.util.spec_from_file_location("deform_adapter", MODULE_PATH)
 assert SPEC is not None and SPEC.loader is not None
 adapter = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = adapter
 SPEC.loader.exec_module(adapter)
 
 
