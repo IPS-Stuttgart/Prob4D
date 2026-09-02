@@ -22,6 +22,9 @@ from ._symmetry_complete_study_common import PROTOCOL
 from ._symmetry_complete_study_decisions import (
     _decision_cover_verification_study,
 )
+from ._symmetry_complete_study_pairwise import (
+    _approximate_pairwise_action_study,
+)
 from ._symmetry_complete_study_queries import (
     _cover_verification_study,
     _shared_group_dependence_study,
@@ -48,6 +51,7 @@ def run_study(*, seed: int, cases: int) -> dict[str, Any]:
     decision_cover = _decision_cover_verification_study(rng, cases=cases)
     shared = _shared_group_dependence_study()
     action_coupling = _equivariant_action_coupling_study()
+    approximate_pairwise = _approximate_pairwise_action_study()
     criteria = {
         "invariant_conditionals_preserved_exactly": (
             invariant["maximum_conditional_l1_change"] == 0.0
@@ -128,6 +132,20 @@ def run_study(*, seed: int, cases: int) -> dict[str, Any]:
         "action_certificate_is_group_coordinate_invariant": (
             action_coupling["maximum_regret_change_under_group_coordinate_offset"] <= 2e-12
         ),
+        "pairwise_lipschitz_bounds_cover_dense_approximate_regret": (
+            approximate_pairwise["minimum_dense_minus_sampled_regret"] >= -3e-6
+            and approximate_pairwise["minimum_upper_minus_dense_regret"] >= -3e-6
+        ),
+        "approximate_pairwise_certificate_identifies_action": (
+            approximate_pairwise["pairwise_status"] == "certified-admissible"
+            and approximate_pairwise["pairwise_selected_action"] == 0
+            and approximate_pairwise["pairwise_upper_regret"][0] == 0.0
+        ),
+        "approximate_pairwise_regularization_is_strictly_tighter": (
+            approximate_pairwise["maximum_sampled_pairwise_difference_range"] > 0.25
+            and approximate_pairwise["pairwise_to_actionwise_correction_ratio"] < 0.04
+            and approximate_pairwise["actionwise_status"] == "undetermined"
+        ),
     }
     return {
         "schema": PROTOCOL["schema"],
@@ -142,6 +160,7 @@ def run_study(*, seed: int, cases: int) -> dict[str, Any]:
         "continuous_decision_verification": decision_cover,
         "shared_group_dependence": shared,
         "gauge_coupled_action_verification": action_coupling,
+        "approximate_pairwise_action_verification": approximate_pairwise,
         "criteria": criteria,
         "decision": (
             "controlled-contract-passed" if all(criteria.values()) else "controlled-contract-failed"
