@@ -1,0 +1,100 @@
+{
+  "schema": "prob4d.tracking-cloth-bounded-orbit-robustness.v1",
+  "evidence_kind": "post-primary-bounded-generator-robustness-on-public-real-trajectories",
+  "parent_result": {
+    "protocol_path": "protocols/tracking-cloth-finite-orbit-real-v3.json",
+    "protocol_git_blob_sha1": "2b82734df4292d2c47328828e2307942347ca2a7",
+    "protocol_id": "9c0fb1a4191743a5038a2f26e521db1640fd5abfc3cac389e851485b7836a472",
+    "run_id": 33534703640,
+    "artifact_id": 9811148956,
+    "artifact_digest": "sha256:817c86588bc5673529fc4ae41196f88741a23dd36a7347caeeca5bd92d3a177d",
+    "result_id": "1441a141a8eccc1ae3a503c701c72e8d702a0bcb17226238f3d32effa3e58111",
+    "source_seal_id": "b6819675387890dd786b22168638f1c1ee33558f88d8d6fa6359a0f6df403e6d",
+    "support_id": "f9867227ef9e5a780c49fbbe3ce646205795d9fda504c13b535523d654ef8812",
+    "status": "evaluated-real-geometry-passed"
+  },
+  "dataset": {
+    "record_name": "Tracking Cloth Deformation",
+    "zenodo_record": "14644526",
+    "archive_filename": "tracking_dataset.zip",
+    "archive_md5": "b4868b702f8a42b2ea1069d0f1a3b8f6",
+    "expected_csv_files": 120,
+    "source_rule": "all A2 cotton, denim, and wool Free-hanging shake/twist recordings",
+    "source_recording_count": 24,
+    "target_roster": "exact target_relative_paths from the bound v3 protocol",
+    "target_recording_count": 15,
+    "selected_marker_triplet": [
+      "1",
+      "20",
+      "5"
+    ]
+  },
+  "bounded_error_model": {
+    "point_error_bound_fractions_of_true_anchor_distance": [
+      0.0,
+      0.005,
+      0.01,
+      0.02,
+      0.05,
+      0.1
+    ],
+    "replicates_per_frame": 16,
+    "perturbation": "independent deterministic-hash directions at exactly the declared Euclidean radius for each anchor and probe",
+    "seed": 20260902,
+    "outer_radius_bound": "r_hat + 2*epsilon + abs(t_hat)*min(2,4*epsilon/(d_hat-2*epsilon)); infinite if d_hat<=2*epsilon"
+  },
+  "sampling": {
+    "source_frames_per_recording": 12,
+    "target_frames_per_recording": 128,
+    "minimum_anchor_distance_mm": 20.0,
+    "minimum_probe_radius_mm": 5.0
+  },
+  "source_only_width_thresholds": {
+    "quantity": "true full radial orbit width 2r in millimetres",
+    "quantiles": [
+      0.25,
+      0.5,
+      0.75
+    ]
+  },
+  "methods": [
+    "oracle_true_orbit_width",
+    "plugin_observed_orbit_width",
+    "bounded_outer_orbit_width"
+  ],
+  "primary_endpoints": [
+    "full-orbit containment by plugin and bounded outer intervals",
+    "false acceptance relative to source-only width thresholds",
+    "false rejection relative to source-only width thresholds",
+    "outer-width inflation relative to the true full orbit"
+  ],
+  "inference": {
+    "group_unit": "recording-file",
+    "bootstrap_replicates": 5000,
+    "bootstrap_seed": 20260902
+  },
+  "mathematical_invariants": {
+    "zero_error_matches_oracle": true,
+    "bounded_outer_contains_true_orbit_when_error_bound_is_valid": true,
+    "bounded_outer_false_acceptance_is_zero_when_informative": true,
+    "uninformative_anchor_geometry_fails_closed": true
+  },
+  "information_order": {
+    "parent_target_outcomes_were_opened_before_this_secondary_study": true,
+    "threshold_values_are_computed_from_source_trajectories_only": true,
+    "target_side_retuning_allowed": false,
+    "self_collision_target_trajectories_opened": false,
+    "unsupported_self_collision_groups_replaced": false
+  },
+  "claim_boundary": {
+    "secondary_robustness_not_independent_confirmation": true,
+    "public_real_geometry": true,
+    "controlled_bounded_measurement_error": true,
+    "learned_visual_provider": false,
+    "physical_state_identification": false,
+    "bayesian_phystwin_benefit": false,
+    "deployment_safety": false,
+    "state_of_the_art": false
+  },
+  "protocol_id": "6b372b78329a809aee508a68ffd51abeb945fc941c0db29ca996459ddf52f711"
+}
