@@ -31,11 +31,11 @@
 
 ## Source-selected falsification witnesses
 
-The current stacked branch adds an auditor that searches only a registered
-linear physical-query span on source groups. It solves the exact generalized
-eigenproblem for the largest equal-group empirical-error to reported-variance
-ratio, freezes the query as a content-addressed witness, and evaluates it on held
-provider submissions without target-side reselection.
+The stacked witness branch searches a registered linear physical-query span on
+source groups only. It solves the generalized eigenproblem for the largest
+equal-group empirical-error to reported-variance ratio, freezes the selected
+query as a content-addressed witness, and evaluates that exact query on held
+submissions without target-side reselection.
 
 The deterministic control establishes the benchmark-defining possibility:
 
@@ -45,9 +45,47 @@ The deterministic control establishes the benchmark-defining possibility:
 - Provider B has higher point RMSE but normalized query error 1; and
 - point-accuracy and physical-query calibration rankings reverse.
 
-This remains development evidence. The next adapter uses disjoint DEFORM source
-roles to select a physically registered witness and evaluates it retrospectively
-on complete held trajectories.
+## Retrospective public DEFORM results
+
+Two source-selected diagnostics have completed on the official DLO4/DLO5
+release. In each, 80 training trajectories fit source quantities, 32 disjoint
+training trajectories select the query, and 28 complete evaluation trajectories
+are scored without target query reselection.
+
+### Spatial overconfidence witness
+
+A frozen metric 3-D direction remains strongly overconfident on the held
+trajectories: normalized query error is `18.2447` and nominal-90% coverage is
+`55.47%`, versus `0.9122` and `91.26%` for the corresponding full covariance.
+The registered method pair did not exhibit a point/query ranking reversal; that
+negative fact is retained.
+
+### Dependence-sensitive trajectory witness
+
+A 12-D query combines terminal and horizon-average centroid, terminal half-span,
+and temporal centroid change. Full and diagonal submissions have identical
+means, residuals, coordinate RMSE, and coordinate marginal variances; only
+off-diagonal dependence differs.
+
+On the frozen held query:
+
+- full dependence: normalized query error `1.0193`, 90% coverage `89.85%`,
+  query NLL `-1.6180`;
+- marginal-matched diagonal: normalized query error `3.3831`, coverage `67.48%`,
+  query NLL `-1.0318`;
+- full-dependence NLL gain: `0.5862` nats per query case.
+
+A secondary complete-trajectory analysis gives 21/28 NLL wins, a paired mean
+NLL gain of `0.5862` with bootstrap interval `[0.3298, 0.8709]`, and an exact
+paired sign-test p-value of `0.01254`. This analysis was added after inspection
+of the retrospective aggregate and remains explicitly post-hoc.
+
+Compact evidence and immutable artifact provenance are retained under:
+
+```text
+evidence/information-contract-deform-falsification-witness-v1/
+evidence/information-contract-deform-dependence-witness-v1/
+```
 
 ## Controlled findings
 
@@ -73,16 +111,15 @@ These are deterministic conformance checks, not empirical provider performance:
 
 ## Next bounded milestone
 
-1. Complete the source/calibration/source-test DEFORM witness adapter and retain
-   its retrospective held scorecard without target-side query selection.
-2. Generate the corresponding Tracking Cloth dependence/compression witness
+1. Generate the corresponding Tracking Cloth dependence/compression witness
    from original recording-level artifacts.
-3. Freeze a prospective two-provider by two-dataset protocol using separated
+2. Freeze a prospective two-provider by two-dataset protocol using separated
    challenge/submission payloads and source-only witness selection.
+3. Require a non-artificial held ranking reversal or a statistically supported
+   contract distinction under tied point accuracy.
 4. Publish every positive, negative, support-negative, and technical-failure
    outcome without replacement.
 
 A standalone benchmark manuscript is not promoted until a prospectively frozen
-witness produces a statistically supported held ranking reversal and the
-required dependence, ambiguity, common-bias, and fallback controls all remain
-visible.
+witness produces a statistically supported held result and the required
+dependence, ambiguity, common-bias, and fallback controls all remain visible.
