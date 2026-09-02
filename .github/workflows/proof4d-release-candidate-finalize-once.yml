@@ -31,7 +31,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Apply only mechanical fixes and validate the complete Proof4D slice
+      - name: Apply explicit type repair and validate the complete Proof4D slice
         shell: bash
         run: |
           set -euo pipefail
@@ -42,20 +42,53 @@ jobs:
 
           path = Path("src/prob4d_independent_verifier/execution_gate.py")
           content = path.read_text(encoding="utf-8")
-          old = (
-              '            reason = verification.reason_codes[0] if '
-              'verification.reason_codes else "invalid-certificate"\n'
+          replacements = (
+              (
+                  "from .orbit_advantage import (\n"
+                  "    PROOF_CARRYING_ORBIT_KIND,\n"
+                  "    verify_proof_carrying_orbit_action,\n"
+                  ")\n",
+                  "from .orbit_advantage import (\n"
+                  "    PROOF_CARRYING_ORBIT_KIND,\n"
+                  "    ProofCarryingOrbitVerification,\n"
+                  "    verify_proof_carrying_orbit_action,\n"
+                  ")\n",
+              ),
+              (
+                  "from .proof_carrying import (\n"
+                  "    PROOF_CARRYING_FACTOR_KIND,\n"
+                  "    verify_proof_carrying_factor,\n"
+                  ")\n",
+                  "from .proof_carrying import (\n"
+                  "    PROOF_CARRYING_FACTOR_KIND,\n"
+                  "    ProofCarryingFactorVerification,\n"
+                  "    verify_proof_carrying_factor,\n"
+                  ")\n",
+              ),
+              (
+                  "        if certificate_kind == PROOF_CARRYING_FACTOR_KIND:\n"
+                  "            verification = verify_proof_carrying_factor(certificate)\n",
+                  "        verification: (\n"
+                  "            ProofCarryingFactorVerification | ProofCarryingOrbitVerification\n"
+                  "        )\n"
+                  "        if certificate_kind == PROOF_CARRYING_FACTOR_KIND:\n"
+                  "            verification = verify_proof_carrying_factor(certificate)\n",
+              ),
+              (
+                  '            reason = verification.reason_codes[0] if '
+                  'verification.reason_codes else "invalid-certificate"\n',
+                  "            reason = (\n"
+                  "                verification.reason_codes[0]\n"
+                  "                if verification.reason_codes\n"
+                  "                else \"invalid-certificate\"\n"
+                  "            )\n",
+              ),
           )
-          new = (
-              "            reason = (\n"
-              "                verification.reason_codes[0]\n"
-              "                if verification.reason_codes\n"
-              "                else \"invalid-certificate\"\n"
-              "            )\n"
-          )
-          if content.count(old) != 1:
-              raise SystemExit("expected execution-gate line was not found exactly once")
-          path.write_text(content.replace(old, new), encoding="utf-8")
+          for old, new in replacements:
+              if content.count(old) != 1:
+                  raise SystemExit(f"expected repair block not found exactly once: {old!r}")
+              content = content.replace(old, new)
+          path.write_text(content, encoding="utf-8")
           PY
 
           files=(
