@@ -1,0 +1,342 @@
+name: Temporary materialize DEFORM information-contract result v1
+
+on:
+  push:
+    branches: [science/information-contract-benchmark-public-dlo-v1]
+    paths:
+      - "tools/tmp/run_information_contract_deform_public_v1.json"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: materialize-information-contract-deform-public-v1
+  cancel-in-progress: false
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONHASHSEED: "0"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+  DEFORM_REPOSITORY: roahmlab/DEFORM
+  DEFORM_COMMIT: b73b8b8ecc033caefa693fab7898741d4e6dbeff
+  NUMPY_VERSION: "2.2.6"
+  PROTOCOL: benchmarks/information_contract_v1/adapters/deform_dlo45_retrospective_v1.json
+  ADAPTER: benchmarks/information_contract_v1/adapters/deform_dlo45_retrospective_v1.py
+  RESULT_DIR: benchmarks/information_contract_v1/results/deform_dlo45_retrospective_v1
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Check out exact branch revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+          clean: true
+
+      - name: Check out pinned public DEFORM trajectories
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ env.DEFORM_REPOSITORY }}
+          ref: ${{ env.DEFORM_COMMIT }}
+          path: upstream-DEFORM
+          fetch-depth: 1
+          persist-credentials: false
+          clean: true
+          sparse-checkout: |
+            data_set/DLO4/train
+            data_set/DLO4/eval
+            data_set/DLO5/train
+            data_set/DLO5/eval
+          sparse-checkout-cone-mode: false
+
+      - name: Set up pinned Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install and normalize exact-head code
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install \
+            "pip==25.2" \
+            "setuptools==80.9.0" \
+            "wheel==0.45.1" \
+            "numpy==${NUMPY_VERSION}" \
+            "pytest>=8,<10" \
+            "ruff>=0.6,<1"
+          python -m pip install --no-deps -e .
+          python -m pip check
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("tests/test_information_contract_deform_dlo45_adapter.py")
+          text = path.read_text(encoding="utf-8")
+          if "import sys\n" not in text:
+              text = text.replace(
+                  "import importlib.util\n",
+                  "import importlib.util\nimport sys\n",
+                  1,
+              )
+          old = "adapter = importlib.util.module_from_spec(SPEC)\nSPEC.loader.exec_module(adapter)\n"
+          new = (
+              "adapter = importlib.util.module_from_spec(SPEC)\n"
+              "sys.modules[SPEC.name] = adapter\n"
+              "SPEC.loader.exec_module(adapter)\n"
+          )
+          if old in text:
+              text = text.replace(old, new, 1)
+          elif new not in text:
+              raise SystemExit("dynamic adapter import block changed unexpectedly")
+          path.write_text(text, encoding="utf-8")
+          PY
+          files=(
+            "${ADAPTER}"
+            tests/test_information_contract_deform_dlo45_adapter.py
+            src/prob4d/information_contract_sealed.py
+            src/prob4d/information_contract_sealed_smoke.py
+            tests/test_information_contract_sealed.py
+          )
+          python -m ruff check --fix "${files[@]}"
+          python -m ruff format "${files[@]}"
+          python -m ruff check "${files[@]}"
+          python -m ruff format --check "${files[@]}"
+
+      - name: Validate contracts and pinned dataset
+        id: dataset
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pytest -q -p no:cacheprovider \
+            tests/test_information_contract_benchmark.py \
+            tests/test_information_contract_sealed.py \
+            tests/test_information_contract_deform_dlo45_adapter.py
+          test "$(git -C upstream-DEFORM rev-parse HEAD)" = "${DEFORM_COMMIT}"
+          root="${GITHUB_WORKSPACE}/upstream-DEFORM/data_set"
+          for dlo in DLO4 DLO5; do
+            test "$(find "${root}/${dlo}/train" -maxdepth 1 -type f -name '*.pkl' | wc -l)" -eq 56
+            test "$(find "${root}/${dlo}/eval" -maxdepth 1 -type f -name '*.pkl' | wc -l)" -eq 14
+          done
+          echo "root=${root}" >> "${GITHUB_OUTPUT}"
+
+      - name: Execute and byte-replay all 532 separated cases
+        shell: bash
+        env:
+          DATASET_ROOT: ${{ steps.dataset.outputs.root }}
+        run: |
+          set -euo pipefail
+          first="${RUNNER_TEMP}/deform-information-contract-first"
+          second="${RUNNER_TEMP}/deform-information-contract-second"
+          rm -rf "${first}" "${second}"
+          python "${ADAPTER}" \
+            --protocol "${PROTOCOL}" \
+            --dataset-root "${DATASET_ROOT}" \
+            --output-root "${first}"
+          python "${ADAPTER}" \
+            --protocol "${PROTOCOL}" \
+            --dataset-root "${DATASET_ROOT}" \
+            --output-root "${second}"
+          diff -qr "${first}" "${second}"
+          (
+            cd "${first}"
+            sha256sum --check --strict SHA256SUMS
+          )
+
+      - name: Validate anti-leakage and summarize the public-data result
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="${RUNNER_TEMP}/deform-information-contract-first" python - <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          import numpy as np
+
+          root = Path(os.environ["ROOT"])
+          comparison = json.loads((root / "comparison.json").read_text(encoding="utf-8"))
+          assert comparison["classification"] == "retrospective public-data adapter validation"
+          assert comparison["case_count"] == 532
+          assert comparison["independent_trajectory_count"] == 28
+          assert comparison["same_prediction_mean_and_forecast_rmse"] is True
+          assert comparison["accuracy_cannot_rank_same_mean_controls"] is True
+          assert comparison["probabilistic_metrics_distinguish_same_mean_controls"] is True
+          systems = comparison["systems"]
+          assert set(systems) == {
+              "full-source-fitted-low-rank",
+              "same-mean-marginal-matched-diagonal",
+              "same-mean-overconfident-scale-0.01",
+          }
+          assert len({round(value["normalized_nees"], 10) for value in systems.values()}) > 1
+          assert len({round(value["gaussian_nll_per_dimension"], 10) for value in systems.values()}) > 1
+
+          challenge = json.loads(
+              (root / "challenge" / "challenge.json").read_text(encoding="utf-8")
+          )
+          assert len(challenge["cases"]) == 532
+          for case in challenge["cases"]:
+              paths = [
+                  value for value in case.values()
+                  if isinstance(value, str) and value.endswith(".npz")
+              ]
+              assert len(paths) == 1
+              with np.load(root / "challenge" / paths[0], allow_pickle=False) as archive:
+                  assert set(archive.files) == {"truth_xyz_m"}
+
+          submission_manifests = {}
+          for directory in sorted(root.glob("submission-*")):
+              manifest_path = directory / "submission.json"
+              manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+              assert len(manifest["cases"]) == 532
+              for case in manifest["cases"]:
+                  paths = [
+                      value for value in case.values()
+                      if isinstance(value, str) and value.endswith(".npz")
+                  ]
+                  assert len(paths) == 1
+                  with np.load(directory / paths[0], allow_pickle=False) as archive:
+                      assert set(archive.files) == {
+                          "prediction_mean_xyz_m",
+                          "conditional_covariance_m2",
+                          "shared_factor_m",
+                      }
+              submission_manifests[directory.name] = hashlib.sha256(
+                  manifest_path.read_bytes()
+              ).hexdigest()
+
+          source = json.loads((root / "source-covariance.json").read_text(encoding="utf-8"))
+          assert source["target_outcomes_used_for_covariance_fit"] is False
+          for record in source["dlos"].values():
+              assert record["source_window_count"] == 1064
+              assert record["source_row_count"] == 212800
+
+          result_hashes = {
+              path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+              for path in sorted(root.glob("result-*.json"))
+          }
+          compact = {
+              "schema_name": "prob4d.information-contract-deform-retrospective-record",
+              "schema_version": 1,
+              "protocol_id": comparison["protocol_id"],
+              "classification": comparison["classification"],
+              "workflow_run_id": int(os.environ["GITHUB_RUN_ID"]),
+              "workflow_run_attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
+              "prob4d_revision": os.environ["GITHUB_SHA"],
+              "dataset_repository": os.environ["DEFORM_REPOSITORY"],
+              "dataset_commit": os.environ["DEFORM_COMMIT"],
+              "deterministic_full_tree_replay": True,
+              "challenge_manifest_sha256": hashlib.sha256(
+                  (root / "challenge" / "challenge.json").read_bytes()
+              ).hexdigest(),
+              "submission_manifest_sha256": submission_manifests,
+              "result_sha256": result_hashes,
+              "comparison": comparison,
+              "claim_boundary": (
+                  "Retrospective public-data adapter validation only. The result "
+                  "does not authorize a prospective provider ranking, target-domain "
+                  "calibration, unseen-object transfer, decision safety, or state of the art."
+              ),
+          }
+          destination = Path(os.environ["RESULT_DIR"])
+          destination.mkdir(parents=True, exist_ok=False)
+          (destination / "comparison.json").write_bytes((root / "comparison.json").read_bytes())
+          (destination / "source-covariance.json").write_bytes(
+              (root / "source-covariance.json").read_bytes()
+          )
+          (destination / "manifest.json").write_text(
+              json.dumps(compact, indent=2, sort_keys=True, allow_nan=False) + "\n",
+              encoding="utf-8",
+          )
+          full = systems["full-source-fitted-low-rank"]
+          diagonal = systems["same-mean-marginal-matched-diagonal"]
+          overconfident = systems["same-mean-overconfident-scale-0.01"]
+          readme = f"""# DEFORM DLO4/DLO5 retrospective information-contract adapter
+
+This retained record validates the separated challenge/submission format on the
+public DEFORM DLO4/DLO5 release. It contains **532** forecast windows nested in
+**28 complete trajectories**. Covariance parameters were fitted on the 112
+training trajectories only; held internal-node futures were used only by the
+challenge scorer.
+
+All three submissions have exactly the same point predictions and equal-
+trajectory forecast RMSE: `{comparison['equal_trajectory_forecast_rmse_m']:.9g} m`.
+They differ only in uncertainty semantics:
+
+| Submission | Gaussian NLL/dim | normalized NEES | marginal coverage | dependence NLL gain/dim |
+| --- | ---: | ---: | ---: | ---: |
+| Full source-fitted low rank | {full['gaussian_nll_per_dimension']:.6f} | {full['normalized_nees']:.6f} | {full['marginal_coverage']:.6f} | {full['dependence_nll_gain_per_dimension']:.6f} |
+| Marginal-matched diagonal | {diagonal['gaussian_nll_per_dimension']:.6f} | {diagonal['normalized_nees']:.6f} | {diagonal['marginal_coverage']:.6f} | {diagonal['dependence_nll_gain_per_dimension']:.6f} |
+| Overconfident 0.01 covariance | {overconfident['gaussian_nll_per_dimension']:.6f} | {overconfident['normalized_nees']:.6f} | {overconfident['marginal_coverage']:.6f} | {overconfident['dependence_nll_gain_per_dimension']:.6f} |
+
+The entire derived tree was generated twice and compared byte-for-byte. Challenge
+NPZs contain truth only; submission NPZs contain prediction means and covariance
+only. This is a retrospective integration result, not a prospective leaderboard
+or a calibration claim.
+"""
+          (destination / "README.md").write_text(readme, encoding="utf-8")
+          print(json.dumps(compact, indent=2, sort_keys=True))
+          PY
+
+      - name: Upload the complete reproducible derived panel
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        with:
+          name: information-contract-deform-dlo45-complete-${{ github.sha }}
+          path: ${{ runner.temp }}/deform-information-contract-first/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 9
+
+      - name: Record compact result and remove one-shot controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf upstream-DEFORM
+          git rm \
+            .github/workflows/temp-materialize-information-contract-deform-result-v1.yml \
+            tools/tmp/run_information_contract_deform_public_v1.json
+          git add \
+            "${ADAPTER}" \
+            tests/test_information_contract_deform_dlo45_adapter.py \
+            "${RESULT_DIR}"
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("benchmarks/information_contract_v1/STATUS.md")
+          text = path.read_text(encoding="utf-8")
+          marker = "## Public DEFORM adapter\n"
+          block = """## Public DEFORM adapter
+
+The retrospective DLO4/DLO5 adapter now executes 532 separated challenge/
+submission cases nested in 28 complete trajectories. It fits covariance on the
+public training trajectories only, constructs three identical-mean uncertainty
+submissions, evaluates them through the sealed benchmark, reproduces the entire
+derived tree byte-for-byte, and retains a compact content-addressed result.
+This validates the public adapter and demonstrates a point-accuracy ranking tie
+that probabilistic metrics can distinguish. It is not a prospective provider
+ranking or an unseen-object/calibration claim.
+
+"""
+          if marker not in text:
+              text = text.rstrip() + "\n\n" + block
+              path.write_text(text, encoding="utf-8")
+          PY
+          git add benchmarks/information_contract_v1/STATUS.md
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Retain public DEFORM information-contract adapter result"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
