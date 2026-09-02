@@ -80,8 +80,7 @@ def _fit_centered_map(
     return coefficients.T, {
         "paired_rows": int(len(centered_input)),
         "ridge": ridge,
-        "relative_training_residual": float(np.linalg.norm(residual, ord="fro"))
-        / denominator,
+        "relative_training_residual": float(np.linalg.norm(residual, ord="fro")) / denominator,
     }
 
 
@@ -107,7 +106,9 @@ def _task_matrices(marker_count: int) -> dict[str, np.ndarray]:
     }
 
 
-def _collect_samples(dataset_root: Path, protocol: dict[str, Any]) -> tuple[list[Samples], dict[str, Any]]:
+def _collect_samples(
+    dataset_root: Path, protocol: dict[str, Any]
+) -> tuple[list[Samples], dict[str, Any]]:
     csv_files = sorted(path for path in dataset_root.rglob("*.csv") if path.is_file())
     samples: list[Samples] = []
     rejected: list[dict[str, str]] = []
@@ -160,7 +161,10 @@ def _size_diagnostic(
         raise ValueError(f"{size} marker count is inconsistent")
 
     state_rows = np.concatenate(
-        [record.future_displacements_m.reshape(len(record.future_displacements_m), -1) for record in selected]
+        [
+            record.future_displacements_m.reshape(len(record.future_displacements_m), -1)
+            for record in selected
+        ]
     )
     observation_rows = np.concatenate(
         [record.observations_m.reshape(len(record.observations_m), -1) for record in selected]
@@ -218,8 +222,7 @@ def _size_diagnostic(
                     "task_only_closure_dimension": task_only.closure_dimension,
                     "strict_closure_dimension": strict.closure_dimension,
                     "state_dimension": int(transition_map.shape[0]),
-                    "strict_closure_fraction": strict.closure_dimension
-                    / transition_map.shape[0],
+                    "strict_closure_fraction": strict.closure_dimension / transition_map.shape[0],
                 }
             )
     return {
