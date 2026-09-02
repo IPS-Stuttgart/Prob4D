@@ -106,9 +106,7 @@ def test_continuous_group_certifies_bounded_regret_without_point_completion() ->
     assert certificate.tolerance_admissible_action_mask[0]
     assert not certificate.tolerance_admissible_action_mask[1]
     assert certificate.minimax_upper_action_index == 0
-    assert certificate.minimax_upper_worst_case_regret == pytest.approx(
-        math.pi / 64.0
-    )
+    assert certificate.minimax_upper_worst_case_regret == pytest.approx(math.pi / 64.0)
 
 
 def test_coarse_cover_can_leave_decision_undetermined() -> None:

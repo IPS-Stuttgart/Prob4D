@@ -213,9 +213,7 @@ def certify_compact_group_query(
     )
     if cover_radius_certified is None:
         supplied_cover_certified = (
-            belief.quadrature.cover_radius_certified
-            if cover_radius_by_quotient is None
-            else False
+            belief.quadrature.cover_radius_certified if cover_radius_by_quotient is None else False
         )
     else:
         supplied_cover_certified = _genuine_bool(
@@ -223,9 +221,7 @@ def certify_compact_group_query(
             name="cover_radius_certified",
         )
     needs_lipschitz = bool(np.any(cover * lipschitz > 0.0))
-    certified = supplied_cover_certified and (
-        not needs_lipschitz or supplied_lipschitz_certified
-    )
+    certified = supplied_cover_certified and (not needs_lipschitz or supplied_lipschitz_certified)
     sample: FloatArray = np.zeros(belief.quotient_count, dtype=np.float64)
     upper: FloatArray = np.zeros(belief.quotient_count, dtype=np.float64)
     active = belief.quotient_weights > 0.0

@@ -56,10 +56,7 @@ def test_orbit_invariant_likelihood_preserves_conditional_law_exactly() -> None:
         result.posterior.group_conditional_weights,
         result.prior.group_conditional_weights,
     )
-    assert (
-        result.posterior.group_conditional_weights
-        is result.prior.group_conditional_weights
-    )
+    assert result.posterior.group_conditional_weights is result.prior.group_conditional_weights
     np.testing.assert_allclose(
         result.posterior.quotient_weights,
         [1.0 / 27.0, 2.0 / 9.0, 20.0 / 27.0],
@@ -164,14 +161,10 @@ def test_explicit_symmetry_breaking_updates_gauge_and_chain_rule() -> None:
     assert not result.information.quadrature_invariance_verified
     assert not result.information.whole_group_invariance_certified
     assert result.information.total_information_nats == pytest.approx(
-        result.information.quotient_information_nats
-        + result.information.gauge_information_nats,
+        result.information.quotient_information_nats + result.information.gauge_information_nats,
         abs=1e-12,
     )
-    assert (
-        np.argmax(result.posterior.group_conditional_weights[0])
-        == quadrature.node_count // 2
-    )
+    assert np.argmax(result.posterior.group_conditional_weights[0]) == quadrature.node_count // 2
 
 
 def test_uniform_point_completion_adds_log_node_count_specificity() -> None:

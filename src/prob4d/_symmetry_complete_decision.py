@@ -149,9 +149,7 @@ class CompactGroupDecisionCertificateV1:
             abs_tol=_NUMERICAL_ATOL,
         ):
             raise ValueError("selected action is not an upper-regret minimizer")
-        expected_admissible: BoolArray = certified & (
-            upper_regret <= tolerance + _NUMERICAL_ATOL
-        )
+        expected_admissible: BoolArray = certified & (upper_regret <= tolerance + _NUMERICAL_ATOL)
         if not np.array_equal(admissible, expected_admissible):
             raise ValueError("admissible action mask does not match certified bounds")
         if self.status == "scope-not-certified":
@@ -161,9 +159,7 @@ class CompactGroupDecisionCertificateV1:
             raise ValueError("classified decision bounds must be certified")
         if (self.status == "certified-admissible") != bool(np.any(admissible)):
             raise ValueError("certified-admissible status disagrees with action mask")
-        lower_rejects_all = bool(
-            np.all(sampled_regret > tolerance + _NUMERICAL_ATOL)
-        )
+        lower_rejects_all = bool(np.all(sampled_regret > tolerance + _NUMERICAL_ATOL))
         if (self.status == "certified-no-admissible-action") != (
             certified and not np.any(admissible) and lower_rejects_all
         ):
@@ -216,9 +212,7 @@ def _loss_array(
         ndim=3,
     )
     if losses.shape[:2] != (quotient_count, group_count) or losses.shape[2] < 2:
-        raise ValueError(
-            "losses must have shape (quotient_count, group_count, action_count>=2)"
-        )
+        raise ValueError("losses must have shape (quotient_count, group_count, action_count>=2)")
     return losses
 
 
@@ -299,9 +293,7 @@ def certify_compact_group_decision(
     )
     if cover_radius_certified is None:
         supplied_cover_certified = (
-            belief.quadrature.cover_radius_certified
-            if cover_radius_by_quotient is None
-            else False
+            belief.quadrature.cover_radius_certified if cover_radius_by_quotient is None else False
         )
     else:
         supplied_cover_certified = _genuine_bool(
@@ -309,18 +301,14 @@ def certify_compact_group_decision(
             name="cover_radius_certified",
         )
     needs_lipschitz = bool(np.any(cover[:, None] * lipschitz > 0.0))
-    certified = supplied_cover_certified and (
-        not needs_lipschitz or supplied_lipschitz_certified
-    )
+    certified = supplied_cover_certified and (not needs_lipschitz or supplied_lipschitz_certified)
 
     difference: FloatArray = losses[:, :, :, None] - losses[:, :, None, :]
     sampled_class_max: FloatArray = np.max(difference, axis=1)
     pairwise_lipschitz: FloatArray = lipschitz[:, :, None] + lipschitz[:, None, :]
     diagonal = np.arange(action_count)
     pairwise_lipschitz[:, diagonal, diagonal] = 0.0
-    upper_class_max: FloatArray = (
-        sampled_class_max + pairwise_lipschitz * cover[:, None, None]
-    )
+    upper_class_max: FloatArray = sampled_class_max + pairwise_lipschitz * cover[:, None, None]
     sampled_pairwise: FloatArray = np.tensordot(
         belief.quotient_weights,
         sampled_class_max,

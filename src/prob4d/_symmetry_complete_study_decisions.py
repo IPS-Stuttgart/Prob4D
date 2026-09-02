@@ -31,9 +31,7 @@ def _exact_harmonic_regret(
             cosine_gap = cosine[:, action] - cosine[:, benchmark]
             sine_gap = sine[:, action] - sine[:, benchmark]
             class_supremum = offset_gap + np.hypot(cosine_gap, sine_gap)
-            pairwise[action, benchmark] = float(
-                np.dot(quotient, class_supremum)
-            )
+            pairwise[action, benchmark] = float(np.dot(quotient, class_supremum))
     np.fill_diagonal(pairwise, 0.0)
     regret = np.maximum(np.max(pairwise, axis=1), 0.0)
     return pairwise, regret
@@ -51,10 +49,14 @@ def _decision_cover_verification_study(
         cosine = rng.normal(scale=0.35, size=(quotient_count, _ACTION_COUNT))
         sine = rng.normal(scale=0.35, size=(quotient_count, _ACTION_COUNT))
         amplitude = np.hypot(cosine, sine)
-        offset = 1.0 + amplitude + rng.uniform(
-            0.0,
-            1.0,
-            size=(quotient_count, _ACTION_COUNT),
+        offset = (
+            1.0
+            + amplitude
+            + rng.uniform(
+                0.0,
+                1.0,
+                size=(quotient_count, _ACTION_COUNT),
+            )
         )
         generated.append((quotient, offset, cosine, sine))
 
@@ -98,8 +100,7 @@ def _decision_cover_verification_study(
                 np.max(
                     np.tensordot(
                         quotient,
-                        action_lipschitz[:, :, None]
-                        + action_lipschitz[:, None, :],
+                        action_lipschitz[:, :, None] + action_lipschitz[:, None, :],
                         axes=(0, 0),
                     )
                     * quadrature.cover_radius
@@ -115,31 +116,18 @@ def _decision_cover_verification_study(
             )
             minimum_upper_margin = min(
                 minimum_upper_margin,
-                float(
-                    np.min(
-                        certificate.upper_pairwise_worst_case_loss_gap
-                        - exact_pairwise
-                    )
-                ),
+                float(np.min(certificate.upper_pairwise_worst_case_loss_gap - exact_pairwise)),
                 float(np.min(certificate.upper_worst_case_regret - exact_regret)),
             )
             maximum_lower_overshoot = max(
                 maximum_lower_overshoot,
-                float(
-                    np.max(
-                        certificate.sampled_pairwise_worst_case_loss_gap
-                        - exact_pairwise
-                    )
-                ),
+                float(np.max(certificate.sampled_pairwise_worst_case_loss_gap - exact_pairwise)),
                 float(np.max(certificate.sampled_worst_case_regret - exact_regret)),
             )
             selected = certificate.minimax_upper_action_index
             maximum_selected_true_minus_upper = max(
                 maximum_selected_true_minus_upper,
-                float(
-                    exact_regret[selected]
-                    - certificate.upper_worst_case_regret[selected]
-                ),
+                float(exact_regret[selected] - certificate.upper_worst_case_regret[selected]),
             )
             false_mask = certificate.tolerance_admissible_action_mask & (
                 exact_regret > tolerance + 1e-12
@@ -176,12 +164,8 @@ def _decision_cover_verification_study(
                 "cover_radius": quadrature.cover_radius,
                 "mean_maximum_pairwise_cover_correction": mean_correction,
                 "minimum_upper_minus_exact_regret_or_gap": minimum_upper_margin,
-                "maximum_sample_minus_exact_regret_or_gap": (
-                    maximum_lower_overshoot
-                ),
-                "maximum_selected_true_minus_reported_upper": (
-                    maximum_selected_true_minus_upper
-                ),
+                "maximum_sample_minus_exact_regret_or_gap": (maximum_lower_overshoot),
+                "maximum_selected_true_minus_reported_upper": (maximum_selected_true_minus_upper),
             }
         )
     correction_monotone = all(
@@ -195,15 +179,9 @@ def _decision_cover_verification_study(
     return {
         "action_count": _ACTION_COUNT,
         "rows": rows,
-        "minimum_upper_minus_exact_regret_or_gap": (
-            global_minimum_upper_margin
-        ),
-        "maximum_sample_minus_exact_regret_or_gap": (
-            global_maximum_lower_overshoot
-        ),
-        "maximum_selected_true_minus_reported_upper": (
-            global_maximum_selected_true_minus_upper
-        ),
+        "minimum_upper_minus_exact_regret_or_gap": (global_minimum_upper_margin),
+        "maximum_sample_minus_exact_regret_or_gap": (global_maximum_lower_overshoot),
+        "maximum_selected_true_minus_reported_upper": (global_maximum_selected_true_minus_upper),
         "false_admission_count": false_admission_count,
         "mean_pairwise_cover_correction_monotone": correction_monotone,
     }
