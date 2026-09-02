@@ -2,7 +2,7 @@ name: Materialize information-contract controlled evidence v1
 
 on:
   push:
-    branches: [science/information-contract-benchmark-v1]
+    branches: [science/information-contract-benchmark-sealed-v1]
     paths:
       - "benchmarks/information_contract_v1/materialize_request.json"
 
@@ -34,7 +34,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$GITHUB_REF_NAME" = science/information-contract-benchmark-v1
+          test "$GITHUB_REF_NAME" = science/information-contract-benchmark-sealed-v1
           python - <<'PY'
           import json
           from pathlib import Path
@@ -44,7 +44,7 @@ jobs:
           assert request == {
               "schema_name": "prob4d.information-contract-materialize-request",
               "schema_version": 1,
-              "request_id": "prob4d-information-contract-controlled-v1",
+              "request_id": "prob4d-information-contract-controlled-sealed-v1",
               "suite": "benchmarks/information_contract_v1/controlled_suite.json",
               "protocol": "benchmarks/information_contract_v1/protocol.json",
               "classification": "deterministic controlled development evidence",
@@ -63,9 +63,9 @@ jobs:
         run: |
           set -euo pipefail
           python -m ruff check \
-            src/prob4d/information_contract_benchmark.py \
-            tests/test_information_contract_benchmark.py
-          python -m pytest -q tests/test_information_contract_benchmark.py
+            src/prob4d/information_contract_controlled.py \
+            tests/test_information_contract_controlled.py
+          python -m pytest -q tests/test_information_contract_controlled.py
 
       - name: Generate and verify retained evidence
         shell: bash
@@ -76,7 +76,7 @@ jobs:
           receipt="$root/validation_receipt.json"
           sums="$root/SHA256SUMS"
           rm -f "$report" "$receipt" "$sums"
-          python -m prob4d.information_contract_benchmark \
+          python -m prob4d.information_contract_controlled \
             "$root/controlled_suite.json" --output "$report"
           REPORT_PATH="$report" RECEIPT_PATH="$receipt" python - <<'PY'
           from __future__ import annotations
