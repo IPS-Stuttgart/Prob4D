@@ -203,8 +203,8 @@ def certify_compact_group_query(
             name="cover_radius_certified",
         )
     )
-    sample = np.zeros(belief.quotient_count, dtype=np.float64)
-    upper = np.zeros(belief.quotient_count, dtype=np.float64)
+    sample: FloatArray = np.zeros(belief.quotient_count, dtype=np.float64)
+    upper: FloatArray = np.zeros(belief.quotient_count, dtype=np.float64)
     active = belief.quotient_weights > 0.0
     for quotient_index in np.flatnonzero(active):
         sample[quotient_index] = _sample_diameter(atoms[quotient_index])
