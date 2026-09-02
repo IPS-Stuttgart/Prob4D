@@ -1,0 +1,180 @@
+name: Temporary materialize information-contract witness v1
+
+on:
+  push:
+    branches: [science/information-contract-falsification-witness-v1]
+    paths:
+      - "tools/tmp/information-contract-witness-v1.tar.gz.b64"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: materialize-information-contract-witness-v1
+  cancel-in-progress: false
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out exact payload revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Decode and securely materialize reviewed files
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="${RUNNER_TEMP}/information-contract-witness-v1"
+          rm -rf "${work}"
+          mkdir -p "${work}/extract"
+          base64 --decode \
+            tools/tmp/information-contract-witness-v1.tar.gz.b64 \
+            > "${work}/payload.tar.gz"
+          echo "3b42cdbcbd752f9c0f55d2470fffcccd2d06f15d26ddce48ac49d736a2f1c0fe  ${work}/payload.tar.gz" \
+            | sha256sum --check --strict
+          ARCHIVE="${work}/payload.tar.gz" EXTRACT="${work}/extract" python - <<'PY'
+          from __future__ import annotations
+
+          import os
+          import tarfile
+          from pathlib import Path
+
+          archive = Path(os.environ["ARCHIVE"])
+          destination = Path(os.environ["EXTRACT"])
+          expected = {
+              "SHA256SUMS",
+              "payload/.github/workflows/information-contract-witness-v1.yml",
+              "payload/benchmarks/information_contract_v1/STATUS.md",
+              "payload/docs/information-contract-falsification-witnesses.md",
+              "payload/src/prob4d/information_contract_witness.py",
+              "payload/src/prob4d/information_contract_witness_smoke.py",
+              "payload/tests/test_information_contract_witness.py",
+          }
+          with tarfile.open(archive, "r:gz") as bundle:
+              members = bundle.getmembers()
+              files = {member.name for member in members if member.isfile()}
+              if files != expected:
+                  raise SystemExit(
+                      f"unexpected payload inventory: missing={sorted(expected - files)}, "
+                      f"extra={sorted(files - expected)}"
+                  )
+              if any(
+                  member.issym()
+                  or member.islnk()
+                  or member.isdev()
+                  or member.name.startswith("/")
+                  or ".." in Path(member.name).parts
+                  for member in members
+              ):
+                  raise SystemExit("payload contains an unsafe tar member")
+              for member in members:
+                  if not member.isfile():
+                      continue
+                  source = bundle.extractfile(member)
+                  if source is None:
+                      raise SystemExit(f"cannot read {member.name}")
+                  target = destination / member.name
+                  target.parent.mkdir(parents=True, exist_ok=True)
+                  target.write_bytes(source.read())
+          PY
+          (
+            cd "${work}/extract"
+            sha256sum --check --strict SHA256SUMS
+          )
+          cp -a "${work}/extract/payload/." .
+
+      - name: Validate source-selected witness implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -e ".[dev]"
+          python -m pip check
+          files=(
+            src/prob4d/information_contract_witness.py
+            src/prob4d/information_contract_witness_smoke.py
+            tests/test_information_contract_witness.py
+          )
+          python -m ruff check "${files[@]}"
+          python -m pytest -q \
+            tests/test_information_contract_benchmark.py \
+            tests/test_information_contract_sealed.py \
+            tests/test_information_contract_witness.py
+
+      - name: Reproduce the controlled ranking reversal twice
+        shell: bash
+        run: |
+          set -euo pipefail
+          first="${RUNNER_TEMP}/witness-first"
+          second="${RUNNER_TEMP}/witness-second"
+          python -m prob4d.information_contract_witness smoke "${first}"
+          python -m prob4d.information_contract_witness smoke "${second}"
+          diff --recursive --brief "${first}" "${second}"
+          ROOT="${first}" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["ROOT"])
+          witness = json.loads((root / "witness.json").read_text())
+          result = json.loads((root / "result.json").read_text())
+          assert witness["query_vector"] == [1.0, 0.0, 0.0]
+          assert witness["source_max_normalized_error_ratio"] == 10.0
+          assert witness["held_outcomes_opened_during_selection"] is False
+          assert result["target_query_reselection"] is False
+          assert result["rankings"]["point_accuracy_winner"] == (
+              "provider-a-accurate-overconfident"
+          )
+          assert result["rankings"]["selected_query_calibration_winner"] == (
+              "provider-b-less-accurate-calibrated"
+          )
+          assert result["rankings"][
+              "point_vs_query_calibration_ranking_reversal"
+          ] is True
+          PY
+
+      - name: Commit only durable witness files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm \
+            .github/workflows/temp-materialize-information-contract-witness-v1.yml \
+            tools/tmp/information-contract-witness-v1.tar.gz.b64
+          git add \
+            .github/workflows/information-contract-witness-v1.yml \
+            benchmarks/information_contract_v1/STATUS.md \
+            docs/information-contract-falsification-witnesses.md \
+            src/prob4d/information_contract_witness.py \
+            src/prob4d/information_contract_witness_smoke.py \
+            tests/test_information_contract_witness.py
+          mapfile -t staged < <(git diff --cached --name-only | LC_ALL=C sort)
+          expected=(
+            .github/workflows/information-contract-witness-v1.yml
+            .github/workflows/temp-materialize-information-contract-witness-v1.yml
+            benchmarks/information_contract_v1/STATUS.md
+            docs/information-contract-falsification-witnesses.md
+            src/prob4d/information_contract_witness.py
+            src/prob4d/information_contract_witness_smoke.py
+            tests/test_information_contract_witness.py
+            tools/tmp/information-contract-witness-v1.tar.gz.b64
+          )
+          test "${#staged[@]}" -eq "${#expected[@]}"
+          for index in "${!expected[@]}"; do
+            test "${staged[$index]}" = "${expected[$index]}"
+          done
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Add source-selected information-contract witnesses"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
