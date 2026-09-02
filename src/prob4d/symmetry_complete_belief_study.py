@@ -15,6 +15,9 @@ from typing import Any
 import numpy as np
 
 from ._symmetry_complete_study_common import PROTOCOL
+from ._symmetry_complete_study_decisions import (
+    _decision_cover_verification_study,
+)
 from ._symmetry_complete_study_queries import (
     _cover_verification_study,
     _shared_group_dependence_study,
@@ -38,6 +41,7 @@ def run_study(*, seed: int, cases: int) -> dict[str, Any]:
     breaking = _symmetry_breaking_study(rng, cases=cases)
     completion = _point_completion_ladder()
     cover = _cover_verification_study(rng, cases=cases)
+    decision_cover = _decision_cover_verification_study(rng, cases=cases)
     shared = _shared_group_dependence_study()
     criteria = {
         "invariant_conditionals_preserved_exactly": (
@@ -70,6 +74,24 @@ def run_study(*, seed: int, cases: int) -> dict[str, Any]:
         "sample_diameter_is_valid_lower_bound": (
             cover["maximum_sample_minus_exact_diameter"] <= 2e-12
         ),
+        "continuous_decision_upper_bounds_exact_regret": (
+            decision_cover["minimum_upper_minus_exact_regret_or_gap"] >= -3e-12
+        ),
+        "continuous_decision_samples_lower_bound_exact_regret": (
+            decision_cover["maximum_sample_minus_exact_regret_or_gap"] <= 3e-12
+        ),
+        "continuous_decision_selected_regret_is_bounded": (
+            decision_cover["maximum_selected_true_minus_reported_upper"] <= 3e-12
+        ),
+        "continuous_decision_has_no_false_admission": (
+            decision_cover["false_admission_count"] == 0
+        ),
+        "continuous_decision_cover_tightens_with_resolution": (
+            decision_cover["mean_pairwise_cover_correction_monotone"] is True
+        ),
+        "continuous_decision_panel_contains_admissible_actions": all(
+            row["admitted_case_count"] == cases for row in decision_cover["rows"]
+        ),
         "shared_group_draw_preserves_exact_cancellation": (
             shared["maximum_shared_sum_norm"] <= 1e-14
         ),
@@ -87,10 +109,13 @@ def run_study(*, seed: int, cases: int) -> dict[str, Any]:
         "symmetry_breaking_update": breaking,
         "point_completion_ladder": completion,
         "continuous_cover_verification": cover,
+        "continuous_decision_verification": decision_cover,
         "shared_group_dependence": shared,
         "criteria": criteria,
         "decision": (
-            "controlled-contract-passed" if all(criteria.values()) else "controlled-contract-failed"
+            "controlled-contract-passed"
+            if all(criteria.values())
+            else "controlled-contract-failed"
         ),
     }
 
