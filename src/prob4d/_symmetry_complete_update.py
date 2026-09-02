@@ -94,7 +94,7 @@ def _relative_orbit_spread(
     likelihood: FloatArray,
     prior: SymmetryCompleteBeliefV1,
 ) -> tuple[FloatArray, float]:
-    spreads = np.zeros(prior.quotient_count, dtype=np.float64)
+    spreads: FloatArray = np.zeros(prior.quotient_count, dtype=np.float64)
     for quotient_index in range(prior.quotient_count):
         supported = prior.group_conditional_weights[quotient_index] > 0.0
         values = likelihood[quotient_index, supported]
