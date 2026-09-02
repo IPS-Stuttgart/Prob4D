@@ -186,9 +186,7 @@ def test_latent_and_query_reparameterization_preserve_the_frontier() -> None:
         second = latent_changed.point(rank).compressed_factor_m.reshape(36, rank)
         np.testing.assert_allclose(first @ first.T, second @ second.T, atol=2e-10)
 
-    transform = np.array(
-        [[2.0, 0.1, 0.3], [0.2, 0.7, 0.0], [0.0, 0.2, 3.0]]
-    )
+    transform = np.array([[2.0, 0.1, 0.3], [0.2, 0.7, 0.0], [0.0, 0.2, 3.0]])
     query_changed = frontier(
         factor,
         transform @ prior @ transform.T,

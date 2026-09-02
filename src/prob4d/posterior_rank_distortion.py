@@ -156,9 +156,7 @@ class PosteriorRankDistortionFrontier:
     points: tuple[PosteriorRankDistortionPoint, ...]
 
     def __post_init__(self) -> None:
-        object.__setattr__(
-            self, "generalized_eigenvalues", _readonly(self.generalized_eigenvalues)
-        )
+        object.__setattr__(self, "generalized_eigenvalues", _readonly(self.generalized_eigenvalues))
 
     def point(self, retained_rank: int) -> PosteriorRankDistortionPoint:
         if not 0 <= retained_rank <= self.original_rank:
@@ -230,10 +228,7 @@ def posterior_rank_distortion_frontier(
     if factor.ndim != 3 or factor.shape[0] < 1 or factor.shape[1] != 3:
         raise ValueError("low_rank_factor_m must have shape (N, 3, R), N > 0")
     count, _, rank = factor.shape
-    if (
-        innovation_operator.observation_count != count
-        or innovation_operator.dimension != 3 * count
-    ):
+    if innovation_operator.observation_count != count or innovation_operator.dimension != 3 * count:
         raise ValueError("innovation_operator dimensions do not match the factor")
 
     prior = _array(prior_query_covariance, "prior_query_covariance")
@@ -249,9 +244,7 @@ def posterior_rank_distortion_frontier(
         (query_dimension, count, 3),
         (query_dimension, 3 * count),
     ):
-        raise ValueError(
-            "query_observation_cross_covariance must have shape (Q,N,3) or (Q,3N)"
-        )
+        raise ValueError("query_observation_cross_covariance must have shape (Q,N,3) or (Q,3N)")
     cross = cross.reshape(query_dimension, 3 * count)
     u = factor.reshape(3 * count, rank)
 
@@ -277,9 +270,7 @@ def posterior_rank_distortion_frontier(
             points=(point,),
         )
 
-    rhs = np.concatenate((u, cross.T), axis=1).reshape(
-        count, 3, rank + query_dimension
-    )
+    rhs = np.concatenate((u, cross.T), axis=1).reshape(count, 3, rank + query_dimension)
     solved = _array(innovation_operator.solve(rhs), "innovation solve")
     if solved.shape != rhs.shape:
         raise ValueError("innovation solve returned an incorrect shape")
@@ -312,12 +303,7 @@ def posterior_rank_distortion_frontier(
 
     relevance_singular = np.linalg.svd(whitened_response.T, compute_uv=False)
     numerical_exact_rank = (
-        int(
-            np.count_nonzero(
-                relevance_singular
-                > tolerance * relevance_singular[0]
-            )
-        )
+        int(np.count_nonzero(relevance_singular > tolerance * relevance_singular[0]))
         if relevance_singular.size and relevance_singular[0] > 0.0
         else 0
     )
@@ -330,9 +316,7 @@ def posterior_rank_distortion_frontier(
     for retained_rank in range(rank + 1):
         discarded_dimension = rank - retained_rank
         if discarded_dimension:
-            discarded = _orthonormal_columns(
-                generalized_vectors[:, :discarded_dimension], rank
-            )
+            discarded = _orthonormal_columns(generalized_vectors[:, :discarded_dimension], rank)
         else:
             discarded = np.empty((rank, 0), dtype=np.float64)
         projection = _orthogonal_complement(discarded, rank)
@@ -386,9 +370,7 @@ def posterior_rank_distortion_frontier(
         if abs(audited_trace - optimal_trace) > 1e-9 * audit_scale:
             raise ValueError("generalized-eigenvalue distortion identity failed its audit")
         mean_bound = (
-            gamma / (1.0 - gamma) * audited_trace / query_dimension
-            if audited_trace
-            else 0.0
+            gamma / (1.0 - gamma) * audited_trace / query_dimension if audited_trace else 0.0
         )
         if mean_shift_risk > mean_bound + 1e-10 * max(mean_bound, 1.0):
             raise ValueError("posterior mean-shift bound failed its audit")
