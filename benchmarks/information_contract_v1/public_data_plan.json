@@ -1,0 +1,109 @@
+{
+  "schema_name": "prob4d.information-contract-public-data-plan",
+  "schema_version": 1,
+  "plan_id": "prob4d-information-contract-public-data-plan-v1",
+  "status": "planning only; no target opening or empirical claim authorized",
+  "objective": "Demonstrate that provider rankings by point accuracy can differ from rankings by probabilistic validity, query admissibility, decision utility, and communication cost on independently collected public real data.",
+  "stages": [
+    {
+      "stage_id": "retrospective-schema-replay",
+      "scientific_status": "development only",
+      "datasets": [
+        {
+          "dataset_id": "tracking-cloth-deformation",
+          "eligible_axes": [
+            "joint_probabilistic_validity",
+            "dependence_preservation",
+            "communication_cost"
+          ],
+          "existing_evidence_role": "Exercise adapters against already retained recording-disjoint query-compression outputs without promoting a new empirical claim.",
+          "forbidden_claims": [
+            "learned visual-provider competence",
+            "robot-action counterfactual performance",
+            "unseen material safety"
+          ]
+        },
+        {
+          "dataset_id": "deform-dlo",
+          "eligible_axes": [
+            "point_and_trajectory_accuracy",
+            "query_identifiability",
+            "decision_admissibility",
+            "exact_fallback_integrity"
+          ],
+          "existing_evidence_role": "Exercise adapters against already retained complete-trajectory decision-certificate outputs without selecting a replacement policy.",
+          "forbidden_claims": [
+            "target-domain regret guarantee",
+            "unseen-object generalization",
+            "deployment safety"
+          ]
+        }
+      ],
+      "promotion_rule": "Adapter parity only. Existing manuscript ownership and claim boundaries remain unchanged."
+    },
+    {
+      "stage_id": "prospective-public-scorecard",
+      "scientific_status": "requires separate preregistration",
+      "minimum_distinct_provider_contracts": 2,
+      "minimum_independently_collected_datasets": 2,
+      "required_system_arms": [
+        "submitted joint contract",
+        "same-mean marginal-preserving dependence-destroyed control",
+        "point-only or deterministic control",
+        "registered physical fallback"
+      ],
+      "required_provider_controls": [
+        "provider-specific corruption",
+        "shared common-mode bias",
+        "insufficient common support",
+        "gauge-sensitive query",
+        "malformed contract"
+      ],
+      "required_information_order": [
+        "freeze rosters and independent units",
+        "freeze provider revisions, weights, preprocessing, and manifests",
+        "seal predictions before outcome access",
+        "freeze alignment, query portfolio, actions, losses, and fallback",
+        "open outcomes once",
+        "retain every terminal outcome"
+      ],
+      "primary_success_criteria": [
+        "At least one statistically supported ranking reversal between point accuracy and a probabilistic or decision axis.",
+        "The joint contract outperforms its same-mean marginal-preserving dependence-destroyed control on a registered joint score or decision loss.",
+        "Gauge-sensitive or out-of-support cases trigger exact fallback rather than unsupported certainty.",
+        "Cross-provider agreement under a shared bias is not misreported as correctness.",
+        "At least one nontrivial communication reduction preserves the registered downstream result within tolerance."
+      ],
+      "failure_semantics": "A missing axis, support-negative cohort, provider technical failure, or negative scientific result remains explicit and is not replaced or assigned a zero score."
+    },
+    {
+      "stage_id": "community-release",
+      "scientific_status": "blocked until prospective-public-scorecard completes",
+      "required_artifacts": [
+        "versioned protocol",
+        "dataset and split manifests",
+        "provider manifests and payload identities",
+        "sealed axis inputs",
+        "multi-axis JSON and tabular scorecards",
+        "adapter and evaluator tests",
+        "one-command or workflow reproduction",
+        "license and data-use review",
+        "model-card-style limitations",
+        "benchmark governance and versioning policy"
+      ],
+      "leaderboard_policy": "Separate per-axis tables and Pareto views only; no hidden weighting and no scalar overall winner."
+    }
+  ],
+  "ownership_boundary": {
+    "prob4d": "Provider contracts, uncertainty/dependence/gauge/query diagnostics, benchmark orchestration, and scorecard schema.",
+    "bayesian_phystwin": "Physical action losses, baseline-relative regret, complete candidate belief, and exact fallback.",
+    "causal4d": "Commanded-versus-realized intervention semantics and causal information order.",
+    "paper_repository": "Evidence intake, novelty ownership, paper-facing interpretation, and nonoverlapping submission claims."
+  },
+  "information_boundary": {
+    "dataset_records_accessed_by_this_plan": 0,
+    "provider_forward_calls_authorized": 0,
+    "target_outcomes_authorized": 0,
+    "new_physical_acquisitions_required": 0
+  }
+}

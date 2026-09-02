@@ -1,0 +1,115 @@
+name: Information-contract benchmark
+
+on:
+  push:
+    paths:
+      - ".github/workflows/information-contract-benchmark.yml"
+      - "benchmarks/information_contract_v1/controlled_suite.json"
+      - "benchmarks/information_contract_v1/protocol.json"
+      - "src/prob4d/information_contract_controlled.py"
+      - "tests/test_information_contract_controlled.py"
+  pull_request:
+    paths:
+      - ".github/workflows/information-contract-benchmark.yml"
+      - "benchmarks/information_contract_v1/controlled_suite.json"
+      - "benchmarks/information_contract_v1/protocol.json"
+      - "src/prob4d/information_contract_controlled.py"
+      - "tests/test_information_contract_controlled.py"
+
+permissions:
+  contents: read
+
+jobs:
+  conformance:
+    name: Multi-axis controlled conformance
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out exact revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install package and development checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+          python -m pip check
+
+      - name: Lint benchmark implementation and tests
+        run: |
+          python -m ruff check \
+            src/prob4d/information_contract_controlled.py \
+            tests/test_information_contract_controlled.py
+
+      - name: Run controlled and adversarial tests
+        run: python -m pytest -q tests/test_information_contract_controlled.py
+
+      - name: Reproduce deterministic report twice
+        shell: bash
+        run: |
+          set -euo pipefail
+          suite=benchmarks/information_contract_v1/controlled_suite.json
+          python -m prob4d.information_contract_controlled \
+            "$suite" --output "$RUNNER_TEMP/report-a.json"
+          python -m prob4d.information_contract_controlled \
+            "$suite" --output "$RUNNER_TEMP/report-b.json"
+          cmp "$RUNNER_TEMP/report-a.json" "$RUNNER_TEMP/report-b.json"
+
+      - name: Enforce multi-axis and information-boundary semantics
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          protocol = json.loads(
+              Path("benchmarks/information_contract_v1/protocol.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          report = json.loads(
+              (Path(os.environ["RUNNER_TEMP"]) / "report-a.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          systems = {row["system_id"]: row for row in report["systems"]}
+          assert protocol["ranking_policy"]["scalar_overall_score"] is False
+          assert "overall_score" not in report
+          assert "overall_rank" not in report
+          assert report["completion"]["system_count"] == 7
+          assert report["cross_system"]["shared_bias_counterexample_count"] == 1
+          assert all(value == 0 for value in report["information_boundary"].values())
+          assert (
+              systems["accurate-overconfident"]["prediction"]["probabilistic"]
+              ["equal_unit_registered_coverage"]
+              == 0.0
+          )
+          assert (
+              systems["ambiguity-aware-contract"]["query_decision"]
+              ["fallback_count"]
+              == 1
+          )
+          assert (
+              systems["unsupported-specificity"]["query_decision"]
+              ["harmful_nonfallback_count"]
+              == 1
+          )
+          assert (
+              systems["ambiguity-aware-contract"]["communication"]
+              ["equal_unit_compression_ratio"]
+              == 17.0
+          )
+          PY
