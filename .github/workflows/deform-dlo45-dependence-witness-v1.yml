@@ -19,6 +19,7 @@ env:
   DEFORM_COMMIT: b73b8b8ecc033caefa693fab7898741d4e6dbeff
   ADAPTER_PROTOCOL: benchmarks/information_contract_v1/adapters/deform_dlo45_retrospective_v1.json
   EVALUATOR: benchmarks/information_contract_v1/adapters/deform_dlo45_dependence_witness_v1.py
+  INFERENCE: benchmarks/information_contract_v1/adapters/deform_dlo45_dependence_inference_v1.py
   PYTHONHASHSEED: "0"
   PYTHONUNBUFFERED: "1"
   OMP_NUM_THREADS: "1"
@@ -67,10 +68,13 @@ jobs:
           python -m pip check
           python -m ruff check \
             "${EVALUATOR}" \
-            tests/test_deform_dlo45_dependence_witness_v1.py
+            "${INFERENCE}" \
+            tests/test_deform_dlo45_dependence_witness_v1.py \
+            tests/test_deform_dlo45_dependence_inference_v1.py
           python -m pytest -q \
             tests/test_information_contract_witness.py \
-            tests/test_deform_dlo45_dependence_witness_v1.py
+            tests/test_deform_dlo45_dependence_witness_v1.py \
+            tests/test_deform_dlo45_dependence_inference_v1.py
 
       - name: Freeze the dependence-sensitive source query
         shell: bash
@@ -168,20 +172,27 @@ jobs:
             --dataset-root "${GITHUB_WORKSPACE}/upstream-DEFORM/data_set" \
             --source-root "${RUNNER_TEMP}/deform-dependence-source" \
             --output-root "${out}"
+          python "${INFERENCE}" \
+            --result "${out}/result.json" \
+            --output "${out}/inference.json"
           OUT="${out}" python - <<'PY'
           import json
           import os
           from pathlib import Path
 
-          result = json.loads(
-              (Path(os.environ["OUT"]) / "comparison.json").read_text()
-          )
+          root = Path(os.environ["OUT"])
+          result = json.loads((root / "comparison.json").read_text())
+          inference = json.loads((root / "inference.json").read_text())
           assert result["held_case_count"] == 532
           assert result["held_independent_trajectory_count"] == 28
           assert result["same_residuals_across_covariance_submissions"] is True
           assert result["target_query_reselection"] is False
           assert len(result["query_vector"]) == 12
+          assert inference["independent_group_count"] == 28
+          assert inference["bootstrap_replicates"] == 20_000
+          assert inference["target_query_reselection"] is False
           print(json.dumps(result, indent=2, sort_keys=True))
+          print(json.dumps(inference, indent=2, sort_keys=True))
           PY
 
       - name: Upload complete retrospective dependence result
@@ -196,6 +207,7 @@ jobs:
             ${{ runner.temp }}/deform-dependence-held/held_manifest.json
             ${{ runner.temp }}/deform-dependence-held/result.json
             ${{ runner.temp }}/deform-dependence-held/comparison.json
+            ${{ runner.temp }}/deform-dependence-held/inference.json
           if-no-files-found: error
           retention-days: 90
           compression-level: 0
