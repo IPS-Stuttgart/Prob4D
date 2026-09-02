@@ -1,9 +1,0 @@
-{
-  "schema": "prob4d.temporary-information-contract-import-fix",
-  "schema_version": 1,
-  "target_files": [
-    "src/prob4d/information_contract_sealed.py",
-    "src/prob4d/information_contract_sealed_smoke.py"
-  ],
-  "scientific_inputs_changed": false
-}
