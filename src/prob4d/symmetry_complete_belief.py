@@ -19,6 +19,10 @@ from ._symmetry_complete_base import (
     CompactGroupQuadratureV1,
     SymmetryCompleteBeliefV1,
 )
+from ._symmetry_complete_decision import (
+    CompactGroupDecisionCertificateV1,
+    certify_compact_group_decision,
+)
 from ._symmetry_complete_point import (
     PointCompletionAuditV1,
     audit_point_completion,
@@ -35,6 +39,7 @@ from ._symmetry_complete_update import (
 )
 
 __all__ = [
+    "CompactGroupDecisionCertificateV1",
     "CompactGroupQuadratureV1",
     "OrbitInvarianceCertificateV1",
     "PointCompletionAuditV1",
@@ -44,6 +49,7 @@ __all__ = [
     "SymmetryInformationV1",
     "SymmetryUpdateV1",
     "audit_point_completion",
+    "certify_compact_group_decision",
     "certify_compact_group_query",
     "pushforward_shared_group_query",
     "update_symmetry_complete_belief",
