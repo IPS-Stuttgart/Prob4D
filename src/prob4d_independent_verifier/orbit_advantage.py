@@ -250,10 +250,7 @@ def _nullable_float(value: object, *, name: str) -> float | None:
 def _vector3(value: object, *, name: str) -> tuple[float, float, float]:
     if type(value) is not list or len(value) != 3:
         raise _InvalidCertificate("invalid-vector", f"{name} must contain three numbers")
-    parsed = [
-        _finite_float(item, name=f"{name}[{index}]")
-        for index, item in enumerate(value)
-    ]
+    parsed = [_finite_float(item, name=f"{name}[{index}]") for index, item in enumerate(value)]
     return parsed[0], parsed[1], parsed[2]
 
 
@@ -315,7 +312,11 @@ def _bounds(
     if radius == 0.0:
         return constant, constant
     if half_width == math.pi:
-        return constant - radius, constant + radius
+        lower = constant - radius
+        upper = constant + radius
+        if not all(math.isfinite(item) for item in (lower, upper)):
+            raise _InvalidCertificate("numeric-overflow", "harmonic extrema overflowed")
+        return lower, upper
     candidates = [center - half_width, center + half_width]
     maximum_angle = math.atan2(sine, cosine)
     minimum_angle = math.remainder(maximum_angle + math.pi, 2.0 * math.pi)
@@ -331,9 +332,14 @@ def _verify_orbit(value: object) -> tuple[bool, tuple[float, float] | None, dict
     _nonempty_text(orbit["shared_gauge_id"], name="orbit.shared_gauge_id")
     origin = _vector3(orbit["origin"], name="orbit.origin")
     axis = _vector3(orbit["axis"], name="orbit.axis")
-    axis_norm = math.sqrt(math.fsum(component * component for component in axis))
+    axis_norm = math.hypot(*axis)
+    if not math.isfinite(axis_norm):
+        raise _InvalidCertificate("numeric-overflow", "orbit axis norm overflowed")
     if abs(axis_norm - 1.0) > _AXIS_ATOL:
         raise _InvalidCertificate("orbit-axis-not-unit", "orbit.axis must be unit length")
+    origin_norm = math.hypot(*origin)
+    if not math.isfinite(origin_norm):
+        raise _InvalidCertificate("numeric-overflow", "orbit origin norm overflowed")
     if type(orbit["scope_admitted"]) is not bool:
         raise _InvalidCertificate(
             "invalid-scope-decision",
@@ -373,7 +379,7 @@ def _verify_orbit(value: object) -> tuple[bool, tuple[float, float] | None, dict
         arc = (center, half_width)
     metrics = {
         "orbit_axis_norm_residual": abs(axis_norm - 1.0),
-        "orbit_origin_norm": math.sqrt(math.fsum(component * component for component in origin)),
+        "orbit_origin_norm": origin_norm,
         "orbit_arc_feasible": 0.0 if arc is None else 1.0,
     }
     if arc is not None:
@@ -422,6 +428,8 @@ def _verify_advantage(
         fallback_component - candidate_component
         for fallback_component, candidate_component in zip(fallback, candidate, strict=True)
     )
+    if not all(math.isfinite(item) for item in expected_difference):
+        raise _InvalidCertificate("numeric-overflow", "fallback-minus-candidate loss overflowed")
     if any(
         not _close(got, expected)
         for got, expected in zip(difference, expected_difference, strict=True)
