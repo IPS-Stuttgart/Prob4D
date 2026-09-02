@@ -42,9 +42,7 @@ def _factor() -> ObservableGaugeFactor:
         observable_basis=identity[:, [0, 2, 3, 4, 5, 6]],
         nullspace_basis=identity[:, 1:2],
         observable_information=10.0 * np.eye(6),
-        normalized_geometry_spectrum=np.array(
-            [1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.0]
-        ),
+        normalized_geometry_spectrum=np.array([1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.0]),
         rank_threshold=0.1,
         residual_rms=0.01,
         residual_variance=1e-4,

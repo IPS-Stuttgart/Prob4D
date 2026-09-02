@@ -45,9 +45,7 @@ def _twist_ambiguous_factor() -> ObservableGaugeFactor:
         observable_basis=identity[:, observable_indices],
         nullspace_basis=identity[:, 1:2],
         observable_information=10.0 * np.eye(6),
-        normalized_geometry_spectrum=np.array(
-            [1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.0]
-        ),
+        normalized_geometry_spectrum=np.array([1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.0]),
         rank_threshold=0.1,
         residual_rms=0.01,
         residual_variance=1e-4,
@@ -102,9 +100,7 @@ def test_unsupported_certificate_is_valid_but_rejected(tmp_path: Path) -> None:
     assert report.valid
     assert not report.admitted
     assert report.decision == "verified-reject"
-    assert report.reason_codes == (
-        "query-nullspace-sensitivity-exceeds-threshold",
-    )
+    assert report.reason_codes == ("query-nullspace-sensitivity-exceeds-threshold",)
     assert report.metrics["relative_query_nullspace_sensitivity"] == pytest.approx(1.0)
     assert proof4d_verify_main([str(path), "--compact"]) == 2
 

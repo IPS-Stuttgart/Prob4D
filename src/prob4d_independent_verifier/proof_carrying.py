@@ -332,10 +332,13 @@ def _verify_factor(
         name="factor.coordinate_system.source_centroid",
         shape=(1, 3),
     )
-    if _finite_float(
-        coordinate_system["cloud_scale"],
-        name="factor.coordinate_system.cloud_scale",
-    ) <= 0.0:
+    if (
+        _finite_float(
+            coordinate_system["cloud_scale"],
+            name="factor.coordinate_system.cloud_scale",
+        )
+        <= 0.0
+    ):
         raise _InvalidCertificate(
             "invalid-coordinate-scale",
             "factor.coordinate_system.cloud_scale must be positive",
@@ -363,9 +366,7 @@ def _verify_factor(
     )
 
     combined = np.concatenate((observable, nullspace), axis=1)
-    basis_residual = float(
-        np.linalg.norm(combined.T @ combined - np.eye(dimension), ord=2)
-    )
+    basis_residual = float(np.linalg.norm(combined.T @ combined - np.eye(dimension), ord=2))
     _require_small(
         basis_residual,
         code="subspace-basis-not-orthonormal",
@@ -387,9 +388,7 @@ def _verify_factor(
         code="observable-information-not-symmetric",
         name="observable_information_symmetry_residual",
     )
-    observable_symmetric = 0.5 * (
-        observable_information + observable_information.T
-    )
+    observable_symmetric = 0.5 * (observable_information + observable_information.T)
     if float(np.min(np.linalg.eigvalsh(observable_symmetric))) <= 0.0:
         raise _InvalidCertificate(
             "observable-information-not-positive-definite",
@@ -602,10 +601,7 @@ def _verify_decision_and_provenance(
             "invalid-assumption-list",
             "provenance.assumption_ids must be a nonempty list",
         )
-    normalized = [
-        _nonempty_text(item, name="provenance.assumption_id")
-        for item in assumptions
-    ]
+    normalized = [_nonempty_text(item, name="provenance.assumption_id") for item in assumptions]
     if normalized != sorted(set(normalized)):
         raise _InvalidCertificate(
             "invalid-assumption-list",
@@ -639,9 +635,7 @@ def _semantic_verify(
     if root["claim_scope"] != PROOF_CARRYING_FACTOR_CLAIM_SCOPE:
         raise _InvalidCertificate("invalid-claim-scope", "claim scope was widened")
 
-    dimension, rank, observable, nullspace, factor_metrics = _verify_factor(
-        root["factor"]
-    )
+    dimension, rank, observable, nullspace, factor_metrics = _verify_factor(root["factor"])
     admitted, query_metrics = _verify_query(
         root["query"],
         dimension=dimension,

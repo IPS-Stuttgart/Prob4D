@@ -241,10 +241,7 @@ def build_observable_gauge_query_certificate(
     nullspace_sensitivity = (
         0.0
         if factor.nullspace_basis.shape[1] == 0
-        else float(
-            np.linalg.norm(weighted_jacobian @ factor.nullspace_basis, ord=2)
-            / denominator
-        )
+        else float(np.linalg.norm(weighted_jacobian @ factor.nullspace_basis, ord=2) / denominator)
     )
     reconstruction_residual = float(
         np.linalg.norm(
