@@ -93,6 +93,59 @@ The returned lower and upper pairwise gaps retain the sampled numerical range
 rather than silently replacing it by one point value. The action is admissible
 only when its upper regret is within the registered tolerance.
 
+## Approximate decision equivariance
+
+Exact symmetry is not required. Suppose the group samples form a certified
+`rho_c`-net and the pairwise difference itself—not each absolute action loss—has
+a certified Lipschitz constant `L_cab`:
+
+\[
+  |d_{c,a,b}(g)-d_{c,a,b}(h)|
+  \leq L_{c,a,b}\,d_G(g,h).
+\]
+
+Then
+
+\[
+  \max_{s\in S_c} d_{c,a,b}(s)
+  \leq \sup_{g\in G}d_{c,a,b}(g)
+  \leq \max_{s\in S_c}d_{c,a,b}(s)+L_{c,a,b}\rho_c.
+\]
+
+With fixed quotient masses, this gives the complete-orbit pairwise bound
+
+\[
+  \overline\Delta(a,b)
+  \leq
+  \sum_c\lambda_c
+  \left[
+    \max_{s\in S_c}d_{c,a,b}(s)+L_{c,a,b}\rho_c
+  \right].
+\]
+
+`certify_gauge_coupled_pairwise_decision` implements this result and returns both
+sampled lower bounds and certified complete-orbit upper bounds on every action's
+worst-case regret.
+
+The generic action-wise construction uses `(L_ca + L_cb) rho_c`. The pairwise
+constant can be much smaller:
+
+\[
+  L_{c,a,b}^{\Delta}
+  \leq L_{c,a}+L_{c,b},
+\]
+
+with strict inequality whenever the two absolute losses share gauge variation.
+For an exactly decision-equivariant action orbit, `L_cab^Delta=0`, even if every
+absolute action loss varies strongly. For approximate equivariance, a selected
+action remains certified whenever its decision margin exceeds the accumulated
+pairwise cover correction.
+
+A zero numerical Lipschitz value on a continuous group is not self-certifying.
+The complete-group Lipschitz receipt is still required whenever an active
+quotient has positive cover radius. A certified zero-radius finite group needs no
+regularity assumption because every group element is enumerated.
+
 ## Shared-gauge execution receipt
 
 The theorem is operational only when state and action use one shared group
@@ -112,11 +165,12 @@ This distinction matters. Replacing one shared latent group element by independe
 state and action draws can preserve both marginals while changing the task loss
 and the optimal decision.
 
-## Strict controlled example
+## Strict controlled examples
 
-The controlled study uses two quotient states on the unit circle with masses
-`0.75` and `0.25`, and three action templates. State and action are co-rotated by
-one unresolved `SO(2)` element. The absolute losses also contain a common term
+The exact controlled study uses two quotient states on the unit circle with
+masses `0.75` and `0.25`, and three action templates. State and action are
+co-rotated by one unresolved `SO(2)` element. The absolute losses also contain a
+common term
 
 \[
   \kappa(\theta)=2+2\cos(3\theta),
@@ -145,10 +199,20 @@ Two matched controls destroy that result:
 The controls have the same state and action marginals as the shared-gauge
 construction. Only their dependence differs.
 
-On an eight-node circle cover, the generic action-wise Lipschitz certificate adds
-`(L_a+L_b) rho` to every comparison and remains `undetermined`, because it charges
-the common gauge term twice. The pairwise decision-equivariance certificate
-cancels that nuisance term and certifies the unique action orbit with zero regret.
+On an eight-node circle cover, the generic action-wise Lipschitz certificate has
+minimum upper regret `3.7123889803846906` and remains `undetermined`, because it
+charges the common gauge term twice. The exact pairwise decision-equivariance
+certificate cancels that nuisance term and certifies the unique action orbit with
+zero regret.
+
+A second eight-node study adds action-specific perturbations with amplitudes
+`[0, 0.1, -0.05]`. Pairwise differences now vary over the orbit, so exact
+decision equivariance no longer applies. Their certified pairwise Lipschitz
+constants are the absolute amplitude differences. A shifted grid misses the true
+continuous extrema, but the direct `L_cab rho_c` correction encloses a dense
+continuous-orbit reference and still certifies action zero. The generic
+action-wise certificate remains inconclusive because its correction is dominated
+by the large common gauge term.
 
 ## Robotics interpretation
 
@@ -159,7 +223,7 @@ sensor-attached, or otherwise shared equivariant frame. Examples include:
 - selecting a grasp or pull template expressed in a shared local frame;
 - executing an action field that co-transforms with a reconstructed object orbit;
 - changing coordinates in both the world model and controller without changing
-the physical command.
+  the physical command.
 
 A latent physical ambiguity does not automatically provide such an execution
 binding. If the actuator requires an unknown fixed world direction, the receipt
@@ -173,12 +237,12 @@ The narrower contribution is an auditable Bayesian decision interface that:
 
 1. preserves the unresolved group posterior rather than canonicalizing it;
 2. distinguishes fixed-frame actions from shared-gauge action orbits;
-3. exploits invariance of action-loss differences rather than requiring
-   invariance of every absolute loss;
-4. proves that the selected action template is independent of every compatible
-   conditional group law; and
-5. fails closed unless a state--action execution-coupling receipt and complete-
-   group invariance receipt are present.
+3. exploits exact or bounded regularity of action-loss differences rather than
+   requiring invariance or separately bounding every absolute loss;
+4. proves that the selected action template is independent of, or uniformly
+   robust over, every compatible conditional group law; and
+5. fails closed unless state--action execution coupling, group cover, and
+   complete-group regularity receipts are present.
 
 ## Empirical promotion path
 
@@ -190,7 +254,8 @@ registered anchors and compare:
 - a MAP/canonical representative action;
 - fixed world-frame actions;
 - independent matched-marginal gauges;
-- the generic action-wise Lipschitz certificate; and
+- the generic action-wise Lipschitz certificate;
+- the direct pairwise-Lipschitz certificate; and
 - exact fallback.
 
 Tracking Cloth can provide the first controlled real-geometry demonstration.
@@ -201,9 +266,9 @@ statistical units.
 
 ## Claim boundary
 
-The certificate proves a decision statement only under the supplied group,
-quotient, coupled loss, complete-group pairwise-difference invariance, and
-execution-coupling receipt. It does not discover a symmetry, validate the physical
-loss, infer the execution binding, recover the latent group coordinate, establish
-counterfactual outcomes for unexecuted commands, authorize deployment, or certify
-safety.
+The certificates prove decision statements only under the supplied group,
+quotient, coupled loss, complete-group pairwise invariance or pairwise Lipschitz
+bound, certified cover, and execution-coupling receipt. They do not discover a
+symmetry, validate the physical loss, infer the execution binding, recover the
+latent group coordinate, establish counterfactual outcomes for unexecuted
+commands, authorize deployment, or certify safety.
