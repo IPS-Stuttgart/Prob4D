@@ -4,7 +4,7 @@ on:
   push:
     branches: [science/information-contract-falsification-witness-v1]
     paths:
-      - "tools/tmp/information-contract-witness-v1.tar.gz.b64"
+      - "tools/tmp/information-contract-witness-v1.trigger.json"
 
 permissions:
   contents: write
@@ -40,9 +40,8 @@ jobs:
           work="${RUNNER_TEMP}/information-contract-witness-v1"
           rm -rf "${work}"
           mkdir -p "${work}/extract"
-          base64 --decode \
-            tools/tmp/information-contract-witness-v1.tar.gz.b64 \
-            > "${work}/payload.tar.gz"
+          cat tools/tmp/information-contract-witness-v1.part-* \
+            | base64 --decode > "${work}/payload.tar.gz"
           echo "3b42cdbcbd752f9c0f55d2470fffcccd2d06f15d26ddce48ac49d736a2f1c0fe  ${work}/payload.tar.gz" \
             | sha256sum --check --strict
           ARCHIVE="${work}/payload.tar.gz" EXTRACT="${work}/extract" python - <<'PY'
@@ -151,7 +150,16 @@ jobs:
           set -euo pipefail
           git rm \
             .github/workflows/temp-materialize-information-contract-witness-v1.yml \
-            tools/tmp/information-contract-witness-v1.tar.gz.b64
+            tools/tmp/information-contract-witness-v1.tar.gz.b64 \
+            tools/tmp/information-contract-witness-v1.part-00 \
+            tools/tmp/information-contract-witness-v1.part-01 \
+            tools/tmp/information-contract-witness-v1.part-02 \
+            tools/tmp/information-contract-witness-v1.part-03 \
+            tools/tmp/information-contract-witness-v1.part-04 \
+            tools/tmp/information-contract-witness-v1.part-05 \
+            tools/tmp/information-contract-witness-v1.part-06 \
+            tools/tmp/information-contract-witness-v1.part-07 \
+            tools/tmp/information-contract-witness-v1.trigger.json
           git add \
             .github/workflows/information-contract-witness-v1.yml \
             benchmarks/information_contract_v1/STATUS.md \
@@ -168,7 +176,16 @@ jobs:
             src/prob4d/information_contract_witness.py
             src/prob4d/information_contract_witness_smoke.py
             tests/test_information_contract_witness.py
+            tools/tmp/information-contract-witness-v1.part-00
+            tools/tmp/information-contract-witness-v1.part-01
+            tools/tmp/information-contract-witness-v1.part-02
+            tools/tmp/information-contract-witness-v1.part-03
+            tools/tmp/information-contract-witness-v1.part-04
+            tools/tmp/information-contract-witness-v1.part-05
+            tools/tmp/information-contract-witness-v1.part-06
+            tools/tmp/information-contract-witness-v1.part-07
             tools/tmp/information-contract-witness-v1.tar.gz.b64
+            tools/tmp/information-contract-witness-v1.trigger.json
           )
           test "${#staged[@]}" -eq "${#expected[@]}"
           for index in "${!expected[@]}"; do
