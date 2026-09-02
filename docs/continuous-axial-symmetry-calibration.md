@@ -2,18 +2,23 @@
 
 Status: **experimental mechanism and real-trajectory evaluation**.
 
-This extension separates two questions that the finite-orbit work deliberately
+This extension separates three questions that the finite-orbit work deliberately
 left open:
 
 1. Can the registered axial ambiguity be optimized over the complete continuous
    group rather than a finite angle roster?
 2. Can the size of the admitted ambiguity support be calibrated from real
    source trajectories rather than supplied as a controlled hidden angle?
+3. Can harmful accepted updates be controlled directly rather than inferred
+   from compatibility-set coverage?
 
-The answer is conditional. The geometry below is exact for a declared
-`SO(2)` axial orbit. The statistical statement is split-conformal marginal
-coverage for an exchangeable recording-level score. It is not conditional
-coverage, selective risk control, provider competence, or deployment safety.
+The answers are conditional. The geometry below is exact for a declared
+`SO(2)` axial orbit. The support statement is split-conformal marginal coverage
+for an exchangeable recording-level score. The direct utility primitive in
+`group_risk_control.py` instead controls the expected bounded loss of the next
+exchangeable group for a fixed nested policy family. Neither statement is
+conditional coverage, acceptance-conditional risk, provider competence, or
+deployment safety.
 
 ## Exact continuous vector-query diameter
 
@@ -39,9 +44,20 @@ has norm at most two. Equality is attained by antipodal points in the right
 singular direction of \(WM\). For a rotating 3-D point this gives twice the
 largest weighted orbit radius without discretizing the angle.
 
-An additive query-space ball of radius \(r_q\) enlarges the diameter by
-\(2\|W\|_2r_q\). The implementation rejects when the declared model scope is
-not admitted or when the exact diameter exceeds the registered tolerance.
+If the query is additionally perturbed by an arbitrary Euclidean ball of radius
+\(r_q\), the generic Minkowski/Lipschitz calculation gives the certified bound
+
+\[
+\operatorname{diam}_{W}(q(SO(2))\oplus B_{r_q})
+\le 2\sigma_{\max}(WM)+2\|W\|_2r_q.
+\]
+
+The first term is exact. The additive expression is an exact worst-case bound
+for the declared unstructured ball, but it need not equal the actual diameter
+of a more structured remainder set. It must not be described as an exact orbit
+diameter when \(r_q>0\). The implementation rejects when the declared model
+scope is not admitted or when this certified diameter bound exceeds the
+registered tolerance.
 
 ## Group-conformal axial tube
 
@@ -58,8 +74,8 @@ s(p)=\max\left\{
 \]
 
 One complete recording contributes one score, here the conservative empirical
-90th percentile of its case scores. Given \(n\) exchangeable calibration-group
-scores, the finite threshold is their
+90th percentile of its nested case scores. Given \(n\) exchangeable
+calibration-group scores, the finite threshold is their
 
 \[
 k=\left\lceil(n+1)(1-\alpha)\right\rceil
@@ -84,8 +100,10 @@ admission, or future support completeness under distribution shift.
 ## Exact query and action bounds
 
 A scalar affine query remains a first harmonic over the angle arc. Its exact
-continuous extrema are computed analytically and enlarged by \(L\widehat q r\)
-for Euclidean Lipschitz constant \(L\).
+continuous-orbit extrema are computed analytically. Enlarging those extrema by
+\(L\widehat q r\) is a certified Lipschitz enclosure for the additive tube; the
+result is not asserted to be the minimum possible enclosure for a structured
+remainder.
 
 For an orbiting point \(x(\theta)\) and fixed target \(y\),
 \(\|x(\theta)-y\|_2^2\) is also a first harmonic. Comparing candidate point
@@ -105,46 +123,95 @@ in \(e\) and satisfies
 
 This supplies a deterministic error envelope for the calibrated tube. The
 candidate is admitted only when the minimum continuous-arc advantage minus this
-envelope is strictly positive. Rejection returns the exact axis-center fallback.
+envelope and the registered decision margin is strictly positive. Rejection
+returns the caller-owned complete fallback.
 
-## Tracking Cloth study
+## Direct group-level risk control
 
-The workflow uses the complete public Tracking Cloth Deformation collection on
-the `gpuserver4090` runner. It admits the 80 cloth-only recordings identified by
-their explicit Motive marker layouts:
+Compatibility support and selective utility are not the same property. For a
+fixed policy family indexed from least to most conservative, let
+\(L_g(\lambda_j)\in[0,B]\) be the complete-recording loss and require that it be
+nonincreasing with conservatism for every calibration recording. Define
+
+\[
+\widehat R_n^+(\lambda_j)
+=
+\frac{n}{n+1}\widehat R_n(\lambda_j)+\frac{B}{n+1}.
+\]
+
+`select_group_conformal_risk_control` selects the least conservative candidate
+whose corrected empirical risk is at most \(\alpha\). Under exchangeability of
+the calibration recordings and the next recording, and provided that the
+model, fallback, score, candidate grid, loss, and grouping were all frozen
+before calibration, this controls expected next-recording loss at level
+\(\alpha\).
+
+For selective belief revision, a useful bounded loss is the fraction of cases
+in a recording for which the candidate is both accepted and worse than the
+registered fallback. A nested robust-advantage margin makes that loss
+nonincreasing because accepted sets can only shrink.
+
+The correction has a visible finite-sample floor \(B/(n+1)\). With 12 risk
+calibration recordings and \(B=1\), no level below \(1/13\) can be certified,
+even after observing zero calibration loss. This is fail-closed behavior, not a
+numerical defect.
+
+## Executed cloth-only Tracking Cloth study
+
+The completed workflow used the public Tracking Cloth Deformation collection on
+the `gpuserver4090` runner. It admitted 80 cloth-only recordings identified by
+explicit Motive layouts:
 
 - A2: 20 markers;
 - A3: 12 markers.
 
-Rod/stick-augmented layouts remain visible as support exclusions. Every accepted
-recording selects two axis markers and one off-axis probe from an initial causal
-prefix. At a later case the current axis is observed and the probe is hidden. A
-transported constant-angular-velocity construction based on two earlier
-horizon-spaced frames supplies the representative.
+At each case the current axis was observed and one probe was hidden. A
+transported constant-angular-velocity construction based on earlier frames
+supplied the representative. Five recording-disjoint folds were evaluated
+separately by cloth size at horizons 3, 6, 12, and 24 frames.
 
-Five recording-disjoint folds are evaluated separately by cloth size and at
-horizons 3, 6, 12, and 24 frames. A held-fold trajectory never contributes to
-its calibration threshold. Complete recordings are the empirical units; frames,
-coordinates, and cases remain nested.
+The support-calibration result was positive, but the preregistered utility result
+was negative. The local predictor was already almost never harmful, while the
+axis-center fallback was much weaker. At 24 frames, valid rejections therefore
+increased policy RMSE. This establishes an important boundary:
 
-The registered comparisons are:
+```text
+valid calibrated compatibility support does not imply useful abstention.
+```
 
-- local representative plug-in;
-- continuous source-calibrated `SO(2)` tube certificate;
-- complete full-circle continuous certificate;
-- finite 8/16/32-angle query-interval approximations;
-- exact axis-center fallback.
+A competent fallback or direct calibration of decision loss is separately
+required.
 
-The experiment reports support and query-interval coverage, accepted-update
-harm, acceptance, fallback identity, RMSE, interval width, and the gap between
-finite angle grids and analytic continuous extrema. A positive horizon requires
-nontrivial acceptance, lower harmful acceptance than the local rule, exact
-fallback, continuous-support coverage, and full-circle rejection.
+## Prospective augmented-layout reserve
+
+The first study parsed full trajectories only for the 80 cloth-only layouts.
+A later fail-closed header audit inspected metadata and Motive headers for the
+remaining 40 layouts without parsing or hashing any marker trajectory values.
+It found:
+
+- four labelled A2 Hitting recordings suitable for source-only method
+  development;
+- 36 A2 Self-collision recordings with 22 unlabeled markers each;
+- a balanced four-material, three-condition, three-repetition structure.
+
+The intended prospective order is therefore:
+
+1. develop and freeze an identity-free physical-axis rule using only the four
+   labelled Hitting recordings;
+2. use Self-collision `rep1` recordings for compatibility-support calibration;
+3. use `rep2` recordings for the nested group-risk policy calibration;
+4. evaluate the frozen policy exactly once on untouched `rep3` recordings.
+
+There are 12 recordings in each self-collision stage: one for every material and
+condition combination. The three repetitions are not interchangeable after any
+trajectory values are opened. No `rep3` trajectory may inform a model,
+threshold, score, fallback, candidate grid, or criterion.
 
 ## Claim boundary
 
-The trajectories and prediction residuals are real. The missing-probe condition
-is simulated, and the representative is a fixed kinematic predictor rather than
-a learned visual provider. The result cannot establish calibrated conditional
-uncertainty, selective risk control, unique physical-state recovery,
+The trajectories and residuals in the completed cloth-only experiment are real.
+The missing-probe condition is simulated, and its representative is a fixed
+kinematic predictor rather than a learned visual provider. The augmented reserve
+can provide a prospective physical-axis and decision-risk test, but it still
+cannot establish learned-provider competence, unique physical-state recovery,
 BayesianPhysTwin or Causal4D benefit, deployment safety, or state of the art.
