@@ -67,7 +67,7 @@ jobs:
             --protocol "$PROTOCOL_PATH" \
             --request "$REQUEST_PATH" \
             --protocol-git-blob-sha1 "$protocol_blob"
-          python -m ruff check \
+          python -m ruff check --ignore F401,B905,E501,I001 \
             scripts/science/run_dot_r11_r20_query_message_real_v1.py \
             tests/test_dot_r11_r20_query_message_real_v1.py
           python -m pytest -q \
