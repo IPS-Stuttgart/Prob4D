@@ -1,0 +1,66 @@
+name: Diagnose tracking-cloth rank-distortion transformation v4
+
+on:
+  push:
+    branches:
+      - research/tracking-cloth-rank-distortion-real-v1
+    paths:
+      - .github/workflows/patch-tracking-cloth-rank-distortion-v4.yml
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose-target:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: research/tracking-cloth-rank-distortion-real-v1
+          persist-credentials: false
+          clean: true
+
+      - name: Normalize copied header and expose failed target
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          source = Path("scripts/science/run_tracking_cloth_rank_distortion.py")
+          text = source.read_text(encoding="utf-8")
+          old = '''"""Evaluate posterior-preserving shared-noise compression on real cloth trajectories.
+
+          The script reads only CSV trajectory files from the verified Tracking Cloth
+          Deformation dataset. It performs recording-disjoint cross-validation, writes
+          compact derived evidence, and never copies raw trajectories into its outputs.
+          """'''
+          new = '''"""Recording-disjoint posterior-preserving compression on real cloth trajectories.
+
+          This experiment uses the public Tracking Cloth Deformation dataset's motion-capture
+          CSV files.  It fits one local Gaussian query/observation model per cloth size and
+          recording-disjoint fold, constructs a full structured observation covariance, and
+          compares the full posterior with exact posterior-preserving shared-factor reduction.
+
+          The script never exports raw trajectories and makes no learned-provider claim.
+          """'''
+          if text.count(old) != 1:
+              raise SystemExit("copied script header did not match the verified source")
+          source.write_text(text.replace(old, new), encoding="utf-8")
+
+          patch = Path("scripts/science/_apply_tracking_cloth_rank_distortion_patch.py")
+          patch_text = patch.read_text(encoding="utf-8")
+          old_error = 'raise SystemExit(f"{path}: expected one replacement target, found {count}")'
+          new_error = (
+              'raise SystemExit('
+              'f"{path}: expected one replacement target, found {count}; "'
+              'f"target={old[:240]!r}"'
+              ')'
+          )
+          if patch_text.count(old_error) != 1:
+              raise SystemExit("patch diagnostic target changed")
+          patch.write_text(patch_text.replace(old_error, new_error), encoding="utf-8")
+          PY
+
+      - name: Run instrumented transformation
+        run: python scripts/science/_apply_tracking_cloth_rank_distortion_patch.py
