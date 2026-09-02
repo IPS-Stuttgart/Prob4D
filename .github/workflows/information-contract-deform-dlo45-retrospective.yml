@@ -1,0 +1,245 @@
+name: Information-contract DEFORM DLO4/DLO5 retrospective adapter
+
+on:
+  push:
+    branches:
+      - science/information-contract-benchmark-sealed-v1
+    paths:
+      - ".github/workflows/information-contract-deform-dlo45-retrospective.yml"
+      - "scripts/benchmarks/deform_dlo45_information_contract_adapter.py"
+      - "src/prob4d/information_contract_benchmark.py"
+      - "src/prob4d/information_contract_sealed.py"
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/information-contract-deform-dlo45-retrospective.yml"
+      - "scripts/benchmarks/deform_dlo45_information_contract_adapter.py"
+      - "src/prob4d/information_contract_benchmark.py"
+      - "src/prob4d/information_contract_sealed.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: information-contract-deform-dlo45-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BPT_REVISION: 77945b430ad26ae63635cf6a1ad417bd78c04e6e
+  DEFORM_REVISION: b73b8b8ecc033caefa693fab7898741d4e6dbeff
+  NUMPY_VERSION: "2.2.6"
+  EXPECTED_SOURCE_MODEL_CONTENT_SHA256: b98788a53ae075aaa2f475b07e168f13d3cefba2cd8a933c2e0511a2e5841681
+  EXPECTED_SOURCE_RESULT_SHA256: 77332c323ddd09d945f65f57e3b83a12deedd9ea94509e43c13c9ca87f3cc353
+  EXPECTED_TARGET_RESULT_SHA256: d2343114e4c07af4f7126b6779bb65950ebd4cbf89b934b7a2689a7e7106248b
+
+jobs:
+  retrospective-adapter:
+    name: Rebuild and score 532 truth-separated public decisions
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - name: Check out exact Prob4D revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+          clean: true
+
+      - name: Check out exact BayesianPhysTwin implementation and retained result
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: IPS-Stuttgart/BayesianPhysTwin
+          ref: ${{ env.BPT_REVISION }}
+          path: upstream-BPT
+          fetch-depth: 1
+          persist-credentials: false
+          clean: true
+          sparse-checkout: |
+            experiments/deform_dlo45_decision_identifiability_v1
+            src/bayesian_phystwin
+            results/science/deform_dlo45_decision_identifiability_v1/official-dlo45-one-shot-20260901-v1/target_result.json
+          sparse-checkout-cone-mode: false
+
+      - name: Check out exact public DEFORM trajectories
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: roahmlab/DEFORM
+          ref: ${{ env.DEFORM_REVISION }}
+          path: upstream-DEFORM
+          fetch-depth: 1
+          persist-credentials: false
+          clean: true
+          sparse-checkout: |
+            data_set/DLO4/train
+            data_set/DLO4/eval
+            data_set/DLO5/train
+            data_set/DLO5/eval
+          sparse-checkout-cone-mode: false
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install exact numerical and validation runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install \
+            "pip==25.2" \
+            "setuptools==80.9.0" \
+            "wheel==0.45.1" \
+            "numpy==${NUMPY_VERSION}" \
+            "ruff==0.16.5"
+          python -m pip install --no-deps -e .
+          python -m pip check
+          python -m ruff check \
+            scripts/benchmarks/deform_dlo45_information_contract_adapter.py
+
+      - name: Verify public source identities and roster
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C upstream-BPT rev-parse HEAD)" = "${BPT_REVISION}"
+          test "$(git -C upstream-DEFORM rev-parse HEAD)" = "${DEFORM_REVISION}"
+          for dlo in DLO4 DLO5; do
+            test "$(find upstream-DEFORM/data_set/${dlo}/train -maxdepth 1 -type f -name '*.pkl' | wc -l)" -eq 56
+            test "$(find upstream-DEFORM/data_set/${dlo}/eval -maxdepth 1 -type f -name '*.pkl' | wc -l)" -eq 14
+          done
+          printf '%s  %s\n' \
+            "${EXPECTED_TARGET_RESULT_SHA256}" \
+            "upstream-BPT/results/science/deform_dlo45_decision_identifiability_v1/official-dlo45-one-shot-20260901-v1/target_result.json" \
+            | sha256sum -c -
+
+      - name: Rebuild the exact source-only model
+        shell: bash
+        env:
+          PYTHONPATH: ${{ github.workspace }}/upstream-BPT:${{ github.workspace }}/upstream-BPT/src
+        run: |
+          set -euo pipefail
+          out="${RUNNER_TEMP}/dlo45-source"
+          mkdir -p "${out}"
+          python -m experiments.deform_dlo45_decision_identifiability_v1.evaluate \
+            source \
+            --protocol upstream-BPT/experiments/deform_dlo45_decision_identifiability_v1/protocol.json \
+            --dataset-root upstream-DEFORM/data_set \
+            --output-root "${out}"
+          printf '%s  %s\n' \
+            "${EXPECTED_SOURCE_RESULT_SHA256}" \
+            "${out}/source_result.json" \
+            | sha256sum -c -
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          from scripts.benchmarks.deform_dlo45_information_contract_adapter import (
+              npz_content_sha256,
+          )
+
+          path = Path(os.environ["RUNNER_TEMP"]) / "dlo45-source/source_model.npz"
+          actual = npz_content_sha256(path)
+          expected = os.environ["EXPECTED_SOURCE_MODEL_CONTENT_SHA256"]
+          if actual != expected:
+              raise SystemExit(f"source-model content mismatch: {actual} != {expected}")
+          print(f"source_model_content_sha256={actual}")
+          PY
+
+      - name: Generate truth-separated public benchmark payloads
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_root="${RUNNER_TEMP}/dlo45-source"
+          output_root="${RUNNER_TEMP}/dlo45-information-contract"
+          python scripts/benchmarks/deform_dlo45_information_contract_adapter.py \
+            --bpt-root upstream-BPT \
+            --dataset-root upstream-DEFORM/data_set \
+            --protocol upstream-BPT/experiments/deform_dlo45_decision_identifiability_v1/protocol.json \
+            --source-model "${source_root}/source_model.npz" \
+            --source-seal "${source_root}/source_seal.json" \
+            --source-result "${source_root}/source_result.json" \
+            --output-root "${output_root}" \
+            --bpt-revision "${BPT_REVISION}" \
+            --dataset-revision "${DEFORM_REVISION}"
+          python -m prob4d.information_contract_sealed evaluate \
+            "${output_root}/challenge/challenge.json" \
+            "${output_root}/submission/submission.json" \
+            "${output_root}/scorecard.json"
+          python -m prob4d.information_contract_sealed evaluate \
+            "${output_root}/challenge/challenge.json" \
+            "${output_root}/submission/submission.json" \
+            "${output_root}/scorecard-replay.json"
+          cmp "${output_root}/scorecard.json" "${output_root}/scorecard-replay.json"
+
+      - name: Verify exact retained-result parity and benchmark contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import math
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "dlo45-information-contract"
+          stats = json.loads((root / "adapter-stats.json").read_text())
+          scorecard = json.loads((root / "scorecard.json").read_text())
+          retained = json.loads(Path(
+              "upstream-BPT/results/science/deform_dlo45_decision_identifiability_v1/"
+              "official-dlo45-one-shot-20260901-v1/target_result.json"
+          ).read_text())
+
+          assert stats["information_order"] == "retrospective-open-target"
+          assert stats["prospective_claim_eligible"] is False
+          assert stats["decision_count"] == 532
+          assert stats["independent_trajectory_count"] == 28
+          assert stats["action_counts"] == [450, 46, 36]
+          assert stats["nonfallback_count"] == 82
+          assert stats["harmful_nonfallback_count"] == 3
+          assert stats["trajectory_wins_ties_losses"] == [24, 3, 1]
+          assert math.isclose(
+              stats["certificate_rmse_ratio"],
+              retained["aggregate"]["certificate_rmse_ratio"],
+              rel_tol=0,
+              abs_tol=1e-12,
+          )
+          assert math.isclose(
+              stats["mean_trajectory_improvement"],
+              retained["aggregate"]["mean_trajectory_improvement"],
+              rel_tol=0,
+              abs_tol=1e-12,
+          )
+          assert scorecard["information_order"] == {
+              "mode": "retrospective-open-target",
+              "claim_class": "retrospective-diagnostic",
+              "prospective_claim_eligible": False,
+          }
+          aggregate = scorecard["aggregate"]
+          assert aggregate["case_count"] == 532
+          assert aggregate["independent_group_count"] == 28
+          assert aggregate["contract"]["all_cases_pass"] is True
+          assert aggregate["contract"]["passing_case_count"] == 532
+          assert scorecard["leaderboard_policy"]["scalar_overall_score"] is False
+          assert all(
+              "truth_xyz_m" not in __import__("numpy").load(
+                  root / "submission" / case["payload"], allow_pickle=False
+              ).files
+              for case in json.loads(
+                  (root / "submission/submission.json").read_text()
+              )["cases"]
+          )
+          print(json.dumps({"stats": stats, "aggregate": aggregate}, indent=2))
+          PY
+          root="${RUNNER_TEMP}/dlo45-information-contract"
+          find "${root}" -type f -print0 | sort -z | xargs -0 sha256sum > "${root}/SHA256SUMS"
+
+      - name: Upload retrospective public-data adapter evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        with:
+          name: information-contract-deform-dlo45-${{ github.sha }}
+          path: ${{ runner.temp }}/dlo45-information-contract/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 6
