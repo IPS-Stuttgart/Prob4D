@@ -11,7 +11,6 @@ temporary evaluator workspace.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import io
 import json
 import math
@@ -28,6 +27,9 @@ from numpy.typing import NDArray
 from ._atomic_file import atomic_write_bytes, atomic_write_text
 from .information_contract_benchmark import (
     _ALLOWED_TASKS,
+    LEADERBOARD_POLICY,
+    SUITE_SCHEMA,
+    SUITE_VERSION,
     _aggregate,
     _case_tasks,
     _float_array,
@@ -37,13 +39,16 @@ from .information_contract_benchmark import (
     _relative_payload,
     _sha256_file,
     _string,
-    CLAIM_BOUNDARY as CORE_CLAIM_BOUNDARY,
-    LEADERBOARD_POLICY,
-    RESULT_SCHEMA as CORE_RESULT_SCHEMA,
-    RESULT_VERSION as CORE_RESULT_VERSION,
-    SUITE_SCHEMA,
-    SUITE_VERSION,
     evaluate_information_contract_suite,
+)
+from .information_contract_benchmark import (
+    CLAIM_BOUNDARY as CORE_CLAIM_BOUNDARY,
+)
+from .information_contract_benchmark import (
+    RESULT_SCHEMA as CORE_RESULT_SCHEMA,
+)
+from .information_contract_benchmark import (
+    RESULT_VERSION as CORE_RESULT_VERSION,
 )
 
 CHALLENGE_SCHEMA: Final = "prob4d.information-contract-challenge"

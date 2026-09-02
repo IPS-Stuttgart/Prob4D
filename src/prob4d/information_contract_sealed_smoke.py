@@ -16,13 +16,13 @@ from .information_contract_benchmark import generate_smoke_suite
 from .information_contract_sealed import (
     _CHALLENGE_ARRAYS,
     _SUBMISSION_ARRAYS,
-    _canonical_json,
-    _deterministic_npz_bytes,
-    _sha256_file,
     CHALLENGE_SCHEMA,
     CHALLENGE_VERSION,
     SUBMISSION_SCHEMA,
     SUBMISSION_VERSION,
+    _canonical_json,
+    _deterministic_npz_bytes,
+    _sha256_file,
 )
 
 FloatArray = NDArray[np.float64]
