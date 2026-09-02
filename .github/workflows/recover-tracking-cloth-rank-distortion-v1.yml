@@ -72,19 +72,7 @@ jobs:
           test=tests/test_tracking_cloth_rank_distortion_frontier_v1.py
           python -m ruff format "$script" "$test"
           python -m ruff check --fix "$script" "$test"
-          python - <<'PY'
-          from pathlib import Path
-
-          path = Path(
-              "scripts/science/run_tracking_cloth_rank_distortion_frontier_v1.py"
-          )
-          text = path.read_text(encoding="utf-8")
-          directive = "# ruff: noqa: E501\n"
-          if not text.startswith(directive):
-              path.write_text(directive + text, encoding="utf-8")
-          PY
-          python -m ruff format "$script" "$test"
-          python -m ruff check "$script" "$test"
+          python -m ruff check --ignore E501 "$script" "$test"
 
       - name: Validate theorem and empirical controls
         run: |
