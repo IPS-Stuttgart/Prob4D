@@ -18,11 +18,16 @@ PROTOCOL: dict[str, Any] = {
     "invariant_likelihood_semantics": "constant-on-prior-supported-orbit-nodes",
     "continuous_group": "S1",
     "group_metric": "wrapped-angle-radians-v1",
+    "gauge_coupled_action_contract": (
+        "state and action templates share one certified group element; pairwise "
+        "action-loss differences, not necessarily absolute losses, are invariant"
+    ),
     "claim_boundary": (
-        "Controlled finite-quadrature and certified-cover verification only. "
-        "The study does not infer a symmetry, establish Haar quadrature accuracy, "
-        "calibrate a Lipschitz or cover bound, validate a provider, open real data, "
-        "prove target transport, authorize deployment, or certify safety."
+        "Controlled finite-quadrature, certified-cover, and supplied state-action "
+        "coupling verification only. The study does not infer a symmetry, establish "
+        "Haar quadrature accuracy, calibrate a Lipschitz or cover bound, validate a "
+        "provider or physical execution binding, open real data, prove target "
+        "transport, authorize deployment, or certify safety."
     ),
 }
 
