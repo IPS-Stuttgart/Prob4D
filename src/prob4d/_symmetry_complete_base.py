@@ -40,9 +40,7 @@ def _immutable_float(value: ArrayLike, *, name: str, ndim: int) -> FloatArray:
     array = np.ascontiguousarray(raw, dtype=np.float64)
     if array.ndim != ndim or not np.all(np.isfinite(array)):
         raise ValueError(f"{name} must be a finite {ndim}-dimensional array")
-    result = np.frombuffer(array.tobytes(order="C"), dtype=np.dtype("<f8")).reshape(
-        array.shape
-    )
+    result = np.frombuffer(array.tobytes(order="C"), dtype=np.dtype("<f8")).reshape(array.shape)
     return result
 
 
@@ -68,9 +66,7 @@ def _conditional_probability_matrix(
 ) -> FloatArray:
     array = _immutable_float(value, name=name, ndim=2)
     if array.shape != (quotient_count, group_count):
-        raise ValueError(
-            f"{name} must have shape ({quotient_count}, {group_count})"
-        )
+        raise ValueError(f"{name} must have shape ({quotient_count}, {group_count})")
     if np.any(array < 0.0):
         raise ValueError(f"{name} must be nonnegative")
     totals = np.sum(array, axis=1, dtype=np.float64)
@@ -109,8 +105,7 @@ def _kl_divergence(posterior: FloatArray, prior: FloatArray) -> float:
         raise ValueError("posterior must remain absolutely continuous with the prior")
     return float(
         np.sum(
-            posterior[positive]
-            * (np.log(posterior[positive]) - np.log(prior[positive])),
+            posterior[positive] * (np.log(posterior[positive]) - np.log(prior[positive])),
             dtype=np.float64,
         )
     )
@@ -231,9 +226,7 @@ class SymmetryCompleteBeliefV1:
             self.quotient_weights[:, None] * self.group_conditional_weights,
             dtype=np.float64,
         )
-        return np.frombuffer(joint.tobytes(order="C"), dtype=np.dtype("<f8")).reshape(
-            joint.shape
-        )
+        return np.frombuffer(joint.tobytes(order="C"), dtype=np.dtype("<f8")).reshape(joint.shape)
 
     @classmethod
     def with_reference_group_law(

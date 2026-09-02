@@ -166,10 +166,14 @@ def certify_compact_group_query(
     if not isinstance(belief, SymmetryCompleteBeliefV1):
         raise TypeError("belief must be SymmetryCompleteBeliefV1")
     atoms = _immutable_float(query_atoms, name="query_atoms", ndim=3)
-    if atoms.shape[:2] != (
-        belief.quotient_count,
-        belief.quadrature.node_count,
-    ) or atoms.shape[2] == 0:
+    if (
+        atoms.shape[:2]
+        != (
+            belief.quotient_count,
+            belief.quadrature.node_count,
+        )
+        or atoms.shape[2] == 0
+    ):
         raise ValueError("query_atoms have the wrong quotient/group/query shape")
     lipschitz = _finite_nonnegative_vector(
         lipschitz_by_quotient,
@@ -204,9 +208,9 @@ def certify_compact_group_query(
     active = belief.quotient_weights > 0.0
     for quotient_index in np.flatnonzero(active):
         sample[quotient_index] = _sample_diameter(atoms[quotient_index])
-        upper[quotient_index] = sample[quotient_index] + 2.0 * lipschitz[
-            quotient_index
-        ] * cover[quotient_index]
+        upper[quotient_index] = (
+            sample[quotient_index] + 2.0 * lipschitz[quotient_index] * cover[quotient_index]
+        )
     maximum_sample = float(np.max(sample[active]))
     maximum_upper = float(np.max(upper[active]))
     if not certified:

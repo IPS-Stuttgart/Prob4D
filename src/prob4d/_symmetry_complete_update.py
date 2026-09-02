@@ -104,9 +104,7 @@ def _relative_orbit_spread(
         if maximum == 0.0:
             spreads[quotient_index] = 0.0
         else:
-            spreads[quotient_index] = (
-                float(np.max(values)) - float(np.min(values))
-            ) / maximum
+            spreads[quotient_index] = (float(np.max(values)) - float(np.min(values))) / maximum
     return spreads, float(np.max(spreads))
 
 
@@ -204,9 +202,7 @@ def update_symmetry_complete_belief(
         posterior_conditionals = prior.group_conditional_weights.copy()
         for quotient_index, mass in enumerate(posterior_quotient):
             if mass > 0.0:
-                posterior_conditionals[quotient_index] = (
-                    posterior_joint[quotient_index] / mass
-                )
+                posterior_conditionals[quotient_index] = posterior_joint[quotient_index] / mass
 
     posterior = SymmetryCompleteBeliefV1(
         quotient_weights=posterior_quotient,
@@ -241,10 +237,7 @@ def update_symmetry_complete_belief(
     maximum_change = float(
         np.max(
             np.sum(
-                np.abs(
-                    posterior.group_conditional_weights
-                    - prior.group_conditional_weights
-                ),
+                np.abs(posterior.group_conditional_weights - prior.group_conditional_weights),
                 axis=1,
             )
         )

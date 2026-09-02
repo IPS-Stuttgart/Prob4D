@@ -49,9 +49,7 @@ class PointCompletionAuditV1:
         else:
             specificity = float(self.discretized_specificity_nats)
             if not math.isfinite(specificity) or specificity < 0.0:
-                raise ValueError(
-                    "discretized_specificity_nats must be finite and nonnegative"
-                )
+                raise ValueError("discretized_specificity_nats must be finite and nonnegative")
             if self.status == "outside-support":
                 raise ValueError("outside-support completion must not report specificity")
         object.__setattr__(self, "selected_group_node_by_quotient", immutable)
@@ -82,12 +80,8 @@ def audit_point_completion(
     if not isinstance(belief, SymmetryCompleteBeliefV1):
         raise TypeError("belief must be SymmetryCompleteBeliefV1")
     raw = np.asarray(selected_group_node_by_quotient)
-    if raw.dtype.kind not in "iu" or raw.ndim != 1 or raw.shape != (
-        belief.quotient_count,
-    ):
-        raise ValueError(
-            "selected_group_node_by_quotient must contain one integer per quotient"
-        )
+    if raw.dtype.kind not in "iu" or raw.ndim != 1 or raw.shape != (belief.quotient_count,):
+        raise ValueError("selected_group_node_by_quotient must contain one integer per quotient")
     selected = np.ascontiguousarray(raw, dtype=np.int64)
     if np.any(selected < 0) or np.any(selected >= belief.quadrature.node_count):
         raise ValueError("selected group-node index is out of range")

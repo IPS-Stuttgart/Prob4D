@@ -90,9 +90,7 @@ def run_study(*, seed: int, cases: int) -> dict[str, Any]:
         "shared_group_dependence": shared,
         "criteria": criteria,
         "decision": (
-            "controlled-contract-passed"
-            if all(criteria.values())
-            else "controlled-contract-failed"
+            "controlled-contract-passed" if all(criteria.values()) else "controlled-contract-failed"
         ),
     }
 
