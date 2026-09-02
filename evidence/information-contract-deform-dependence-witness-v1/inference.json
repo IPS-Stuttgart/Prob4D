@@ -1,0 +1,27 @@
+{
+  "bootstrap_replicates": 20000,
+  "bootstrap_seed": 20260902,
+  "claim_boundary": "The paired bootstrap and sign test use complete held trajectories as the statistical units. They were added after inspection of the retrospective result and are secondary, not preregistered confirmatory inference.",
+  "classification": "post-hoc trajectory-level uncertainty for a retrospective public-data diagnostic",
+  "diagonal_nll_win_count": 7,
+  "full_dependence_nll_win_count": 21,
+  "independent_group_count": 28,
+  "inference_id": "6491f9d52f88c9290019ed33faeb9dbf591b8774fad41f69572f230997cc5a1d",
+  "nll_tie_count": 0,
+  "paired_calibration_error_gain_ci95": [
+    0.7533719295055804,
+    1.2162371095262743
+  ],
+  "paired_calibration_error_gain_diagonal_minus_full": 1.1997079226424778,
+  "paired_nll_gain_ci95": [
+    0.32983850444715745,
+    0.8709445636531261
+  ],
+  "paired_nll_gain_diagonal_minus_full": 0.5862082788597153,
+  "paired_sign_test_two_sided_p": 0.012540951371192932,
+  "schema_name": "prob4d.deform-dlo45-dependence-witness-inference",
+  "schema_version": 1,
+  "source_result_sha256": "729498d10fe3a149da6519e5364a8cf0e951883f3ba5306e27b5d1c284ce4e1e",
+  "target_query_reselection": false,
+  "witness_id": "64146eefe8cf2dd5dce7229a3e8f1c32c7f506b37d47fe999add8d42fc717543"
+}
