@@ -1,0 +1,84 @@
+name: Temporary fix for rank-distortion study
+
+on:
+  push:
+    branches:
+      - research/query-rank-distortion-frontier-v1
+    paths:
+      - .github/workflows/temporary-fix-rank-distortion-study.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    name: Patch, format, and remove this workflow
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out latest branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: research/query-rank-distortion-frontier-v1
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.12"
+
+      - name: Patch permanent workflow and format study
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('.github/workflows/posterior-rank-distortion-study.yml')
+          text = path.read_text(encoding='utf-8')
+          old_run = '''      - name: Run frozen multi-seed study
+        run: |
+          python scripts/research/posterior_rank_distortion_study.py \\
+'''
+          new_run = '''      - name: Run frozen multi-seed study
+        run: |
+          mkdir -p artifacts/posterior-rank-distortion-study
+          python scripts/research/posterior_rank_distortion_study.py \\
+'''
+          if old_run in text:
+              text = text.replace(old_run, new_run)
+          elif new_run not in text:
+              raise SystemExit('Study execution block did not match a known state')
+
+          old_doc = '''      - docs/posterior-rank-distortion.md
+'''
+          new_doc = '''      - docs/posterior-rank-distortion.md
+      - docs/posterior-rank-distortion-study.md
+'''
+          if '      - docs/posterior-rank-distortion-study.md\n' not in text:
+              if old_doc not in text:
+                  raise SystemExit('Study documentation path anchor is missing')
+              text = text.replace(old_doc, new_doc)
+          path.write_text(text, encoding='utf-8')
+          PY
+          python -m pip install "ruff==0.16.1"
+          python -m ruff format scripts/research/posterior_rank_distortion_study.py
+          rm -f .github/workflows/temporary-fix-rank-distortion-study.yml
+          git diff --check
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A \
+            .github/workflows/posterior-rank-distortion-study.yml \
+            .github/workflows/temporary-fix-rank-distortion-study.yml \
+            scripts/research/posterior_rank_distortion_study.py
+          git commit -m "Fix posterior rank-distortion study execution"
+          for attempt in 1 2 3; do
+            git pull --rebase origin research/query-rank-distortion-frontier-v1
+            if git push origin HEAD:research/query-rank-distortion-frontier-v1; then
+              exit 0
+            fi
+            sleep $((attempt * 10))
+          done
+          exit 1
