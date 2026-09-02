@@ -1,0 +1,118 @@
+"""Controlled verification study for symmetry-complete beliefs.
+
+This executable validates only algebra and numerical contracts. It does not
+open a dataset, infer a physical group, calibrate a cover, or authorize a paper
+claim about a learned provider.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+from typing import Any
+
+import numpy as np
+
+from ._symmetry_complete_study_common import PROTOCOL
+from ._symmetry_complete_study_queries import (
+    _cover_verification_study,
+    _shared_group_dependence_study,
+)
+from ._symmetry_complete_study_updates import (
+    _invariant_update_study,
+    _point_completion_ladder,
+    _symmetry_breaking_study,
+)
+
+
+def run_study(*, seed: int, cases: int) -> dict[str, Any]:
+    if isinstance(seed, bool) or not isinstance(seed, int):
+        raise TypeError("seed must be an integer")
+    if isinstance(cases, bool) or not isinstance(cases, int):
+        raise TypeError("cases must be an integer")
+    if cases < 1:
+        raise ValueError("cases must be positive")
+    rng = np.random.default_rng(seed)
+    invariant = _invariant_update_study(rng, cases=cases)
+    breaking = _symmetry_breaking_study(rng, cases=cases)
+    completion = _point_completion_ladder()
+    cover = _cover_verification_study(rng, cases=cases)
+    shared = _shared_group_dependence_study()
+    criteria = {
+        "invariant_conditionals_preserved_exactly": (
+            invariant["maximum_conditional_l1_change"] == 0.0
+        ),
+        "invariant_evidence_adds_no_gauge_information": (
+            invariant["maximum_gauge_information_nats"] <= 1e-14
+        ),
+        "kl_chain_rule_verified": max(
+            float(invariant["maximum_kl_chain_rule_error_nats"]),
+            float(breaking["maximum_kl_chain_rule_error_nats"]),
+        )
+        <= 2e-11,
+        "symmetry_breaking_changes_group_law": (
+            breaking["minimum_conditional_l1_change"] > 0.0
+            and breaking["minimum_gauge_information_nats"] > 0.0
+        ),
+        "continuous_point_completion_is_singular": all(
+            row["status"] == "continuous-singular"
+            and not row["physical_point_completion_has_finite_kl"]
+            for row in completion
+        ),
+        "discretized_completion_specificity_matches_log_resolution": max(
+            float(row["absolute_error_nats"]) for row in completion
+        )
+        <= 1e-14,
+        "continuous_cover_upper_bounds_exact_harmonic_diameter": (
+            cover["minimum_upper_minus_exact_diameter"] >= -2e-12
+        ),
+        "sample_diameter_is_valid_lower_bound": (
+            cover["maximum_sample_minus_exact_diameter"] <= 2e-12
+        ),
+        "shared_group_draw_preserves_exact_cancellation": (
+            shared["maximum_shared_sum_norm"] <= 1e-14
+        ),
+        "independent_group_draw_destroys_cancellation": (
+            shared["independent_mean_squared_sum_norm"] > 1.9
+        ),
+    }
+    return {
+        "schema": PROTOCOL["schema"],
+        "schema_version": PROTOCOL["schema_version"],
+        "seed": seed,
+        "cases_per_stochastic_panel": cases,
+        "protocol": PROTOCOL,
+        "invariant_update": invariant,
+        "symmetry_breaking_update": breaking,
+        "point_completion_ladder": completion,
+        "continuous_cover_verification": cover,
+        "shared_group_dependence": shared,
+        "criteria": criteria,
+        "decision": (
+            "controlled-contract-passed"
+            if all(criteria.values())
+            else "controlled-contract-failed"
+        ),
+    }
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--seed", type=int, default=20260902)
+    parser.add_argument("--cases", type=int, default=512)
+    parser.add_argument("--output", type=Path, required=True)
+    args = parser.parse_args()
+    result = run_study(seed=args.seed, cases=args.cases)
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(
+        json.dumps(result, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    print(result["decision"])
+    if result["decision"] != "controlled-contract-passed":
+        raise SystemExit(1)
+
+
+if __name__ == "__main__":
+    main()
