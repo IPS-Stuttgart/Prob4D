@@ -1,0 +1,15 @@
+{
+  "schema_name": "prob4d.deform-dlo45-falsification-witness-request",
+  "schema_version": 1,
+  "status": "authorized-retrospective-diagnostic",
+  "dataset_repository": "roahmlab/DEFORM",
+  "dataset_commit": "b73b8b8ecc033caefa693fab7898741d4e6dbeff",
+  "source_dlos": ["DLO4", "DLO5"],
+  "held_dlos": ["DLO4", "DLO5"],
+  "query_family": "metric-point-displacement-direction-r3-v1",
+  "source_fit_trajectories_per_dlo": 40,
+  "source_witness_trajectories_per_dlo": 16,
+  "held_trajectories_per_dlo": 14,
+  "target_query_reselection": false,
+  "prospective_claim_eligible": false
+}

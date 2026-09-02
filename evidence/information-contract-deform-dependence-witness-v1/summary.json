@@ -1,0 +1,59 @@
+{
+  "claim_boundary": "The query was selected on disjoint DLO4/DLO5 training trajectories against a marginal-matched diagonal control. The held cohort was historically open, so this is not an independent prospective confirmation.",
+  "classification": "retrospective public-data dependence witness",
+  "dependence_witness_holds_on_held_data": true,
+  "held_case_count": 532,
+  "held_independent_trajectory_count": 28,
+  "query_components": [
+    "terminal internal-node centroid x/y/z",
+    "horizon-average internal-node centroid x/y/z",
+    "terminal right-half minus left-half centroid x/y/z",
+    "terminal minus initial internal-node centroid x/y/z"
+  ],
+  "query_vector": [
+    0.18670806107547955,
+    -0.039848552253742876,
+    0.36540689946771443,
+    0.3989471312286422,
+    -0.07918309336165859,
+    0.6909414857370901,
+    0.05271422701370579,
+    -0.027219436772833727,
+    0.11110013512108854,
+    0.18770559418849275,
+    -0.04019668444702623,
+    0.36672740163457845
+  ],
+  "same_prediction_means_and_coordinate_marginals": true,
+  "schema_name": "prob4d.deform-dlo45-dependence-witness-summary",
+  "schema_version": 1,
+  "source_max_normalized_error_ratio": 3.1293314913365187,
+  "submissions": {
+    "full-source-fitted-dependence": {
+      "equal_group_coordinate_rmse": 0.04150743291430731,
+      "equal_group_query_absolute_log_calibration_error": 0.01909693278239638,
+      "equal_group_query_coverage": 0.8984962406015038,
+      "equal_group_query_gaussian_nll": -1.6180391351651866,
+      "equal_group_query_normalized_error_ratio": 1.0192804455186277,
+      "equal_group_query_rmse": 0.048610495544790674
+    },
+    "marginal-matched-diagonal": {
+      "equal_group_coordinate_rmse": 0.04150743291430731,
+      "equal_group_query_absolute_log_calibration_error": 1.2188048554248743,
+      "equal_group_query_coverage": 0.674812030075188,
+      "equal_group_query_gaussian_nll": -1.0318308563054714,
+      "equal_group_query_normalized_error_ratio": 3.3831419726927483,
+      "equal_group_query_rmse": 0.048610495544790674
+    },
+    "overconfident-full-scale-0.05": {
+      "equal_group_coordinate_rmse": 0.04150743291430731,
+      "equal_group_query_absolute_log_calibration_error": 3.0148292063363873,
+      "equal_group_query_coverage": 0.31954887218045114,
+      "equal_group_query_gaussian_nll": 6.567258960484777,
+      "equal_group_query_normalized_error_ratio": 20.38560891037255,
+      "equal_group_query_rmse": 0.048610495544790674
+    }
+  },
+  "target_query_reselection": false,
+  "witness_id": "64146eefe8cf2dd5dce7229a3e8f1c32c7f506b37d47fe999add8d42fc717543"
+}

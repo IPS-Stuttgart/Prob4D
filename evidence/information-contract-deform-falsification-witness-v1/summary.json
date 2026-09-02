@@ -1,0 +1,61 @@
+{
+  "claim_boundary": "The witness was selected on disjoint training trajectories, but the held DLO4/DLO5 cohort was historically open. The overconfident covariance is an explicit negative control.",
+  "classification": "retrospective public-data falsification diagnostic",
+  "control_pair_ranking_reversal": false,
+  "held_case_count": 106400,
+  "held_independent_trajectory_count": 28,
+  "point_accuracy_winner_set": [
+    "transported-velocity-diagonal",
+    "transported-velocity-full"
+  ],
+  "query_vector": [
+    -0.25207816885108425,
+    0.9645777196554054,
+    -0.07775872641101084
+  ],
+  "schema_name": "prob4d.deform-dlo45-falsification-witness-summary",
+  "schema_version": 1,
+  "selected_query_calibration_winner_set": [
+    "transported-velocity-diagonal"
+  ],
+  "selected_query_nll_winner_set": [
+    "transported-velocity-diagonal"
+  ],
+  "source_max_normalized_error_ratio": 20.4630052631188,
+  "submissions": {
+    "source-bias-corrected-full": {
+      "equal_group_coordinate_rmse": 0.034483453400755454,
+      "equal_group_query_absolute_log_calibration_error": 0.09185587555151101,
+      "equal_group_query_coverage": 0.912612781954887,
+      "equal_group_query_gaussian_nll": -1.7855283181433237,
+      "equal_group_query_normalized_error_ratio": 0.9122366156702464,
+      "equal_group_query_rmse": 0.03958086481491818
+    },
+    "source-bias-corrected-overconfident": {
+      "equal_group_coordinate_rmse": 0.034483453400755454,
+      "equal_group_query_absolute_log_calibration_error": 2.90387639800248,
+      "equal_group_query_coverage": 0.5546522556390977,
+      "equal_group_query_gaussian_nll": 5.382853393947022,
+      "equal_group_query_normalized_error_ratio": 18.244732313404928,
+      "equal_group_query_rmse": 0.03958086481491818
+    },
+    "transported-velocity-diagonal": {
+      "equal_group_coordinate_rmse": 0.03448240949801811,
+      "equal_group_query_absolute_log_calibration_error": 0.07091577305457301,
+      "equal_group_query_coverage": 0.9107800751879699,
+      "equal_group_query_gaussian_nll": -1.7886226516952468,
+      "equal_group_query_normalized_error_ratio": 0.9315403496216188,
+      "equal_group_query_rmse": 0.03957995653129488
+    },
+    "transported-velocity-full": {
+      "equal_group_coordinate_rmse": 0.03448240949801811,
+      "equal_group_query_absolute_log_calibration_error": 0.09199230560771555,
+      "equal_group_query_coverage": 0.912640977443609,
+      "equal_group_query_gaussian_nll": -1.7855261748307032,
+      "equal_group_query_normalized_error_ratio": 0.9121121676669157,
+      "equal_group_query_rmse": 0.03957995653129488
+    }
+  },
+  "target_query_reselection": false,
+  "witness_id": "04db55d4037d594d03c58cdb661c1f0c8329e28f16b4d526df88f3db0aca9fab"
+}

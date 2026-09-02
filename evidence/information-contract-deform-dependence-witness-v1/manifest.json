@@ -1,0 +1,50 @@
+{
+  "artifacts": {
+    "complete_result": {
+      "digest": "sha256:a0f53bdde663b68a2c5493c4e8461cc2d381d0e7c415268823f567112c8d572d",
+      "id": 9849780004,
+      "name": "deform-dlo45-dependence-witness-33638409974"
+    },
+    "source_witness": {
+      "digest": "sha256:562c4eef00ed06745e77b47388bde0f0588dec9ebcdd4000db345d4c4fe03b2c",
+      "id": 9849766555,
+      "name": "deform-dlo45-dependence-source-33638409974"
+    }
+  },
+  "classification": "retrospective public-data dependence diagnostic",
+  "dataset": {
+    "commit": "b73b8b8ecc033caefa693fab7898741d4e6dbeff",
+    "repository": "roahmlab/DEFORM"
+  },
+  "evaluated_revision": "115846d315447ab87982e9e4a145d5604366eb9f",
+  "information_order": {
+    "held_outcomes_opened_during_selection": false,
+    "prospective_claim_eligible": false,
+    "target_query_reselection": false
+  },
+  "result_files": {
+    "comparison_json_sha256": "1a8b54e534889636dddd973119a4e62c7b5a935ee40acf4010acbcee2d47fe38",
+    "full_result_json_sha256": "729498d10fe3a149da6519e5364a8cf0e951883f3ba5306e27b5d1c284ce4e1e",
+    "held_manifest_json_sha256": "29137d08e50b839001fa684a944e68b04f7b4a9af139ac2399a35c56f376be3d",
+    "inference_json_sha256": "cb2408a7611d1021cf755e762d8988ca963e5690633543b86204751d52a8695e",
+    "source_manifest_json_sha256": "2971698bc3b37c9637d460f4b8507dcbcedaae312a1430bfe6a8a533a1baecc9",
+    "source_payload_npz_sha256": "8d8c8963fc76aeb65d4380105be30850d6e135842639cc13ef01909e29f85da1",
+    "source_receipt_json_sha256": "f46e69e8f5e893ebb0c3077fd2ad6607bde3e47340ff35992f0c1c006d18dcfc",
+    "witness_json_sha256": "2881a9bfb4a5f95fa2dce08deef30862494edc7f2687b92c1951faa27175a18d"
+  },
+  "schema_name": "prob4d.deform-dlo45-dependence-witness-manifest",
+  "schema_version": 1,
+  "secondary_inference": {
+    "classification": "post-hoc trajectory-level uncertainty",
+    "inference_id": "6491f9d52f88c9290019ed33faeb9dbf591b8774fad41f69572f230997cc5a1d"
+  },
+  "statistical_units": {
+    "held_case_count": 532,
+    "held_independent_trajectory_count": 28,
+    "source_fit_trajectory_count": 80,
+    "source_witness_case_count": 608,
+    "source_witness_trajectory_count": 32
+  },
+  "witness_id": "64146eefe8cf2dd5dce7229a3e8f1c32c7f506b37d47fe999add8d42fc717543",
+  "workflow_run": 33638409974
+}

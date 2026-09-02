@@ -1,0 +1,22 @@
+{
+  "schema_name": "prob4d.deform-dlo45-dependence-witness-request",
+  "schema_version": 1,
+  "status": "authorized-retrospective-diagnostic",
+  "attempt": 5,
+  "dataset_repository": "roahmlab/DEFORM",
+  "dataset_commit": "b73b8b8ecc033caefa693fab7898741d4e6dbeff",
+  "source_fit_trajectories_per_dlo": 40,
+  "source_witness_trajectories_per_dlo": 16,
+  "held_trajectories_per_dlo": 14,
+  "summary_dimension": 12,
+  "audited_submission": "marginal-matched-diagonal",
+  "comparison_submission": "full-source-fitted-dependence",
+  "same_residuals_and_coordinate_marginals": true,
+  "target_query_reselection": false,
+  "prospective_claim_eligible": false,
+  "secondary_inference": {
+    "classification": "post-hoc trajectory-level uncertainty",
+    "bootstrap_replicates": 20000,
+    "bootstrap_seed": 20260902
+  }
+}
