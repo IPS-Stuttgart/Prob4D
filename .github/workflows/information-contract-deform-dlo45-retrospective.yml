@@ -227,7 +227,7 @@ jobs:
           assert aggregate["case_count"] == 532
           assert aggregate["independent_group_count"] == 28
           assert aggregate["contract"]["all_cases_pass"] is True
-          assert aggregate["contract"]["passing_case_count"] == 532
+          assert aggregate["contract"]["passed_case_count"] == 532
           assert scorecard["leaderboard_policy"]["scalar_overall_score"] is False
           assert all(
               "truth_xyz_m" not in __import__("numpy").load(
