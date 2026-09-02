@@ -37,6 +37,8 @@ class OrbitInvarianceCertificateV1:
     status: CertificateStatus
     admitted: bool
     bounds_certified: bool
+    cover_radius_certified: bool
+    lipschitz_bound_certified: bool
     sample_diameter_by_quotient: FloatArray
     upper_diameter_by_quotient: FloatArray
     maximum_sample_diameter: float
@@ -71,6 +73,14 @@ class OrbitInvarianceCertificateV1:
             raise ValueError("unsupported certificate status")
         admitted = _genuine_bool(self.admitted, name="admitted")
         certified = _genuine_bool(self.bounds_certified, name="bounds_certified")
+        cover_certified = _genuine_bool(
+            self.cover_radius_certified,
+            name="cover_radius_certified",
+        )
+        lipschitz_certified = _genuine_bool(
+            self.lipschitz_bound_certified,
+            name="lipschitz_bound_certified",
+        )
         if admitted != (self.status == "certified-invariant"):
             raise ValueError("admitted must match certified-invariant status")
         if self.status == "scope-not-certified" and certified:
@@ -118,6 +128,8 @@ class OrbitInvarianceCertificateV1:
             raise ValueError("maximum upper diameter is below sample diameter")
         object.__setattr__(self, "admitted", admitted)
         object.__setattr__(self, "bounds_certified", certified)
+        object.__setattr__(self, "cover_radius_certified", cover_certified)
+        object.__setattr__(self, "lipschitz_bound_certified", lipschitz_certified)
         object.__setattr__(self, "sample_diameter_by_quotient", sample)
         object.__setattr__(self, "upper_diameter_by_quotient", upper)
         object.__setattr__(self, "cover_radius_by_quotient", cover)
@@ -148,6 +160,7 @@ def certify_compact_group_query(
     cover_radius_by_quotient: ArrayLike | float | None = None,
     tolerance: float = 0.0,
     cover_radius_certified: bool | None = None,
+    lipschitz_bound_certified: bool = False,
 ) -> OrbitInvarianceCertificateV1:
     """Certify whether a vector query is invariant over each active group orbit.
 
@@ -157,10 +170,9 @@ def certify_compact_group_query(
 
         D_S <= diam(q(G)) <= D_S + 2 L rho.
 
-    The maximum is taken over quotient classes with positive posterior mass.
-    An upper bound below ``tolerance`` certifies gauge invariance. A sampled
-    lower bound above it certifies variation. An overlapping interval is
-    undetermined and must fall back.
+    An explicit custom cover radius is uncertified unless the caller separately
+    certifies it. A positive correction term also requires an explicit
+    Lipschitz-bound certificate. Uncertified scope rejects the query.
     """
 
     if not isinstance(belief, SymmetryCompleteBeliefV1):
@@ -195,13 +207,24 @@ def certify_compact_group_query(
     threshold = float(tolerance)
     if not math.isfinite(threshold) or threshold < 0.0:
         raise ValueError("tolerance must be finite and nonnegative")
-    certified = (
-        belief.quadrature.cover_radius_certified
-        if cover_radius_certified is None
-        else _genuine_bool(
+    supplied_lipschitz_certified = _genuine_bool(
+        lipschitz_bound_certified,
+        name="lipschitz_bound_certified",
+    )
+    if cover_radius_certified is None:
+        supplied_cover_certified = (
+            belief.quadrature.cover_radius_certified
+            if cover_radius_by_quotient is None
+            else False
+        )
+    else:
+        supplied_cover_certified = _genuine_bool(
             cover_radius_certified,
             name="cover_radius_certified",
         )
+    needs_lipschitz = bool(np.any(cover * lipschitz > 0.0))
+    certified = supplied_cover_certified and (
+        not needs_lipschitz or supplied_lipschitz_certified
     )
     sample: FloatArray = np.zeros(belief.quotient_count, dtype=np.float64)
     upper: FloatArray = np.zeros(belief.quotient_count, dtype=np.float64)
@@ -228,6 +251,8 @@ def certify_compact_group_query(
         status=status,
         admitted=status == "certified-invariant",
         bounds_certified=certified,
+        cover_radius_certified=supplied_cover_certified,
+        lipschitz_bound_certified=supplied_lipschitz_certified,
         sample_diameter_by_quotient=sample,
         upper_diameter_by_quotient=upper,
         maximum_sample_diameter=maximum_sample,
