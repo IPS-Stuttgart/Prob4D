@@ -1,0 +1,220 @@
+{
+  "calibration": {
+    "cross_covariance_shrinkage": 0.25,
+    "equal_sequence_weight": true,
+    "maximum_canonical_correlation": 0.95,
+    "minimum_training_sequences": 7,
+    "noise_diagonal_shrinkage": 0.2,
+    "noise_variance_floor_fraction_of_prior": 0.01,
+    "outcome_use": "Each held source sequence is scored once using moments fitted from the other source sequences. This is source development, not independent confirmation.",
+    "prior_diagonal_shrinkage": 0.2,
+    "prior_variance_floor_fraction": 0.0001,
+    "scheme": "leave-one-complete-sequence-out"
+  },
+  "claim_boundary": "Development-only cross-validated source evaluation on already-open public DOT R11-R20 using the immutable marker-free routed CUT3R artifact. Error moments are estimated from source marker outcomes and are not native CUT3R covariance. The study may establish algebraic query-message parity and descriptive real-source behavior under changing ranks. It cannot establish held-out performance, learned provider calibration or competence, BayesianPhysTwin or Causal4D benefit, robot safety, deployment validity, or state of the art. R21-R70 remain closed.",
+  "dataset": {
+    "archive": {
+      "md5": "23ce3e7067465d3edabe20b4c7cfa388",
+      "name": "R11-20.zip"
+    },
+    "confirmation_sequences": [
+      "R21",
+      "R22",
+      "R23",
+      "R24",
+      "R25",
+      "R26",
+      "R27",
+      "R28",
+      "R29",
+      "R30"
+    ],
+    "doi": "10.13021/ORC2020/XXLVXM",
+    "name": "DOT V29 rope",
+    "reserved_sequences": "R31-R70",
+    "source_sequences": [
+      "R11",
+      "R12",
+      "R13",
+      "R14",
+      "R15",
+      "R16",
+      "R17",
+      "R18",
+      "R19",
+      "R20"
+    ]
+  },
+  "decision": {
+    "actions": [
+      "execute_query_update",
+      "physical_fallback"
+    ],
+    "harm_event": "execute_query_update and realized squared error exceeds fallback squared error",
+    "minimum_improvement_probability": 0.9,
+    "probability_definition": "Under the method Gaussian, posterior probability that squared query error of the update is below squared error of zero-displacement fallback."
+  },
+  "evaluation": {
+    "anchor_frame": 3,
+    "common_prior_mean": "exact-zero-displacement-fallback",
+    "coordinate_columns": [
+      0,
+      1
+    ],
+    "coordinate_mode": "pixel-zero-based",
+    "fit_continuous_frames": [
+      1,
+      2,
+      3
+    ],
+    "fit_window_a_frames": [
+      1,
+      2,
+      3
+    ],
+    "fit_window_b_frames": [
+      5,
+      6,
+      7
+    ],
+    "minimum_common_query_markers": 3,
+    "physical_fallback": "persistence (zero displacement)",
+    "pooled_evaluator_git_blob_sha1": "6195e70997f0e9582251c08772b1e423a3062ad6",
+    "query_definition": "material-marker displacement from frame 3 to frame 4 normalized by frame-3 rope span",
+    "query_frame": 4
+  },
+  "fusion": {
+    "duplicate_control": "repeat the byte-identical window-A message at weights 0.5/0.5",
+    "equal_ci_weights": [
+      0.5,
+      0.5
+    ],
+    "methods": [
+      "physical_fallback",
+      "window_a_only",
+      "window_b_only",
+      "continuous_only",
+      "dense_joint_correlated",
+      "two_window_query_ci_equal",
+      "pairwise_logdet_ci",
+      "naive_independent_message_sum",
+      "diagonal_joint_covariance"
+    ],
+    "pairwise_grid_size": 1001,
+    "pairwise_weight_selection_uses_outcomes": false,
+    "primary_method": "two_window_query_ci_equal"
+  },
+  "information_boundary": {
+    "bayesian_phystwin_executed": false,
+    "causal4d_executed": false,
+    "confirmation_access_authorized": false,
+    "provider_rerun_authorized": false,
+    "r21_r30_payloads_opened": false,
+    "r31_r70_payloads_opened": false,
+    "sealed_provider_reuse_only": true,
+    "source_sequences_previously_opened": true,
+    "target_side_retuning_allowed": false
+  },
+  "promotion": {
+    "automatic_confirmation_authorization": false,
+    "on_source_mixed_or_negative": "Retain the source result and leave R21-R70 unopened.",
+    "on_source_positive": "A separately versioned R21-R30 protocol must be frozen and reviewed before any confirmation access."
+  },
+  "protocol_id": "77f23d6e4a77e3d4ea579fc86dab54cb485264e4b649f5621258f861b42bb70d",
+  "registered_outputs": [
+    "per-sequence and equal-sequence aggregate RMSE",
+    "Gaussian NLL per dimension",
+    "normalized NEES and nominal-90-percent coverage",
+    "interval width",
+    "execute rate and harmful-execute rate",
+    "deployed decision loss",
+    "query-message and duplicate-idempotence parity",
+    "factor-rank strata",
+    "complete-sequence paired bootstrap intervals"
+  ],
+  "schema": "prob4d.dot-r11-r20-query-message-real-source-protocol",
+  "schema_version": 1,
+  "scientific_question": "Do prior-anchored query messages and covariance-intersection fusion preserve useful real CUT3R displacement information while avoiding the overconfidence caused by treating overlapping windows as independent?",
+  "sealed_provider": {
+    "artifact_digest": "sha256:70c2cec1cf33b65ae6653a3839fb4f74d57023d1d49cced6c61e6948f4d7b8a6",
+    "artifact_id": 9818146750,
+    "artifact_name": "dot-r11-r20-routed-provider-fast-33552798863-1",
+    "components": [
+      {
+        "camera": "cam001",
+        "provider_bundle_id": "14d78d100a62e11e0e51d76491e72f9bb34d30e141a8a510d9bdb69bacb35dff",
+        "sequences": [
+          "R13",
+          "R14",
+          "R15",
+          "R16",
+          "R18",
+          "R19"
+        ]
+      },
+      {
+        "camera": "cam002",
+        "provider_bundle_id": "e0c476a039e9610a2849c6dba3996936fbf7f648b68b61d93bc0519fff389dae",
+        "sequences": [
+          "R17"
+        ]
+      },
+      {
+        "camera": "cam005",
+        "provider_bundle_id": "60c56f8c1cc2b07e418d67b01d81c3dc7dd7b369dbeaac9899f029af8f79b818",
+        "sequences": [
+          "R11",
+          "R12",
+          "R20"
+        ]
+      }
+    ],
+    "covariance_interpretation": "The provider supplies marker-free point maps and confidence only. Gaussian error moments are estimated leave-one-sequence-out from already-open source marker outcomes and are not claimed to be native CUT3R uncertainty.",
+    "provider_covariance_present": false,
+    "provider_seal_id": "38ea78e8bf44cbeaedeeadaee862af3cc6369d35d7e3b5a2b5fac0f020c7145b",
+    "workflow_run_id": 33552798863
+  },
+  "source_decision_criteria": {
+    "coverage_numerical_tolerance": 1e-10,
+    "decision_loss_numerical_tolerance": 1e-12,
+    "harm_numerical_tolerance": 1e-10,
+    "maximum_decision_loss_ratio_vs_best_single": 1.1,
+    "maximum_duplicate_parity_error": 1e-12,
+    "maximum_message_parity_error": 1e-09,
+    "maximum_nll_regret_vs_best_single": 0.2,
+    "minimum_supported_sequences": 8,
+    "mixed_decision": "Algebraic checks pass but one or more empirical utility criteria fail.",
+    "negative_decision": "Support or algebraic certificate fails.",
+    "nll_numerical_tolerance": 1e-10,
+    "positive_decision": "All algebraic checks pass; CI is no worse than naive fusion in NLL, coverage distance, and harmful execution; and CI retains near-best single-window utility."
+  },
+  "stage": "development-only-source-cross-validated",
+  "statistics": {
+    "bootstrap_replicates": 20000,
+    "bootstrap_seed": 20260902,
+    "bootstrap_unit": "complete sequence",
+    "equal_sequence_weight": true,
+    "independent_unit": "complete DOT sequence",
+    "within_sequence_markers_are_independent_units": false
+  },
+  "terminal_rank_diagnostic": {
+    "decision": "camera-routing-provider-rank-negative",
+    "factor_rank_by_sequence": {
+      "R11": 7,
+      "R12": 7,
+      "R13": 7,
+      "R14": 7,
+      "R15": 7,
+      "R16": 7,
+      "R17": 7,
+      "R18": 6,
+      "R19": 7,
+      "R20": 7
+    },
+    "interpretation": "The fixed rank-six prerequisite remains terminal negative. This rank-agnostic study neither relaxes nor rescues that result.",
+    "result_id": "a1fc018dc7fb504b35f6fbfc422e7a59edaeb71009c6f29c512019d42f949ced",
+    "supported_rank_six_sequences": [
+      "R18"
+    ]
+  }
+}
