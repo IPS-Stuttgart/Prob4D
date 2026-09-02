@@ -1,8 +1,8 @@
 """Calibrated Euclidean tubes around estimated axial gauge orbits.
 
-An estimated axial orbit is a circle in three-dimensional space. The circle may
+An estimated axial orbit is a circle in three-dimensional space.  The circle may
 capture a residual rotation while remaining imperfect because its line, axial
-coordinate, or radius were estimated from partial observations. This module
+coordinate, or radius were estimated from partial observations.  This module
 provides:
 
 * exact point-to-circle distance;
@@ -11,7 +11,7 @@ provides:
 * split-conformal calibration of one radius from maxima over independent groups.
 
 The finite-sample statement is conditional on exchangeable independent groups
-and the supplied nonconformity score. It is not a provider-quality, physical
+and the supplied nonconformity score.  It is not a provider-quality, physical
 state-recovery, or deployment-safety guarantee.
 """
 
@@ -32,7 +32,7 @@ FloatArray: TypeAlias = NDArray[np.float64]
 
 
 def _scalar(value: object, name: str, *, nonnegative: bool = False) -> float:
-    if isinstance(value, (bool, np.bool_)) or not isinstance(value, Real):
+    if isinstance(value, bool | np.bool_) or not isinstance(value, Real):
         raise TypeError(f"{name} must be a real scalar")
     result = float(value)
     if not math.isfinite(result):
@@ -143,7 +143,7 @@ class AxialCircleOrbit:
     ) -> ScalarBounds:
         """Exact bounds of ``offset + direction @ point`` over an orbit tube.
 
-        ``tube_radius`` expands the circle by a closed Euclidean ball. The
+        ``tube_radius`` expands the circle by a closed Euclidean ball.  The
         expansion is exact for an affine scalar query because its Lipschitz
         constant under Euclidean distance is ``||direction||``.
         """
@@ -248,7 +248,7 @@ def calibrate_group_maximum_radius(
         raise ValueError("scores must be a nonempty one-dimensional array")
     if not np.all(np.isfinite(values)) or np.any(values < 0.0):
         raise ValueError("scores must be finite and nonnegative")
-    if isinstance(group_ids, (str, bytes)):
+    if isinstance(group_ids, str | bytes):
         raise TypeError("group_ids must be a sequence")
     supplied = tuple(group_ids)
     if len(supplied) != values.size:
