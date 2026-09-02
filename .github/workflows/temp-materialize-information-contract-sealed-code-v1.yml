@@ -1,0 +1,178 @@
+name: Temporary materialize sealed information-contract code v1
+
+on:
+  push:
+    branches: [science/information-contract-benchmark-sealed-v1]
+    paths:
+      - "tools/tmp/information-contract-sealed-code-v1.ready"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: materialize-information-contract-sealed-code-v1
+  cancel-in-progress: false
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out exact payload revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Verify and extract the reviewed archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="${RUNNER_TEMP}/information-contract-sealed-code-v1"
+          rm -rf "${work}"
+          mkdir -p "${work}/extract"
+          base64 --decode \
+            tools/tmp/information-contract-sealed-v1.tar.gz.b64 \
+            > "${work}/payload.tar.gz"
+          echo "b2f9b30ae73ca46558d20a984919c502258c6e80cf35b8163f05465766f42683  ${work}/payload.tar.gz" \
+            | sha256sum --check --strict
+          ARCHIVE="${work}/payload.tar.gz" EXTRACT="${work}/extract" python - <<'PY'
+          from __future__ import annotations
+
+          import os
+          import tarfile
+          from pathlib import Path
+
+          archive = Path(os.environ["ARCHIVE"])
+          destination = Path(os.environ["EXTRACT"])
+          expected = {
+              "SHA256SUMS",
+              "payload/.github/workflows/information-contract-benchmark-v1.yml",
+              "payload/benchmarks/information_contract_v1/STATUS.md",
+              "payload/benchmarks/information_contract_v1/challenge.schema.json",
+              "payload/benchmarks/information_contract_v1/submission.schema.json",
+              "payload/docs/information-contract-sealed-submissions.md",
+              "payload/src/prob4d/information_contract_sealed.py",
+              "payload/src/prob4d/information_contract_sealed_smoke.py",
+              "payload/tests/test_information_contract_sealed.py",
+          }
+          with tarfile.open(archive, "r:gz") as bundle:
+              members = bundle.getmembers()
+              names = {member.name for member in members if member.isfile()}
+              if names != expected:
+                  raise SystemExit(
+                      f"unexpected payload inventory: missing={sorted(expected - names)}, "
+                      f"extra={sorted(names - expected)}"
+                  )
+              if any(
+                  member.issym()
+                  or member.islnk()
+                  or member.isdev()
+                  or member.name.startswith("/")
+                  or ".." in Path(member.name).parts
+                  for member in members
+              ):
+                  raise SystemExit("payload contains an unsafe tar member")
+              for member in members:
+                  if not member.isfile():
+                      continue
+                  source = bundle.extractfile(member)
+                  if source is None:
+                      raise SystemExit(f"cannot read {member.name}")
+                  target = destination / member.name
+                  target.parent.mkdir(parents=True, exist_ok=True)
+                  target.write_bytes(source.read())
+          PY
+          (
+            cd "${work}/extract"
+            sha256sum --check --strict SHA256SUMS
+          )
+          cp "${work}/extract/payload/benchmarks/information_contract_v1/STATUS.md" \
+            benchmarks/information_contract_v1/STATUS.md
+          cp "${work}/extract/payload/benchmarks/information_contract_v1/challenge.schema.json" \
+            benchmarks/information_contract_v1/challenge.schema.json
+          cp "${work}/extract/payload/benchmarks/information_contract_v1/submission.schema.json" \
+            benchmarks/information_contract_v1/submission.schema.json
+          cp "${work}/extract/payload/docs/information-contract-sealed-submissions.md" \
+            docs/information-contract-sealed-submissions.md
+          cp "${work}/extract/payload/src/prob4d/information_contract_sealed.py" \
+            src/prob4d/information_contract_sealed.py
+          cp "${work}/extract/payload/src/prob4d/information_contract_sealed_smoke.py" \
+            src/prob4d/information_contract_sealed_smoke.py
+          cp "${work}/extract/payload/tests/test_information_contract_sealed.py" \
+            tests/test_information_contract_sealed.py
+
+      - name: Normalize and validate the focused implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -e ".[dev]"
+          python -m pip check
+          files=(
+            src/prob4d/information_contract_sealed.py
+            src/prob4d/information_contract_sealed_smoke.py
+            tests/test_information_contract_sealed.py
+          )
+          python -m ruff check --fix "${files[@]}"
+          python -m ruff check "${files[@]}"
+          python -m pytest -q \
+            tests/test_information_contract_benchmark.py \
+            tests/test_information_contract_sealed.py
+          root="${RUNNER_TEMP}/sealed-smoke"
+          rm -rf "${root}"
+          python -m prob4d.information_contract_sealed smoke "${root}"
+          python -m prob4d.information_contract_sealed evaluate \
+            "${root}/challenge/challenge.json" \
+            "${root}/submission/submission.json" \
+            "${root}/replayed.json"
+          cmp "${root}/result.json" "${root}/replayed.json"
+          ROOT="${root}" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          result = json.loads(
+              (Path(os.environ["ROOT"]) / "result.json").read_text(encoding="utf-8")
+          )
+          assert result["information_order"]["claim_class"] == "retrospective-diagnostic"
+          assert result["information_order"]["prospective_claim_eligible"] is False
+          assert result["aggregate"]["contract"]["all_cases_pass"] is True
+          finite = result["aggregate"]["finite_query"]
+          assert finite["local_admits_finite_rejects_count"] == 2
+          assert finite["equal_group_mean"]["finite_query_false_accept_fraction"] == 0.0
+          assert finite["equal_group_mean"]["finite_query_false_reject_fraction"] == 0.0
+          PY
+
+      - name: Commit only non-workflow benchmark files
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected=(
+            benchmarks/information_contract_v1/STATUS.md
+            benchmarks/information_contract_v1/challenge.schema.json
+            benchmarks/information_contract_v1/submission.schema.json
+            docs/information-contract-sealed-submissions.md
+            src/prob4d/information_contract_sealed.py
+            src/prob4d/information_contract_sealed_smoke.py
+            tests/test_information_contract_sealed.py
+          )
+          git add "${expected[@]}"
+          mapfile -t staged < <(git diff --cached --name-only | LC_ALL=C sort)
+          test "${#staged[@]}" -eq "${#expected[@]}"
+          for index in "${!expected[@]}"; do
+            test "${staged[$index]}" = "${expected[$index]}"
+          done
+          test -z "$(git diff --cached --name-only -- '.github/workflows/**')"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Separate benchmark truth from provider submissions"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
