@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate checked Proof4D v1 admit/reject certificate examples."""
+"""Generate checked Proof4D v1 local-query and axial-action examples."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from pathlib import Path
 
 import numpy as np
 
+from prob4d.axial_query_certificate import HarmonicQuery
 from prob4d.observable_gauge import (
     IID_OBSERVABLE_INFORMATION,
     CentroidGaugeChart,
@@ -19,12 +20,19 @@ from prob4d.proof_carrying_factor import (
     build_observable_gauge_query_certificate,
     render_proof_carrying_factor,
 )
+from prob4d.proof_carrying_orbit import (
+    DEFAULT_ORBIT_ASSUMPTION_IDS,
+    build_axial_orbit_action_certificate,
+    render_proof_carrying_orbit,
+)
 from prob4d.sim3 import Sim3
 
 ROOT = Path(__file__).resolve().parents[1]
 EXAMPLE_DIRECTORY = ROOT / "examples" / "proof4d"
-SUPPORTED_PATH = EXAMPLE_DIRECTORY / "linear-query-supported.json"
-REJECTED_PATH = EXAMPLE_DIRECTORY / "linear-query-rejected.json"
+LOCAL_SUPPORTED_PATH = EXAMPLE_DIRECTORY / "linear-query-supported.json"
+LOCAL_REJECTED_PATH = EXAMPLE_DIRECTORY / "linear-query-rejected.json"
+ORBIT_SUPPORTED_PATH = EXAMPLE_DIRECTORY / "axial-action-supported.json"
+ORBIT_REJECTED_PATH = EXAMPLE_DIRECTORY / "axial-action-rejected.json"
 
 
 def _digest(value: bytes) -> str:
@@ -52,17 +60,30 @@ def _factor() -> ObservableGaugeFactor:
     )
 
 
+def _orbit_query(constant: float, cosine: float, sine: float) -> HarmonicQuery:
+    return HarmonicQuery(
+        constant=constant,
+        cosine=cosine,
+        sine=sine,
+        orbit_key=(
+            "example:shared-axial-gauge-v1",
+            (0.0, 0.0, 0.0, 0.0, 0.0, 1.0),
+        ),
+    )
+
+
 def _render_examples() -> dict[Path, str]:
     factor = _factor()
     fallback_id = "example:caller-owned-physical-fallback-v1"
+    fallback_digest = _digest(b"proof4d controlled complete fallback belief v1")
     input_digest = _digest(b"proof4d controlled provider input v1")
     query_program_digest = _digest(b"proof4d controlled query program v1")
     producer = "prob4d-proof4d-example-generator"
-    assumption_ids = (
+    local_assumptions = (
         *DEFAULT_ASSUMPTION_IDS,
         "controlled-proof4d-example-v1",
     )
-    supported = build_observable_gauge_query_certificate(
+    local_supported = build_observable_gauge_query_certificate(
         factor,
         query_jacobian_local=np.eye(7)[[0, 4]],
         query_id="example:gauge-insensitive-local-query-v1",
@@ -70,9 +91,9 @@ def _render_examples() -> dict[Path, str]:
         input_digest=input_digest,
         query_program_digest=query_program_digest,
         producer=producer,
-        assumption_ids=assumption_ids,
+        assumption_ids=local_assumptions,
     )
-    rejected = build_observable_gauge_query_certificate(
+    local_rejected = build_observable_gauge_query_certificate(
         factor,
         query_jacobian_local=np.eye(7)[[1]],
         query_id="example:gauge-sensitive-local-query-v1",
@@ -80,11 +101,58 @@ def _render_examples() -> dict[Path, str]:
         input_digest=input_digest,
         query_program_digest=query_program_digest,
         producer=producer,
-        assumption_ids=assumption_ids,
+        assumption_ids=local_assumptions,
+    )
+
+    orbit_assumptions = (
+        *DEFAULT_ORBIT_ASSUMPTION_IDS,
+        "controlled-proof4d-example-v1",
+    )
+    support_receipt_digest = _digest(b"proof4d controlled orbit support receipt v1")
+    candidate_loss_program_digest = _digest(b"candidate loss program v1")
+    fallback_loss_program_digest = _digest(b"fallback loss program v1")
+    admission_policy_digest = _digest(b"proof4d robust action policy v1")
+    orbit_supported = build_axial_orbit_action_certificate(
+        fallback_loss=_orbit_query(4.0, 0.0, 0.0),
+        candidate_loss=_orbit_query(1.0, 0.5, 0.0),
+        scope_admitted=True,
+        support_receipt_digest=support_receipt_digest,
+        candidate_action_id="example:candidate-action-v1",
+        fallback_action_id="example:fallback-action-v1",
+        candidate_loss_program_digest=candidate_loss_program_digest,
+        fallback_loss_program_digest=fallback_loss_program_digest,
+        fallback_id=fallback_id,
+        fallback_digest=fallback_digest,
+        input_digest=input_digest,
+        admission_policy_digest=admission_policy_digest,
+        advantage_error_bound=0.1,
+        required_margin=0.5,
+        producer=producer,
+        assumption_ids=orbit_assumptions,
+    )
+    orbit_rejected = build_axial_orbit_action_certificate(
+        fallback_loss=_orbit_query(1.0, 0.0, 0.0),
+        candidate_loss=_orbit_query(1.0, 1.0, 0.0),
+        scope_admitted=True,
+        support_receipt_digest=support_receipt_digest,
+        candidate_action_id="example:candidate-action-v1",
+        fallback_action_id="example:fallback-action-v1",
+        candidate_loss_program_digest=candidate_loss_program_digest,
+        fallback_loss_program_digest=fallback_loss_program_digest,
+        fallback_id=fallback_id,
+        fallback_digest=fallback_digest,
+        input_digest=input_digest,
+        admission_policy_digest=admission_policy_digest,
+        advantage_error_bound=0.0,
+        required_margin=0.0,
+        producer=producer,
+        assumption_ids=orbit_assumptions,
     )
     return {
-        SUPPORTED_PATH: render_proof_carrying_factor(supported),
-        REJECTED_PATH: render_proof_carrying_factor(rejected),
+        LOCAL_SUPPORTED_PATH: render_proof_carrying_factor(local_supported),
+        LOCAL_REJECTED_PATH: render_proof_carrying_factor(local_rejected),
+        ORBIT_SUPPORTED_PATH: render_proof_carrying_orbit(orbit_supported),
+        ORBIT_REJECTED_PATH: render_proof_carrying_orbit(orbit_rejected),
     }
 
 
@@ -103,7 +171,7 @@ def main() -> int:
             for path in mismatches:
                 print(f"out of date: {path.relative_to(ROOT)}")
             return 1
-        print("Proof4D examples match the producer implementation.")
+        print("Proof4D examples match the producer implementations.")
         return 0
     EXAMPLE_DIRECTORY.mkdir(parents=True, exist_ok=True)
     for path, content in rendered.items():
