@@ -201,6 +201,43 @@ def test_resealed_nonunit_axis_is_invalid() -> None:
     assert report.reason_codes == ("orbit-axis-not-unit",)
 
 
+def test_resealed_extreme_origin_fails_closed_with_serializable_report() -> None:
+    certificate = _certificate()
+    orbit = certificate["orbit"]
+    assert isinstance(orbit, dict)
+    orbit["origin"] = [1.7e308, 1.7e308, 1.7e308]
+    _reseal(certificate)
+
+    report = verify_proof_carrying_orbit_action(certificate)
+
+    assert not report.valid
+    assert report.reason_codes == ("numeric-overflow",)
+    json.dumps(report.to_dict(), allow_nan=False)
+
+
+def test_resealed_overflowing_loss_difference_fails_closed() -> None:
+    certificate = _certificate()
+    actions = certificate["actions"]
+    assert isinstance(actions, dict)
+    fallback = actions["fallback"]
+    candidate = actions["candidate"]
+    assert isinstance(fallback, dict)
+    assert isinstance(candidate, dict)
+    fallback_harmonic = fallback["loss_harmonic"]
+    candidate_harmonic = candidate["loss_harmonic"]
+    assert isinstance(fallback_harmonic, dict)
+    assert isinstance(candidate_harmonic, dict)
+    fallback_harmonic["constant"] = 1e308
+    candidate_harmonic["constant"] = -1e308
+    _reseal(certificate)
+
+    report = verify_proof_carrying_orbit_action(certificate)
+
+    assert not report.valid
+    assert report.reason_codes == ("numeric-overflow",)
+    json.dumps(report.to_dict(), allow_nan=False)
+
+
 def test_resealed_missing_support_receipt_is_invalid() -> None:
     certificate = _certificate()
     orbit = certificate["orbit"]
