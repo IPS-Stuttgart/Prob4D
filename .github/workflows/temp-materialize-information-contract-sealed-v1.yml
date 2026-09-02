@@ -1,3 +1,4 @@
+# manual-trigger: 1
 name: Temporary materialize sealed information-contract benchmark v1
 
 on:
@@ -5,6 +6,7 @@ on:
     branches: [science/information-contract-benchmark-sealed-v1]
     paths:
       - "tools/tmp/information-contract-sealed-v1.tar.gz.b64"
+      - ".github/workflows/temp-materialize-information-contract-sealed-v1.yml"
 
 permissions:
   contents: write
