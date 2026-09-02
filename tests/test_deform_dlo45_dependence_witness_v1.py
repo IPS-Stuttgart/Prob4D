@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import runpy
 from pathlib import Path
+import runpy
 
 import numpy as np
 import pytest
