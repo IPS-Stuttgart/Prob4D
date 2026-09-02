@@ -7,12 +7,13 @@ on:
       - src/prob4d/_symmetry_complete*.py
       - src/prob4d/symmetry_complete_belief.py
       - src/prob4d/symmetry_complete_belief_study.py
-      - tests/test_symmetry_complete_belief*.py
+      - tests/test_symmetry_complete*.py
       - src/prob4d/axial_gauge.py
       - src/prob4d/axial_query_certificate.py
       - tests/test_axial_gauge.py
       - tests/test_axial_query_certificate.py
       - docs/symmetry-complete-beliefs.md
+      - docs/compact-group-decision-certificates.md
       - CHANGELOG.d/symmetry-complete-belief-v1.md
       - .github/workflows/symmetry-complete-belief.yml
 
@@ -41,7 +42,7 @@ jobs:
             src/prob4d/symmetry_complete_belief.py
             src/prob4d/symmetry_complete_belief_study.py
           )
-          test_files=(tests/test_symmetry_complete_belief*.py)
+          test_files=(tests/test_symmetry_complete*.py)
           python -m ruff check -- "${source_files[@]}" "${test_files[@]}"
           python -m ruff format --check --diff -- \
             "${source_files[@]}" "${test_files[@]}"
