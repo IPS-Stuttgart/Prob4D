@@ -1,0 +1,187 @@
+name: Materialize information-contract controlled evidence v1
+
+on:
+  push:
+    branches: [science/information-contract-benchmark-sealed-v1]
+    paths:
+      - "benchmarks/information_contract_v1/materialize_request.json"
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    name: Validate and retain controlled benchmark report
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out exact request revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Validate exact request and install checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = science/information-contract-benchmark-sealed-v1
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path("benchmarks/information_contract_v1/materialize_request.json")
+          request = json.loads(path.read_text(encoding="utf-8"))
+          assert request == {
+              "schema_name": "prob4d.information-contract-materialize-request",
+              "schema_version": 1,
+              "request_id": "prob4d-information-contract-controlled-sealed-v1",
+              "suite": "benchmarks/information_contract_v1/controlled_suite.json",
+              "protocol": "benchmarks/information_contract_v1/protocol.json",
+              "classification": "deterministic controlled development evidence",
+              "public_dataset_records_authorized": 0,
+              "learned_provider_calls_authorized": 0,
+              "protected_targets_authorized": 0,
+              "physical_executions_authorized": 0,
+          }
+          PY
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+          python -m pip check
+
+      - name: Run lint and adversarial controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m ruff check \
+            src/prob4d/information_contract_controlled.py \
+            tests/test_information_contract_controlled.py
+          python -m pytest -q tests/test_information_contract_controlled.py
+
+      - name: Generate and verify retained evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          root=benchmarks/information_contract_v1
+          report="$root/controlled_report.json"
+          receipt="$root/validation_receipt.json"
+          sums="$root/SHA256SUMS"
+          rm -f "$report" "$receipt" "$sums"
+          python -m prob4d.information_contract_controlled \
+            "$root/controlled_suite.json" --output "$report"
+          REPORT_PATH="$report" RECEIPT_PATH="$receipt" python - <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import json
+          import os
+          import platform
+          from pathlib import Path
+
+          import numpy
+
+          report_path = Path(os.environ["REPORT_PATH"])
+          receipt_path = Path(os.environ["RECEIPT_PATH"])
+          report = json.loads(report_path.read_text(encoding="utf-8"))
+          systems = {row["system_id"]: row for row in report["systems"]}
+          assert "overall_score" not in report
+          assert "overall_rank" not in report
+          assert report["completion"]["system_count"] == 7
+          assert report["cross_system"]["shared_bias_counterexample_count"] == 1
+          assert all(value == 0 for value in report["information_boundary"].values())
+          assert (
+              systems["accurate-overconfident"]["prediction"]["probabilistic"]
+              ["equal_unit_registered_coverage"]
+              == 0.0
+          )
+          assert (
+              systems["joint-dependence-aware"]["prediction"]["probabilistic"]
+              ["equal_unit_joint_gaussian_nll"]
+              < systems["diagonal-same-mean-marginals"]["prediction"]
+              ["probabilistic"]["equal_unit_joint_gaussian_nll"]
+          )
+          assert (
+              systems["ambiguity-aware-contract"]["query_decision"]
+              ["fallback_count"]
+              == 1
+          )
+          assert (
+              systems["unsupported-specificity"]["query_decision"]
+              ["harmful_nonfallback_count"]
+              == 1
+          )
+          assert (
+              systems["ambiguity-aware-contract"]["communication"]
+              ["equal_unit_compression_ratio"]
+              == 17.0
+          )
+
+          def digest(path: Path) -> str:
+              return hashlib.sha256(path.read_bytes()).hexdigest()
+
+          root = report_path.parent
+          receipt = {
+              "schema_name": "prob4d.information-contract-controlled-validation",
+              "schema_version": 1,
+              "classification": "deterministic controlled development evidence",
+              "source_revision": os.environ["GITHUB_SHA"],
+              "suite_sha256": digest(root / "controlled_suite.json"),
+              "protocol_sha256": digest(root / "protocol.json"),
+              "report_sha256": digest(report_path),
+              "python": platform.python_version(),
+              "numpy": numpy.__version__,
+              "tests": "passed",
+              "ruff": "passed",
+              "scalar_overall_score_defined": False,
+              "public_dataset_records_accessed": 0,
+              "learned_provider_forward_calls": 0,
+              "protected_targets_opened": 0,
+              "physical_executions": 0,
+              "claim_boundary": (
+                  "Controlled conformance and anti-gaming evidence only; no "
+                  "provider competence, public-data benchmark result, physical "
+                  "calibration, state of the art, or deployment safety."
+              ),
+          }
+          receipt_path.write_text(
+              json.dumps(receipt, indent=2, sort_keys=True, allow_nan=False) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          (
+            cd "$root"
+            sha256sum controlled_suite.json protocol.json controlled_report.json \
+              validation_receipt.json > SHA256SUMS
+            sha256sum -c SHA256SUMS
+          )
+
+      - name: Commit only retained controlled evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          root=benchmarks/information_contract_v1
+          git add "$root/controlled_report.json" \
+            "$root/validation_receipt.json" "$root/SHA256SUMS"
+          mapfile -t staged < <(git diff --cached --name-only | sort)
+          expected=(
+            "$root/SHA256SUMS"
+            "$root/controlled_report.json"
+            "$root/validation_receipt.json"
+          )
+          test "${#staged[@]}" -eq "${#expected[@]}"
+          for index in "${!expected[@]}"; do
+            test "${staged[$index]}" = "${expected[$index]}"
+          done
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Retain information-contract controlled benchmark evidence"
+          git push origin "HEAD:${GITHUB_REF_NAME}"

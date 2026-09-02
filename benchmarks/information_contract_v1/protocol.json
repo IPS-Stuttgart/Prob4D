@@ -1,0 +1,136 @@
+{
+  "schema_name": "prob4d.information-contract-benchmark-protocol",
+  "schema_version": 1,
+  "protocol_id": "prob4d-information-contract-benchmark-v1",
+  "status": "controlled conformance protocol; public-data provider panels not yet registered",
+  "purpose": "Evaluate whether probabilistic 4-D outputs expose information that remains valid and useful for downstream physical queries and decisions.",
+  "ranking_policy": {
+    "scalar_overall_score": false,
+    "required_reporting_axes": [
+      "point_and_trajectory_accuracy",
+      "joint_probabilistic_validity",
+      "query_identifiability",
+      "decision_admissibility",
+      "exact_fallback_integrity",
+      "communication_cost"
+    ],
+    "conditional_axes": [
+      "cross_provider_corroboration",
+      "shared_common_bias",
+      "finite_orbit_or_finite_support_ambiguity"
+    ],
+    "missing_axis_semantics": "not_evaluated; never zero and never implicitly passed",
+    "comparison_rule": "Publish a multi-axis scorecard and Pareto comparisons. Do not collapse incompatible scientific properties into one number."
+  },
+  "statistical_units": {
+    "required": "One independent physical object, acquisition session, or complete trajectory as registered before outcome access.",
+    "forbidden_as_independent_units": [
+      "pixels",
+      "points from one frame",
+      "frames from one trajectory",
+      "overlapping windows",
+      "multiple queries on one physical execution"
+    ],
+    "aggregation": "Equal weight per registered independent unit. Pooled coordinate metrics may be reported only as descriptive supplements."
+  },
+  "axis_semantics": {
+    "point_and_trajectory_accuracy": {
+      "minimum_fields": ["truth", "mean"],
+      "metrics": ["equal-unit RMSE", "pooled coordinate RMSE"],
+      "claim_boundary": "Point accuracy does not establish calibrated uncertainty, query identifiability, decision admissibility, or safety."
+    },
+    "joint_probabilistic_validity": {
+      "minimum_fields": ["truth", "mean", "positive-definite covariance", "registered coverage radius"],
+      "metrics": [
+        "joint Gaussian NLL",
+        "product-marginal Gaussian NLL",
+        "normalized NEES",
+        "registered coverage"
+      ],
+      "claim_boundary": "A Gaussian score evaluates the registered Gaussian contract; it does not prove that the physical posterior is Gaussian."
+    },
+    "query_identifiability": {
+      "minimum_fields": [
+        "finite supported hypotheses",
+        "registered quotient classes",
+        "class masses",
+        "query weights",
+        "query tolerance"
+      ],
+      "metric": "maximum within-class query range",
+      "claim_boundary": "The benchmark validates a declared finite support. It does not infer that the quotient or support is physically complete."
+    },
+    "decision_admissibility": {
+      "minimum_fields": [
+        "finite supported hypotheses",
+        "registered quotient classes",
+        "class masses",
+        "loss by hypothesis and action",
+        "regret budget",
+        "physical fallback"
+      ],
+      "metrics": [
+        "exact pairwise worst-case loss gaps",
+        "exact worst-case regret",
+        "admissible action set",
+        "realized regret when outcomes are legally available"
+      ],
+      "claim_boundary": "Support-wise admissibility and realized target utility are distinct axes. Neither is relabeled as deployment safety."
+    },
+    "exact_fallback_integrity": {
+      "metric": "On certificate failure, the reported output action equals the caller-owned registered fallback exactly.",
+      "claim_boundary": "Fallback integrity does not establish that the fallback itself is optimal or safe."
+    },
+    "communication_cost": {
+      "metrics": ["payload bytes", "compression ratio", "posterior parity error"],
+      "claim_boundary": "Compression is successful only when the registered downstream posterior/query result remains within the frozen parity tolerance."
+    },
+    "cross_provider_corroboration": {
+      "metrics": ["matched-provider disagreement", "common-support status"],
+      "claim_boundary": "Provider agreement is not correctness. Shared dependence and common-mode bias must be reported, never converted into independent votes."
+    }
+  },
+  "information_order": [
+    "Register dataset roster, independent units, provider manifests, causal cutoff, coordinate frames, row identities, dependence groups, query portfolio, actions, losses, fallback, tolerances, and statistical analysis.",
+    "Seal provider outputs and all target-free alignment or quotient artifacts.",
+    "Evaluate contract compliance and source-only admissibility gates.",
+    "Open target outcomes once for the preregistered scorecard.",
+    "Retain positive, negative, support-negative, and technical-failure outcomes without target-side replacement or retuning."
+  ],
+  "controlled_reference": {
+    "suite": "controlled_suite.json",
+    "classification": "deterministic development evidence",
+    "public_data_records": 0,
+    "learned_provider_calls": 0,
+    "scientific_role": "Conformance and anti-gaming tests only; not an empirical provider ranking."
+  },
+  "public_data_promotion_gate": {
+    "minimum_provider_contracts": 2,
+    "minimum_independent_datasets": 2,
+    "required_negative_controls": [
+      "accurate but overconfident",
+      "marginal-preserving dependence destruction",
+      "query-sensitive unresolved ambiguity",
+      "shared-bias provider agreement",
+      "malformed contract fail-closed",
+      "exact fallback replay"
+    ],
+    "required_release_artifacts": [
+      "canonical protocol",
+      "dataset manifests and hashes",
+      "provider manifests and payload identities",
+      "sealed evaluator inputs",
+      "machine-readable scorecard",
+      "reproducer",
+      "claim-boundary statement"
+    ]
+  },
+  "nonclaims": [
+    "No state of the art is established by the controlled suite.",
+    "No learned provider competence has been evaluated by the controlled suite.",
+    "No quotient is inferred from rank deficiency alone.",
+    "No provider independence is assumed from distinct implementation names.",
+    "No scalar overall quality or safety score is defined.",
+    "No public-data, robot-control, calibration, or deployment claim is promoted without a separately frozen empirical panel."
+  ]
+}

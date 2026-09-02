@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/IPS-Stuttgart/Prob4D/benchmarks/information_contract_v1/submission.schema.json",
+  "title": "Prob4D truth-separated information-contract submission",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_name",
+    "schema_version",
+    "challenge_id",
+    "submission_id",
+    "producer",
+    "claim_boundary",
+    "cases"
+  ],
+  "properties": {
+    "schema_name": {
+      "const": "prob4d.information-contract-submission"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "challenge_id": {
+      "$ref": "#/$defs/nonemptyString"
+    },
+    "submission_id": {
+      "$ref": "#/$defs/nonemptyString"
+    },
+    "producer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider_name",
+        "provider_contract",
+        "implementation_revision",
+        "model_revision",
+        "calibration_revision",
+        "output_coordinate_frame",
+        "causal_cutoff",
+        "dependence_group_ids",
+        "submission_mode",
+        "producer_output_manifest_sha256",
+        "target_outcomes_used",
+        "target_tuning",
+        "prediction_sealed_before_truth"
+      ],
+      "properties": {
+        "provider_name": {
+          "$ref": "#/$defs/nonemptyString"
+        },
+        "provider_contract": {
+          "$ref": "#/$defs/nonemptyString"
+        },
+        "implementation_revision": {
+          "$ref": "#/$defs/nonemptyString"
+        },
+        "model_revision": {
+          "$ref": "#/$defs/nonemptyString"
+        },
+        "calibration_revision": {
+          "$ref": "#/$defs/nonemptyString"
+        },
+        "output_coordinate_frame": {
+          "$ref": "#/$defs/nonemptyString"
+        },
+        "causal_cutoff": {
+          "$ref": "#/$defs/nonemptyString"
+        },
+        "dependence_group_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/nonemptyString"
+          }
+        },
+        "submission_mode": {
+          "enum": [
+            "retrospective-replay",
+            "prospective-sealed"
+          ]
+        },
+        "producer_output_manifest_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "target_outcomes_used": {
+          "const": false
+        },
+        "target_tuning": {
+          "const": false
+        },
+        "prediction_sealed_before_truth": {
+          "type": "boolean"
+        }
+      }
+    },
+    "claim_boundary": {
+      "$ref": "#/$defs/nonemptyString"
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "case_id",
+          "payload",
+          "payload_sha256"
+        ],
+        "properties": {
+          "case_id": {
+            "$ref": "#/$defs/nonemptyString"
+          },
+          "payload": {
+            "$ref": "#/$defs/relativePath"
+          },
+          "payload_sha256": {
+            "$ref": "#/$defs/sha256"
+          },
+          "metadata": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "nonemptyString": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^\\S(?:.*\\S)?$"
+    },
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "not": {
+        "pattern": "(^/|(^|/)\\.\\.(/|$))"
+      }
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

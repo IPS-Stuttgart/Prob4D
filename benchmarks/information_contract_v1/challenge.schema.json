@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/IPS-Stuttgart/Prob4D/benchmarks/information_contract_v1/challenge.schema.json",
+  "title": "Prob4D truth-separated information-contract challenge",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_name",
+    "schema_version",
+    "challenge_id",
+    "aggregation_unit",
+    "thresholds",
+    "claim_boundary",
+    "dataset",
+    "cases"
+  ],
+  "properties": {
+    "schema_name": {
+      "const": "prob4d.information-contract-challenge"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "challenge_id": {
+      "$ref": "#/$defs/nonemptyString"
+    },
+    "aggregation_unit": {
+      "const": "group_id"
+    },
+    "thresholds": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "coverage_probability",
+        "gauge_sensitivity_tolerance",
+        "moment_atol",
+        "relative_rank_tolerance"
+      ],
+      "properties": {
+        "coverage_probability": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "exclusiveMaximum": 1
+        },
+        "gauge_sensitivity_tolerance": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "moment_atol": {
+          "type": "number",
+          "minimum": 0
+        },
+        "relative_rank_tolerance": {
+          "type": "number",
+          "minimum": 0,
+          "exclusiveMaximum": 1
+        }
+      }
+    },
+    "claim_boundary": {
+      "$ref": "#/$defs/nonemptyString"
+    },
+    "dataset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "dataset_id",
+        "dataset_version",
+        "license_id",
+        "public_data",
+        "information_order",
+        "manifest",
+        "manifest_sha256"
+      ],
+      "properties": {
+        "dataset_id": {
+          "$ref": "#/$defs/nonemptyString"
+        },
+        "dataset_version": {
+          "$ref": "#/$defs/nonemptyString"
+        },
+        "license_id": {
+          "$ref": "#/$defs/nonemptyString"
+        },
+        "public_data": {
+          "type": "boolean"
+        },
+        "information_order": {
+          "enum": [
+            "retrospective-open-target",
+            "prospective-sealed-target"
+          ]
+        },
+        "manifest": {
+          "$ref": "#/$defs/relativePath"
+        },
+        "manifest_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "case_id",
+          "group_id",
+          "payload",
+          "payload_sha256",
+          "tasks"
+        ],
+        "properties": {
+          "case_id": {
+            "$ref": "#/$defs/nonemptyString"
+          },
+          "group_id": {
+            "$ref": "#/$defs/nonemptyString"
+          },
+          "payload": {
+            "$ref": "#/$defs/relativePath"
+          },
+          "payload_sha256": {
+            "$ref": "#/$defs/sha256"
+          },
+          "tasks": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "forecast",
+                "calibration",
+                "dependence",
+                "query",
+                "gauge",
+                "fallback",
+                "decision",
+                "communication",
+                "finite_query"
+              ]
+            }
+          },
+          "metadata": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "nonemptyString": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^\\S(?:.*\\S)?$"
+    },
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "not": {
+        "pattern": "(^/|(^|/)\\.\\.(/|$))"
+      }
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

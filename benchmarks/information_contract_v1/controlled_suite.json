@@ -1,0 +1,197 @@
+{
+  "schema_name": "prob4d.information-contract-benchmark-suite",
+  "schema_version": 1,
+  "suite_id": "prob4d-information-contract-controlled-v1",
+  "classification": "deterministic controlled development evidence; not a public-data provider leaderboard",
+  "systems": [
+    {
+      "system_id": "accurate-overconfident",
+      "prediction_cases": [
+        {
+          "case_id": "forecast-a",
+          "statistical_unit_id": "forecast-unit-a",
+          "truth": [0.0, 0.0],
+          "mean": [0.02, -0.02],
+          "covariance": [[0.000001, 0.0], [0.0, 0.000001]],
+          "coverage_radius_squared": 4.605170185988092
+        },
+        {
+          "case_id": "forecast-b",
+          "statistical_unit_id": "forecast-unit-b",
+          "truth": [0.0, 0.0],
+          "mean": [-0.03, 0.01],
+          "covariance": [[0.000001, 0.0], [0.0, 0.000001]],
+          "coverage_radius_squared": 4.605170185988092
+        }
+      ]
+    },
+    {
+      "system_id": "joint-dependence-aware",
+      "prediction_cases": [
+        {
+          "case_id": "forecast-a",
+          "statistical_unit_id": "forecast-unit-a",
+          "truth": [0.0, 0.0],
+          "mean": [0.08, 0.08],
+          "covariance": [[0.01, 0.009], [0.009, 0.01]],
+          "coverage_radius_squared": 4.605170185988092
+        },
+        {
+          "case_id": "forecast-b",
+          "statistical_unit_id": "forecast-unit-b",
+          "truth": [0.0, 0.0],
+          "mean": [-0.06, -0.06],
+          "covariance": [[0.01, 0.009], [0.009, 0.01]],
+          "coverage_radius_squared": 4.605170185988092
+        }
+      ]
+    },
+    {
+      "system_id": "diagonal-same-mean-marginals",
+      "prediction_cases": [
+        {
+          "case_id": "forecast-a",
+          "statistical_unit_id": "forecast-unit-a",
+          "truth": [0.0, 0.0],
+          "mean": [0.08, 0.08],
+          "covariance": [[0.01, 0.0], [0.0, 0.01]],
+          "coverage_radius_squared": 4.605170185988092
+        },
+        {
+          "case_id": "forecast-b",
+          "statistical_unit_id": "forecast-unit-b",
+          "truth": [0.0, 0.0],
+          "mean": [-0.06, -0.06],
+          "covariance": [[0.01, 0.0], [0.0, 0.01]],
+          "coverage_radius_squared": 4.605170185988092
+        }
+      ]
+    },
+    {
+      "system_id": "ambiguity-aware-contract",
+      "query_decision_cases": [
+        {
+          "case_id": "two-state-gauge",
+          "statistical_unit_id": "gauge-unit-a",
+          "hypothesis_states": [[0.0, 1.0], [0.0, -1.0]],
+          "prior_support": [true, true],
+          "quotient_class_ids": ["unresolved-orbit", "unresolved-orbit"],
+          "quotient_masses": {"unresolved-orbit": 1.0},
+          "queries": [
+            {
+              "query_id": "invariant-coordinate",
+              "weights": [1.0, 0.0],
+              "offset": 0.0,
+              "tolerance": 0.0
+            },
+            {
+              "query_id": "gauge-sensitive-coordinate",
+              "weights": [0.0, 1.0],
+              "offset": 0.0,
+              "tolerance": 0.0
+            }
+          ],
+          "decision": {
+            "action_labels": ["physical-fallback", "learned-update"],
+            "loss_by_hypothesis_action": [[0.0, 2.0], [2.0, 0.0]],
+            "regret_budget": 0.1,
+            "fallback_action": "physical-fallback",
+            "reported_output_action": "physical-fallback",
+            "realized_loss_by_action": [0.0, 2.0]
+          }
+        }
+      ],
+      "communication_cases": [
+        {
+          "case_id": "query-sufficient-factor",
+          "statistical_unit_id": "payload-unit-a",
+          "dense_payload_bytes": 17000,
+          "contract_payload_bytes": 1000,
+          "posterior_max_abs_error": 1e-12,
+          "parity_tolerance": 1e-9
+        }
+      ]
+    },
+    {
+      "system_id": "unsupported-specificity",
+      "query_decision_cases": [
+        {
+          "case_id": "two-state-gauge",
+          "statistical_unit_id": "gauge-unit-a",
+          "hypothesis_states": [[0.0, 1.0], [0.0, -1.0]],
+          "prior_support": [true, true],
+          "quotient_class_ids": ["invented-state-a", "invented-state-b"],
+          "quotient_masses": {"invented-state-a": 0.05, "invented-state-b": 0.95},
+          "queries": [
+            {
+              "query_id": "invariant-coordinate",
+              "weights": [1.0, 0.0],
+              "offset": 0.0,
+              "tolerance": 0.0
+            },
+            {
+              "query_id": "gauge-sensitive-coordinate",
+              "weights": [0.0, 1.0],
+              "offset": 0.0,
+              "tolerance": 0.0
+            }
+          ],
+          "decision": {
+            "action_labels": ["physical-fallback", "learned-update"],
+            "loss_by_hypothesis_action": [[0.0, 2.0], [2.0, 0.0]],
+            "regret_budget": 0.1,
+            "fallback_action": "physical-fallback",
+            "reported_output_action": "learned-update",
+            "realized_loss_by_action": [0.0, 2.0]
+          }
+        }
+      ]
+    },
+    {
+      "system_id": "shared-bias-peer-a",
+      "prediction_cases": [
+        {
+          "case_id": "shared-bias",
+          "statistical_unit_id": "shared-bias-unit",
+          "truth": [0.0, 0.0],
+          "mean": [1.0, 1.0],
+          "covariance": [[1.0, 0.0], [0.0, 1.0]],
+          "coverage_radius_squared": 4.605170185988092
+        }
+      ]
+    },
+    {
+      "system_id": "shared-bias-peer-b",
+      "prediction_cases": [
+        {
+          "case_id": "shared-bias",
+          "statistical_unit_id": "shared-bias-unit",
+          "truth": [0.0, 0.0],
+          "mean": [1.01, 0.99],
+          "covariance": [[1.0, 0.0], [0.0, 1.0]],
+          "coverage_radius_squared": 4.605170185988092
+        }
+      ]
+    }
+  ],
+  "cross_system_cases": [
+    {
+      "case_id": "corroborated-common-bias",
+      "statistical_unit_id": "shared-bias-unit",
+      "first_system_id": "shared-bias-peer-a",
+      "second_system_id": "shared-bias-peer-b",
+      "truth": [0.0, 0.0],
+      "first_mean": [1.0, 1.0],
+      "second_mean": [1.01, 0.99],
+      "corroboration_rmse_threshold": 0.05,
+      "inaccuracy_rmse_threshold": 0.5,
+      "shared_dependence_groups": ["input-video:controlled-shared-source"]
+    }
+  ],
+  "information_boundary": {
+    "public_dataset_records_accessed": 0,
+    "learned_provider_forward_calls": 0,
+    "protected_targets_opened": 0,
+    "physical_executions": 0
+  }
+}
