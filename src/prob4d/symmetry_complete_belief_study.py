@@ -1,8 +1,9 @@
 """Controlled verification study for symmetry-complete beliefs.
 
 This executable validates only algebra and numerical contracts. It does not
-open a dataset, infer a physical group, calibrate a cover, or authorize a paper
-claim about a learned provider.
+open a dataset, infer a physical group, calibrate a cover, verify a real
+state--action execution binding, or authorize a paper claim about a learned
+provider.
 """
 
 from __future__ import annotations
@@ -14,6 +15,9 @@ from typing import Any
 
 import numpy as np
 
+from ._symmetry_complete_study_actions import (
+    _equivariant_action_coupling_study,
+)
 from ._symmetry_complete_study_common import PROTOCOL
 from ._symmetry_complete_study_decisions import (
     _decision_cover_verification_study,
@@ -43,6 +47,7 @@ def run_study(*, seed: int, cases: int) -> dict[str, Any]:
     cover = _cover_verification_study(rng, cases=cases)
     decision_cover = _decision_cover_verification_study(rng, cases=cases)
     shared = _shared_group_dependence_study()
+    action_coupling = _equivariant_action_coupling_study()
     criteria = {
         "invariant_conditionals_preserved_exactly": (
             invariant["maximum_conditional_l1_change"] == 0.0
@@ -98,6 +103,34 @@ def run_study(*, seed: int, cases: int) -> dict[str, Any]:
         "independent_group_draw_destroys_cancellation": (
             shared["independent_mean_squared_sum_norm"] > 1.9
         ),
+        "gauge_coupled_action_orbit_is_uniquely_identified": (
+            action_coupling["coupled_action_status"] == "certified-admissible"
+            and action_coupling["coupled_admissible_action_count"] == 1
+            and action_coupling["coupled_selected_action_template"] == 0
+        ),
+        "decision_equivariance_does_not_require_absolute_loss_invariance": (
+            action_coupling["maximum_absolute_loss_range"] > 3.9
+            and action_coupling["maximum_pairwise_difference_range"] <= 1e-12
+        ),
+        "pairwise_equivariance_is_stricter_than_actionwise_lipschitz": (
+            action_coupling["actionwise_lipschitz_status"] == "undetermined"
+            and action_coupling["pairwise_equivariance_status"]
+            == "certified-admissible"
+        ),
+        "fixed_frame_and_independent_gauges_do_not_identify_the_action": (
+            action_coupling["fixed_frame_status"] == "scope-not-certified"
+            and action_coupling["fixed_frame_optimal_action_count"] == 3
+            and action_coupling["independent_gauge_optimal_action_count"] == 3
+            and action_coupling["shared_gauge_optimal_action_count"] == 1
+        ),
+        "missing_execution_coupling_fails_closed": (
+            action_coupling["missing_coupling_receipt_status"]
+            == "scope-not-certified"
+        ),
+        "action_certificate_is_group_coordinate_invariant": (
+            action_coupling["maximum_regret_change_under_group_coordinate_offset"]
+            <= 2e-12
+        ),
     }
     return {
         "schema": PROTOCOL["schema"],
@@ -111,6 +144,7 @@ def run_study(*, seed: int, cases: int) -> dict[str, Any]:
         "continuous_cover_verification": cover,
         "continuous_decision_verification": decision_cover,
         "shared_group_dependence": shared,
+        "gauge_coupled_action_verification": action_coupling,
         "criteria": criteria,
         "decision": (
             "controlled-contract-passed" if all(criteria.values()) else "controlled-contract-failed"
