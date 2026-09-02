@@ -1,4 +1,4 @@
-"""Independent verifier for portable Prob4D observation artifacts."""
+"""Independent verifiers for portable Prob4D artifacts."""
 
 from .observation_belief import (
     DEFAULT_LIMITS,
@@ -12,16 +12,40 @@ from .observation_belief import (
     verify_observation_belief,
     write_verification_report,
 )
+from .proof_carrying import (
+    EXACT_FALLBACK_POLICY,
+    PROOF_CARRYING_FACTOR_CLAIM_SCOPE,
+    PROOF_CARRYING_FACTOR_KIND,
+    PROOF_CARRYING_FACTOR_SCHEMA,
+    PROOF_CARRYING_FACTOR_VERSION,
+    ProofCarryingFactorVerification,
+    VERIFICATION_CLAIM_BOUNDARY as PROOF_CARRYING_VERIFICATION_CLAIM_BOUNDARY,
+    VERIFICATION_SCHEMA as PROOF_CARRYING_VERIFICATION_SCHEMA,
+    VERIFICATION_VERSION as PROOF_CARRYING_VERIFICATION_VERSION,
+    VERIFIER_IMPLEMENTATION as PROOF_CARRYING_VERIFIER_IMPLEMENTATION,
+    verify_proof_carrying_factor,
+)
 
 __all__ = [
     "DEFAULT_LIMITS",
+    "EXACT_FALLBACK_POLICY",
+    "PROOF_CARRYING_FACTOR_CLAIM_SCOPE",
+    "PROOF_CARRYING_FACTOR_KIND",
+    "PROOF_CARRYING_FACTOR_SCHEMA",
+    "PROOF_CARRYING_FACTOR_VERSION",
+    "PROOF_CARRYING_VERIFICATION_CLAIM_BOUNDARY",
+    "PROOF_CARRYING_VERIFICATION_SCHEMA",
+    "PROOF_CARRYING_VERIFICATION_VERSION",
+    "PROOF_CARRYING_VERIFIER_IMPLEMENTATION",
     "VERIFICATION_CLAIM_BOUNDARY",
     "VERIFICATION_SCHEMA",
     "VERIFICATION_VERSION",
     "VERIFIER_IMPLEMENTATION",
     "ArrayVerification",
+    "ProofCarryingFactorVerification",
     "VerificationLimits",
     "VerificationReport",
     "verify_observation_belief",
+    "verify_proof_carrying_factor",
     "write_verification_report",
 ]
