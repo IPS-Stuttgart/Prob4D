@@ -3,8 +3,8 @@
   "dataset_root": "/home/github-runner/.cache/datasets/tracking-cloth-deformation-v1-zenodo-14644526",
   "protocol_id": "66cdd16726efe147ea1a08485859d915a040dd676374e1a5f484b224dd1a9dae",
   "raw_data_publication_authorized": false,
-  "request_id": "tracking-cloth-augmented-rod-source-audit-v1-20260902-a",
-  "requested_action": "rank identity-free rigid-pair rules on the four labelled Hitting source recordings only",
+  "request_id": "tracking-cloth-augmented-rod-source-audit-v1-20260902-b",
+  "requested_action": "repeat the unchanged labelled Hitting source audit after a preflight lint repair",
   "runner_labels": [
     "self-hosted",
     "Linux",
