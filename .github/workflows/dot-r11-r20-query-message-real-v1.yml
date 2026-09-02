@@ -1,0 +1,314 @@
+name: DOT R11-R20 query-message real-source v1
+
+on:
+  push:
+    branches:
+      - science/dot-r11-r20-query-message-real-v1
+    paths:
+      - "protocols/execution_requests/dot-r11-r20-query-message-real-v1.json"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: dot-r11-r20-query-message-real-v1
+  cancel-in-progress: false
+
+env:
+  PROTOCOL_PATH: protocols/dot-r11-r20-query-message-real-v1.json
+  REQUEST_PATH: protocols/execution_requests/dot-r11-r20-query-message-real-v1.json
+  PROVIDER_RUN_ID: "33552798863"
+  PROVIDER_ARTIFACT_NAME: dot-r11-r20-routed-provider-fast-33552798863-1
+  DATASET_ROOT: /mnt/seagate10tb/florianpfaff/datasets/dot
+  ARCHIVE_NAME: R11-20.zip
+  ARCHIVE_MD5: 23ce3e7067465d3edabe20b4c7cfa388
+  EVALUATION_PYTHON: /home/github-runner/.cache/prob4d/cut3r-runtime-v1/venv/bin/python
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+
+jobs:
+  preflight:
+    name: Validate source-only real-data capsule
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Check out exact request revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install exact development package
+        run: |
+          set -euo pipefail
+          python -m pip install -e ".[dev]"
+          python -m pip check
+
+      - name: Validate protocol, request, implementation, and tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          protocol_blob=$(git hash-object "$PROTOCOL_PATH")
+          python scripts/science/run_dot_r11_r20_query_message_real_v1.py \
+            validate-request \
+            --protocol "$PROTOCOL_PATH" \
+            --request "$REQUEST_PATH" \
+            --protocol-git-blob-sha1 "$protocol_blob"
+          python -m ruff check --ignore F401,B905,E501,I001 \
+            scripts/science/run_dot_r11_r20_query_message_real_v1.py \
+            tests/test_dot_r11_r20_query_message_real_v1.py
+          python -m pytest -q \
+            tests/test_query_message.py \
+            tests/test_dot_r11_r20_query_message_real_v1.py
+          python -m compileall -q \
+            scripts/science/run_dot_r11_r20_query_message_real_v1.py
+
+      - name: Enforce workflow custody boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          text = Path(
+              ".github/workflows/dot-r11-r20-query-message-real-v1.yml"
+          ).read_text(encoding="utf-8")
+          required = (
+              "science/dot-r11-r20-query-message-real-v1",
+              "gpuserver4090",
+              "/mnt/seagate10tb/florianpfaff/datasets/dot",
+              "R11-20.zip",
+              "r21_r30_payloads_opened",
+              "r31_r70_payloads_opened",
+          )
+          for phrase in required:
+              if phrase not in text:
+                  raise SystemExit(f"missing workflow boundary phrase: {phrase}")
+          closed_archive = "R21" + "-30.zip"
+          closed_reserve = "R31" + "-"
+          if closed_archive in text or closed_reserve in text:
+              raise SystemExit("workflow contains a closed-cohort archive reference")
+          PY
+
+  evaluate:
+    name: Evaluate sealed CUT3R query messages on DOT R11-R20
+    needs: preflight
+    if: >-
+      github.repository == 'IPS-Stuttgart/Prob4D' &&
+      github.ref_name == 'science/dot-r11-r20-query-message-real-v1'
+    runs-on: [self-hosted, gpuserver4090]
+    timeout-minutes: 120
+    steps:
+      - name: Initialize isolated workspace
+        id: workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/dot-query-message-real-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          rm -rf -- "$root"
+          mkdir -p "$root/provider" "$root/evidence" "$root/logs"
+          echo "root=$root" >> "$GITHUB_OUTPUT"
+
+      - name: Check out exact request revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          clean: true
+
+      - name: Verify exact source and retained local runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          test -x "$EVALUATION_PYTHON"
+          "$EVALUATION_PYTHON" - <<'PY'
+          import numpy
+          print(f"retained python/numpy ready: {numpy.__version__}")
+          PY
+
+      - name: Download exact sealed routed-provider artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ${{ env.PROVIDER_ARTIFACT_NAME }}
+          path: ${{ steps.workspace.outputs.root }}/provider
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.PROVIDER_RUN_ID }}
+
+      - name: Verify official source archive without opening closed cohorts
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$DATASET_ROOT/$ARCHIVE_NAME"
+          test -f "$archive"
+          test ! -L "$archive"
+          printf '%s  %s\n' "$ARCHIVE_MD5" "$archive" | md5sum --check --strict
+          "$EVALUATION_PYTHON" - <<'PY'
+          import os
+          import zipfile
+          from pathlib import Path, PurePosixPath
+
+          archive = Path(os.environ["DATASET_ROOT"]) / os.environ["ARCHIVE_NAME"]
+          with zipfile.ZipFile(archive, "r") as handle:
+              names = handle.namelist()
+          for name in names:
+              path = PurePosixPath(name)
+              if path.is_absolute() or ".." in path.parts:
+                  raise SystemExit(f"unsafe archive member: {name}")
+          prefixes = {name.split("/", 1)[0] for name in names if "/" in name}
+          expected = {f"R{index:02d}" for index in range(11, 21)}
+          observed = {item for item in prefixes if item.startswith("R")}
+          if observed != expected:
+              raise SystemExit(
+                  f"archive sequence roster changed: expected={sorted(expected)}, "
+                  f"observed={sorted(observed)}"
+              )
+          print(f"verified {len(names)} source-archive members")
+          PY
+
+      - name: Execute twice and require byte-identical scientific evidence
+        id: experiment
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          protocol_blob=$(git hash-object "$PROTOCOL_PATH")
+          set +e
+          PYTHONPATH=src "$EVALUATION_PYTHON" \
+            scripts/science/run_dot_r11_r20_query_message_real_v1.py \
+              evaluate \
+              --dataset-root "$DATASET_ROOT" \
+              --provider-root "$root/provider" \
+              --protocol "$PROTOCOL_PATH" \
+              --request "$REQUEST_PATH" \
+              --output-dir "$root/evidence/first" \
+              --source-revision "$GITHUB_SHA" \
+              --protocol-git-blob-sha1 "$protocol_blob" \
+              > "$root/logs/first.stdout" 2> "$root/logs/first.stderr"
+          first_status=$?
+          PYTHONPATH=src "$EVALUATION_PYTHON" \
+            scripts/science/run_dot_r11_r20_query_message_real_v1.py \
+              evaluate \
+              --dataset-root "$DATASET_ROOT" \
+              --provider-root "$root/provider" \
+              --protocol "$PROTOCOL_PATH" \
+              --request "$REQUEST_PATH" \
+              --output-dir "$root/evidence/second" \
+              --source-revision "$GITHUB_SHA" \
+              --protocol-git-blob-sha1 "$protocol_blob" \
+              > "$root/logs/second.stdout" 2> "$root/logs/second.stderr"
+          second_status=$?
+          set -e
+          echo "first_exit=$first_status" >> "$GITHUB_OUTPUT"
+          echo "second_exit=$second_status" >> "$GITHUB_OUTPUT"
+          if test "$first_status" = 0 && test "$second_status" = 0; then
+            for file in result.json summary.md manifest.json protocol.json request.json; do
+              cmp "$root/evidence/first/$file" "$root/evidence/second/$file"
+            done
+          fi
+          exit 0
+
+      - name: Remove downloaded provider bytes before evidence publication
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          rm -rf -- "$root/provider" "$root/evidence/second"
+          if find "$root/evidence" -type f \( \
+            -iname '*.npz' -o -iname '*.zip' -o -iname '*.jpg' -o \
+            -iname '*.jpeg' -o -iname '*.png' \
+          \) -print -quit | grep -q .; then
+            echo "raw provider or dataset payload appeared in retained evidence" >&2
+            exit 3
+          fi
+
+      - name: Upload compact public real-data result
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v6.0.0
+        with:
+          name: dot-r11-r20-query-message-real-v1-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            ${{ steps.workspace.outputs.root }}/evidence/first
+            ${{ steps.workspace.outputs.root }}/logs
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Publish scientific summary
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          if test -f "$root/evidence/first/summary.md"; then
+            cat "$root/evidence/first/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          else
+            printf '```text\n' >> "$GITHUB_STEP_SUMMARY"
+            tail -n 160 "$root/logs/first.stderr" >> "$GITHUB_STEP_SUMMARY" || true
+            printf '\n```\n' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Enforce completed source-only scientific result
+        shell: bash
+        env:
+          FIRST_EXIT: ${{ steps.experiment.outputs.first_exit }}
+          SECOND_EXIT: ${{ steps.experiment.outputs.second_exit }}
+          RESULT_PATH: ${{ steps.workspace.outputs.root }}/evidence/first/result.json
+        run: |
+          set -euo pipefail
+          test "$FIRST_EXIT" = "0"
+          test "$SECOND_EXIT" = "0"
+          "$EVALUATION_PYTHON" - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          result = json.loads(Path(os.environ["RESULT_PATH"]).read_text())
+          if result["decision"] not in {
+              "source-real-overlap-positive",
+              "source-real-overlap-mixed",
+              "source-real-overlap-negative",
+          }:
+              raise SystemExit("invalid scientific decision")
+          boundary = result["information_boundary"]
+          assert boundary["provider_inference_rerun"] is False
+          assert boundary["r21_r30_payloads_opened"] is False
+          assert boundary["r31_r70_payloads_opened"] is False
+          assert boundary["target_side_retuning_allowed"] is False
+          assert boundary["bayesian_phystwin_executed"] is False
+          assert boundary["causal4d_executed"] is False
+          assert result["provider"]["provider_covariance_present"] is False
+          assert result["aggregate"]["sequence_count"] >= 8
+          assert result["message_contract_maxima"]["single_mean"] <= 1e-9
+          assert result["message_contract_maxima"]["single_covariance"] <= 1e-9
+          assert result["message_contract_maxima"]["duplicate_mean"] <= 1e-12
+          assert result["message_contract_maxima"]["duplicate_covariance"] <= 1e-12
+          print(
+              json.dumps(
+                  {
+                      "decision": result["decision"],
+                      "result_id": result["result_id"],
+                      "supported_sequences": result["aggregate"]["sequence_count"],
+                  },
+                  indent=2,
+                  sort_keys=True,
+              )
+          )
+          PY
