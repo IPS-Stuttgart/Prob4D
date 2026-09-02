@@ -1,0 +1,120 @@
+{
+  "schema": "prob4d.tracking-cloth-continuous-calibrated-so2-evidence.v1",
+  "status": "evaluated-continuous-calibrated-so2-negative",
+  "protocol_id": "930ad490206f8b16a113fbc221af9f0d35c906318625fc661695508b2e03da55",
+  "source_revision": "0b0233edf33d55ae8cb0d67660be0307301eccb3",
+  "run": {
+    "id": 33591643438,
+    "preflight_job_id": 100126681594,
+    "evaluation_job_id": 100126922548,
+    "artifact_id": 9831982020,
+    "artifact_digest": "sha256:4baf9f4d64193a9993f2e93f6973c4897d07f08c5bef023cf0e76fbe3cced513",
+    "runtime": {
+      "python": "3.12.13",
+      "numpy": "2.3.5",
+      "runner": "workstation1",
+      "labels": ["self-hosted", "Linux", "X64", "gpuserver4090"]
+    }
+  },
+  "dataset": {
+    "csv_count": 120,
+    "cloth_only_recordings": 80,
+    "accepted_by_size": {"A2": 48, "A3": 32},
+    "excluded_recordings": 40,
+    "recording_horizon_evaluations": 320,
+    "nested_case_count": 38114,
+    "statistical_unit": "complete recording"
+  },
+  "theory": {
+    "continuous_vector_first_harmonic_diameter": "2*sigma_max(W@[a,b])",
+    "support": "continuous centered SO(2) arc plus Euclidean remainder tube",
+    "calibration": "recording-level split-conformal upper order statistic",
+    "nominal_recording_score_coverage": 0.9
+  },
+  "by_horizon": {
+    "3": {
+      "cases": 9651,
+      "recording_score_coverage": 0.925,
+      "case_support_coverage": 0.9782315036913356,
+      "continuous_query_interval_coverage": 0.9990499228414192,
+      "calibrated_acceptance": 1.0,
+      "local_harmful_fraction": 0.0,
+      "calibrated_harmful_fraction_all_cases": 0.0,
+      "fallback_rmse_mm": 298.2646335543312,
+      "local_rmse_mm": 2.278480943707187,
+      "calibrated_rmse_mm": 2.278480943707187,
+      "mean_arc_width_degrees": 2.7479338765102352,
+      "mean_tube_radius_mm": 7.0204668772015255,
+      "full_circle_acceptance": 0.0
+    },
+    "6": {
+      "cases": 9595,
+      "recording_score_coverage": 0.9375,
+      "case_support_coverage": 0.9820384558637189,
+      "continuous_query_interval_coverage": 0.9991237336040066,
+      "calibrated_acceptance": 1.0,
+      "local_harmful_fraction": 0.0,
+      "calibrated_harmful_fraction_all_cases": 0.0,
+      "fallback_rmse_mm": 298.2850969488371,
+      "local_rmse_mm": 4.889236577348197,
+      "calibrated_rmse_mm": 4.889236577348197,
+      "mean_arc_width_degrees": 6.395675025404297,
+      "mean_tube_radius_mm": 16.20742452228533,
+      "full_circle_acceptance": 0.0
+    },
+    "12": {
+      "cases": 9485,
+      "recording_score_coverage": 0.9125,
+      "case_support_coverage": 0.9816891361576827,
+      "continuous_query_interval_coverage": 0.9994871950479427,
+      "calibrated_acceptance": 1.0,
+      "local_harmful_fraction": 0.00011682242990654205,
+      "calibrated_harmful_fraction_all_cases": 0.00011682242990654205,
+      "fallback_rmse_mm": 298.29302311683824,
+      "local_rmse_mm": 12.049866566468827,
+      "calibrated_rmse_mm": 12.049866566468827,
+      "mean_arc_width_degrees": 16.93003745645874,
+      "mean_tube_radius_mm": 42.60503273864017,
+      "full_circle_acceptance": 0.0
+    },
+    "24": {
+      "cases": 9383,
+      "recording_score_coverage": 0.9,
+      "case_support_coverage": 0.9761599526834438,
+      "continuous_query_interval_coverage": 0.9988118216036416,
+      "calibrated_acceptance": 0.725,
+      "local_harmful_fraction": 0.00012254901960784314,
+      "calibrated_harmful_fraction_all_cases": 0.00012254901960784314,
+      "fallback_rmse_mm": 298.36058841783966,
+      "local_rmse_mm": 32.47977841754823,
+      "calibrated_rmse_mm": 117.62116372493685,
+      "mean_arc_width_degrees": 46.12674052551979,
+      "mean_tube_radius_mm": 114.17252557059805,
+      "full_circle_acceptance": 0.0
+    }
+  },
+  "registered_decision": {
+    "overall_positive": false,
+    "positive_horizons": [],
+    "failed_criterion": "strictly lower harmful accepted fraction than the local predictor",
+    "interpretation": "Support calibration succeeded, but the local predictor was already essentially never harmful; long-horizon rejection exposed a weak axis-center fallback."
+  },
+  "hashes": {
+    "protocol_sha256": "cbe6e55a6785dbf3df54fab60753e56dfcce3aac1189e532b5153e33306cf17f",
+    "result_sha256": "5bfb93c4a6e3bc2ba20054e992511331f8b70b8fd16b8a32daea7081d44e6382",
+    "inventory_sha256": "daf8f0c9eaffd67caa3fa44d4129d0b574c154a8a9072f9bbe54752d5eda94b4",
+    "recording_scores_sha256": "314656e6a585333e06aff8fde04cc6fd713936d70aea28a967f2e71621e2a41a"
+  },
+  "claim_boundary": {
+    "public_real_motion_capture": true,
+    "simulated_probe_occlusion": true,
+    "continuous_so2_geometry_exact": true,
+    "data_calibrated_continuous_ambiguity_support": true,
+    "conditional_coverage": false,
+    "selective_risk_control": false,
+    "learned_visual_provider": false,
+    "unique_physical_state_identification": false,
+    "deployment_safety": false,
+    "state_of_the_art": false
+  }
+}
