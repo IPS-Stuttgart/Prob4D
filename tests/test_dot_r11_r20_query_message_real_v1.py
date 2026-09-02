@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import importlib.util
 import json
+import sys
+from importlib import util
 from pathlib import Path
 
 import numpy as np
 import pytest
-
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts/science/run_dot_r11_r20_query_message_real_v1.py"
@@ -14,9 +14,10 @@ PROTOCOL = ROOT / "protocols/dot-r11-r20-query-message-real-v1.json"
 
 
 def _module():
-    spec = importlib.util.spec_from_file_location("dot_query_message_real", SCRIPT)
+    spec = util.spec_from_file_location("dot_query_message_real", SCRIPT)
     assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
+    module = util.module_from_spec(spec)
+    sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
 
