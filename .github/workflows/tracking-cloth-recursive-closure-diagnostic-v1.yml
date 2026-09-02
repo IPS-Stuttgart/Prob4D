@@ -1,0 +1,172 @@
+name: Tracking Cloth recursive closure diagnostic v1
+
+on:
+  push:
+    branches:
+      - research/recursive-task-sufficient-compression-v1
+    paths:
+      - ".github/workflows/tracking-cloth-recursive-closure-diagnostic-v1.yml"
+      - "protocols/tracking-cloth-recursive-closure-diagnostic-v1.json"
+      - "scripts/science/run_tracking_cloth_recursive_closure_diagnostic_v1.py"
+      - "scripts/science/run_tracking_cloth_query_portfolio_v1.py"
+      - "src/prob4d/recursive_task_sufficiency.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tracking-cloth-recursive-closure-diagnostic-v1-${{ github.sha }}
+  cancel-in-progress: false
+
+env:
+  ZENODO_URL: https://zenodo.org/records/14644526/files/tracking_dataset.zip?download=1
+  ZENODO_MD5: b4868b702f8a42b2ea1069d0f1a3b8f6
+  PROTOCOL_PATH: protocols/tracking-cloth-recursive-closure-diagnostic-v1.json
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+
+jobs:
+  preflight:
+    name: Validate retrospective structural diagnostic
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          clean: true
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install development package
+        run: |
+          python -m pip install -e ".[dev]"
+          python -m pip install "numpy>=1.24,<2.3"
+      - name: Validate protocol and source quality
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          protocol = json.loads(Path("protocols/tracking-cloth-recursive-closure-diagnostic-v1.json").read_text())
+          assert protocol["schema"] == "prob4d.tracking-cloth-recursive-closure-diagnostic.v1"
+          assert protocol["rank_relative_tolerances"] == [1e-12, 1e-06, 0.001]
+          assert protocol["tasks"] == [
+              "centroid",
+              "one_central_marker",
+              "four_evenly_spaced_markers",
+          ]
+          assert protocol["claim_boundary"]["retrospective_structural_diagnostic_only"] is True
+          assert protocol["claim_boundary"]["independent_confirmation"] is False
+          PY
+          python -m ruff format --check scripts/science/run_tracking_cloth_recursive_closure_diagnostic_v1.py
+          python -m ruff check scripts/science/run_tracking_cloth_recursive_closure_diagnostic_v1.py
+          python -m compileall -q scripts/science/run_tracking_cloth_recursive_closure_diagnostic_v1.py
+
+  official-zenodo:
+    name: Diagnose strict closure on checksum-verified public cloth
+    needs: preflight
+    if: >-
+      github.actor == 'FlorianPfaff' &&
+      github.repository == 'IPS-Stuttgart/Prob4D' &&
+      github.ref_name == 'research/recursive-task-sufficient-compression-v1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          clean: true
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Download and verify official release
+        id: data
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${RUNNER_TEMP}/tracking-cloth-recursive-closure-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          rm -rf -- "$root"
+          mkdir -p "$root/data" "$root/evidence"
+          curl --fail --location --retry 5 --retry-all-errors \
+            --output "$root/tracking_dataset.zip" "$ZENODO_URL"
+          printf '%s  %s\n' "$ZENODO_MD5" "$root/tracking_dataset.zip" | md5sum --check --strict
+          unzip -q "$root/tracking_dataset.zip" -d "$root/data"
+          count=$(find "$root/data" -type f -iname '*.csv' -printf '.' | wc -c)
+          test "$count" -eq 120
+          echo "root=$root" >> "$GITHUB_OUTPUT"
+          echo "dataset=$root/data" >> "$GITHUB_OUTPUT"
+      - name: Install pinned numerical runtime
+        run: |
+          python -m pip install --disable-pip-version-check "numpy==2.2.6"
+          python -m pip install --disable-pip-version-check --no-deps -e .
+      - name: Execute frozen structural diagnostic
+        id: experiment
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.data.outputs.root }}"
+          set +e
+          PYTHONPATH=src:. python \
+            scripts/science/run_tracking_cloth_recursive_closure_diagnostic_v1.py \
+              --dataset-root "${{ steps.data.outputs.dataset }}" \
+              --protocol "$PROTOCOL_PATH" \
+              --output-dir "$root/evidence/run" \
+              --source-revision "$GITHUB_SHA" \
+              > "$root/stdout.txt" 2> "$root/stderr.txt"
+          status=$?
+          set -e
+          printf '%s\n' "$status" > "$root/process-exit-code.txt"
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Remove raw release before artifact upload
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.data.outputs.root }}"
+          rm -rf -- "$root/data" "$root/tracking_dataset.zip"
+          if find "$root/evidence" -type f \( -iname '*.csv' -o -iname '*.zip' \) -print -quit | grep -q .; then
+            echo "Raw dataset payload appeared in evidence" >&2
+            exit 3
+          fi
+      - name: Upload compact diagnostic
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4.6.2
+        with:
+          name: tracking-cloth-recursive-closure-diagnostic-v1-${{ github.sha }}
+          path: ${{ steps.data.outputs.root }}
+          if-no-files-found: error
+          retention-days: 90
+      - name: Enforce completed structural diagnostic
+        shell: bash
+        env:
+          RESULT_PATH: ${{ steps.data.outputs.root }}/evidence/run/result.json
+          PROCESS_EXIT: ${{ steps.experiment.outputs.exit_code }}
+        run: |
+          set -euo pipefail
+          test "$PROCESS_EXIT" = "0"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          result = json.loads(Path(os.environ["RESULT_PATH"]).read_text())
+          assert result["status"] == "evaluated-retrospective-structural-closure"
+          assert result["inventory"]["csv_file_count"] == 120
+          assert result["inventory"]["accepted_recording_count"] == 80
+          assert result["claim_boundary"]["retrospective_structural_diagnostic_only"] is True
+          assert result["claim_boundary"]["independent_confirmation"] is False
+          assert len(result["sizes"]) == 2
+          PY

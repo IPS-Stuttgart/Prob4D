@@ -1,0 +1,55 @@
+{
+  "schema": "prob4d.tracking-cloth-recursive-closure-diagnostic-evidence.v1",
+  "evidence_class": "retrospective-public-real-geometry-structural-diagnostic",
+  "owning_pull_request": 475,
+  "source_revision": "075d75c6ab545bf7d5d6e3a9766678edac503e0d",
+  "workflow_run_id": 33590480190,
+  "workflow_job_id": 100123391684,
+  "artifact": {
+    "id": 9831566817,
+    "name": "tracking-cloth-recursive-closure-diagnostic-v1-075d75c6ab545bf7d5d6e3a9766678edac503e0d",
+    "sha256": "a924728572037569b3ecabdbd9d64f46cb11aada73be879fe91162ba1895bda1"
+  },
+  "dataset": {
+    "doi": "10.5281/zenodo.14644526",
+    "official_release_md5": "b4868b702f8a42b2ea1069d0f1a3b8f6",
+    "csv_file_count": 120,
+    "accepted_recording_count": 80,
+    "accepted_a2": 48,
+    "accepted_a3": 32,
+    "compatible_source_manifest_sha256": "fe378ccb06b1bc0bc4f51c26f31ff8eacf4c471d3d16d8b56478dbc4687b4598"
+  },
+  "protocol_sha256": "da1112652c06e5a302d35ceeaa66ddc0b031bfc32319c7135beeb5465a7d5909",
+  "result_sha256": "b6c981e43691f1b0c7fd9607aad688144ac6d24cf983a0dfa7cda0d1c88240d9",
+  "runtime": {
+    "python": "3.12.14",
+    "numpy": "2.2.6"
+  },
+  "result": {
+    "rank_relative_tolerances": [1e-12, 1e-06, 0.001],
+    "tasks": [
+      "centroid",
+      "one_central_marker",
+      "four_evenly_spaced_markers"
+    ],
+    "a2_state_dimension": 60,
+    "a3_state_dimension": 36,
+    "a2_observation_map_rank_all_tolerances": 60,
+    "a3_observation_map_rank_all_tolerances": 36,
+    "minimum_strict_closure_fraction": 1.0,
+    "maximum_strict_closure_fraction": 1.0,
+    "minimum_task_only_closure_fraction": 1.0,
+    "maximum_task_only_closure_fraction": 1.0,
+    "all_strict_closures_full_state": true,
+    "all_task_only_closures_full_state": true
+  },
+  "claim_boundary": {
+    "retrospective_structural_diagnostic_only": true,
+    "independent_confirmation": false,
+    "predictive_improvement_established": false,
+    "recursive_compression_benefit_established": false,
+    "closed_loop_control_benefit_established": false,
+    "learned_visual_provider_established": false,
+    "state_of_the_art_claimed": false
+  }
+}

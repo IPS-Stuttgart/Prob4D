@@ -1,0 +1,47 @@
+{
+  "schema": "prob4d.recursive-task-compression-controlled-evidence.v1",
+  "evidence_class": "controlled-linear-gaussian-mechanism",
+  "owning_pull_request": 475,
+  "branch_head_at_execution": "c35142afec22bc70eafb5b0f28a10761fbda039e",
+  "workflow_run_id": 33590089678,
+  "workflow_job_id": 100122141300,
+  "workflow_merge_revision": "3e8bfbb0cbf2be06ec9e631e2ccbd3ac77ead51f",
+  "artifact": {
+    "id": 9831421895,
+    "name": "recursive-task-compression-controlled-3e8bfbb0cbf2be06ec9e631e2ccbd3ac77ead51f",
+    "sha256": "c4b25bec15bbe2401d8f1f14b3f14825807c352f6dff67d9be39f4cec693f180"
+  },
+  "protocol_sha256": "4a0d7cdab7e4b6a45aac780fd52a75ae9d649eebe169f2cc3715506d135d8191",
+  "result_sha256": "a455c1b235be5ff0dd5f61b706f996c2d5d7da3d1726c521f8a095f3e29412d4",
+  "runtime": {
+    "python": "3.12.14",
+    "numpy": "2.2.6"
+  },
+  "design": {
+    "state_dimension": 20,
+    "observation_dimension": 12,
+    "original_shared_factor_rank": 8,
+    "current_task_dimension": 3,
+    "recursive_closure_dimension": 4,
+    "closure_violation_dimension": 5,
+    "update_count": 8
+  },
+  "result": {
+    "closure_retained_rank": 4,
+    "current_task_retained_rank": 3,
+    "maximum_closure_mean_abs_error": 2.42861286636753e-16,
+    "maximum_closure_covariance_abs_error": 6.938893903907228e-18,
+    "current_task_first_update_mean_abs_error": 2.3592239273284576e-16,
+    "maximum_current_task_later_mean_abs_error": 0.05336337058687904,
+    "current_task_step_1_mean_abs_error": 0.05289867007400557
+  },
+  "claim_boundary": {
+    "linear_time_invariant_only": true,
+    "functional_observer_novelty_claimed": false,
+    "observation_likelihood_preserved": false,
+    "nonlinear_recursive_exactness_established": false,
+    "real_provider_evidence_established": false,
+    "real_robot_evidence_established": false,
+    "closed_loop_control_benefit_established": false
+  }
+}
