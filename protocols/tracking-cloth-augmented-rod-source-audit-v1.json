@@ -2,8 +2,8 @@
   "analysis": {
     "candidate_pair_rule": "all unordered explicit Motive marker pairs",
     "maximum_frames_per_recording": 4096,
-    "minimum_median_pair_distance_mm": 25.0,
-    "minimum_valid_fraction": 0.8,
+    "minimum_median_pair_distance_mm": 1.0,
+    "minimum_valid_fraction": 0.1,
     "ranking_metrics": [
       "relative_90_spread",
       "relative_mad",
@@ -41,6 +41,6 @@
     "source_hitting_trajectory_access_allowed": true,
     "target_side_tuning_allowed": false
   },
-  "protocol_id": "66cdd16726efe147ea1a08485859d915a040dd676374e1a5f484b224dd1a9dae",
+  "protocol_id": "1c3a77c233721c13e4945bcd38bbe2c2901f8c304409b0781b4d21687c736621",
   "schema": "prob4d.tracking-cloth-augmented-rod-source-audit.v1"
 }
