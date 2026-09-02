@@ -1,0 +1,19 @@
+{
+  "bindings": {
+    "admission_policy_digest": "sha256:473f7b226cfa3e6ba2709a1e5d9ea8c7038cb615b319f0c146884b911a3a734f",
+    "candidate_action_id": "example:candidate-action-v1",
+    "candidate_loss_program_digest": "sha256:2167455f36e4e57f372acd17d39f2ee051f9769242a2ed13eb743185fd28b744",
+    "certificate_id": "sha256:cdae51db1fd6805b1f88d6599b767ec18788b29270afe1bd4a4240554044b112",
+    "fallback_action_id": "example:fallback-action-v1",
+    "fallback_digest": "sha256:8559b15a3f20a3fb071940d69ccaf3e441e29d436481eb01bb779ce30503ae3e",
+    "fallback_id": "example:caller-owned-physical-fallback-v1",
+    "fallback_loss_program_digest": "sha256:907a920b121afc5497ef5b658273644ea1576504882addabb45f2c85b015893f",
+    "input_digest": "sha256:2f3c65cf9544bf2bd752dd7d7365e1bf5eb43a4fafeec079ee08b39735c6f90b",
+    "shared_gauge_id": "example:shared-axial-gauge-v1",
+    "support_receipt_digest": "sha256:e39761d1574f2c9285f935bd2c6f5055ceff574ca6cf68814245ad2197de7e4e"
+  },
+  "certificate_kind": "shared-axial-orbit-robust-advantage-v1",
+  "context_id": "sha256:07ad01967c513bd8380047ea0b0ac064fea713238abf27e24a5593b125488075",
+  "schema": "prob4d.proof4d-execution-context",
+  "schema_version": 1
+}

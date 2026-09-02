@@ -1,0 +1,299 @@
+{
+  "certificate_id": "sha256:e5d4cc428a2f306afccb9b4b10e954fb9b6b03b0d2dc170d01de204b140bf67a",
+  "certificate_kind": "observable-gauge-linear-query-v1",
+  "claim_scope": "local-first-order-query-identifiability-only",
+  "decision": {
+    "admitted": true,
+    "fallback_id": "example:caller-owned-physical-fallback-v1",
+    "fallback_policy": "exact-caller-owned-fallback"
+  },
+  "factor": {
+    "coordinate_dimension": 7,
+    "coordinate_system": {
+      "cloud_scale": 1.0,
+      "kind": "centroid-normalized-sim3-v1",
+      "linearization_vector": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "source_centroid": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "information_matrix": [
+      [
+        10.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        10.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        10.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        10.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        10.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        10.0
+      ]
+    ],
+    "nullspace_basis": [
+      [
+        0.0
+      ],
+      [
+        1.0
+      ],
+      [
+        0.0
+      ],
+      [
+        0.0
+      ],
+      [
+        0.0
+      ],
+      [
+        0.0
+      ],
+      [
+        0.0
+      ]
+    ],
+    "observable_basis": [
+      [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "observable_information": [
+      [
+        10.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        10.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        10.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        10.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        10.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        10.0
+      ]
+    ],
+    "rank": 6
+  },
+  "provenance": {
+    "assumption_ids": [
+      "controlled-proof4d-example-v1",
+      "declared-centroid-normalized-sim3-chart-v1",
+      "declared-local-query-jacobian-v1",
+      "local-linearization-only-v1"
+    ],
+    "calibration_receipt_digest": null,
+    "input_digest": "sha256:2f3c65cf9544bf2bd752dd7d7365e1bf5eb43a4fafeec079ee08b39735c6f90b",
+    "producer": "prob4d-proof4d-example-generator",
+    "producer_version": "0.5.0",
+    "source_factor_digest": "sha256:fcdc830f42fb7ced35849bf6f35f0ae7ee06f921c6e1f347adc1a6406a7603a7"
+  },
+  "query": {
+    "jacobian_local": [
+      [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0
+      ]
+    ],
+    "maximum_relative_nullspace_sensitivity": 1e-08,
+    "metric": [
+      [
+        1.0,
+        0.0
+      ],
+      [
+        0.0,
+        1.0
+      ]
+    ],
+    "observable_coordinates": [
+      [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0
+      ]
+    ],
+    "query_dimension": 2,
+    "query_id": "example:gauge-insensitive-local-query-v1",
+    "query_program_digest": "sha256:cdbc2a0a4f1dde2c24e8f1db78c65f7ed45081715b7a7d306fbd67e3b2e23961",
+    "reported_relative_nullspace_sensitivity": 0.0,
+    "reported_relative_reconstruction_residual": 0.0
+  },
+  "schema": "prob4d.proof-carrying-linear-query-factor",
+  "schema_version": 1
+}
