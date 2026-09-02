@@ -1,0 +1,116 @@
+name: Group-calibrated orbit-tube mechanism
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/group-calibrated-orbit-tube-mechanism.yml"
+      - "src/prob4d/orbit_tube.py"
+      - "tests/test_orbit_tube.py"
+      - "protocols/group-calibrated-orbit-tube-mechanism-v1.json"
+      - "scripts/science/run_group_calibrated_orbit_tube_mechanism.py"
+      - "docs/group-calibrated-orbit-tubes.md"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/group-calibrated-orbit-tube-mechanism.yml"
+      - "src/prob4d/orbit_tube.py"
+      - "tests/test_orbit_tube.py"
+      - "protocols/group-calibrated-orbit-tube-mechanism-v1.json"
+      - "scripts/science/run_group_calibrated_orbit_tube_mechanism.py"
+      - "docs/group-calibrated-orbit-tubes.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: group-calibrated-orbit-tube-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mechanism:
+    name: Complete-group calibration and fail-closed certificate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out exact revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          clean: true
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v6.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install package and test tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e . pytest
+
+      - name: Run focused unit tests
+        run: python -m pytest -q tests/test_orbit_tube.py
+
+      - name: Run frozen controlled mechanism study
+        run: |
+          mkdir -p outputs/group-calibrated-orbit-tube-mechanism-v1
+          python scripts/science/run_group_calibrated_orbit_tube_mechanism.py \
+            --protocol protocols/group-calibrated-orbit-tube-mechanism-v1.json \
+            --output outputs/group-calibrated-orbit-tube-mechanism-v1/result.json
+
+      - name: Validate scientific and claim boundaries
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path("outputs/group-calibrated-orbit-tube-mechanism-v1/result.json")
+          result = json.loads(path.read_text(encoding="utf-8"))
+          assert result["schema"] == "prob4d.group-calibrated-orbit-tube-mechanism.v1"
+          assert result["evidence_class"] == "constructed-exchangeable-group-mechanism"
+          assert len(result["result_id"]) == 64
+          assert result["finite_sample"]["group_coverage_lower_bound"] == 0.9
+
+          arms = result["arms"]
+          group = arms["complete_group_split_conformal"]
+          pooled = arms["pooled_frames_as_independent"]
+          maximum = arms["largest_calibration_group"]
+          exact = arms["exact_orbit_without_tube"]
+
+          if not 0.88 <= group["group_coverage"] <= 0.92:
+              raise SystemExit("seeded complete-group coverage left its audit band")
+          if not group["group_coverage"] > pooled["group_coverage"] + 0.65:
+              raise SystemExit("frame-pooling control no longer exposes group undercoverage")
+          if not maximum["group_coverage"] > group["group_coverage"]:
+              raise SystemExit("maximum-score control must remain more conservative")
+          if not group["acceptance_fraction"] > maximum["acceptance_fraction"]:
+              raise SystemExit("conformal radius must retain utility over maximum score")
+          if not group["harmful_accepted_fraction"] <= 1.0 - group["group_coverage"] + 1e-12:
+              raise SystemExit("harmful acceptance escaped the noncoverage event")
+          if not exact["group_coverage"] < pooled["group_coverage"]:
+              raise SystemExit("zero-radius control must remain the least covered")
+
+          boundary = " ".join(result["claim_boundary"]).lower()
+          for phrase in (
+              "constructed mechanism",
+              "not public real-data evidence",
+              "does not establish provider competence",
+              "does not establish conditional subgroup coverage",
+          ):
+              if phrase not in boundary:
+                  raise SystemExit(f"missing claim boundary: {phrase}")
+          PY
+
+      - name: Upload compact evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4.6.2
+        with:
+          name: group-calibrated-orbit-tube-mechanism-${{ github.sha }}
+          path: |
+            outputs/group-calibrated-orbit-tube-mechanism-v1/result.json
+            protocols/group-calibrated-orbit-tube-mechanism-v1.json
+            docs/group-calibrated-orbit-tubes.md
+          if-no-files-found: error
+          retention-days: 30
