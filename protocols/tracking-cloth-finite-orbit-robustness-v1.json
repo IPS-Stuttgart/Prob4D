@@ -1,0 +1,198 @@
+{
+  "claim_boundary": {
+    "bayesian_phystwin_benefit": false,
+    "deployment_safety": false,
+    "estimated_axis_from_noisy_anchors": true,
+    "fresh_target_holdout": false,
+    "learned_provider": false,
+    "physical_state_identification": false,
+    "posthoc_secondary_analysis": true,
+    "public_real_trajectories": true,
+    "source_calibrated_gate_threshold": true,
+    "state_of_the_art": false
+  },
+  "dataset": {
+    "archive_filename": "tracking_dataset.zip",
+    "archive_md5": "b4868b702f8a42b2ea1069d0f1a3b8f6",
+    "expected_csv_files": 120,
+    "expected_source_recordings": 24,
+    "record_name": "Tracking Cloth Deformation",
+    "required_size": "A2",
+    "source_categories": [
+      "shake",
+      "twist"
+    ],
+    "source_materials": [
+      "cotton",
+      "denim",
+      "wool"
+    ],
+    "target_relative_paths": [
+      "tracking_dataset/Hitting/cotton_A2_hitting.csv",
+      "tracking_dataset/Hitting/denim_A2_hitting.csv",
+      "tracking_dataset/Hitting/wool_A2_hitting.csv",
+      "tracking_dataset/Tablecloth/cotton_A2_full_lay_high_friction.csv",
+      "tracking_dataset/Tablecloth/cotton_A2_full_lay_low_friction.csv",
+      "tracking_dataset/Tablecloth/cotton_A2_half_lay_high_friction.csv",
+      "tracking_dataset/Tablecloth/cotton_A2_half_lay_low_friction.csv",
+      "tracking_dataset/Tablecloth/denim_A2_full_lay_high_friction.csv",
+      "tracking_dataset/Tablecloth/denim_A2_full_lay_low_friction.csv",
+      "tracking_dataset/Tablecloth/denim_A2_half_lay_high_friction.csv",
+      "tracking_dataset/Tablecloth/denim_A2_half_lay_low_friction.csv",
+      "tracking_dataset/Tablecloth/wool_A2_full_lay_high_friction.csv",
+      "tracking_dataset/Tablecloth/wool_A2_full_lay_low_friction.csv",
+      "tracking_dataset/Tablecloth/wool_A2_half_lay_high_friction.csv",
+      "tracking_dataset/Tablecloth/wool_A2_half_lay_low_friction.csv"
+    ],
+    "zenodo_record": "14644526"
+  },
+  "estimated_orbit": {
+    "anchor_noise_std_fraction_of_span": [
+      0.0,
+      0.0025,
+      0.005,
+      0.01,
+      0.02,
+      0.05,
+      0.1
+    ],
+    "axis_estimator": "line through independently isotropically perturbed anchor observations",
+    "closed_form_range": true,
+    "hidden_angles_per_replicate": 4,
+    "orbit_grid_sizes": [
+      8,
+      16,
+      32
+    ],
+    "perturbation_replicates": 8
+  },
+  "evidence_kind": "posthoc-source-calibrated-estimated-orbit-robustness-on-previously-opened-target",
+  "geometry": {
+    "axis": "line through source-selected anchor markers 1 and 20",
+    "hidden_gauge_angle": "deterministic hash-seeded uniform SO(2) angle",
+    "invariant_query": "projection along the true anchor axis",
+    "minimum_radius_fraction_of_span": 0.01,
+    "probe": "source-selected marker 5",
+    "radial_query": "projection along the true probe radial direction"
+  },
+  "inference": {
+    "aggregation": "equal recording",
+    "bootstrap_interval": [
+      0.025,
+      0.975
+    ],
+    "independent_unit": "recording",
+    "recording_bootstrap_replicates": 5000
+  },
+  "information_order": {
+    "new_target_side_retuning_allowed": false,
+    "target_roster_identical_to_predecessor": true,
+    "target_trajectories_previously_opened_in_predecessor": true,
+    "threshold_selected_from_source_trajectories_before_target_loading": true
+  },
+  "marker_labels": [
+    "1",
+    "20",
+    "5"
+  ],
+  "predecessor": {
+    "artifact_digest": "sha256:817c86588bc5673529fc4ae41196f88741a23dd36a7347caeeca5bd92d3a177d",
+    "artifact_id": 9811148956,
+    "result_id": "1441a141a8eccc1ae3a503c701c72e8d702a0bcb17226238f3d32effa3e58111",
+    "run_id": 33534703640
+  },
+  "protocol_id": "tracking-cloth-finite-orbit-robustness-v1",
+  "registered_secondary_criteria": {
+    "design_harmful_acceptance": {
+      "method": "closed_form",
+      "metric": "harmful_accepted_radial_fraction_all",
+      "noise_fraction": 0.05,
+      "operator": "<=",
+      "threshold": 0.05
+    },
+    "design_invariant_acceptance": {
+      "method": "closed_form",
+      "metric": "invariant_acceptance",
+      "noise_fraction": 0.05,
+      "operator": ">=",
+      "threshold": 0.9
+    },
+    "design_radial_rejection": {
+      "method": "closed_form",
+      "metric": "radial_rejection",
+      "noise_fraction": 0.05,
+      "operator": ">=",
+      "threshold": 0.95
+    },
+    "design_rmse_reduction": {
+      "method": "closed_form",
+      "metric": "relative_guarded_rmse_reduction_vs_local",
+      "noise_fraction": 0.05,
+      "operator": ">=",
+      "threshold": 0.3
+    },
+    "grid16_design_invariant": {
+      "method": "orbit_grid_16",
+      "metric": "invariant_acceptance",
+      "noise_fraction": 0.05,
+      "operator": ">=",
+      "threshold": 0.88
+    },
+    "grid16_design_radial_rejection": {
+      "method": "orbit_grid_16",
+      "metric": "radial_rejection",
+      "noise_fraction": 0.05,
+      "operator": ">=",
+      "threshold": 0.94
+    },
+    "severe_harmful_acceptance": {
+      "method": "closed_form",
+      "metric": "harmful_accepted_radial_fraction_all",
+      "noise_fraction": 0.1,
+      "operator": "<=",
+      "threshold": 0.1
+    },
+    "severe_invariant_acceptance": {
+      "method": "closed_form",
+      "metric": "invariant_acceptance",
+      "noise_fraction": 0.1,
+      "operator": ">=",
+      "threshold": 0.7
+    },
+    "severe_radial_rejection": {
+      "method": "closed_form",
+      "metric": "radial_rejection",
+      "noise_fraction": 0.1,
+      "operator": ">=",
+      "threshold": 0.9
+    }
+  },
+  "sampling": {
+    "minimum_target_cases": 1000,
+    "source_frames_per_recording": 12,
+    "target_frames_per_recording": 128
+  },
+  "schema": "prob4d.tracking-cloth-finite-orbit-robustness.v1",
+  "schema_version": 1,
+  "source_selection": {
+    "design_noise_fraction": 0.05,
+    "minimum_invariant_acceptance": 0.95,
+    "rule": "among thresholds meeting the source invariant-acceptance floor, minimize harmful accepted radial fraction, then maximize radial rejection, then choose the smaller threshold",
+    "target_side_retuning": false,
+    "threshold_grid_fraction_of_span": [
+      0.0,
+      0.0025,
+      0.005,
+      0.01,
+      0.02,
+      0.03,
+      0.05,
+      0.075,
+      0.1,
+      0.15,
+      0.2,
+      0.3,
+      0.5
+    ]
+  }
+}
