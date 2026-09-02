@@ -225,9 +225,7 @@ class GaugeCoupledActionCertificateV1:
         )
         if not np.array_equal(admissible, expected_admissible):
             raise ValueError("admissible mask does not match certified upper regret")
-        lower_rejects_all = bool(
-            np.all(lower_regret > regret_tolerance + _NUMERICAL_ATOL)
-        )
+        lower_rejects_all = bool(np.all(lower_regret > regret_tolerance + _NUMERICAL_ATOL))
         if self.status == "scope-not-certified":
             if bounds_certified or np.any(admissible):
                 raise ValueError("uncertified scope must reject every action")
@@ -348,8 +346,7 @@ def certify_gauge_coupled_action_orbit(
     )
     if losses.shape[:2] != expected_prefix or losses.shape[2] < 2:
         raise ValueError(
-            "coupled losses must have shape "
-            "(quotient_count, group_count, action_count>=2)"
+            "coupled losses must have shape (quotient_count, group_count, action_count>=2)"
         )
     action_count = int(losses.shape[2])
     absolute_range: FloatArray = np.max(losses, axis=1) - np.min(losses, axis=1)
