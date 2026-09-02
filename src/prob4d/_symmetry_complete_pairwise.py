@@ -200,7 +200,10 @@ class GaugeCoupledPairwiseDecisionCertificateV1:
             raise ValueError("admissible action mask has the wrong shape")
         if difference_range.shape != quotient_pairwise_shape:
             raise ValueError("sampled pairwise ranges have the wrong shape")
-        if lipschitz.shape != quotient_pairwise_shape or correction.shape != quotient_pairwise_shape:
+        if (
+            lipschitz.shape != quotient_pairwise_shape
+            or correction.shape != quotient_pairwise_shape
+        ):
             raise ValueError("pairwise regularity tensors have the wrong shape")
         if np.any(difference_range < 0.0) or np.any(cover < 0.0):
             raise ValueError("sample ranges and cover radii must be nonnegative")
