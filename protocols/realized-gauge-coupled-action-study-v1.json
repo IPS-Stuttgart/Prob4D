@@ -1,0 +1,30 @@
+{
+  "schema": "prob4d.realized-gauge-coupled-action-study-protocol",
+  "schema_version": 1,
+  "protocol_id": "realized-gauge-coupled-action-study-v1",
+  "scientific_question": "How much bounded actuator realization error can a gauge-coupled action tolerate before exact fallback is required?",
+  "ideal_action_losses": [0.0, 2.0, 1.0],
+  "fallback_action": 2,
+  "group": {
+    "name": "SO(2)",
+    "sample_count": 16,
+    "cover_radius": "pi / 16",
+    "pairwise_group_lipschitz": 0.0
+  },
+  "intervention_uncertainty": {
+    "realization_radii_for_action_0": [0.0, 0.2, 0.8, 1.0, 1.2],
+    "realization_radii_for_other_actions": 0.0,
+    "loss_lipschitz_by_action": [1.0, 1.0, 1.0],
+    "pairwise_margin": "K_a epsilon_a + K_b epsilon_b"
+  },
+  "registered_requirements": {
+    "zero_tolerance_action_0_exact_through_radius": 1.0,
+    "zero_tolerance_fallback_at_radius": 1.2,
+    "radius_1_2_action_0_regret_upper": 0.2,
+    "bounded_regret_tolerance": 0.25,
+    "bounded_regret_selected_action": 0,
+    "byte_identical_replay_required": true
+  },
+  "statistical_status": "deterministic controlled mechanism",
+  "claim_boundary": "The realization radii and Lipschitz constants are supplied deterministic assumptions. The protocol does not estimate actuator error, validate a physical robot or Causal4D intervention transform, establish probabilistic target coverage, or certify deployment safety."
+}
