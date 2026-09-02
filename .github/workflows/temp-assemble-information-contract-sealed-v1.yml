@@ -1,0 +1,77 @@
+name: Temporary assemble sealed information-contract payload v1
+
+on:
+  push:
+    branches: [science/information-contract-benchmark-sealed-v1]
+    paths:
+      - "tools/tmp/information-contract-sealed-v1.ready"
+
+permissions:
+  contents: write
+
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact chunk revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+          clean: true
+
+      - name: Assemble and verify the exact archive carrier
+        shell: bash
+        run: |
+          set -euo pipefail
+          parts=(tools/tmp/information-contract-sealed-v1.part-{00..06})
+          test "${#parts[@]}" -eq 7
+          for index in 0 1 2 3 4 5; do
+            test "$(wc -c < "${parts[$index]}")" -eq 4000
+          done
+          test "$(wc -c < "${parts[6]}")" -eq 1040
+          cat "${parts[@]}" > tools/tmp/information-contract-sealed-v1.tar.gz.b64
+          test "$(wc -c < tools/tmp/information-contract-sealed-v1.tar.gz.b64)" -eq 25040
+          base64 --decode tools/tmp/information-contract-sealed-v1.tar.gz.b64 \
+            > "${RUNNER_TEMP}/information-contract-sealed-v1.tar.gz"
+          echo "b2f9b30ae73ca46558d20a984919c502258c6e80cf35b8163f05465766f42683  ${RUNNER_TEMP}/information-contract-sealed-v1.tar.gz" \
+            | sha256sum --check --strict
+
+      - name: Replace transient chunks with the exact carrier
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm \
+            .github/workflows/temp-assemble-information-contract-sealed-v1.yml \
+            tools/tmp/information-contract-sealed-v1.part-00 \
+            tools/tmp/information-contract-sealed-v1.part-01 \
+            tools/tmp/information-contract-sealed-v1.part-02 \
+            tools/tmp/information-contract-sealed-v1.part-03 \
+            tools/tmp/information-contract-sealed-v1.part-04 \
+            tools/tmp/information-contract-sealed-v1.part-05 \
+            tools/tmp/information-contract-sealed-v1.part-06 \
+            tools/tmp/information-contract-sealed-v1.ready
+          git add tools/tmp/information-contract-sealed-v1.tar.gz.b64
+          mapfile -t staged < <(git diff --cached --name-only | LC_ALL=C sort)
+          expected=(
+            .github/workflows/temp-assemble-information-contract-sealed-v1.yml
+            tools/tmp/information-contract-sealed-v1.part-00
+            tools/tmp/information-contract-sealed-v1.part-01
+            tools/tmp/information-contract-sealed-v1.part-02
+            tools/tmp/information-contract-sealed-v1.part-03
+            tools/tmp/information-contract-sealed-v1.part-04
+            tools/tmp/information-contract-sealed-v1.part-05
+            tools/tmp/information-contract-sealed-v1.part-06
+            tools/tmp/information-contract-sealed-v1.ready
+            tools/tmp/information-contract-sealed-v1.tar.gz.b64
+          )
+          test "${#staged[@]}" -eq "${#expected[@]}"
+          for index in "${!expected[@]}"; do
+            test "${staged[$index]}" = "${expected[$index]}"
+          done
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Assemble sealed benchmark payload carrier"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
