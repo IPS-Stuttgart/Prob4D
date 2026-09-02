@@ -262,12 +262,8 @@ def build_axial_orbit_action_certificate(
             "advantage_error_bound": error,
             "required_margin": margin,
             "numerical_slack": slack,
-            "reported_nominal_lower": (
-                None if nominal_bounds is None else nominal_bounds.lower
-            ),
-            "reported_nominal_upper": (
-                None if nominal_bounds is None else nominal_bounds.upper
-            ),
+            "reported_nominal_lower": (None if nominal_bounds is None else nominal_bounds.lower),
+            "reported_nominal_upper": (None if nominal_bounds is None else nominal_bounds.upper),
             "reported_robust_lower": result.lower_advantage,
             "reported_robust_upper": result.upper_advantage,
         },
