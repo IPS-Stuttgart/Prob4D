@@ -1,106 +1,34 @@
 {
-  "$id": "https://github.com/IPS-Stuttgart/Prob4D/benchmarks/information_contract_v1/submission.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/IPS-Stuttgart/Prob4D/benchmarks/information_contract_v1/submission.schema.json",
+  "title": "Prob4D truth-separated information-contract submission",
+  "type": "object",
   "additionalProperties": false,
+  "required": [
+    "schema_name",
+    "schema_version",
+    "challenge_id",
+    "submission_id",
+    "producer",
+    "claim_boundary",
+    "cases"
+  ],
   "properties": {
-    "cases": {
-      "items": {
-        "additionalProperties": false,
-        "properties": {
-          "case_id": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "metadata": {
-            "type": "object"
-          },
-          "payload": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "payload_sha256": {
-            "pattern": "^[0-9a-f]{64}$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "case_id",
-          "payload",
-          "payload_sha256"
-        ],
-        "type": "object"
-      },
-      "minItems": 1,
-      "type": "array"
+    "schema_name": {
+      "const": "prob4d.information-contract-submission"
+    },
+    "schema_version": {
+      "const": 1
     },
     "challenge_id": {
-      "minLength": 1,
-      "type": "string"
+      "$ref": "#/$defs/nonemptyString"
     },
-    "claim_boundary": {
-      "minLength": 1,
-      "type": "string"
+    "submission_id": {
+      "$ref": "#/$defs/nonemptyString"
     },
     "producer": {
+      "type": "object",
       "additionalProperties": false,
-      "properties": {
-        "calibration_revision": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "causal_cutoff": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "dependence_group_ids": {
-          "items": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "minItems": 1,
-          "type": "array",
-          "uniqueItems": true
-        },
-        "implementation_revision": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "model_revision": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "output_coordinate_frame": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "prediction_sealed_before_truth": {
-          "type": "boolean"
-        },
-        "producer_output_manifest_sha256": {
-          "pattern": "^[0-9a-f]{64}$",
-          "type": "string"
-        },
-        "provider_contract": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "provider_name": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "submission_mode": {
-          "enum": [
-            "retrospective-replay",
-            "prospective-sealed"
-          ]
-        },
-        "target_outcomes_used": {
-          "const": false
-        },
-        "target_tuning": {
-          "const": false
-        }
-      },
       "required": [
         "provider_name",
         "provider_contract",
@@ -116,28 +44,103 @@
         "target_tuning",
         "prediction_sealed_before_truth"
       ],
-      "type": "object"
+      "properties": {
+        "provider_name": {
+          "$ref": "#/$defs/nonemptyString"
+        },
+        "provider_contract": {
+          "$ref": "#/$defs/nonemptyString"
+        },
+        "implementation_revision": {
+          "$ref": "#/$defs/nonemptyString"
+        },
+        "model_revision": {
+          "$ref": "#/$defs/nonemptyString"
+        },
+        "calibration_revision": {
+          "$ref": "#/$defs/nonemptyString"
+        },
+        "output_coordinate_frame": {
+          "$ref": "#/$defs/nonemptyString"
+        },
+        "causal_cutoff": {
+          "$ref": "#/$defs/nonemptyString"
+        },
+        "dependence_group_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/nonemptyString"
+          }
+        },
+        "submission_mode": {
+          "enum": [
+            "retrospective-replay",
+            "prospective-sealed"
+          ]
+        },
+        "producer_output_manifest_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "target_outcomes_used": {
+          "const": false
+        },
+        "target_tuning": {
+          "const": false
+        },
+        "prediction_sealed_before_truth": {
+          "type": "boolean"
+        }
+      }
     },
-    "schema_name": {
-      "const": "prob4d.information-contract-submission"
+    "claim_boundary": {
+      "$ref": "#/$defs/nonemptyString"
     },
-    "schema_version": {
-      "const": 1
-    },
-    "submission_id": {
-      "minLength": 1,
-      "type": "string"
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "case_id",
+          "payload",
+          "payload_sha256"
+        ],
+        "properties": {
+          "case_id": {
+            "$ref": "#/$defs/nonemptyString"
+          },
+          "payload": {
+            "$ref": "#/$defs/relativePath"
+          },
+          "payload_sha256": {
+            "$ref": "#/$defs/sha256"
+          },
+          "metadata": {
+            "type": "object"
+          }
+        }
+      }
     }
   },
-  "required": [
-    "schema_name",
-    "schema_version",
-    "challenge_id",
-    "submission_id",
-    "producer",
-    "claim_boundary",
-    "cases"
-  ],
-  "title": "Prob4D information-contract submission v1",
-  "type": "object"
+  "$defs": {
+    "nonemptyString": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^\\S(?:.*\\S)?$"
+    },
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "not": {
+        "pattern": "(^/|(^|/)\\.\\.(/|$))"
+      }
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
 }

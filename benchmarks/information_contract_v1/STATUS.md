@@ -1,9 +1,9 @@
 # Status: information-contract benchmark v1
 
-## Completed in the benchmark branch
+## Completed in the benchmark line
 
 - Provider-neutral JSON evaluator and deterministic command-line interface.
-- Versioned protocol and formal self-contained suite JSON Schema.
+- Versioned protocol and formal suite JSON Schema.
 - Seven-system controlled conformance suite.
 - Separate accuracy, joint-probabilistic, query/decision, fallback,
   communication, and cross-provider axes.
@@ -13,71 +13,67 @@
 - Shared-common-bias, dependence-destruction, unsupported-specificity, and
   malformed-contract controls.
 - Focused Ruff/pytest/deterministic-generation workflows.
-- Retained `controlled_report.json`, `validation_receipt.json`, and hashes.
-- Staged public-data promotion plan and paper novelty-ownership issue.
+- Retained controlled report, validation receipt, and hashes.
 
-## Further hardening in the sealed-submission branch
+## Strengthening in the sealed-submission branch
 
-The benchmark now has a truth-separated public-evaluation interface:
-
-- challenge-owned truth, queries, ambiguity sets, losses, and fallback;
-- submission-owned means, covariance, admissions, certificates, and actions;
-- exact case-roster equality and SHA-256 binding on both sides;
-- rejection of target truth or realized losses smuggled into a submission;
-- explicit retrospective versus prospective information-order classes;
-- producer, model, calibration, frame, causal-cutoff, and dependence identities;
-- provider-only communication accounting rather than charging truth bytes; and
-- an exact finite-query axis over quotient classes in addition to the local
-  linear nullspace check.
-
-The deterministic control includes a query that the local differential test
-admits but the finite quotient rejects. Both decisions are scored separately;
-the benchmark therefore does not allow local stationarity to masquerade as
-global query identification.
-
-See
-[`docs/information-contract-sealed-submissions.md`](../../docs/information-contract-sealed-submissions.md).
+- Challenge-owned truth is physically separated from provider-owned output.
+- The case roster, both payloads, and the dataset manifest are independently
+  SHA-256 bound.
+- Submissions cannot redefine target truth, query, nullspace, quotient, loss,
+  realized outcome, or physical fallback.
+- Challenge payloads cannot carry provider means, uncertainty, admissions,
+  certificates, or selected actions.
+- Retrospective and prospective information orders are distinct result classes;
+  retrospective replay cannot claim prospective held-out status.
+- A new `finite_query` task tests query constancy over each finite supported
+  quotient class, complementing rather than replacing the local tangent-
+  nullspace check.
+- The scorecard explicitly counts local admissions that fail the finite test.
+- Communication file size charges only provider-owned submission bytes, while
+  retaining challenge and temporary joined sizes for audit.
+- New adversarial tests cover target smuggling, provider smuggling, false finite
+  admission, incomplete case rosters, false prospective relabelling, and byte-
+  identical replay.
 
 ## Controlled findings
 
-These findings are deterministic conformance checks, not empirical provider
-performance:
+These are deterministic conformance checks, not empirical provider performance:
 
 - the lowest-RMSE system has zero registered coverage and normalized NEES 450;
 - full and diagonal covariance systems have identical means and coordinate
   marginals, but different joint likelihoods;
 - the ambiguity-aware contract identifies the invariant query, rejects the
   sensitive query, and returns exact fallback;
-- a local nullspace check can admit a query that varies inside a finite
-  observation-equivalence class;
+- the sealed control contains a locally admitted query that is rejected by the
+  finite quotient-class range test;
 - an artificially refined quotient admits a harmful nonfallback action;
 - the communication control reduces 17,000 bytes to 1,000 bytes with posterior
   error `1e-12` under tolerance `1e-9`; and
-- two corroborating providers are both inaccurate and share one input
-  dependence group.
+- two corroborating providers are both inaccurate and share one input dependence
+  group.
 
 ## Not completed
 
-- No public dataset has been opened by the benchmark implementation branches.
-- No learned provider has been run for a new benchmark result.
+- No new public dataset has been opened for this benchmark branch.
+- No learned provider has been run.
 - No public provider ranking exists.
 - No uncertainty calibration, query validity, or decision utility is claimed on
   a new empirical cohort.
 - No scalar overall score exists.
-- The sealed evaluator validates declarations and hashes; an external workflow
-  receipt is still required to prove prospective information order.
 
 ## Next bounded milestone
 
-1. Implement a byte-parity retrospective DEFORM DLO4/DLO5 adapter from the
-   original public trajectories and frozen BayesianPhysTwin experiment code.
-   Challenge truth/losses and provider decisions must be stored separately.
-2. Implement the Tracking Cloth dependence/compression adapter from the original
-   per-window artifacts, grouped by recording or specimen.
-3. Compare at least two provider contracts on at least two independently
-   collected public datasets.
-4. Freeze a prospective challenge before target opening and retain every
-   positive, negative, support-negative, and technical-failure outcome.
+1. Generate a retrospective DEFORM DLO4/DLO5 adapter directly from the pinned
+   public trajectories and the original per-decision evaluator. It must reproduce
+   the retained result before it is used as an adapter reference.
+2. Generate the corresponding Tracking Cloth dependence/compression adapter from
+   original recording-level artifacts.
+3. Freeze a prospective two-provider by two-dataset protocol using the separated
+   challenge/submission format.
+4. Seal provider manifests and predictions before held-out scoring.
+5. Publish the first multi-axis public scorecard, including every positive,
+   negative, support-negative, and technical-failure outcome.
 
 A standalone benchmark manuscript is not promoted until the prospective stage
 contains at least one statistically supported ranking reversal and the required

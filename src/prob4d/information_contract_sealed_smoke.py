@@ -9,40 +9,35 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from numpy.typing import NDArray
 
 from ._atomic_file import atomic_write_bytes, atomic_write_text
-from .information_contract_benchmark import generate_smoke_suite
+from .information_contract_benchmark import _sha256_file
+from .information_contract_benchmark_smoke import generate_smoke_suite
 from .information_contract_sealed import (
     _CHALLENGE_ARRAYS,
     _SUBMISSION_ARRAYS,
     CHALLENGE_SCHEMA,
     CHALLENGE_VERSION,
+    FINITE_QUERY_TASK,
     SUBMISSION_SCHEMA,
     SUBMISSION_VERSION,
-    _canonical_json,
     _deterministic_npz_bytes,
-    _sha256_file,
 )
 
-FloatArray = NDArray[np.float64]
+
+def _canonical_json(value: dict[str, Any]) -> str:
+    return json.dumps(value, indent=2, sort_keys=True, allow_nan=False) + "\n"
 
 
-def _finite_query_control(
-    arrays: dict[str, NDArray[Any]],
-) -> tuple[FloatArray, FloatArray, NDArray[np.bool_]]:
-    prior = np.asarray(arrays["hypothesis_prior"], dtype=np.float64)
-    query = np.asarray(arrays["query_matrix"], dtype=np.float64)
-    hypothesis_count = int(prior.size)
-    query_count = int(query.shape[0])
-    if hypothesis_count != 4 or query_count != 3:
-        raise ValueError("legacy smoke fixture changed unexpectedly")
+def _finite_query_arrays(query_count: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    if query_count != 3:
+        raise ValueError("the deterministic smoke fixture requires exactly three queries")
     values = np.array(
         [
-            [0.0, 0.0, 0.30],
-            [0.2, 1.0, 0.30],
-            [0.0, 0.0, 0.40],
-            [0.2, 1.0, 0.40],
+            [0.0, 0.0, 0.3],
+            [0.2, 1.0, 0.3],
+            [0.0, 0.0, 0.4],
+            [0.2, 1.0, 0.4],
         ],
         dtype=np.float64,
     )
@@ -56,43 +51,41 @@ def generate_sealed_smoke(
     *,
     overwrite: bool = False,
 ) -> tuple[Path, Path]:
-    """Generate one deterministic retrospective challenge/submission pair."""
+    """Create one deterministic retrospective challenge/submission pair."""
 
     root = Path(directory)
     challenge_root = root / "challenge"
     submission_root = root / "submission"
-    challenge_root.mkdir(parents=True, exist_ok=True)
-    submission_root.mkdir(parents=True, exist_ok=True)
+    challenge_cases_root = challenge_root / "cases"
+    submission_cases_root = submission_root / "cases"
+    challenge_cases_root.mkdir(parents=True, exist_ok=True)
+    submission_cases_root.mkdir(parents=True, exist_ok=True)
 
-    challenge_cases: list[dict[str, Any]] = []
-    submission_cases: list[dict[str, Any]] = []
-    with tempfile.TemporaryDirectory(
-        prefix="prob4d-information-contract-legacy-smoke-"
-    ) as temporary:
-        legacy_suite_path = generate_smoke_suite(Path(temporary) / "legacy")
-        legacy_suite = json.loads(
-            legacy_suite_path.read_text(encoding="utf-8")
-        )
-        for case in legacy_suite["cases"]:
+    with tempfile.TemporaryDirectory(prefix="prob4d-legacy-smoke-") as temporary:
+        suite_path = generate_smoke_suite(Path(temporary) / "suite")
+        suite = json.loads(suite_path.read_text(encoding="utf-8"))
+        challenge_cases: list[dict[str, Any]] = []
+        submission_cases: list[dict[str, Any]] = []
+        dataset_cases: list[dict[str, str]] = []
+        producer_rows: list[dict[str, str]] = []
+        for case in suite["cases"]:
             case_id = str(case["case_id"])
-            payload_path = legacy_suite_path.parent / str(case["payload"])
-            with np.load(payload_path, allow_pickle=False) as archive:
+            source_payload = suite_path.parent / case["payload"]
+            with np.load(source_payload, allow_pickle=False) as archive:
                 arrays = {
                     name: np.array(archive[name], copy=True)
                     for name in archive.files
                 }
-            values, tolerance, finite_admitted = _finite_query_control(arrays)
+            finite_values, finite_tolerance, finite_admitted = _finite_query_arrays(
+                int(arrays["query_matrix"].shape[0])
+            )
             challenge_arrays = {
                 name: value
                 for name, value in arrays.items()
                 if name in _CHALLENGE_ARRAYS
             }
-            challenge_arrays.update(
-                {
-                    "finite_query_value_by_hypothesis": values,
-                    "finite_query_tolerance": tolerance,
-                }
-            )
+            challenge_arrays["finite_query_value_by_hypothesis"] = finite_values
+            challenge_arrays["finite_query_tolerance"] = finite_tolerance
             submission_arrays = {
                 name: value
                 for name, value in arrays.items()
@@ -100,8 +93,8 @@ def generate_sealed_smoke(
             }
             submission_arrays["finite_query_admitted"] = finite_admitted
 
-            challenge_payload = challenge_root / f"{case_id}.npz"
-            submission_payload = submission_root / f"{case_id}.npz"
+            challenge_payload = challenge_cases_root / f"{case_id}.npz"
+            submission_payload = submission_cases_root / f"{case_id}.npz"
             atomic_write_bytes(
                 challenge_payload,
                 _deterministic_npz_bytes(challenge_arrays),
@@ -112,40 +105,48 @@ def generate_sealed_smoke(
                 _deterministic_npz_bytes(submission_arrays),
                 overwrite=overwrite,
             )
+            challenge_sha = _sha256_file(challenge_payload)
+            submission_sha = _sha256_file(submission_payload)
             challenge_cases.append(
                 {
                     "case_id": case_id,
                     "group_id": str(case["group_id"]),
-                    "payload": challenge_payload.name,
-                    "payload_sha256": _sha256_file(challenge_payload),
-                    "tasks": sorted(
-                        set(case["tasks"]).union({"finite_query"})
-                    ),
+                    "payload": f"cases/{case_id}.npz",
+                    "payload_sha256": challenge_sha,
+                    "tasks": sorted([*case["tasks"], FINITE_QUERY_TASK]),
                     "metadata": {
-                        "classification": "deterministic truth-side control",
-                        "legacy_case_id": case_id,
+                        "classification": "deterministic conformance control",
+                        "original_case_id": case_id,
                     },
                 }
             )
             submission_cases.append(
                 {
                     "case_id": case_id,
-                    "payload": submission_payload.name,
-                    "payload_sha256": _sha256_file(submission_payload),
+                    "payload": f"cases/{case_id}.npz",
+                    "payload_sha256": submission_sha,
                     "metadata": {
-                        "classification": "deterministic provider-side control",
+                        "classification": "deterministic provider control"
                     },
                 }
             )
+            dataset_cases.append(
+                {
+                    "case_id": case_id,
+                    "group_id": str(case["group_id"]),
+                    "challenge_payload_sha256": challenge_sha,
+                }
+            )
+            producer_rows.append(
+                {"case_id": case_id, "submission_payload_sha256": submission_sha}
+            )
 
     dataset_manifest = {
-        "schema_name": "prob4d.information-contract-dataset-manifest",
+        "schema_name": "prob4d.information-contract-controlled-dataset-manifest",
         "schema_version": 1,
-        "dataset_id": "prob4d-controlled-information-contract-smoke",
-        "case_ids": sorted(case["case_id"] for case in challenge_cases),
-        "classification": "deterministic development fixture",
-        "public_data_records": 0,
-        "target_outcomes_were_open": True,
+        "classification": "deterministic synthetic development control",
+        "public_data": False,
+        "cases": dataset_cases,
     }
     dataset_manifest_path = challenge_root / "dataset-manifest.json"
     atomic_write_text(
@@ -158,69 +159,60 @@ def generate_sealed_smoke(
         "schema_version": CHALLENGE_VERSION,
         "challenge_id": "prob4d-information-contract-sealed-smoke-v1",
         "aggregation_unit": "group_id",
-        "thresholds": {
-            "coverage_probability": 0.9,
-            "gauge_sensitivity_tolerance": 1e-12,
-            "moment_atol": 1e-12,
-            "relative_rank_tolerance": 1e-10,
-        },
+        "thresholds": suite["thresholds"],
         "claim_boundary": (
-            "Deterministic retrospective control only; the target values are "
-            "constructed and open, so no held-out or provider claim is permitted."
+            "Deterministic retrospective development control; no public data, "
+            "learned provider, calibration claim, or physical benefit."
         ),
         "dataset": {
-            "dataset_id": dataset_manifest["dataset_id"],
+            "dataset_id": "prob4d-controlled-information-contract-smoke",
             "dataset_version": "1",
-            "license_id": "CC0-1.0",
+            "license_id": "MIT-generated-control",
             "public_data": False,
             "information_order": "retrospective-open-target",
-            "manifest": dataset_manifest_path.name,
+            "manifest": "dataset-manifest.json",
             "manifest_sha256": _sha256_file(dataset_manifest_path),
         },
         "cases": challenge_cases,
     }
     challenge_path = challenge_root / "challenge.json"
-    atomic_write_text(
-        challenge_path,
-        _canonical_json(challenge),
-        overwrite=overwrite,
-    )
+    atomic_write_text(challenge_path, _canonical_json(challenge), overwrite=overwrite)
 
-    producer_identity = b"prob4d-deterministic-sealed-smoke-provider-v1"
+    producer_manifest_sha256 = hashlib.sha256(
+        json.dumps(
+            producer_rows,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
     submission = {
         "schema_name": SUBMISSION_SCHEMA,
         "schema_version": SUBMISSION_VERSION,
         "challenge_id": challenge["challenge_id"],
-        "submission_id": "prob4d-deterministic-sealed-smoke-provider-v1",
+        "submission_id": "prob4d-deterministic-provider-control-v1",
         "producer": {
-            "provider_name": "Prob4D deterministic smoke provider",
-            "provider_contract": "prob4d.controlled-provider-v1",
-            "implementation_revision": "deterministic-source-tree",
+            "provider_name": "Prob4D deterministic sealed smoke provider",
+            "provider_contract": "prob4d-controlled-provider-v1",
+            "implementation_revision": "generated-with-current-checkout",
             "model_revision": "no-learned-model",
-            "calibration_revision": "constructed-control",
-            "output_coordinate_frame": "registered-control-frame",
-            "causal_cutoff": "all constructed source inputs",
-            "dependence_group_ids": ["controlled-generator-v1"],
+            "calibration_revision": "deterministic-analytic-covariance",
+            "output_coordinate_frame": "controlled-metric-frame",
+            "causal_cutoff": "complete-controlled-input",
+            "dependence_group_ids": ["controlled-input:sealed-smoke-v1"],
             "submission_mode": "retrospective-replay",
-            "producer_output_manifest_sha256": hashlib.sha256(
-                producer_identity
-            ).hexdigest(),
+            "producer_output_manifest_sha256": producer_manifest_sha256,
             "target_outcomes_used": False,
             "target_tuning": False,
             "prediction_sealed_before_truth": False,
         },
         "claim_boundary": (
-            "Deterministic provider-side conformance control; no empirical "
-            "accuracy, calibration, or safety claim."
+            "Submission serialization and contract semantics only; the generated "
+            "provider is not an empirical method."
         ),
         "cases": submission_cases,
     }
     submission_path = submission_root / "submission.json"
-    atomic_write_text(
-        submission_path,
-        _canonical_json(submission),
-        overwrite=overwrite,
-    )
+    atomic_write_text(submission_path, _canonical_json(submission), overwrite=overwrite)
     return challenge_path, submission_path
 
 

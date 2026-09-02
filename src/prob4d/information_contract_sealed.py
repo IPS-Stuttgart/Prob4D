@@ -1,11 +1,10 @@
 """Truth-separated evaluation for probabilistic 4-D information contracts.
 
-The base evaluator accepts a self-contained suite for local replay. This module
-adds the scientific information barrier required by a public benchmark: target
-truth, queries, ambiguity sets, losses, and fallback are challenge-owned, while
-provider means, uncertainty, admissions, certificates, and selected actions are
-submission-owned. The two payloads are hash-bound and joined only inside a
-temporary evaluator workspace.
+The base information-contract evaluator accepts a self-contained suite for local
+replay. This module adds a scientific information barrier: target truth, queries,
+ambiguity sets, losses, and fallback are challenge-owned; provider means,
+uncertainty, admissions, certificates, and selected actions are submission-owned.
+The two hash-bound payloads are joined only in a temporary evaluator workspace.
 """
 
 from __future__ import annotations
@@ -60,16 +59,17 @@ SEALED_RESULT_VERSION: Final = 1
 FINITE_QUERY_TASK: Final = "finite_query"
 SEALED_CLAIM_BOUNDARY: Final = (
     "This result validates one hash-bound challenge/submission pair. A prospective "
-    "claim additionally requires the challenge information-order declaration and "
-    "independent evidence that the submission was sealed before target opening. "
-    "Retrospective replay remains diagnostic even when every numerical contract passes. "
-    "No result proves that a declared quotient, gauge, loss, or fallback is physically "
-    "correct outside the frozen challenge."
+    "claim additionally requires independent evidence that predictions were sealed "
+    "before target opening. Retrospective replay remains diagnostic even when every "
+    "numerical contract passes. No result proves that a declared quotient, gauge, "
+    "loss, or fallback is physically correct outside the frozen challenge."
 )
+
 _INFORMATION_ORDERS: Final = frozenset(
     {"retrospective-open-target", "prospective-sealed-target"}
 )
 _SUBMISSION_MODES: Final = frozenset({"retrospective-replay", "prospective-sealed"})
+
 _CHALLENGE_ARRAYS: Final = frozenset(
     {
         "truth_xyz_m",
@@ -103,7 +103,7 @@ _SUBMISSION_ARRAYS: Final = frozenset(
         "finite_query_admitted",
     }
 )
-_FINITE_QUERY_ARRAYS: Final = frozenset(
+_FINITE_ONLY_ARRAYS: Final = frozenset(
     {
         "finite_query_value_by_hypothesis",
         "finite_query_tolerance",
@@ -145,10 +145,9 @@ def _boolean(value: object, *, name: str) -> bool:
     return bool(value)
 
 
-def _string_list(value: object, *, name: str, allow_empty: bool = False) -> tuple[str, ...]:
-    if not isinstance(value, list) or (not value and not allow_empty):
-        qualifier = "a list" if allow_empty else "a nonempty list"
-        raise ValueError(f"{name} must be {qualifier} of strings")
+def _string_list(value: object, *, name: str) -> tuple[str, ...]:
+    if not isinstance(value, list) or not value:
+        raise ValueError(f"{name} must be a nonempty list of strings")
     result = tuple(_string(item, name=f"{name} entry") for item in value)
     if len(result) != len(set(result)):
         raise ValueError(f"{name} must not contain duplicates")
@@ -218,11 +217,7 @@ def _required_split_arrays(tasks: frozenset[str]) -> tuple[set[str], set[str]]:
             }
         )
         submission.update(
-            {
-                "reported_worst_case_regret",
-                "selected_action",
-                "decision_admitted",
-            }
+            {"reported_worst_case_regret", "selected_action", "decision_admitted"}
         )
     if FINITE_QUERY_TASK in tasks:
         challenge.update(
@@ -273,13 +268,13 @@ def _load_owned_payload(
                     f"{owner} payload does not match declared tasks: "
                     f"missing={sorted(missing)}, extra={sorted(extra)}"
                 )
-            result = {name: np.array(archive[name], copy=True) for name in archive.files}
+            arrays = {name: np.array(archive[name], copy=True) for name in archive.files}
     except OSError as error:
         raise ValueError(f"cannot load {owner} payload {path}") from error
-    for name, value in result.items():
+    for name, value in arrays.items():
         if value.dtype.kind == "O":
             raise ValueError(f"{owner} payload array {name} must not use object dtype")
-    return result
+    return arrays
 
 
 def _validate_thresholds(value: object) -> dict[str, float]:
@@ -324,11 +319,7 @@ def _validate_thresholds(value: object) -> dict[str, float]:
     }
 
 
-def _validate_dataset(
-    value: object,
-    *,
-    challenge_root: Path,
-) -> tuple[dict[str, Any], Path]:
+def _validate_dataset(value: object, *, root: Path) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError("dataset must be an object")
     allowed = {
@@ -343,35 +334,23 @@ def _validate_dataset(
     _exact_fields(value, allowed, name="dataset")
     information_order = _string(value.get("information_order"), name="information_order")
     if information_order not in _INFORMATION_ORDERS:
-        raise ValueError(
-            f"information_order must be one of {sorted(_INFORMATION_ORDERS)}"
-        )
-    manifest = _relative_payload(
-        challenge_root,
-        value.get("manifest"),
-        name="dataset.manifest",
-    )
+        raise ValueError(f"information_order must be one of {sorted(_INFORMATION_ORDERS)}")
+    manifest = _relative_payload(root, value.get("manifest"), name="dataset.manifest")
     expected = _hex_sha256(
-        value.get("manifest_sha256"),
-        name="dataset.manifest_sha256",
+        value.get("manifest_sha256"), name="dataset.manifest_sha256"
     )
     actual = _sha256_file(manifest)
     if actual != expected:
         raise ValueError(f"dataset manifest SHA-256 mismatch: {actual} != {expected}")
-    return (
-        {
-            "dataset_id": _string(value.get("dataset_id"), name="dataset_id"),
-            "dataset_version": _string(
-                value.get("dataset_version"), name="dataset_version"
-            ),
-            "license_id": _string(value.get("license_id"), name="license_id"),
-            "public_data": _boolean(value.get("public_data"), name="public_data"),
-            "information_order": information_order,
-            "manifest": manifest.relative_to(challenge_root.resolve()).as_posix(),
-            "manifest_sha256": actual,
-        },
-        manifest,
-    )
+    return {
+        "dataset_id": _string(value.get("dataset_id"), name="dataset_id"),
+        "dataset_version": _string(value.get("dataset_version"), name="dataset_version"),
+        "license_id": _string(value.get("license_id"), name="license_id"),
+        "public_data": _boolean(value.get("public_data"), name="public_data"),
+        "information_order": information_order,
+        "manifest": manifest.relative_to(root.resolve()).as_posix(),
+        "manifest_sha256": actual,
+    }
 
 
 def _validate_producer(
@@ -401,8 +380,7 @@ def _validate_producer(
     if mode not in _SUBMISSION_MODES:
         raise ValueError(f"submission_mode must be one of {sorted(_SUBMISSION_MODES)}")
     target_outcomes_used = _boolean(
-        value.get("target_outcomes_used"),
-        name="target_outcomes_used",
+        value.get("target_outcomes_used"), name="target_outcomes_used"
     )
     target_tuning = _boolean(value.get("target_tuning"), name="target_tuning")
     sealed_before_truth = _boolean(
@@ -410,7 +388,7 @@ def _validate_producer(
         name="prediction_sealed_before_truth",
     )
     if target_outcomes_used or target_tuning:
-        raise ValueError("claim-bearing submissions must not use target outcomes or tuning")
+        raise ValueError("submission must not use target outcomes or target tuning")
     prospective = information_order == "prospective-sealed-target"
     expected_mode = "prospective-sealed" if prospective else "retrospective-replay"
     if mode != expected_mode:
@@ -440,10 +418,7 @@ def _validate_producer(
     producer.update(
         {
             "dependence_group_ids": list(
-                _string_list(
-                    value.get("dependence_group_ids"),
-                    name="dependence_group_ids",
-                )
+                _string_list(value.get("dependence_group_ids"), name="dependence_group_ids")
             ),
             "submission_mode": mode,
             "producer_output_manifest_sha256": _hex_sha256(
@@ -458,7 +433,7 @@ def _validate_producer(
     return producer, prospective
 
 
-def _validate_case_record(
+def _case_record(
     value: object,
     *,
     root: Path,
@@ -472,11 +447,7 @@ def _validate_case_record(
         allowed.update({"group_id", "tasks"})
     _exact_fields(value, allowed, name=f"{role} case")
     case_id = _string(value.get("case_id"), name=f"{role}.case_id")
-    payload = _relative_payload(
-        root,
-        value.get("payload"),
-        name=f"{role}.{case_id}.payload",
-    )
+    payload = _relative_payload(root, value.get("payload"), name=f"{role}.{case_id}.payload")
     metadata = value.get("metadata", {})
     if not isinstance(metadata, dict):
         raise ValueError(f"{role}.{case_id}.metadata must be an object")
@@ -485,8 +456,7 @@ def _validate_case_record(
         "payload": payload,
         "payload_relative": payload.relative_to(root.resolve()).as_posix(),
         "payload_sha256": _hex_sha256(
-            value.get("payload_sha256"),
-            name=f"{role}.{case_id}.payload_sha256",
+            value.get("payload_sha256"), name=f"{role}.{case_id}.payload_sha256"
         ),
         "metadata": metadata,
     }
@@ -500,18 +470,19 @@ def _validate_case_record(
     return result
 
 
-def _records_by_id(records: object, *, role: str, root: Path, with_tasks: bool) -> dict[str, Any]:
+def _records_by_id(
+    records: object,
+    *,
+    role: str,
+    root: Path,
+    with_tasks: bool,
+) -> dict[str, dict[str, Any]]:
     if not isinstance(records, list) or not records:
         raise ValueError(f"{role}.cases must be a nonempty list")
-    result: dict[str, Any] = {}
+    result: dict[str, dict[str, Any]] = {}
     for value in records:
-        record = _validate_case_record(
-            value,
-            root=root,
-            role=role,
-            with_tasks=with_tasks,
-        )
-        case_id = record["case_id"]
+        record = _case_record(value, root=root, role=role, with_tasks=with_tasks)
+        case_id = str(record["case_id"])
         if case_id in result:
             raise ValueError(f"duplicate {role} case_id {case_id!r}")
         result[case_id] = record
@@ -532,24 +503,16 @@ def _finite_query_metrics(
         raise ValueError(
             "finite_query_value_by_hypothesis must have shape (H, Q), H,Q >= 1"
         )
-    prior = _float_array(
-        challenge["hypothesis_prior"],
-        name="hypothesis_prior",
-        ndim=1,
-    )
+    prior = _float_array(challenge["hypothesis_prior"], name="hypothesis_prior", ndim=1)
     if (
         prior.shape != (hypothesis_count,)
         or np.any(prior < 0.0)
         or float(prior.sum()) <= 0.0
     ):
-        raise ValueError(
-            "hypothesis_prior must match finite queries and have positive mass"
-        )
+        raise ValueError("hypothesis_prior must match finite queries and have positive mass")
     classes = np.asarray(challenge["quotient_class"])
     if classes.shape != (hypothesis_count,) or classes.dtype.kind not in {"i", "u"}:
-        raise ValueError(
-            "quotient_class must be an integer vector matching finite hypotheses"
-        )
+        raise ValueError("quotient_class must be an integer vector matching hypotheses")
     classes = classes.astype(np.int64, copy=False)
     class_count = int(classes.max(initial=-1)) + 1
     if class_count < 1 or set(classes.tolist()) != set(range(class_count)):
@@ -560,7 +523,7 @@ def _finite_query_metrics(
         or np.any(mass < 0.0)
         or not math.isclose(float(mass.sum()), 1.0, rel_tol=0.0, abs_tol=1e-12)
     ):
-        raise ValueError("quotient_mass must have one nonnegative entry and sum to one")
+        raise ValueError("quotient_mass must have one entry per class and sum to one")
     support = prior > 0.0
     widths = np.empty((class_count, query_count), dtype=np.float64)
     for class_index in range(class_count):
@@ -569,23 +532,16 @@ def _finite_query_metrics(
             raise ValueError("every finite-query class requires positive prior support")
         selected_values = values[selected]
         widths[class_index] = np.max(selected_values, axis=0) - np.min(
-            selected_values,
-            axis=0,
+            selected_values, axis=0
         )
     tolerance = _float_array(
-        challenge["finite_query_tolerance"],
-        name="finite_query_tolerance",
-        ndim=1,
+        challenge["finite_query_tolerance"], name="finite_query_tolerance", ndim=1
     )
     if tolerance.shape != (query_count,) or np.any(tolerance < 0.0):
-        raise ValueError(
-            "finite_query_tolerance must be nonnegative with one value per query"
-        )
+        raise ValueError("finite_query_tolerance must be nonnegative with one value per query")
     admitted = np.asarray(submission["finite_query_admitted"])
     if admitted.shape != (query_count,) or admitted.dtype.kind != "b":
-        raise ValueError(
-            "finite_query_admitted must be Boolean with one entry per query"
-        )
+        raise ValueError("finite_query_admitted must be Boolean with one entry per query")
     maximum_width = np.max(widths, axis=0)
     expected = maximum_width <= tolerance
     false_accept = admitted & ~expected
@@ -616,22 +572,6 @@ def _finite_query_metrics(
     )
 
 
-def _finite_summary(case: Mapping[str, Any]) -> dict[str, float]:
-    metrics = case["metrics"].get("finite_query")
-    if not isinstance(metrics, dict):
-        return {}
-    return {
-        "finite_query_false_accept_fraction": float(metrics["false_accept_fraction"]),
-        "finite_query_false_reject_fraction": float(metrics["false_reject_fraction"]),
-        "finite_query_mean_maximum_class_width": float(
-            np.mean(metrics["maximum_class_width"])
-        ),
-        "local_admits_finite_rejects": float(
-            metrics.get("local_admits_finite_rejects_count", 0)
-        ),
-    }
-
-
 def _mean_records(records: Sequence[Mapping[str, float]]) -> dict[str, float]:
     keys = sorted({key for record in records for key in record})
     return {
@@ -648,9 +588,25 @@ def _enrich_finite_aggregate(
     if not selected:
         aggregate["finite_query"] = {"status": "not_evaluated", "case_count": 0}
         return
-    case_summaries = [_finite_summary(case) for case in selected]
+    case_summaries: list[dict[str, float]] = []
     grouped: dict[str, list[dict[str, float]]] = defaultdict(list)
-    for case, summary in zip(selected, case_summaries, strict=True):
+    for case in selected:
+        metrics = case["metrics"]["finite_query"]
+        summary = {
+            "finite_query_false_accept_fraction": float(
+                metrics["false_accept_fraction"]
+            ),
+            "finite_query_false_reject_fraction": float(
+                metrics["false_reject_fraction"]
+            ),
+            "finite_query_mean_maximum_class_width": float(
+                np.mean(metrics["maximum_class_width"])
+            ),
+            "local_admits_finite_rejects": float(
+                metrics.get("local_admits_finite_rejects_count", 0)
+            ),
+        }
+        case_summaries.append(summary)
         grouped[str(case["group_id"])].append(summary)
     per_group = {
         group_id: _mean_records(records)
@@ -666,8 +622,7 @@ def _enrich_finite_aggregate(
         "local_admits_finite_rejects_count": sum(
             int(
                 case["metrics"]["finite_query"].get(
-                    "local_admits_finite_rejects_count",
-                    0,
+                    "local_admits_finite_rejects_count", 0
                 )
             )
             for case in selected
@@ -675,13 +630,11 @@ def _enrich_finite_aggregate(
     }
 
 
-def _core_case_skeleton(case: Mapping[str, Any]) -> dict[str, Any]:
+def _case_skeleton(case: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "case_id": case["case_id"],
         "group_id": case["group_id"],
         "tasks": [],
-        "payload": None,
-        "payload_sha256": None,
         "metadata": {},
         "metrics": {},
         "contract_checks": {},
@@ -749,24 +702,20 @@ def evaluate_sealed_information_contract(
     submission_boundary = _string(
         submission.get("claim_boundary"), name="submission.claim_boundary"
     )
-    dataset, _ = _validate_dataset(
-        challenge.get("dataset"),
-        challenge_root=challenge_file.parent.resolve(),
-    )
+    dataset = _validate_dataset(challenge.get("dataset"), root=challenge_file.parent)
     producer, prospective = _validate_producer(
-        submission.get("producer"),
-        information_order=dataset["information_order"],
+        submission.get("producer"), information_order=dataset["information_order"]
     )
     challenge_cases = _records_by_id(
         challenge.get("cases"),
         role="challenge",
-        root=challenge_file.parent.resolve(),
+        root=challenge_file.parent,
         with_tasks=True,
     )
     submission_cases = _records_by_id(
         submission.get("cases"),
         role="submission",
-        root=submission_file.parent.resolve(),
+        root=submission_file.parent,
         with_tasks=False,
     )
     if set(challenge_cases) != set(submission_cases):
@@ -808,13 +757,13 @@ def evaluate_sealed_information_contract(
             merged_arrays = {
                 name: value
                 for name, value in challenge_arrays.items()
-                if name not in _FINITE_QUERY_ARRAYS
+                if name not in _FINITE_ONLY_ARRAYS
             }
             merged_arrays.update(
                 {
                     name: value
                     for name, value in submission_arrays.items()
-                    if name not in _FINITE_QUERY_ARRAYS
+                    if name not in _FINITE_ONLY_ARRAYS
                 }
             )
             merged_payload = temporary_root / f"{case_id}.npz"
@@ -827,7 +776,7 @@ def evaluate_sealed_information_contract(
                 {
                     "case_id": case_id,
                     "group_id": challenge_case["group_id"],
-                    "payload": merged_payload.relative_to(temporary_root).as_posix(),
+                    "payload": merged_payload.name,
                     "payload_sha256": _sha256_file(merged_payload),
                     "tasks": core_tasks,
                     "metadata": {
@@ -849,8 +798,8 @@ def evaluate_sealed_information_contract(
                         "aggregation_unit": "group_id",
                         "thresholds": thresholds,
                         "claim_boundary": (
-                            "Temporary deterministic join of separately sealed challenge "
-                            "and submission payloads."
+                            "Temporary join of separately hash-bound challenge and "
+                            "submission payloads."
                         ),
                         "cases": merged_cases,
                     }
@@ -867,7 +816,7 @@ def evaluate_sealed_information_contract(
         challenge_case = challenge_cases[case_id]
         submission_case = submission_cases[case_id]
         challenge_arrays, submission_arrays = loaded[case_id]
-        case = dict(core_by_id.get(case_id, _core_case_skeleton(challenge_case)))
+        case = dict(core_by_id.get(case_id, _case_skeleton(challenge_case)))
         case["tasks"] = sorted(challenge_case["tasks"])
         case["metadata"] = {
             "challenge": challenge_case["metadata"],
@@ -903,20 +852,14 @@ def evaluate_sealed_information_contract(
             ]
         if FINITE_QUERY_TASK in challenge_case["tasks"]:
             finite_metrics, finite_checks = _finite_query_metrics(
-                challenge_arrays,
-                submission_arrays,
+                challenge_arrays, submission_arrays
             )
             gauge = case["metrics"].get("gauge")
             if isinstance(gauge, dict):
                 local = np.asarray(gauge["expected_admitted"], dtype=np.bool_)
-                finite = np.asarray(
-                    finite_metrics["expected_admitted"],
-                    dtype=np.bool_,
-                )
+                finite = np.asarray(finite_metrics["expected_admitted"], dtype=np.bool_)
                 if local.shape != finite.shape:
-                    raise ValueError(
-                        f"{case_id}: local and finite query counts must match"
-                    )
+                    raise ValueError(f"{case_id}: local and finite query counts must match")
                 finite_metrics["local_admits_finite_rejects_count"] = int(
                     np.count_nonzero(local & ~finite)
                 )
@@ -942,9 +885,7 @@ def evaluate_sealed_information_contract(
         "information_order": {
             "mode": dataset["information_order"],
             "claim_class": (
-                "prospective-heldout"
-                if prospective
-                else "retrospective-diagnostic"
+                "prospective-heldout" if prospective else "retrospective-diagnostic"
             ),
             "prospective_claim_eligible": prospective,
         },
@@ -963,8 +904,10 @@ def evaluate_sealed_information_contract(
     }
 
 
-def generate_sealed_smoke(directory: str | Path, *, overwrite: bool = False) -> tuple[Path, Path]:
-    """Create the truth-separated deterministic smoke challenge and submission."""
+def generate_sealed_smoke(
+    directory: str | Path, *, overwrite: bool = False
+) -> tuple[Path, Path]:
+    """Create the truth-separated deterministic smoke pair."""
 
     from .information_contract_sealed_smoke import generate_sealed_smoke as generate
 
@@ -979,16 +922,14 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
     evaluate = subparsers.add_parser(
-        "evaluate",
-        help="evaluate one truth-separated challenge/submission pair",
+        "evaluate", help="evaluate one truth-separated challenge/submission pair"
     )
     evaluate.add_argument("challenge", type=Path)
     evaluate.add_argument("submission", type=Path)
     evaluate.add_argument("output", type=Path)
     evaluate.add_argument("--overwrite", action="store_true")
     smoke = subparsers.add_parser(
-        "smoke",
-        help="generate and evaluate a deterministic sealed smoke pair",
+        "smoke", help="generate and evaluate a deterministic sealed smoke pair"
     )
     smoke.add_argument("directory", type=Path)
     smoke.add_argument("--overwrite", action="store_true")
@@ -998,22 +939,14 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     if args.command == "evaluate":
-        result = evaluate_sealed_information_contract(
-            args.challenge,
-            args.submission,
-        )
+        result = evaluate_sealed_information_contract(args.challenge, args.submission)
         _write_result(args.output, result, overwrite=args.overwrite)
         return 0
     challenge, submission = generate_sealed_smoke(
-        args.directory,
-        overwrite=args.overwrite,
+        args.directory, overwrite=args.overwrite
     )
     result = evaluate_sealed_information_contract(challenge, submission)
-    _write_result(
-        args.directory / "result.json",
-        result,
-        overwrite=args.overwrite,
-    )
+    _write_result(args.directory / "result.json", result, overwrite=args.overwrite)
     return 0
 
 
