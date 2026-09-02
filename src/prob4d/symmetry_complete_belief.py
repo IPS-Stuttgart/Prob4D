@@ -3,16 +3,22 @@
 A physical observation can identify a quotient state while remaining invariant
 along a compact group orbit. This module represents the posterior as a quotient
 belief times an explicit conditional group law, preserves that law under
-orbit-invariant evidence, and exposes shared-group query and continuous-cover
-certificates without selecting an unsupported group representative.
+orbit-invariant evidence, and exposes shared-group query, decision, and
+continuous-cover certificates without selecting an unsupported group
+representative.
 
 The code does not infer a symmetry group, certify a quadrature cover, validate a
-physical likelihood, or authorize deployment. Those are caller-owned source and
-provenance obligations.
+physical likelihood or state--action coupling, or authorize deployment. Those
+are caller-owned source and provenance obligations.
 """
 
 from __future__ import annotations
 
+from ._symmetry_complete_action import (
+    GaugeCoupledActionCertificateV1,
+    GaugeCouplingReceiptV1,
+    certify_gauge_coupled_action_orbit,
+)
 from ._symmetry_complete_base import (
     SYMMETRY_COMPLETE_BELIEF_CLAIM_BOUNDARY,
     SYMMETRY_COMPLETE_BELIEF_VERSION,
@@ -41,6 +47,8 @@ from ._symmetry_complete_update import (
 __all__ = [
     "CompactGroupDecisionCertificateV1",
     "CompactGroupQuadratureV1",
+    "GaugeCoupledActionCertificateV1",
+    "GaugeCouplingReceiptV1",
     "OrbitInvarianceCertificateV1",
     "PointCompletionAuditV1",
     "SYMMETRY_COMPLETE_BELIEF_CLAIM_BOUNDARY",
@@ -51,6 +59,7 @@ __all__ = [
     "audit_point_completion",
     "certify_compact_group_decision",
     "certify_compact_group_query",
+    "certify_gauge_coupled_action_orbit",
     "pushforward_shared_group_query",
     "update_symmetry_complete_belief",
 ]
