@@ -13,11 +13,9 @@ SCRIPT = (
     Path(__file__).resolve().parents[1]
     / "scripts"
     / "science"
-    / "run_tracking_cloth_posterior_compression.py"
+    / "run_tracking_cloth_rank_distortion.py"
 )
-SPEC = importlib.util.spec_from_file_location(
-    "run_tracking_cloth_posterior_compression", SCRIPT
-)
+SPEC = importlib.util.spec_from_file_location("run_tracking_cloth_rank_distortion", SCRIPT)
 assert SPEC is not None and SPEC.loader is not None
 MODULE = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = MODULE
@@ -38,7 +36,9 @@ def _protocol(**updates: object) -> dict[str, object]:
         "maximum_conditional_block_fraction": 0.20,
         "factor_eigenvalue_relative_tolerance": 1e-12,
         "rank_relative_tolerance": 1e-12,
-        "parity_relative_tolerance": 1e-8,
+        "retained_ranks": [0, 1, 2, 3],
+        "optimality_relative_tolerance": 1e-8,
+        "strict_improvement_relative_tolerance": 1e-8,
         "required_maximum_relative_parity_error": 1e-7,
     }
     value.update(updates)
@@ -88,27 +88,14 @@ def _write_recording(
         writer.writerow(["Capture Frame Rate", "120"])
         writer.writerow(
             ["", ""]
-            + [
-                field
-                for marker in range(marker_count)
-                for field in (str(marker + 1), "", "")
-            ]
+            + [field for marker in range(marker_count) for field in (str(marker + 1), "", "")]
         )
         writer.writerow(
-            ["", ""]
-            + [
-                field
-                for _ in range(marker_count)
-                for field in ("Position", "", "")
-            ]
+            ["", ""] + [field for _ in range(marker_count) for field in ("Position", "", "")]
         )
         writer.writerow(
             ["Frame", "Time (Seconds)"]
-            + [
-                field
-                for _ in range(marker_count)
-                for field in ("X", "Y", "Z")
-            ]
+            + [field for _ in range(marker_count) for field in ("X", "Y", "Z")]
         )
         phase = rng.uniform(0.0, 2.0 * np.pi)
         for frame, timestamp in enumerate(time):
@@ -121,24 +108,12 @@ def _write_recording(
             )
             deformation = np.column_stack(
                 (
-                    0.010
-                    * np.sin(2.0 * np.pi * timestamp + 3.0 * base[:, 1]),
-                    0.005
-                    * np.sin(3.0 * np.pi * timestamp + 4.0 * base[:, 0]),
-                    0.020
-                    * np.sin(
-                        4.0 * np.pi * timestamp
-                        + 2.0 * base[:, 0]
-                        + 3.0 * base[:, 1]
-                    ),
+                    0.010 * np.sin(2.0 * np.pi * timestamp + 3.0 * base[:, 1]),
+                    0.005 * np.sin(3.0 * np.pi * timestamp + 4.0 * base[:, 0]),
+                    0.020 * np.sin(4.0 * np.pi * timestamp + 2.0 * base[:, 0] + 3.0 * base[:, 1]),
                 )
             )
-            positions = (
-                base
-                + translation
-                + deformation
-                + 0.0002 * rng.normal(size=base.shape)
-            )
+            positions = base + translation + deformation + 0.0002 * rng.normal(size=base.shape)
             if millimetres:
                 positions = 1000.0 * positions
             writer.writerow([frame, timestamp, *positions.reshape(-1).tolist()])
@@ -165,46 +140,57 @@ def test_rod_or_stick_marker_recording_is_rejected(tmp_path: Path) -> None:
         MODULE.parse_recording(path, tmp_path)
 
 
-def test_recording_disjoint_real_trajectory_study_preserves_posterior(
+def test_recording_disjoint_real_trajectory_study_builds_rank_frontier(
     tmp_path: Path,
 ) -> None:
     dataset = tmp_path / "dataset"
     for size, offset in (("A2", 0), ("A3", 100)):
         for index in range(6):
             _write_recording(
-                dataset
-                / "Free-hanging"
-                / f"material_{size}_shake_fast_hands_{index}.csv",
+                dataset / "Free-hanging" / f"material_{size}_shake_fast_hands_{index}.csv",
                 size=size,
                 seed=offset + index,
             )
     protocol_path = tmp_path / "protocol.json"
     protocol_path.write_text(
-        json.dumps(_protocol(), sort_keys=True), encoding="utf-8"
+        json.dumps(_protocol(), sort_keys=True),
+        encoding="utf-8",
     )
     output = tmp_path / "output"
     result = MODULE.run(dataset, protocol_path, output, "a" * 40)
-    assert result["status"] == "evaluated-real-trajectories"
+    assert result["status"] == "evaluated-real-rank-distortion"
     aggregate = result["aggregate"]
     assert aggregate["fold_count"] == 6
-    assert aggregate["retained_ranks"] == [3]
+    assert aggregate["retained_ranks"] == [0, 1, 2, 3]
+    assert aggregate["numerical_exact_ranks"] == [3]
     assert aggregate["original_shared_rank_min"] >= 36
-    assert aggregate["maximum_relative_gain_error"] < 1e-8
-    assert aggregate["maximum_relative_posterior_covariance_error"] < 1e-8
-    assert aggregate["maximum_realized_mean_difference_m"] < 1e-10
+    assert aggregate["maximum_optimality_violation"] < 1e-8
+
+    for rank_record in aggregate["ranks"]:
+        optimum = rank_record["methods"]["optimal_generalized_eigen"]
+        response = rank_record["methods"]["response_svd"]
+        covariance = rank_record["methods"]["covariance_pca"]
+        assert (
+            optimum["normalized_covariance_trace_loss_mean"]
+            <= response["normalized_covariance_trace_loss_mean"] + 1e-8
+        )
+        assert (
+            optimum["normalized_covariance_trace_loss_mean"]
+            <= covariance["normalized_covariance_trace_loss_mean"] + 1e-8
+        )
+
+    exact = next(record for record in aggregate["ranks"] if record["retained_rank"] == 3)
+    parity = aggregate["exact_rank_full_parity"]
+    assert parity["maximum_relative_gain_error"] < 1e-8
+    assert parity["maximum_relative_posterior_covariance_error"] < 1e-8
+    assert parity["maximum_realized_mean_difference_m"] < 1e-10
     np.testing.assert_allclose(
-        aggregate["methods"]["posterior_preserving"]["query_rmse_m"],
-        aggregate["methods"]["full"]["query_rmse_m"],
+        exact["methods"]["optimal_generalized_eigen"]["query_rmse_m"],
+        aggregate["full"]["query_rmse_m"],
         atol=1e-12,
         rtol=1e-10,
     )
-    np.testing.assert_allclose(
-        aggregate["methods"]["cached_full_query_message"]["query_rmse_m"],
-        aggregate["methods"]["full"]["query_rmse_m"],
-        atol=0.0,
-        rtol=0.0,
-    )
-    assert aggregate["shared_factor_payload_reduction_ratio"] > 10.0
+    assert aggregate["exact_rank_shared_factor_payload_reduction_ratio"] > 10.0
     assert not list(output.rglob("*.csv"))
     assert (output / "result.json").is_file()
     assert (output / "inventory.json").is_file()
