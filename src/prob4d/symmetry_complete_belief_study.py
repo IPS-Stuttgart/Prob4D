@@ -114,8 +114,7 @@ def run_study(*, seed: int, cases: int) -> dict[str, Any]:
         ),
         "pairwise_equivariance_is_stricter_than_actionwise_lipschitz": (
             action_coupling["actionwise_lipschitz_status"] == "undetermined"
-            and action_coupling["pairwise_equivariance_status"]
-            == "certified-admissible"
+            and action_coupling["pairwise_equivariance_status"] == "certified-admissible"
         ),
         "fixed_frame_and_independent_gauges_do_not_identify_the_action": (
             action_coupling["fixed_frame_status"] == "scope-not-certified"
@@ -124,12 +123,10 @@ def run_study(*, seed: int, cases: int) -> dict[str, Any]:
             and action_coupling["shared_gauge_optimal_action_count"] == 1
         ),
         "missing_execution_coupling_fails_closed": (
-            action_coupling["missing_coupling_receipt_status"]
-            == "scope-not-certified"
+            action_coupling["missing_coupling_receipt_status"] == "scope-not-certified"
         ),
         "action_certificate_is_group_coordinate_invariant": (
-            action_coupling["maximum_regret_change_under_group_coordinate_offset"]
-            <= 2e-12
+            action_coupling["maximum_regret_change_under_group_coordinate_offset"] <= 2e-12
         ),
     }
     return {
