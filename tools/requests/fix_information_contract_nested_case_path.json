@@ -1,0 +1,6 @@
+{
+  "schema": "prob4d.temporary-information-contract-nested-case-fix",
+  "schema_version": 1,
+  "target": "src/prob4d/information_contract_sealed.py",
+  "scientific_inputs_changed": false
+}
