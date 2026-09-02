@@ -159,8 +159,7 @@ def test_shared_and_independent_gauges_have_same_marginals_but_different_decisio
             shared_by_class.append(float(weights @ (shared_squared + common)))
 
             pair_delta = (
-                state_atoms[quotient_index, :, None, :]
-                - action_atoms[action_index, None, :, :]
+                state_atoms[quotient_index, :, None, :] - action_atoms[action_index, None, :, :]
             )
             pair_loss = np.sum(pair_delta * pair_delta, axis=2) + common[:, None]
             independent_by_class.append(float(weights @ pair_loss @ weights))
