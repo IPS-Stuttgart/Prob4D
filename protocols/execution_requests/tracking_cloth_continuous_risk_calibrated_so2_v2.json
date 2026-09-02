@@ -1,0 +1,19 @@
+{
+  "branch": "science/tracking-cloth-continuous-risk-calibrated-so2-v2",
+  "dataset_root": "/home/github-runner/.cache/datasets/tracking-cloth-deformation-v1-zenodo-14644526",
+  "independent_confirmation": false,
+  "learned_provider_promotion_authorized": false,
+  "protocol_id": "1e9d0a308417b0da1d0d6b9fc95e0f66caf99d37d4d9ef1e2f9f9c674417f040",
+  "raw_data_publication_authorized": false,
+  "request_id": "tracking-cloth-continuous-risk-calibrated-so2-v2-20260902-a",
+  "requested_action": "select one global A2 anchor/probe triplet from eight source-prefix recordings; calibrate continuous SO(2) support on twelve disjoint source recordings; calibrate signed recording-wise candidate-versus-zero-velocity-fallback advantage deficit on twelve further source recordings; seal both calibrations; then evaluate once on all 56 previously related-access collision-family recordings",
+  "runner_labels": [
+    "self-hosted",
+    "Linux",
+    "X64",
+    "gpuserver4090"
+  ],
+  "schema": "prob4d.self-hosted-experiment-request.v1",
+  "target_is_previously_opened_by_related_finite_orbit_study": true,
+  "target_side_threshold_tuning_allowed": false
+}

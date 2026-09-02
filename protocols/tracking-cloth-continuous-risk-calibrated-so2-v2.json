@@ -1,0 +1,117 @@
+{
+  "protocol_id": "1e9d0a308417b0da1d0d6b9fc95e0f66caf99d37d4d9ef1e2f9f9c674417f040",
+  "schema": "prob4d.tracking-cloth-continuous-risk-calibrated-so2.v2",
+  "dataset": {
+    "record_name": "Tracking Cloth Deformation",
+    "zenodo_record": "14644526",
+    "expected_csv_files": 120,
+    "expected_source_files": 64,
+    "expected_target_files": 56,
+    "source_aliases": {
+      "shake": [
+        "shake",
+        "shaking"
+      ],
+      "twist": [
+        "twist",
+        "twisting"
+      ]
+    },
+    "target_aliases": [
+      "collision",
+      "collisions",
+      "collide",
+      "colliding",
+      "table",
+      "stick",
+      "hitting"
+    ],
+    "target_scenario_counts": {
+      "table_collision": 16,
+      "stick_hitting": 4,
+      "self_collision": 36
+    },
+    "expected_source_a2_by_material": {
+      "cotton": 8,
+      "denim": 8,
+      "wool": 8,
+      "polyester": 8
+    }
+  },
+  "source_partition": {
+    "salt": "tracking-cloth-continuous-risk-calibrated-so2-v2",
+    "selection_per_material": 2,
+    "support_calibration_per_material": 3,
+    "risk_calibration_per_material": 3,
+    "roles_are_disjoint": true
+  },
+  "geometry": {
+    "maximum_common_marker_count": 40,
+    "selection_prefix_frames": 12,
+    "horizons_frames": [
+      3,
+      6,
+      12,
+      24
+    ],
+    "maximum_cases_per_recording": 128,
+    "minimum_cases_per_recording": 24,
+    "minimum_anchor_distance_mm": 20.0,
+    "minimum_probe_radius_mm": 5.0,
+    "candidate": "transported constant angular velocity",
+    "fallback": "transported zero angular velocity persistence",
+    "missing_probe": "simulated at the current frame only"
+  },
+  "calibration": {
+    "angle_normalizer_rad": 1.0471975511965976,
+    "within_recording_support_quantile": 0.9,
+    "support_group_miscoverage": 0.1,
+    "risk_group_miscoverage": 0.1,
+    "support_score": "max(abs(angle)/(pi/3), euclidean_orbit_residual/radial_scale)",
+    "risk_group_score": "maximum over cases of geometric_lower_advantage_minus_realized_fallback_minus_candidate_advantage",
+    "risk_scores_are_signed": true
+  },
+  "decision": {
+    "loss": "squared Euclidean probe-position error in mm^2",
+    "required_advantage_margin_mm2": 0.0,
+    "admit_rule": "geometric continuous-orbit lower advantage minus signed conformal threshold is strictly positive"
+  },
+  "inference": {
+    "bootstrap_replicates": 5000,
+    "bootstrap_seed": 20260902,
+    "statistical_unit": "complete recording"
+  },
+  "numerics": {
+    "absolute_loss_slack_mm2": 1e-09
+  },
+  "registered_criteria": {
+    "minimum_target_recording_risk_bound_coverage": 0.9,
+    "minimum_risk_calibrated_acceptance": 0.05,
+    "maximum_risk_harmful_fraction_among_accepted": 0.01,
+    "minimum_positive_horizons": 2,
+    "require_strict_reduction_from_candidate_harm": true,
+    "require_policy_rmse_not_above_zero_velocity_fallback": true,
+    "require_policy_rmse_not_above_support_only_policy": true,
+    "require_exact_fallback": true,
+    "require_full_circle_rejection": true
+  },
+  "information_order": {
+    "target_headers_may_define_common_marker_labels": true,
+    "target_trajectory_values_opened_only_after_calibration_seal": true,
+    "target_side_threshold_tuning_allowed": false,
+    "target_is_previously_opened_by_related_finite_orbit_study": true,
+    "independent_confirmation": false
+  },
+  "claim_boundary": {
+    "exact_continuous_so2_geometry": true,
+    "source_only_support_calibration": true,
+    "source_only_signed_decision_risk_calibration": true,
+    "real_distribution_shift_diagnostic": true,
+    "independent_prospective_confirmation": false,
+    "learned_visual_provider": false,
+    "unique_physical_state_recovery": false,
+    "conditional_or_selective_coverage": false,
+    "deployment_safety": false,
+    "state_of_the_art": false
+  }
+}
