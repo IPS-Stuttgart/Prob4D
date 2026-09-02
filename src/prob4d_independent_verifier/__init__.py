@@ -1,5 +1,18 @@
 """Independent verifiers for portable Prob4D artifacts."""
 
+from .execution_gate import (
+    EXECUTION_CONTEXT_SCHEMA,
+    EXECUTION_CONTEXT_VERSION,
+    EXECUTION_GATE_CLAIM_BOUNDARY,
+    EXECUTION_GATE_IMPLEMENTATION,
+    EXECUTION_GATE_SCHEMA,
+    EXECUTION_GATE_VERSION,
+    Proof4DExecutionGateVerification,
+    build_execution_context,
+    compute_execution_context_id,
+    render_execution_context,
+    verify_for_execution,
+)
 from .observation_belief import (
     DEFAULT_LIMITS,
     VERIFICATION_CLAIM_BOUNDARY,
@@ -45,6 +58,12 @@ from .proof_carrying import VERIFIER_IMPLEMENTATION as PROOF_CARRYING_VERIFIER_I
 __all__ = [
     "DEFAULT_LIMITS",
     "EXACT_FALLBACK_POLICY",
+    "EXECUTION_CONTEXT_SCHEMA",
+    "EXECUTION_CONTEXT_VERSION",
+    "EXECUTION_GATE_CLAIM_BOUNDARY",
+    "EXECUTION_GATE_IMPLEMENTATION",
+    "EXECUTION_GATE_SCHEMA",
+    "EXECUTION_GATE_VERSION",
     "ORBIT_VERIFICATION_CLAIM_BOUNDARY",
     "ORBIT_VERIFICATION_SCHEMA",
     "ORBIT_VERIFICATION_VERSION",
@@ -66,10 +85,15 @@ __all__ = [
     "VERIFICATION_VERSION",
     "VERIFIER_IMPLEMENTATION",
     "ArrayVerification",
+    "Proof4DExecutionGateVerification",
     "ProofCarryingFactorVerification",
     "ProofCarryingOrbitVerification",
     "VerificationLimits",
     "VerificationReport",
+    "build_execution_context",
+    "compute_execution_context_id",
+    "render_execution_context",
+    "verify_for_execution",
     "verify_observation_belief",
     "verify_proof_carrying_factor",
     "verify_proof_carrying_orbit_action",
