@@ -56,12 +56,18 @@ def test_orbit_invariant_likelihood_preserves_conditional_law_exactly() -> None:
         result.posterior.group_conditional_weights,
         result.prior.group_conditional_weights,
     )
-    assert result.posterior.group_conditional_weights is result.prior.group_conditional_weights
+    assert (
+        result.posterior.group_conditional_weights
+        is result.prior.group_conditional_weights
+    )
     np.testing.assert_allclose(
         result.posterior.quotient_weights,
         [1.0 / 27.0, 2.0 / 9.0, 20.0 / 27.0],
     )
-    assert result.information.gauge_information_nats == pytest.approx(0.0, abs=1e-15)
+    assert result.information.gauge_information_nats == pytest.approx(
+        0.0,
+        abs=1e-15,
+    )
     assert result.information.maximum_conditional_l1_change == 0.0
     assert result.information.total_information_nats == pytest.approx(
         result.information.quotient_information_nats,
@@ -73,7 +79,11 @@ def test_orbit_invariant_likelihood_preserves_conditional_law_exactly() -> None:
 
 def test_orbit_invariant_mode_rejects_hidden_symmetry_breaking() -> None:
     quadrature = circle(8)
-    prior = SymmetryCompleteBeliefV1.with_reference_group_law([1.0], quadrature, belief_id="prior")
+    prior = SymmetryCompleteBeliefV1.with_reference_group_law(
+        [1.0],
+        quadrature,
+        belief_id="prior",
+    )
     likelihood = np.ones((1, quadrature.node_count))
     likelihood[0, 3] = 1.01
     with pytest.raises(ValueError, match="varies over prior-supported group nodes"):
@@ -88,7 +98,11 @@ def test_orbit_invariant_mode_rejects_hidden_symmetry_breaking() -> None:
 
 def test_continuous_invariant_update_requires_complete_group_certificate() -> None:
     quadrature = circle(8)
-    prior = SymmetryCompleteBeliefV1.with_reference_group_law([1.0], quadrature, belief_id="prior")
+    prior = SymmetryCompleteBeliefV1.with_reference_group_law(
+        [1.0],
+        quadrature,
+        belief_id="prior",
+    )
     with pytest.raises(ValueError, match="quadrature equality alone"):
         update_symmetry_complete_belief(
             prior,
@@ -108,7 +122,9 @@ def test_finite_group_invariant_update_is_exhaustive_without_external_flag() -> 
         cover_radius_certified=True,
     )
     prior = SymmetryCompleteBeliefV1.with_reference_group_law(
-        [0.25, 0.75], quadrature, belief_id="prior"
+        [0.25, 0.75],
+        quadrature,
+        belief_id="prior",
     )
     result = update_symmetry_complete_belief(
         prior,
@@ -124,7 +140,9 @@ def test_finite_group_invariant_update_is_exhaustive_without_external_flag() -> 
 def test_explicit_symmetry_breaking_updates_gauge_and_chain_rule() -> None:
     quadrature = circle(64)
     prior = SymmetryCompleteBeliefV1.with_reference_group_law(
-        [0.4, 0.6], quadrature, belief_id="prior"
+        [0.4, 0.6],
+        quadrature,
+        belief_id="prior",
     )
     angle = quadrature.nodes[:, 0]
     likelihood = np.stack(
@@ -146,16 +164,22 @@ def test_explicit_symmetry_breaking_updates_gauge_and_chain_rule() -> None:
     assert not result.information.quadrature_invariance_verified
     assert not result.information.whole_group_invariance_certified
     assert result.information.total_information_nats == pytest.approx(
-        result.information.quotient_information_nats + result.information.gauge_information_nats,
+        result.information.quotient_information_nats
+        + result.information.gauge_information_nats,
         abs=1e-12,
     )
-    assert np.argmax(result.posterior.group_conditional_weights[0]) == quadrature.node_count // 2
+    assert (
+        np.argmax(result.posterior.group_conditional_weights[0])
+        == quadrature.node_count // 2
+    )
 
 
 def test_uniform_point_completion_adds_log_node_count_specificity() -> None:
     quadrature = circle(32)
     belief = SymmetryCompleteBeliefV1.with_reference_group_law(
-        [0.25, 0.75], quadrature, belief_id="posterior"
+        [0.25, 0.75],
+        quadrature,
+        belief_id="posterior",
     )
     audit = audit_point_completion(belief, [0, 17])
     assert audit.supported_by_quadrature
@@ -174,7 +198,9 @@ def test_finite_group_point_completion_has_finite_kl() -> None:
         cover_radius_certified=True,
     )
     belief = SymmetryCompleteBeliefV1.with_reference_group_law(
-        [1.0], quadrature, belief_id="posterior"
+        [1.0],
+        quadrature,
+        belief_id="posterior",
     )
     audit = audit_point_completion(belief, [2])
     assert audit.status == "finite-supported"
@@ -199,7 +225,9 @@ def test_point_completion_outside_prior_support_is_not_given_finite_penalty() ->
 def test_shared_group_pushforward_preserves_joint_cancellation() -> None:
     quadrature = circle(128)
     belief = SymmetryCompleteBeliefV1.with_reference_group_law(
-        [1.0], quadrature, belief_id="posterior"
+        [1.0],
+        quadrature,
+        belief_id="posterior",
     )
     angle = quadrature.nodes[:, 0]
     first = np.column_stack((np.cos(angle), np.sin(angle)))
@@ -210,7 +238,7 @@ def test_shared_group_pushforward_preserves_joint_cancellation() -> None:
     np.testing.assert_allclose(law.mean, np.zeros(4), atol=1e-15)
     difference = law.atoms[:, :2] - law.atoms[:, 2:]
     np.testing.assert_allclose(np.linalg.norm(difference, axis=1), 2.0, atol=1e-14)
-    # Shared gauge creates exact anticorrelation; independent pointwise gauges would not.
+    # Shared gauge creates exact anticorrelation; independent pointwise gauges do not.
     assert law.covariance[0, 2] == pytest.approx(-0.5, abs=1e-14)
     assert law.covariance[1, 3] == pytest.approx(-0.5, abs=1e-14)
 
@@ -218,7 +246,9 @@ def test_shared_group_pushforward_preserves_joint_cancellation() -> None:
 def test_compact_group_query_certificate_covers_continuous_circle() -> None:
     quadrature = circle(16)
     belief = SymmetryCompleteBeliefV1.with_reference_group_law(
-        [1.0], quadrature, belief_id="posterior"
+        [1.0],
+        quadrature,
+        belief_id="posterior",
     )
     angle = quadrature.nodes[:, 0]
     atoms = np.column_stack((np.cos(angle), np.sin(angle)))[None, :, :]
@@ -228,19 +258,25 @@ def test_compact_group_query_certificate_covers_continuous_circle() -> None:
         query_id="unit-circle-position",
         lipschitz_by_quotient=1.0,
         tolerance=1.5,
+        lipschitz_bound_certified=True,
     )
 
     exact_diameter = 2.0
     assert certificate.maximum_sample_diameter <= exact_diameter + 1e-14
     assert certificate.maximum_upper_diameter >= exact_diameter
     assert certificate.status == "certified-variant"
+    assert certificate.bounds_certified
+    assert certificate.cover_radius_certified
+    assert certificate.lipschitz_bound_certified
     assert not certificate.admitted
 
 
 def test_invariant_query_is_admitted_and_local_stationarity_is_not_enough() -> None:
     quadrature = circle(32)
     belief = SymmetryCompleteBeliefV1.with_reference_group_law(
-        [1.0], quadrature, belief_id="posterior"
+        [1.0],
+        quadrature,
+        belief_id="posterior",
     )
     angle = quadrature.nodes[:, 0]
     invariant = np.full((1, quadrature.node_count, 1), 3.0)
@@ -263,9 +299,48 @@ def test_invariant_query_is_admitted_and_local_stationarity_is_not_enough() -> N
         query_id="representative-x-coordinate",
         lipschitz_by_quotient=1.0,
         tolerance=0.1,
+        lipschitz_bound_certified=True,
     )
     assert deceptive_certificate.status == "certified-variant"
     assert not deceptive_certificate.admitted
+
+
+def test_custom_query_cover_requires_explicit_certificate() -> None:
+    quadrature = circle(8)
+    belief = SymmetryCompleteBeliefV1.with_reference_group_law(
+        [1.0],
+        quadrature,
+        belief_id="posterior",
+    )
+    angle = quadrature.nodes[:, 0]
+    atoms = np.column_stack((np.cos(angle), np.sin(angle)))[None, :, :]
+
+    uncertified = certify_compact_group_query(
+        belief,
+        atoms,
+        query_id="custom-cover",
+        lipschitz_by_quotient=1.0,
+        cover_radius_by_quotient=0.01,
+        tolerance=3.0,
+        lipschitz_bound_certified=True,
+    )
+    assert uncertified.status == "scope-not-certified"
+    assert not uncertified.cover_radius_certified
+    assert not uncertified.admitted
+
+    certified = certify_compact_group_query(
+        belief,
+        atoms,
+        query_id="custom-cover",
+        lipschitz_by_quotient=1.0,
+        cover_radius_by_quotient=0.01,
+        tolerance=3.0,
+        cover_radius_certified=True,
+        lipschitz_bound_certified=True,
+    )
+    assert certified.status == "certified-invariant"
+    assert certified.bounds_certified
+    assert certified.admitted
 
 
 def test_uncertified_cover_fails_closed() -> None:
@@ -278,7 +353,9 @@ def test_uncertified_cover_fails_closed() -> None:
         cover_radius_certified=False,
     )
     belief = SymmetryCompleteBeliefV1.with_reference_group_law(
-        [1.0], quadrature, belief_id="posterior"
+        [1.0],
+        quadrature,
+        belief_id="posterior",
     )
     certificate = certify_compact_group_query(
         belief,
@@ -286,6 +363,7 @@ def test_uncertified_cover_fails_closed() -> None:
         query_id="constant-on-samples-only",
         lipschitz_by_quotient=1.0,
         tolerance=1.0,
+        lipschitz_bound_certified=True,
     )
     assert certificate.status == "scope-not-certified"
     assert not certificate.bounds_certified
@@ -295,7 +373,9 @@ def test_uncertified_cover_fails_closed() -> None:
 def test_outputs_are_irreversibly_immutable() -> None:
     quadrature = circle(8)
     belief = SymmetryCompleteBeliefV1.with_reference_group_law(
-        [1.0], quadrature, belief_id="posterior"
+        [1.0],
+        quadrature,
+        belief_id="posterior",
     )
     with pytest.raises(ValueError, match="read-only"):
         belief.quotient_weights[0] = 0.0
