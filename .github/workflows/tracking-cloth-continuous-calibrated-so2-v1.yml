@@ -199,10 +199,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          root="${{ steps.runtime.outputs.root }}"
-          if find "$root" -type f \( -iname '*.csv' -o -iname '*.zip' \) \
+          evidence="${{ steps.runtime.outputs.root }}/evidence"
+          if find "$evidence" -type f \( -iname '*.csv' -o -iname '*.zip' \) \
             -print -quit | grep -q .; then
-            echo "Raw dataset payload appeared in evidence" >&2
+            echo "Raw dataset payload appeared in scientific evidence" >&2
             exit 3
           fi
 
@@ -211,7 +211,11 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: tracking-cloth-continuous-calibrated-so2-v1-${{ github.run_attempt }}
-          path: ${{ steps.runtime.outputs.root }}
+          path: |
+            ${{ steps.runtime.outputs.root }}/evidence
+            ${{ steps.runtime.outputs.root }}/stdout.txt
+            ${{ steps.runtime.outputs.root }}/stderr.txt
+            ${{ steps.runtime.outputs.root }}/process-exit-code.txt
           if-no-files-found: error
           retention-days: 30
 
