@@ -1,0 +1,58 @@
+{
+  "schema": "prob4d.gauge-coupled-action-study-protocol",
+  "schema_version": 1,
+  "protocol_id": "gauge-coupled-action-study-v1",
+  "scientific_question": "Can an action be exactly identified under a completely unresolved SO(2) state gauge when the action is transported by the same group element?",
+  "group": {
+    "name": "SO(2)",
+    "metric": "wrapped absolute angle",
+    "sample_counts": [4, 8, 16, 32, 64],
+    "sampling": "uniform half-grid shifted",
+    "cover_radius": "pi / sample_count"
+  },
+  "state": {
+    "definition": "x(theta) = R(theta) [1, 0]",
+    "identified_invariant": "Euclidean norm",
+    "unidentified_query": "world-frame coordinate vector"
+  },
+  "actions": [
+    {
+      "index": 0,
+      "name": "track-shared-frame",
+      "definition": "R(theta) [1, 0]"
+    },
+    {
+      "index": 1,
+      "name": "orthogonal-shared-frame",
+      "definition": "R(theta) [0, 1]"
+    },
+    {
+      "index": 2,
+      "name": "zero-fallback",
+      "definition": "[0, 0]",
+      "caller_owned_fallback": true
+    }
+  ],
+  "loss": "squared Euclidean state-action distance",
+  "comparators": [
+    "gauge-coupled equivariant action",
+    "world-frame point completion",
+    "independent state/action gauges",
+    "zero-vector exact fallback"
+  ],
+  "registered_requirements": {
+    "state_coordinate_orbit_diameter_minimum": 1.4,
+    "invariant_norm_width_maximum": 1e-12,
+    "shared_action_selected_index": 0,
+    "shared_action_regret_upper_maximum": 1e-12,
+    "shared_action_must_be_gauge_irrelevant": true,
+    "independent_gauge_must_fail_zero_regret_admission": true,
+    "independent_gauge_selected_fallback_index": 2,
+    "world_frame_completion_harm_fraction": 0.6666666666666666,
+    "world_frame_completion_worst_loss_minimum": 3.9,
+    "fallback_worst_loss_maximum": 1.000000000001,
+    "byte_identical_replay_required": true
+  },
+  "statistical_status": "deterministic controlled mechanism",
+  "claim_boundary": "The group action and exact shared state-action transform are supplied. The study does not discover a symmetry, validate a learned provider or physical actuator, establish source-to-target transport, use a public dataset, recover the state, or certify deployment safety."
+}
