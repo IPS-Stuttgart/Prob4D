@@ -1,0 +1,34 @@
+{
+  "claim_boundary": [
+    "This protocol audits only archive identity, ZIP members, fixed CSV header rows, and marker namespaces.",
+    "No source, calibration, or target trajectory value may be parsed by this audit.",
+    "The deterministic 9/9/9 role assignment is fixed from member paths before any header is read.",
+    "The audit is feasibility evidence only and does not establish approximate-orbit calibration, query accuracy, harmful-update control, learned-provider competence, or deployment safety.",
+    "Raw CSV headers and trajectory values are not published."
+  ],
+  "dataset": {
+    "archive_filename": "tracking_dataset.zip",
+    "archive_md5": "b4868b702f8a42b2ea1069d0f1a3b8f6",
+    "archive_sha256": "14916efa89a26d991c024024cc9449397d3a6f654311e621bb91e9602e231e1a",
+    "expected_csv_files": 120,
+    "expected_fresh_files": 27,
+    "fresh_category_token": "Self-collisions",
+    "record_name": "Tracking Cloth Deformation",
+    "zenodo_record": "14644526"
+  },
+  "header_audit": {
+    "line_count": 7,
+    "maximum_line_bytes": 262144,
+    "publish_raw_header_text": false,
+    "trajectory_rows_allowed": 0
+  },
+  "protocol_id": "tracking-cloth-orbit-tube-roster-audit-v1",
+  "schema": "prob4d.tracking-cloth-orbit-tube-roster-audit-protocol.v1",
+  "split": {
+    "assignment": "sort by sha256(salt + '|' + ZIP member path), then take 9 source, 9 calibration, and 9 target recordings",
+    "calibration_count": 9,
+    "sha256_salt": "prob4d-tracking-cloth-orbit-tube-v1",
+    "source_count": 9,
+    "target_count": 9
+  }
+}
