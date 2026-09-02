@@ -762,27 +762,69 @@ def _summary(result: Mapping[str, Any]) -> str:
         "",
         "Status: **evaluated on recording-disjoint real trajectories**",
         "",
-        f"- Accepted recordings: {result['inventory']['accepted_recording_count']} / {result['inventory']['csv_file_count']}",
+        "".join(
+            (
+                "- Accepted recordings: ",
+                str(result["inventory"]["accepted_recording_count"]),
+                " / ",
+                str(result["inventory"]["csv_file_count"]),
+            )
+        ),
         f"- Fold/query cases: {aggregate['case_count']}",
         f"- Rank/method curve points: {aggregate['curve_point_count']}",
-        f"- Maximum independent frontier-identity error: {aggregate['maximum_identity_relative_error']:.3e}",
+        "".join(
+            (
+                "- Maximum independent frontier-identity error: ",
+                f"{aggregate['maximum_identity_relative_error']:.3e}",
+            )
+        ),
         f"- Maximum optimality violation: {aggregate['maximum_optimality_violation']:.3e}",
         f"- Mean exact-rank/original-rank fraction: {aggregate['mean_exact_rank_fraction']:.3f}",
         "",
-        f"## Primary average trace budget: {primary['trace_budget_per_query_dimension']:.3f} per query dimension",
+        "".join(
+            (
+                "## Primary average trace budget: ",
+                f"{primary['trace_budget_per_query_dimension']:.3f}",
+                " per query dimension",
+            )
+        ),
         "",
         f"- Mean optimal rank: {primary['mean_selected_rank'][METHOD_OPTIMAL]:.3f}",
         f"- Mean response-SVD rank: {primary['mean_selected_rank'][METHOD_RESPONSE_SVD]:.3f}",
         f"- Mean factor-PCA rank: {primary['mean_selected_rank'][METHOD_FACTOR_PCA]:.3f}",
-        f"- Strict rank savings versus response SVD: {primary['strict_rank_savings_vs_response_svd_count']} / {primary['case_count']}",
-        f"- Strict rank savings versus factor PCA: {primary['strict_rank_savings_vs_factor_pca_count']} / {primary['case_count']}",
+        "".join(
+            (
+                "- Strict rank savings versus response SVD: ",
+                str(primary["strict_rank_savings_vs_response_svd_count"]),
+                " / ",
+                str(primary["case_count"]),
+            )
+        ),
+        "".join(
+            (
+                "- Strict rank savings versus factor PCA: ",
+                str(primary["strict_rank_savings_vs_factor_pca_count"]),
+                " / ",
+                str(primary["case_count"]),
+            )
+        ),
         "",
-        "| Size | Query markers | Q dim | Original rank | Exact rank | Optimal rank | Response-SVD rank | Factor-PCA rank |",
+        "".join(
+            (
+                "| Size | Query markers | Q dim | Original rank | Exact rank | ",
+                "Optimal rank | Response-SVD rank | Factor-PCA rank |",
+            )
+        ),
         "|---|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for row in aggregate["primary_budget_portfolios"]:
         lines.append(
-            "| {size} | {count} | {qdim} | {original} | {exact:.2f} | {optimal:.2f} | {svd:.2f} | {pca:.2f} |".format(
+            "".join(
+                (
+                    "| {size} | {count} | {qdim} | {original} | {exact:.2f} | ",
+                    "{optimal:.2f} | {svd:.2f} | {pca:.2f} |",
+                )
+            ).format(
                 size=row["size"],
                 count=row["query_marker_count"],
                 qdim=row["query_dimension"],
@@ -796,9 +838,23 @@ def _summary(result: Mapping[str, Any]) -> str:
     lines.extend(
         [
             "",
-            "Ranks are selected from each training fold without held-out outcomes. Held-out RMSE, NEES, coverage, and NLL are diagnostics rather than enforced superiority claims. All same-rank methods have identical factor/projection scalar counts.",
+            "".join(
+                (
+                    "Ranks are selected from each training fold without held-out ",
+                    "outcomes. Held-out RMSE, NEES, coverage, and NLL are ",
+                    "diagnostics rather than enforced superiority claims. All ",
+                    "same-rank methods have identical factor/projection scalar counts.",
+                )
+            ),
             "",
-            "The result concerns one frozen local Gaussian query model per fold. It does not preserve observation likelihood, establish recursive exactness, validate a learned 4D provider, or demonstrate BayesianPhysTwin/Causal4D control benefit.",
+            "".join(
+                (
+                    "The result concerns one frozen local Gaussian query model per ",
+                    "fold. It does not preserve observation likelihood, establish ",
+                    "recursive exactness, validate a learned 4D provider, or ",
+                    "demonstrate BayesianPhysTwin/Causal4D control benefit.",
+                )
+            ),
             "",
         ]
     )
