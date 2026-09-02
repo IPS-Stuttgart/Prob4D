@@ -110,16 +110,10 @@ def _latent_statistics(
     rank = factor.shape[1]
     solved_factor = solved[:, :rank]
     solved_cross = solved[:, rank:]
-    posterior = 0.5 * (
-        prior - cross @ solved_cross + (prior - cross @ solved_cross).T
-    )
+    posterior = 0.5 * (prior - cross @ solved_cross + (prior - cross @ solved_cross).T)
     posterior_root = np.linalg.cholesky(posterior)
-    gram = 0.5 * (
-        factor.T @ solved_factor + (factor.T @ solved_factor).T
-    )
-    remainder_metric = 0.5 * (
-        np.eye(rank) - gram + (np.eye(rank) - gram).T
-    )
+    gram = 0.5 * (factor.T @ solved_factor + (factor.T @ solved_factor).T)
+    remainder_metric = 0.5 * (np.eye(rank) - gram + (np.eye(rank) - gram).T)
     np.linalg.cholesky(remainder_metric)
     response = factor.T @ solved_cross
     normalized_response = np.linalg.solve(posterior_root, response.T).T
@@ -128,9 +122,7 @@ def _latent_statistics(
         + (normalized_response @ normalized_response.T).T
     )
     svd_basis, _, _ = np.linalg.svd(normalized_response, full_matrices=True)
-    _, energy_basis = np.linalg.eigh(
-        0.5 * (factor.T @ factor + (factor.T @ factor).T)
-    )
+    _, energy_basis = np.linalg.eigh(0.5 * (factor.T @ factor + (factor.T @ factor).T))
     energy_basis = energy_basis[:, ::-1]
     return remainder_metric, relevance, svd_basis, energy_basis
 
@@ -145,12 +137,10 @@ def _candidate_distortion(
     if discarded.shape[1] == 0:
         return 0.0
     metric = 0.5 * (
-        discarded.T @ remainder_metric @ discarded
-        + (discarded.T @ remainder_metric @ discarded).T
+        discarded.T @ remainder_metric @ discarded + (discarded.T @ remainder_metric @ discarded).T
     )
     objective = 0.5 * (
-        discarded.T @ relevance @ discarded
-        + (discarded.T @ relevance @ discarded).T
+        discarded.T @ relevance @ discarded + (discarded.T @ relevance @ discarded).T
     )
     distortion = float(np.trace(np.linalg.solve(metric, objective)))
     return max(distortion, 0.0)
@@ -186,9 +176,7 @@ def _evaluate_configuration(
             innovation_operator=DenseInnovation(innovation),
         )
         if frontier.numerical_exact_rank != expected_exact_rank:
-            raise RuntimeError(
-                "random study model did not realize its expected generic exact rank"
-            )
+            raise RuntimeError("random study model did not realize its expected generic exact rank")
         remainder_metric, relevance, svd_basis, energy_basis = _latent_statistics(
             factor,
             prior,
@@ -222,12 +210,9 @@ def _evaluate_configuration(
                     "factor_rank": configuration.factor_rank,
                     "query_dimension": configuration.query_dimension,
                     "retained_rank": retained_rank,
-                    "compression_fraction": retained_rank
-                    / configuration.factor_rank,
+                    "compression_fraction": retained_rank / configuration.factor_rank,
                     "optimal_distortion": optimum,
-                    "closed_form_distortion": (
-                        point.optimal_normalized_covariance_trace_loss
-                    ),
+                    "closed_form_distortion": (point.optimal_normalized_covariance_trace_loss),
                     "audit_absolute_error": abs(
                         point.optimal_normalized_covariance_trace_loss - optimum
                     ),
@@ -277,18 +262,14 @@ def _regret_summary(rows: list[Row], prefix: str) -> dict[str, float]:
 
 
 def _aggregate(rows: list[Row], configurations: list[Configuration]) -> dict[str, object]:
-    approximate_rows = [
-        row for row in rows if float(row["optimal_distortion"]) > 1e-10
-    ]
+    approximate_rows = [row for row in rows if float(row["optimal_distortion"]) > 1e-10]
     if not approximate_rows:
         raise RuntimeError("study produced no positive-distortion rank points")
     control = next(
         (
             row
             for row in rows
-            if row["configuration"] == "r7-q3"
-            and row["seed"] == 93
-            and row["retained_rank"] == 1
+            if row["configuration"] == "r7-q3" and row["seed"] == 93 and row["retained_rank"] == 1
         ),
         None,
     )
@@ -305,8 +286,7 @@ def _aggregate(rows: list[Row], configurations: list[Configuration]) -> dict[str
             "covariance trace contraction within orthogonal U-to-UV projections"
         ),
         "configuration_count": len(configurations),
-        "model_count": len(configurations)
-        * len({int(row["seed"]) for row in rows}),
+        "model_count": len(configurations) * len({int(row["seed"]) for row in rows}),
         "frontier_point_count": len(rows),
         "positive_distortion_point_count": len(approximate_rows),
         "maximum_closed_form_audit_error": float(
