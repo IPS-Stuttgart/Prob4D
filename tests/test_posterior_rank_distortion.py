@@ -138,7 +138,6 @@ def test_existing_euclidean_svd_order_is_not_globally_trace_optimal() -> None:
     result = frontier(factor, prior, cross, innovation)
     optimum = result.point(1).audited_normalized_covariance_trace_loss
 
-    solved_factor = np.linalg.solve(innovation, factor)
     solved_cross = np.linalg.solve(innovation, cross.T)
     full_posterior = prior - cross @ solved_cross
     posterior_root = np.linalg.cholesky(full_posterior)
