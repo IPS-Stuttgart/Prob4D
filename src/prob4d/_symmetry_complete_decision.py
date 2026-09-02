@@ -19,7 +19,6 @@ from ._symmetry_complete_base import (
 )
 
 BoolArray: TypeAlias = NDArray[np.bool_]
-
 DecisionCertificateStatus: TypeAlias = Literal[
     "certified-admissible",
     "certified-no-admissible-action",
@@ -28,22 +27,23 @@ DecisionCertificateStatus: TypeAlias = Literal[
 ]
 
 
-def _immutable_bool(value: ArrayLike, *, name: str, ndim: int) -> BoolArray:
+def _immutable_bool(value: ArrayLike, *, name: str) -> BoolArray:
     raw = np.asarray(value)
-    if raw.dtype.kind != "b":
-        raise ValueError(f"{name} must contain boolean values")
+    if raw.dtype.kind != "b" or raw.ndim != 1:
+        raise ValueError(f"{name} must be a one-dimensional boolean array")
     array = np.ascontiguousarray(raw, dtype=np.bool_)
-    if array.ndim != ndim:
-        raise ValueError(f"{name} must be a {ndim}-dimensional boolean array")
-    return np.frombuffer(array.tobytes(order="C"), dtype=np.bool_).reshape(array.shape)
+    result: BoolArray = np.frombuffer(array.tobytes(order="C"), dtype=np.bool_)
+    return result
 
 
 @dataclass(frozen=True, slots=True)
 class CompactGroupDecisionCertificateV1:
-    """Finite-action regret bounds over every declared group completion."""
+    """Lower and upper robust-regret bounds for finite actions."""
 
     status: DecisionCertificateStatus
     bounds_certified: bool
+    cover_radius_certified: bool
+    lipschitz_bound_certified: bool
     regret_tolerance: float
     sampled_pairwise_worst_case_loss_gap: FloatArray
     upper_pairwise_worst_case_loss_gap: FloatArray
@@ -65,14 +65,21 @@ class CompactGroupDecisionCertificateV1:
         if self.status not in allowed:
             raise ValueError("unsupported decision-certificate status")
         certified = _genuine_bool(self.bounds_certified, name="bounds_certified")
+        cover_certified = _genuine_bool(
+            self.cover_radius_certified,
+            name="cover_radius_certified",
+        )
+        lipschitz_certified = _genuine_bool(
+            self.lipschitz_bound_certified,
+            name="lipschitz_bound_certified",
+        )
         tolerance = float(self.regret_tolerance)
         minimum = float(self.minimax_upper_worst_case_regret)
         if not math.isfinite(tolerance) or tolerance < 0.0:
             raise ValueError("regret_tolerance must be finite and nonnegative")
         if not math.isfinite(minimum) or minimum < 0.0:
-            raise ValueError(
-                "minimax_upper_worst_case_regret must be finite and nonnegative"
-            )
+            raise ValueError("minimax upper regret must be finite and nonnegative")
+
         sampled_pairwise = _immutable_float(
             self.sampled_pairwise_worst_case_loss_gap,
             name="sampled_pairwise_worst_case_loss_gap",
@@ -96,56 +103,7 @@ class CompactGroupDecisionCertificateV1:
         admissible = _immutable_bool(
             self.tolerance_admissible_action_mask,
             name="tolerance_admissible_action_mask",
-            ndim=1,
         )
-        action_count = sampled_regret.size
-        if action_count < 2:
-            raise ValueError("at least two actions are required")
-        if sampled_pairwise.shape != (action_count, action_count):
-            raise ValueError("sampled pairwise matrix has the wrong shape")
-        if upper_pairwise.shape != sampled_pairwise.shape:
-            raise ValueError("upper pairwise matrix has the wrong shape")
-        if upper_regret.shape != sampled_regret.shape or admissible.shape != sampled_regret.shape:
-            raise ValueError("action-wise decision arrays have inconsistent shapes")
-        if np.any(upper_pairwise + _NUMERICAL_ATOL < sampled_pairwise):
-            raise ValueError("upper pairwise gap is below its sampled lower bound")
-        if np.any(upper_regret + _NUMERICAL_ATOL < sampled_regret):
-            raise ValueError("upper regret is below its sampled lower bound")
-        if np.any(sampled_regret < -_NUMERICAL_ATOL) or np.any(
-            upper_regret < -_NUMERICAL_ATOL
-        ):
-            raise ValueError("regret bounds must be nonnegative")
-        action_index = int(self.minimax_upper_action_index)
-        if action_index < 0 or action_index >= action_count:
-            raise ValueError("minimax_upper_action_index is out of range")
-        if not math.isclose(
-            minimum,
-            float(np.min(upper_regret)),
-            rel_tol=0.0,
-            abs_tol=_NUMERICAL_ATOL,
-        ):
-            raise ValueError("minimax upper regret does not match action bounds")
-        if not math.isclose(
-            float(upper_regret[action_index]),
-            minimum,
-            rel_tol=0.0,
-            abs_tol=_NUMERICAL_ATOL,
-        ):
-            raise ValueError("selected action is not an upper-regret minimizer")
-        expected_admissible = certified & (
-            upper_regret <= tolerance + _NUMERICAL_ATOL
-        )
-        if not np.array_equal(admissible, expected_admissible):
-            raise ValueError("admissible action mask does not match certified bounds")
-        if self.status == "scope-not-certified":
-            if certified or np.any(admissible):
-                raise ValueError("uncertified scope must reject every action")
-        elif not certified:
-            raise ValueError("classified decision bounds must be certified")
-        if self.status == "certified-admissible" and not np.any(admissible):
-            raise ValueError("certified-admissible requires an admissible action")
-        if self.status != "certified-admissible" and np.any(admissible):
-            raise ValueError("only certified-admissible may admit an action")
         cover = _immutable_float(
             self.cover_radius_by_quotient,
             name="cover_radius_by_quotient",
@@ -156,35 +114,78 @@ class CompactGroupDecisionCertificateV1:
             name="action_loss_lipschitz_by_quotient",
             ndim=2,
         )
+        action_count = sampled_regret.size
+        if action_count < 2:
+            raise ValueError("at least two actions are required")
+        if sampled_pairwise.shape != (action_count, action_count):
+            raise ValueError("sampled pairwise matrix has the wrong shape")
+        if upper_pairwise.shape != sampled_pairwise.shape:
+            raise ValueError("upper pairwise matrix has the wrong shape")
+        if upper_regret.shape != sampled_regret.shape or admissible.shape != sampled_regret.shape:
+            raise ValueError("action-wise decision arrays have inconsistent shapes")
         if lipschitz.shape != (cover.size, action_count):
             raise ValueError("action Lipschitz matrix has the wrong shape")
+        if np.any(cover < 0.0) or np.any(lipschitz < 0.0):
+            raise ValueError("cover radii and Lipschitz bounds must be nonnegative")
+        if np.any(upper_pairwise + _NUMERICAL_ATOL < sampled_pairwise):
+            raise ValueError("upper pairwise gap is below its sampled lower bound")
+        if np.any(upper_regret + _NUMERICAL_ATOL < sampled_regret):
+            raise ValueError("upper regret is below its sampled lower bound")
+        if np.any(sampled_regret < -_NUMERICAL_ATOL):
+            raise ValueError("sampled regret must be nonnegative")
+
+        action_index = int(self.minimax_upper_action_index)
+        if action_index < 0 or action_index >= action_count:
+            raise ValueError("minimax_upper_action_index is out of range")
+        if not math.isclose(
+            minimum,
+            float(np.min(upper_regret)),
+            rel_tol=0.0,
+            abs_tol=_NUMERICAL_ATOL,
+        ) or not math.isclose(
+            float(upper_regret[action_index]),
+            minimum,
+            rel_tol=0.0,
+            abs_tol=_NUMERICAL_ATOL,
+        ):
+            raise ValueError("selected action is not an upper-regret minimizer")
+        expected_admissible: BoolArray = certified & (
+            upper_regret <= tolerance + _NUMERICAL_ATOL
+        )
+        if not np.array_equal(admissible, expected_admissible):
+            raise ValueError("admissible action mask does not match certified bounds")
+        if self.status == "scope-not-certified":
+            if certified or np.any(admissible):
+                raise ValueError("uncertified scope must reject every action")
+        elif not certified:
+            raise ValueError("classified decision bounds must be certified")
+        if (self.status == "certified-admissible") != bool(np.any(admissible)):
+            raise ValueError("certified-admissible status disagrees with action mask")
+        lower_rejects_all = bool(
+            np.all(sampled_regret > tolerance + _NUMERICAL_ATOL)
+        )
+        if (self.status == "certified-no-admissible-action") != (
+            certified and not np.any(admissible) and lower_rejects_all
+        ):
+            raise ValueError("no-admissible-action status disagrees with regret bounds")
+        if self.status == "undetermined" and (
+            not certified or np.any(admissible) or lower_rejects_all
+        ):
+            raise ValueError("undetermined status disagrees with regret bounds")
+
         object.__setattr__(self, "bounds_certified", certified)
+        object.__setattr__(self, "cover_radius_certified", cover_certified)
+        object.__setattr__(self, "lipschitz_bound_certified", lipschitz_certified)
         object.__setattr__(self, "regret_tolerance", tolerance)
-        object.__setattr__(
-            self,
-            "sampled_pairwise_worst_case_loss_gap",
-            sampled_pairwise,
-        )
-        object.__setattr__(
-            self,
-            "upper_pairwise_worst_case_loss_gap",
-            upper_pairwise,
-        )
+        object.__setattr__(self, "sampled_pairwise_worst_case_loss_gap", sampled_pairwise)
+        object.__setattr__(self, "upper_pairwise_worst_case_loss_gap", upper_pairwise)
         object.__setattr__(self, "sampled_worst_case_regret", sampled_regret)
         object.__setattr__(self, "upper_worst_case_regret", upper_regret)
-        object.__setattr__(
-            self,
-            "tolerance_admissible_action_mask",
-            admissible,
-        )
+        object.__setattr__(self, "tolerance_admissible_action_mask", admissible)
         object.__setattr__(self, "minimax_upper_action_index", action_index)
         object.__setattr__(self, "minimax_upper_worst_case_regret", minimum)
         object.__setattr__(self, "cover_radius_by_quotient", cover)
-        object.__setattr__(
-            self,
-            "action_loss_lipschitz_by_quotient",
-            lipschitz,
-        )
+        object.__setattr__(self, "action_loss_lipschitz_by_quotient", lipschitz)
 
     @property
     def action_count(self) -> int:
@@ -216,8 +217,7 @@ def _loss_array(
     )
     if losses.shape[:2] != (quotient_count, group_count) or losses.shape[2] < 2:
         raise ValueError(
-            "loss_by_quotient_group_action must have shape "
-            "(quotient_count, group_count, action_count>=2)"
+            "losses must have shape (quotient_count, group_count, action_count>=2)"
         )
     return losses
 
@@ -240,8 +240,8 @@ def _action_lipschitz(
     )
     if result.shape != (quotient_count, action_count) or np.any(result < 0.0):
         raise ValueError(
-            "action_loss_lipschitz_by_quotient must be a nonnegative scalar, "
-            "action vector, or quotient-by-action matrix"
+            "action Lipschitz bounds must be a nonnegative scalar, action vector, "
+            "or quotient-by-action matrix"
         )
     return result
 
@@ -254,26 +254,15 @@ def certify_compact_group_decision(
     regret_tolerance: float = 0.0,
     cover_radius_by_quotient: ArrayLike | float | None = None,
     cover_radius_certified: bool | None = None,
+    lipschitz_bound_certified: bool = False,
 ) -> CompactGroupDecisionCertificateV1:
     """Bound robust regret over every completion of the declared group orbit.
 
-    Quotient masses remain fixed, while the conditional distribution inside
-    each active quotient class may concentrate on any declared group element.
-    For actions ``a`` and ``b``, the exact classwise adversary is therefore
-
-        sup_g [loss(g, a) - loss(g, b)].
-
-    On a certified ``rho``-net, sampled maxima are lower bounds and adding
-    ``(L_a + L_b) rho`` gives valid upper bounds when each action loss is
-    ``L_a``-Lipschitz in the declared group metric. Summing classwise bounds with
-    the fixed quotient masses and maximizing over benchmark actions yields lower
-    and upper worst-case-regret bounds. Exact finite groups are recovered at
-    ``rho=0``.
-
-    The certificate deliberately does not rely on a selected group
-    representative or on the numerical conditional group probabilities. It is
-    robust over every conditional completion on the declared group domain. An
-    uncertified cover rejects every action.
+    Quotient masses remain fixed while each conditional may concentrate on any
+    declared group element. On a certified ``rho``-net, sampled classwise loss-
+    gap maxima are lower bounds; adding ``(L_a + L_b) rho`` gives upper bounds.
+    Exact finite groups are recovered at ``rho=0``. The certificate does not use
+    a selected representative or the numerical conditional group probabilities.
     """
 
     if not isinstance(belief, SymmetryCompleteBeliefV1):
@@ -304,21 +293,34 @@ def certify_compact_group_decision(
     tolerance = float(regret_tolerance)
     if not math.isfinite(tolerance) or tolerance < 0.0:
         raise ValueError("regret_tolerance must be finite and nonnegative")
-    certified = (
-        belief.quadrature.cover_radius_certified
-        if cover_radius_certified is None
-        else _genuine_bool(
+    supplied_lipschitz_certified = _genuine_bool(
+        lipschitz_bound_certified,
+        name="lipschitz_bound_certified",
+    )
+    if cover_radius_certified is None:
+        supplied_cover_certified = (
+            belief.quadrature.cover_radius_certified
+            if cover_radius_by_quotient is None
+            else False
+        )
+    else:
+        supplied_cover_certified = _genuine_bool(
             cover_radius_certified,
             name="cover_radius_certified",
         )
+    needs_lipschitz = bool(np.any(cover[:, None] * lipschitz > 0.0))
+    certified = supplied_cover_certified and (
+        not needs_lipschitz or supplied_lipschitz_certified
     )
 
-    pairwise_difference = losses[:, :, :, None] - losses[:, :, None, :]
-    sampled_class_max: FloatArray = np.max(pairwise_difference, axis=1)
-    pairwise_lipschitz = lipschitz[:, :, None] + lipschitz[:, None, :]
+    difference: FloatArray = losses[:, :, :, None] - losses[:, :, None, :]
+    sampled_class_max: FloatArray = np.max(difference, axis=1)
+    pairwise_lipschitz: FloatArray = lipschitz[:, :, None] + lipschitz[:, None, :]
     diagonal = np.arange(action_count)
     pairwise_lipschitz[:, diagonal, diagonal] = 0.0
-    upper_class_max = sampled_class_max + pairwise_lipschitz * cover[:, None, None]
+    upper_class_max: FloatArray = (
+        sampled_class_max + pairwise_lipschitz * cover[:, None, None]
+    )
     sampled_pairwise: FloatArray = np.tensordot(
         belief.quotient_weights,
         sampled_class_max,
@@ -331,38 +333,36 @@ def certify_compact_group_decision(
     )
     np.fill_diagonal(sampled_pairwise, 0.0)
     np.fill_diagonal(upper_pairwise, 0.0)
-    sampled_regret: FloatArray = np.maximum(
-        np.max(sampled_pairwise, axis=1),
-        0.0,
-    )
-    upper_regret: FloatArray = np.maximum(
-        np.max(upper_pairwise, axis=1),
-        0.0,
-    )
+    sampled_regret: FloatArray = np.maximum(np.max(sampled_pairwise, axis=1), 0.0)
+    upper_regret: FloatArray = np.maximum(np.max(upper_pairwise, axis=1), 0.0)
     minimum_upper = float(np.min(upper_regret))
-    minimizers = np.flatnonzero(
-        np.isclose(
-            upper_regret,
-            minimum_upper,
-            rtol=0.0,
-            atol=_NUMERICAL_ATOL,
-        )
+    selected = int(
+        np.flatnonzero(
+            np.isclose(
+                upper_regret,
+                minimum_upper,
+                rtol=0.0,
+                atol=_NUMERICAL_ATOL,
+            )
+        )[0]
     )
-    selected = int(minimizers[0])
     admissible: BoolArray = np.zeros(action_count, dtype=np.bool_)
     if certified:
         admissible = upper_regret <= tolerance + _NUMERICAL_ATOL
+    lower_rejects_all = bool(np.all(sampled_regret > tolerance + _NUMERICAL_ATOL))
     if not certified:
         status: DecisionCertificateStatus = "scope-not-certified"
     elif np.any(admissible):
         status = "certified-admissible"
-    elif np.all(sampled_regret > tolerance + _NUMERICAL_ATOL):
+    elif lower_rejects_all:
         status = "certified-no-admissible-action"
     else:
         status = "undetermined"
     return CompactGroupDecisionCertificateV1(
         status=status,
         bounds_certified=certified,
+        cover_radius_certified=supplied_cover_certified,
+        lipschitz_bound_certified=supplied_lipschitz_certified,
         regret_tolerance=tolerance,
         sampled_pairwise_worst_case_loss_gap=sampled_pairwise,
         upper_pairwise_worst_case_loss_gap=upper_pairwise,
