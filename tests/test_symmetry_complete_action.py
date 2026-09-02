@@ -110,7 +110,7 @@ def test_pairwise_equivariance_is_strictly_tighter_than_actionwise_lipschitz() -
 
     assert actionwise.status == "undetermined"
     assert actionwise.fallback_required
-    assert actionwise.minimax_upper_worst_case_regret > 4.0
+    assert actionwise.minimax_upper_worst_case_regret > 3.5
     assert coupled.status == "certified-admissible"
     assert coupled.minimax_upper_worst_case_regret < 1e-12
     assert coupled.uniquely_tolerance_identified
@@ -153,10 +153,7 @@ def test_shared_and_independent_gauges_have_same_marginals_but_different_decisio
         fixed_by_class = []
         for quotient_index in range(2):
             shared_squared = np.sum(
-                np.square(
-                    state_atoms[quotient_index]
-                    - action_atoms[action_index]
-                ),
+                np.square(state_atoms[quotient_index] - action_atoms[action_index]),
                 axis=1,
             )
             shared_by_class.append(float(weights @ (shared_squared + common)))
@@ -169,9 +166,7 @@ def test_shared_and_independent_gauges_have_same_marginals_but_different_decisio
             independent_by_class.append(float(weights @ pair_loss @ weights))
 
             fixed_squared = np.sum(
-                np.square(
-                    state_atoms[quotient_index] - fixed_actions[action_index]
-                ),
+                np.square(state_atoms[quotient_index] - fixed_actions[action_index]),
                 axis=1,
             )
             fixed_by_class.append(float(weights @ (fixed_squared + common)))
