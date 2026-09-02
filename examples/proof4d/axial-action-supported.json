@@ -1,0 +1,81 @@
+{
+  "actions": {
+    "candidate": {
+      "action_id": "example:candidate-action-v1",
+      "loss_harmonic": {
+        "constant": 1.0,
+        "cosine": 0.5,
+        "sine": 0.0
+      },
+      "loss_program_digest": "sha256:2167455f36e4e57f372acd17d39f2ee051f9769242a2ed13eb743185fd28b744"
+    },
+    "fallback": {
+      "action_id": "example:fallback-action-v1",
+      "loss_harmonic": {
+        "constant": 4.0,
+        "cosine": 0.0,
+        "sine": 0.0
+      },
+      "loss_program_digest": "sha256:907a920b121afc5497ef5b658273644ea1576504882addabb45f2c85b015893f"
+    }
+  },
+  "advantage": {
+    "advantage_error_bound": 0.1,
+    "difference_harmonic": {
+      "constant": 3.0,
+      "cosine": -0.5,
+      "sine": 0.0
+    },
+    "numerical_slack": 1e-12,
+    "reported_nominal_lower": 2.5,
+    "reported_nominal_upper": 3.5,
+    "reported_robust_lower": 2.4,
+    "reported_robust_upper": 3.6,
+    "required_margin": 0.5
+  },
+  "certificate_id": "sha256:cdae51db1fd6805b1f88d6599b767ec18788b29270afe1bd4a4240554044b112",
+  "certificate_kind": "shared-axial-orbit-robust-advantage-v1",
+  "claim_scope": "conditional-global-axial-orbit-action-advantage-only",
+  "decision": {
+    "admitted": true,
+    "fallback_digest": "sha256:8559b15a3f20a3fb071940d69ccaf3e441e29d436481eb01bb779ce30503ae3e",
+    "fallback_id": "example:caller-owned-physical-fallback-v1",
+    "fallback_policy": "exact-caller-owned-fallback",
+    "reason_codes": []
+  },
+  "orbit": {
+    "arc": {
+      "center": 0.0,
+      "half_width": 3.141592653589793
+    },
+    "axis": [
+      0.0,
+      0.0,
+      1.0
+    ],
+    "origin": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "scope_admitted": true,
+    "shared_gauge_id": "example:shared-axial-gauge-v1",
+    "support_receipt_digest": "sha256:e39761d1574f2c9285f935bd2c6f5055ceff574ca6cf68814245ad2197de7e4e"
+  },
+  "provenance": {
+    "admission_policy_digest": "sha256:473f7b226cfa3e6ba2709a1e5d9ea8c7038cb615b319f0c146884b911a3a734f",
+    "assumption_ids": [
+      "controlled-proof4d-example-v1",
+      "declared-affine-action-loss-on-orbit-v1",
+      "declared-shared-axial-orbit-v1",
+      "declared-uniform-advantage-error-bound-v1",
+      "external-orbit-support-scope-v1"
+    ],
+    "calibration_receipt_digest": null,
+    "input_digest": "sha256:2f3c65cf9544bf2bd752dd7d7365e1bf5eb43a4fafeec079ee08b39735c6f90b",
+    "producer": "prob4d-proof4d-example-generator",
+    "producer_version": "0.5.0"
+  },
+  "schema": "prob4d.proof-carrying-axial-orbit-action",
+  "schema_version": 1
+}
