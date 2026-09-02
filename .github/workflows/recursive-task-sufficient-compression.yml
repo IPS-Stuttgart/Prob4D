@@ -1,0 +1,91 @@
+name: Recursive task-sufficient compression
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/recursive-task-sufficient-compression.yml"
+      - "src/prob4d/posterior_preserving_compression.py"
+      - "src/prob4d/recursive_task_sufficiency.py"
+      - "tests/test_recursive_task_sufficiency.py"
+      - "scripts/science/run_recursive_task_compression_study.py"
+      - "protocols/recursive-task-compression-controlled-v1.json"
+      - "docs/recursive-task-sufficient-compression*.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: recursive-task-sufficient-compression-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  controlled-mechanism:
+    name: Recursive exactness and failure control
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out exact revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          clean: true
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Install development environment
+        run: |
+          python -m pip install -e ".[dev]"
+          python -m pip install "numpy>=1.24,<2.3"
+
+      - name: Check focused source quality
+        run: |
+          python -m ruff format --check src/prob4d/recursive_task_sufficiency.py tests/test_recursive_task_sufficiency.py scripts/science/run_recursive_task_compression_study.py
+          python -m ruff check src/prob4d/recursive_task_sufficiency.py tests/test_recursive_task_sufficiency.py scripts/science/run_recursive_task_compression_study.py
+          python -m mypy src/prob4d/recursive_task_sufficiency.py
+
+      - name: Run adversarial recursive tests
+        run: python -m pytest -q tests/test_recursive_task_sufficiency.py
+
+      - name: Execute frozen controlled study
+        env:
+          OUT: ${{ runner.temp }}/recursive-task-compression-result
+        run: |
+          python scripts/science/run_recursive_task_compression_study.py \
+            --output-dir "$OUT" \
+            --source-revision "$GITHUB_SHA"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          result = json.loads((Path(os.environ["OUT"]) / "result.json").read_text())
+          steps = result["steps"]
+          closure_mean = max(row["closure_mean_max_abs_error"] for row in steps)
+          closure_cov = max(row["closure_covariance_max_abs_error"] for row in steps)
+          current = [row["current_task_mean_max_abs_error"] for row in steps]
+          assert result["state_dimension"] == 20
+          assert result["current_task_dimension"] == 3
+          assert result["recursive_closure"]["closure_dimension"] == 4
+          assert result["violated_recursive_closure"]["closure_dimension"] == 5
+          assert result["original_shared_factor_rank"] == 8
+          assert {row["closure_retained_rank"] for row in steps} == {4}
+          assert {row["current_task_retained_rank"] for row in steps} == {3}
+          assert closure_mean < 1e-12
+          assert closure_cov < 1e-12
+          assert current[0] < 1e-12
+          assert max(current[1:]) > 1e-3
+          print(json.dumps(result, indent=2, sort_keys=True))
+          PY
+
+      - name: Upload immutable controlled evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4.6.2
+        with:
+          name: recursive-task-compression-controlled-${{ github.sha }}
+          path: ${{ runner.temp }}/recursive-task-compression-result
+          if-no-files-found: error
+          retention-days: 90
