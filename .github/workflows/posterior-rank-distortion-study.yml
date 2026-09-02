@@ -1,0 +1,84 @@
+name: Posterior rank-distortion study
+
+on:
+  pull_request:
+    paths:
+      - src/prob4d/posterior_rank_distortion.py
+      - tests/test_posterior_rank_distortion.py
+      - scripts/research/posterior_rank_distortion_study.py
+      - docs/posterior-rank-distortion.md
+      - .github/workflows/posterior-rank-distortion-study.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: posterior-rank-distortion-study-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  study:
+    name: Multi-seed baseline-regret evidence
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          clean: true
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements/ci/quality.txt
+
+      - name: Install pinned numerical environment
+        run: |
+          python -m pip install -r requirements/ci/quality.txt
+          python -m pip install --no-deps -e .
+
+      - name: Check study source quality
+        run: |
+          python -m ruff format --check scripts/research/posterior_rank_distortion_study.py
+          python -m ruff check scripts/research/posterior_rank_distortion_study.py
+
+      - name: Run frozen multi-seed study
+        run: |
+          python scripts/research/posterior_rank_distortion_study.py \
+            --seeds 128 \
+            --configuration 7:1 \
+            --configuration 7:3 \
+            --configuration 14:3 \
+            --configuration 28:5 \
+            --output artifacts/posterior-rank-distortion-study \
+            | tee artifacts/posterior-rank-distortion-study/stdout.json
+
+      - name: Enforce theorem audit and nontrivial baseline regret
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          summary = json.loads(
+              Path('artifacts/posterior-rank-distortion-study/summary.json').read_text(
+                  encoding='utf-8'
+              )
+          )
+          assert summary['maximum_closed_form_audit_error'] < 2e-8
+          assert summary['frozen_control']['svd_ratio_to_optimum'] > 1.24
+          assert summary['svd']['strictly_suboptimal_fraction'] > 0.0
+          assert summary['svd']['maximum_relative_regret'] > 0.24
+          assert summary['energy']['strictly_suboptimal_fraction'] > 0.0
+          PY
+
+      - name: Publish compact study evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: posterior-rank-distortion-study-${{ github.sha }}
+          path: artifacts/posterior-rank-distortion-study
+          if-no-files-found: error
+          retention-days: 90

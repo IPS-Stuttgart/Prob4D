@@ -1,0 +1,82 @@
+name: Patch rank-distortion spectral validity certificate
+
+on:
+  push:
+    branches:
+      - research/query-rank-distortion-frontier-v1
+    paths:
+      - .github/workflows/patch-rank-distortion-spectral-certificate.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: patch-rank-distortion-spectral-validity
+  cancel-in-progress: false
+
+jobs:
+  patch-test-and-commit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out theorem branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: research/query-rank-distortion-frontier-v1
+          persist-credentials: true
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Apply reviewed theorem extension
+        run: python scripts/science/_apply_rank_distortion_spectral_certificate.py
+
+      - name: Install pinned focused environment
+        run: |
+          python -m pip install --disable-pip-version-check \
+            "numpy==2.2.6" "pytest==9.1.1" "ruff==0.16.5" "mypy==2.3.0" >/dev/null
+          python -m pip install --disable-pip-version-check --no-deps -e . >/dev/null
+
+      - name: Format and validate theorem extension
+        shell: bash
+        run: |
+          set -o pipefail
+          {
+            python -m ruff format \
+              src/prob4d/posterior_rank_distortion.py \
+              tests/test_posterior_rank_distortion.py
+            python -m ruff check \
+              src/prob4d/posterior_rank_distortion.py \
+              tests/test_posterior_rank_distortion.py
+            python -m mypy src/prob4d/posterior_rank_distortion.py
+            python -m pytest -q tests/test_posterior_rank_distortion.py
+          } 2>&1 | tee spectral-certificate-validation.log
+
+      - name: Upload compact diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v6.0.0
+        with:
+          name: rank-distortion-spectral-certificate-diagnostics
+          path: spectral-certificate-validation.log
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Commit validated theorem extension
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            src/prob4d/posterior_rank_distortion.py \
+            tests/test_posterior_rank_distortion.py \
+            docs/posterior-rank-distortion-theory.md
+          if git diff --cached --quiet; then
+            echo "Theorem extension already committed."
+            exit 0
+          fi
+          git commit -m "Add spectral validity certificate to rank-distortion frontier"
+          git push origin HEAD:research/query-rank-distortion-frontier-v1
