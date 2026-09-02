@@ -413,9 +413,7 @@ def _verify_factor(
         float(np.finfo(np.float64).tiny),
     )
     information_eigenvalues = np.linalg.eigvalsh(information_symmetric)
-    if float(information_eigenvalues[0]) < (
-        -_MATRIX_RELATIVE_TOLERANCE * information_scale
-    ):
+    if float(information_eigenvalues[0]) < (-_MATRIX_RELATIVE_TOLERANCE * information_scale):
         raise _InvalidCertificate(
             "information-not-positive-semidefinite",
             "factor.information_matrix must be positive semidefinite",

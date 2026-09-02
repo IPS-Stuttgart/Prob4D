@@ -424,9 +424,10 @@ def _verify_advantage(
         advantage["difference_harmonic"],
         name="advantage.difference_harmonic",
     )
-    expected_difference = tuple(
-        fallback_component - candidate_component
-        for fallback_component, candidate_component in zip(fallback, candidate, strict=True)
+    expected_difference = (
+        fallback[0] - candidate[0],
+        fallback[1] - candidate[1],
+        fallback[2] - candidate[2],
     )
     if not all(math.isfinite(item) for item in expected_difference):
         raise _InvalidCertificate("numeric-overflow", "fallback-minus-candidate loss overflowed")
