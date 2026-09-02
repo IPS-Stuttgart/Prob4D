@@ -1,0 +1,57 @@
+name: Autofix query rank-distortion formatting
+
+on:
+  push:
+    branches:
+      - research/query-rank-distortion-frontier-v1
+    paths:
+      - src/prob4d/posterior_rank_distortion.py
+      - tests/test_posterior_rank_distortion.py
+      - .github/workflows/autofix-query-rank-distortion-format.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: autofix-query-rank-distortion-format
+  cancel-in-progress: false
+
+jobs:
+  format-and-commit:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: research/query-rank-distortion-frontier-v1
+          persist-credentials: true
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.12"
+
+      - name: Format focused sources
+        run: |
+          python -m pip install --disable-pip-version-check "ruff==0.16.5"
+          python -m ruff format \
+            src/prob4d/posterior_rank_distortion.py \
+            tests/test_posterior_rank_distortion.py
+
+      - name: Commit formatter output when needed
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- \
+            src/prob4d/posterior_rank_distortion.py \
+            tests/test_posterior_rank_distortion.py; then
+            echo "Files already formatted."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            src/prob4d/posterior_rank_distortion.py \
+            tests/test_posterior_rank_distortion.py
+          git commit -m "Format posterior rank-distortion implementation"
+          git push origin HEAD:research/query-rank-distortion-frontier-v1
