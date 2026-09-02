@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -220,7 +221,7 @@ def _finite_float(value: object, *, name: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise _InvalidCertificate("invalid-number", f"{name} must be numeric")
     numeric = float(value)
-    if not np.isfinite(numeric):
+    if not math.isfinite(numeric):
         raise _InvalidCertificate("non-finite-number", f"{name} must be finite")
     return numeric
 
@@ -279,12 +280,20 @@ def _matrix(
     return matrix
 
 
+def _spectral_norm(value: FloatArray, *, name: str) -> float:
+    singular_values = np.linalg.svd(value, compute_uv=False)
+    result = 0.0 if singular_values.size == 0 else float(singular_values[0])
+    if not math.isfinite(result):
+        raise _InvalidCertificate("numeric-overflow", f"{name} spectral norm overflowed")
+    return result
+
+
 def _relative_norm(residual: FloatArray, reference: FloatArray) -> float:
     denominator = max(
-        float(np.linalg.norm(reference, ord=2)),
-        np.finfo(np.float64).tiny,
+        _spectral_norm(reference, name="reference"),
+        float(np.finfo(np.float64).tiny),
     )
-    return float(np.linalg.norm(residual, ord=2) / denominator)
+    return _spectral_norm(residual, name="residual") / denominator
 
 
 def _require_small(value: float, *, code: str, name: str) -> None:
@@ -366,7 +375,10 @@ def _verify_factor(
     )
 
     combined = np.concatenate((observable, nullspace), axis=1)
-    basis_residual = float(np.linalg.norm(combined.T @ combined - np.eye(dimension), ord=2))
+    basis_residual = _spectral_norm(
+        combined.T @ combined - np.eye(dimension),
+        name="basis orthonormality residual",
+    )
     _require_small(
         basis_residual,
         code="subspace-basis-not-orthonormal",
@@ -389,17 +401,19 @@ def _verify_factor(
         name="observable_information_symmetry_residual",
     )
     observable_symmetric = 0.5 * (observable_information + observable_information.T)
-    if float(np.min(np.linalg.eigvalsh(observable_symmetric))) <= 0.0:
+    observable_eigenvalues = np.linalg.eigvalsh(observable_symmetric)
+    if float(observable_eigenvalues[0]) <= 0.0:
         raise _InvalidCertificate(
             "observable-information-not-positive-definite",
             "factor.observable_information must be positive definite",
         )
     information_symmetric = 0.5 * (information + information.T)
     information_scale = max(
-        float(np.linalg.norm(information_symmetric, ord=2)),
-        np.finfo(np.float64).tiny,
+        _spectral_norm(information_symmetric, name="information matrix"),
+        float(np.finfo(np.float64).tiny),
     )
-    if float(np.min(np.linalg.eigvalsh(information_symmetric))) < (
+    information_eigenvalues = np.linalg.eigvalsh(information_symmetric)
+    if float(information_eigenvalues[0]) < (
         -_MATRIX_RELATIVE_TOLERANCE * information_scale
     ):
         raise _InvalidCertificate(
@@ -412,7 +426,11 @@ def _verify_factor(
     nullspace_residual = (
         0.0
         if nullity == 0
-        else float(np.linalg.norm(information @ nullspace, ord=2) / information_scale)
+        else _spectral_norm(
+            information @ nullspace,
+            name="information nullspace component",
+        )
+        / information_scale
     )
     _require_small(
         reconstruction_residual,
@@ -468,7 +486,8 @@ def _verify_query(
         name="query_metric_symmetry_residual",
     )
     metric_symmetric = 0.5 * (metric + metric.T)
-    if float(np.min(np.linalg.eigvalsh(metric_symmetric))) <= 0.0:
+    metric_eigenvalues = np.linalg.eigvalsh(metric_symmetric)
+    if float(metric_eigenvalues[0]) <= 0.0:
         raise _InvalidCertificate(
             "query-metric-not-positive-definite",
             "query.metric must be positive definite",
@@ -503,16 +522,24 @@ def _verify_query(
         name="query_observable_witness_residual",
     )
     denominator = max(
-        float(np.linalg.norm(weighted, ord=2)),
-        np.finfo(np.float64).tiny,
+        _spectral_norm(weighted, name="weighted query Jacobian"),
+        float(np.finfo(np.float64).tiny),
     )
     nullspace_sensitivity = (
         0.0
         if nullspace.shape[1] == 0
-        else float(np.linalg.norm(weighted @ nullspace, ord=2) / denominator)
+        else _spectral_norm(
+            weighted @ nullspace,
+            name="weighted query nullspace component",
+        )
+        / denominator
     )
-    reconstruction_residual = float(
-        np.linalg.norm(weighted - coordinates @ observable.T, ord=2) / denominator
+    reconstruction_residual = (
+        _spectral_norm(
+            weighted - coordinates @ observable.T,
+            name="weighted query reconstruction residual",
+        )
+        / denominator
     )
     if not np.isclose(
         reported_nullspace,
@@ -717,7 +744,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Verify a certificate as an execution gate."""
 
     parser = argparse.ArgumentParser(
-        prog="proof4d-verify",
+        prog="python -m prob4d_independent_verifier.proof_carrying",
         description=(
             "Independently verify a Proof4D linear-query factor certificate. "
             "Exit 0 admits, 2 rejects a valid unsupported query, and 3 marks "
