@@ -9,9 +9,11 @@ from prob4d_independent_verifier.execution_gate import (
     PROOF_CARRYING_ORBIT_KIND,
     build_execution_context,
     compute_execution_context_id,
-    main as execution_gate_main,
     render_execution_context,
     verify_for_execution,
+)
+from prob4d_independent_verifier.execution_gate import (
+    main as execution_gate_main,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -91,13 +93,16 @@ def test_matching_local_context_authorizes_admitted_certificate(tmp_path: Path) 
     assert report.admitted
     assert report.decision == "verified-admit"
     assert report.certificate_decision == "verified-admit"
-    assert execution_gate_main(
-        [
-            str(EXAMPLES / "linear-query-supported.json"),
-            str(context_path),
-            "--compact",
-        ]
-    ) == 0
+    assert (
+        execution_gate_main(
+            [
+                str(EXAMPLES / "linear-query-supported.json"),
+                str(context_path),
+                "--compact",
+            ]
+        )
+        == 0
+    )
 
 
 def test_matching_orbit_context_authorizes_global_action(tmp_path: Path) -> None:
@@ -114,13 +119,16 @@ def test_matching_orbit_context_authorizes_global_action(tmp_path: Path) -> None
     assert report.valid
     assert report.admitted
     assert report.decision == "verified-admit"
-    assert execution_gate_main(
-        [
-            str(EXAMPLES / "axial-action-supported.json"),
-            str(context_path),
-            "--compact",
-        ]
-    ) == 0
+    assert (
+        execution_gate_main(
+            [
+                str(EXAMPLES / "axial-action-supported.json"),
+                str(context_path),
+                "--compact",
+            ]
+        )
+        == 0
+    )
 
 
 def test_valid_rejected_certificate_remains_rejected_in_matching_context() -> None:

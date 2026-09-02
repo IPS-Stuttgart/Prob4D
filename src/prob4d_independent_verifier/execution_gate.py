@@ -21,10 +21,12 @@ from pathlib import Path
 
 from .orbit_advantage import (
     PROOF_CARRYING_ORBIT_KIND,
+    ProofCarryingOrbitVerification,
     verify_proof_carrying_orbit_action,
 )
 from .proof_carrying import (
     PROOF_CARRYING_FACTOR_KIND,
+    ProofCarryingFactorVerification,
     verify_proof_carrying_factor,
 )
 
@@ -439,6 +441,7 @@ def verify_for_execution(
                 "execution-context-kind-mismatch",
                 "certificate and caller context use different certificate kinds",
             )
+        verification: ProofCarryingFactorVerification | ProofCarryingOrbitVerification
         if certificate_kind == PROOF_CARRYING_FACTOR_KIND:
             verification = verify_proof_carrying_factor(certificate)
         elif certificate_kind == PROOF_CARRYING_ORBIT_KIND:
@@ -450,7 +453,9 @@ def verify_for_execution(
             )
         certificate_decision = verification.decision
         if not verification.valid:
-            reason = verification.reason_codes[0] if verification.reason_codes else "invalid-certificate"
+            reason = (
+                verification.reason_codes[0] if verification.reason_codes else "invalid-certificate"
+            )
             return _invalid_report(
                 code=f"certificate:{reason}",
                 detail=verification.detail,
