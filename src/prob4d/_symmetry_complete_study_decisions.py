@@ -171,7 +171,7 @@ def _decision_cover_verification_study(
     correction_monotone = all(
         later <= earlier + 1e-14
         for earlier, later in zip(
-            mean_pairwise_corrections,
+            mean_pairwise_corrections[:-1],
             mean_pairwise_corrections[1:],
             strict=True,
         )
