@@ -12,10 +12,19 @@
 - Add finite-action robust-regret lower and upper bounds over every unresolved
   group completion, with exact finite-group recovery and fallback for
   uncertified or inconclusive continuous scope.
+- Add gauge-coupled action-orbit certification: an action template may remain
+  decision-identifiable when it co-transforms with the unresolved state gauge,
+  even if every absolute action loss is gauge variant, provided all pairwise
+  action-loss differences are invariant.
+- Bind gauge-coupled decisions to an explicit state--action execution receipt;
+  fixed-frame actions, independent matched-marginal gauges, missing receipts,
+  and sampled-only continuous claims fail closed.
 - Add deterministic algebraic verification over invariant and symmetry-breaking
-  updates, continuous-circle query and decision bounds, resolution ladders, and
-  shared-versus-independent gauge controls.
+  updates, continuous-circle query and decision bounds, resolution ladders,
+  shared-versus-independent gauge controls, and strict pairwise-equivariance
+  versus action-wise-Lipschitz controls.
 
 This is a lightweight method and controlled-evidence increment. It does not
-infer a physical symmetry, validate a learned provider, open a dataset, establish
-transport, authorize deployment, or certify safety.
+infer a physical symmetry or state--action execution binding, validate a learned
+provider, open a dataset, establish transport, authorize deployment, or certify
+safety.
