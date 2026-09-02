@@ -181,9 +181,7 @@ def run(protocol: dict[str, object]) -> dict[str, object]:
             innovation_operator=DenseReference(closure_innovation),
             maximum_rank=int(protocol["expected_recursive_closure_dimension"]),
         )
-        closure_factor = closure_compression.compressed_factor_m.reshape(
-            observation.shape[0], -1
-        )
+        closure_factor = closure_compression.compressed_factor_m.reshape(observation.shape[0], -1)
         closure_mean, closure_covariance = _kalman_update(
             closure_mean,
             closure_covariance,
@@ -222,19 +220,12 @@ def run(protocol: dict[str, object]) -> dict[str, object]:
                 "step": step,
                 "closure_retained_rank": closure_compression.retained_rank,
                 "current_task_retained_rank": task_only_compression.retained_rank,
-                "closure_mean_max_abs_error": float(
-                    np.max(np.abs(closure_mean - full_task_mean))
-                ),
+                "closure_mean_max_abs_error": float(np.max(np.abs(closure_mean - full_task_mean))),
                 "closure_covariance_max_abs_error": float(
                     np.max(np.abs(closure_covariance - full_task_covariance))
                 ),
                 "current_task_mean_max_abs_error": float(
-                    np.max(
-                        np.abs(
-                            task_decoder @ task_only_mean
-                            - task_decoder @ full_task_mean
-                        )
-                    )
+                    np.max(np.abs(task_decoder @ task_only_mean - task_decoder @ full_task_mean))
                 ),
             }
         )
@@ -262,9 +253,7 @@ def run(protocol: dict[str, object]) -> dict[str, object]:
     }
 
     closure_mean_error = max(float(row["closure_mean_max_abs_error"]) for row in steps)
-    closure_covariance_error = max(
-        float(row["closure_covariance_max_abs_error"]) for row in steps
-    )
+    closure_covariance_error = max(float(row["closure_covariance_max_abs_error"]) for row in steps)
     current_errors = [float(row["current_task_mean_max_abs_error"]) for row in steps]
     closure_ranks = [int(row["closure_retained_rank"]) for row in steps]
     task_ranks = [int(row["current_task_retained_rank"]) for row in steps]
@@ -281,13 +270,9 @@ def run(protocol: dict[str, object]) -> dict[str, object]:
         raise RuntimeError("current-task retained ranks changed")
     if closure_mean_error > float(protocol["closure_mean_parity_absolute_tolerance"]):
         raise RuntimeError("closure-aware recursive mean parity failed")
-    if closure_covariance_error > float(
-        protocol["closure_covariance_parity_absolute_tolerance"]
-    ):
+    if closure_covariance_error > float(protocol["closure_covariance_parity_absolute_tolerance"]):
         raise RuntimeError("closure-aware recursive covariance parity failed")
-    if current_errors[0] > float(
-        protocol["current_task_first_update_parity_absolute_tolerance"]
-    ):
+    if current_errors[0] > float(protocol["current_task_first_update_parity_absolute_tolerance"]):
         raise RuntimeError("current-task one-step parity failed")
     if max(current_errors[1:]) < float(protocol["minimum_recursive_failure_absolute_error"]):
         raise RuntimeError("current-query-only control did not expose recursive failure")
@@ -315,9 +300,7 @@ def main() -> int:
     (args.output_dir / "protocol.json").write_bytes(protocol_bytes)
 
     report = run(protocol)
-    result_bytes = (
-        json.dumps(report, indent=2, sort_keys=True, allow_nan=False) + "\n"
-    ).encode()
+    result_bytes = (json.dumps(report, indent=2, sort_keys=True, allow_nan=False) + "\n").encode()
     (args.output_dir / "result.json").write_bytes(result_bytes)
     manifest = {
         "source_revision": args.source_revision,
