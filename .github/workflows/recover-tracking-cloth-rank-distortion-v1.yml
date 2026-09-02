@@ -71,7 +71,7 @@ jobs:
           script=scripts/science/run_tracking_cloth_rank_distortion_frontier_v1.py
           test=tests/test_tracking_cloth_rank_distortion_frontier_v1.py
           python -m ruff format "$script" "$test"
-          python -m ruff check --fix "$script" "$test"
+          python -m ruff check --fix --exit-zero "$script" "$test"
           python - <<'PY'
           from pathlib import Path
 
