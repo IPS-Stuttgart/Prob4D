@@ -7,7 +7,6 @@ import pytest
 
 from prob4d.information_contract_controlled import evaluate_controlled_suite
 
-
 ROOT = Path(__file__).resolve().parents[1]
 SUITE = ROOT / "benchmarks/information_contract_v1/controlled_suite.json"
 
