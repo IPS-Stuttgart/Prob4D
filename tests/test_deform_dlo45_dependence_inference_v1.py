@@ -65,7 +65,15 @@ def test_paired_group_inference_retains_ties() -> None:
     "arguments,match",
     [
         (([1.0], [1.0], [1.0], [1.0]), "at least two groups"),
-        (([1.0, 2.0], [1.0], [1.0, 1.0], [1.0, 1.0]), "identical length"),
+        (
+            (
+                [1.0, 2.0, 3.0],
+                [1.0, 2.0],
+                [1.0, 1.0, 1.0],
+                [1.0, 1.0, 1.0],
+            ),
+            "identical length",
+        ),
         (([1.0, 2.0], [1.0, 2.0], [0.0, 1.0], [1.0, 1.0]), "must be positive"),
     ],
 )
