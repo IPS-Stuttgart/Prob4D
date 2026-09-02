@@ -14,8 +14,7 @@ on:
       - "src/prob4d/proof_carrying_factor.py"
       - "src/prob4d/proof_carrying_orbit.py"
       - "src/prob4d_independent_verifier/**"
-      - "tests/test_proof_carrying_factor*.py"
-      - "tests/test_proof_carrying_orbit.py"
+      - "tests/test_proof_carrying_*.py"
   pull_request:
     branches: [main]
     paths:
@@ -29,8 +28,7 @@ on:
       - "src/prob4d/proof_carrying_factor.py"
       - "src/prob4d/proof_carrying_orbit.py"
       - "src/prob4d_independent_verifier/**"
-      - "tests/test_proof_carrying_factor*.py"
-      - "tests/test_proof_carrying_orbit.py"
+      - "tests/test_proof_carrying_*.py"
   workflow_dispatch:
 
 permissions:
@@ -66,14 +64,15 @@ jobs:
           cache-dependency-path: pyproject.toml
       - name: Install the lightweight runtime test environment
         run: python -m pip install -e . "pytest==9.1.1"
-      - name: Check generated certificates
+      - name: Check generated certificates and caller contexts
         run: python scripts/generate_proof_carrying_factor_examples.py --check
-      - name: Run local, global-orbit, tamper, and fallback tests
+      - name: Run local, global-orbit, context, tamper, and fallback tests
         run: >-
           python -m pytest -q
           tests/test_proof_carrying_factor.py
           tests/test_proof_carrying_factor_full_rank.py
           tests/test_proof_carrying_orbit.py
+          tests/test_proof_carrying_execution_gate.py
           --junitxml=proof4d-${{ matrix.python }}.xml
       - name: Exercise fail-closed module exit codes
         shell: bash
@@ -81,6 +80,14 @@ jobs:
           set -euo pipefail
           python -m prob4d_independent_verifier.proof_carrying \
             examples/proof4d/linear-query-supported.json --compact
+          python -m prob4d_independent_verifier.execution_gate \
+            examples/proof4d/linear-query-supported.json \
+            examples/proof4d/linear-query-supported.context.json --compact
+          python -m prob4d_independent_verifier.orbit_advantage \
+            examples/proof4d/axial-action-supported.json --compact
+          python -m prob4d_independent_verifier.execution_gate \
+            examples/proof4d/axial-action-supported.json \
+            examples/proof4d/axial-action-supported.context.json --compact
           set +e
           python -m prob4d_independent_verifier.proof_carrying \
             examples/proof4d/linear-query-rejected.json --compact
@@ -91,8 +98,6 @@ jobs:
           set -e
           test "$local_status" -eq 2
           test "$orbit_status" -eq 2
-          python -m prob4d_independent_verifier.orbit_advantage \
-            examples/proof4d/axial-action-supported.json --compact
       - name: Upload verification report
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -121,19 +126,22 @@ jobs:
             requirements/ci/quality.txt
       - name: Install the repository-pinned quality environment
         run: python -m pip install -e . -r requirements/ci/quality.txt
-      - name: Lint and type-check both certificate families
+      - name: Lint and type-check certificate, verifier, and context layers
         shell: bash
         run: |
           set -euo pipefail
           files=(
             src/prob4d/proof_carrying_factor.py
             src/prob4d/proof_carrying_orbit.py
+            src/prob4d_independent_verifier/__init__.py
             src/prob4d_independent_verifier/proof_carrying.py
             src/prob4d_independent_verifier/orbit_advantage.py
+            src/prob4d_independent_verifier/execution_gate.py
             scripts/generate_proof_carrying_factor_examples.py
             tests/test_proof_carrying_factor.py
             tests/test_proof_carrying_factor_full_rank.py
             tests/test_proof_carrying_orbit.py
+            tests/test_proof_carrying_execution_gate.py
           )
           python -m ruff check "${files[@]}"
           python -m ruff format --check "${files[@]}"
@@ -142,7 +150,8 @@ jobs:
             src/prob4d/proof_carrying_factor.py \
             src/prob4d/proof_carrying_orbit.py \
             src/prob4d_independent_verifier/proof_carrying.py \
-            src/prob4d_independent_verifier/orbit_advantage.py
+            src/prob4d_independent_verifier/orbit_advantage.py \
+            src/prob4d_independent_verifier/execution_gate.py
 
   installed-wheel:
     name: Installed-wheel independent verifiers
@@ -175,7 +184,15 @@ jobs:
           "$python_bin" -I -m prob4d_independent_verifier.orbit_advantage \
             examples/proof4d/axial-action-supported.json \
             --compact > installed-wheel-orbit-report.json
-      - name: Verify neither independent checker imports its producer
+          "$python_bin" -I -m prob4d_independent_verifier.execution_gate \
+            examples/proof4d/linear-query-supported.json \
+            examples/proof4d/linear-query-supported.context.json \
+            --compact > installed-wheel-local-context-report.json
+          "$python_bin" -I -m prob4d_independent_verifier.execution_gate \
+            examples/proof4d/axial-action-supported.json \
+            examples/proof4d/axial-action-supported.context.json \
+            --compact > installed-wheel-orbit-context-report.json
+      - name: Verify no independent checker imports its producer
         shell: bash
         run: |
           set -euo pipefail
@@ -188,6 +205,7 @@ jobs:
           for module in (
               "prob4d_independent_verifier.proof_carrying",
               "prob4d_independent_verifier.orbit_advantage",
+              "prob4d_independent_verifier.execution_gate",
           ):
               spec = find_spec(module)
               if spec is None or spec.origin is None:
