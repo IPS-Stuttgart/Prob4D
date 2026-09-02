@@ -14,9 +14,9 @@ from numpy.typing import NDArray
 
 from ._atomic_file import atomic_write_bytes, atomic_write_text
 from .information_contract_benchmark import (
+    _ALLOWED_TASKS,
     SUITE_SCHEMA,
     SUITE_VERSION,
-    _ALLOWED_TASKS,
     _query_moments,
     _sha256_file,
 )
