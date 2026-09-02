@@ -1,0 +1,126 @@
+name: Information-contract benchmark v1
+
+on:
+  push:
+    branches:
+      - main
+      - science/information-contract-benchmark-v1
+    paths:
+      - ".github/workflows/information-contract-benchmark-v1.yml"
+      - "benchmarks/information_contract_v1/**"
+      - "docs/information-contract-benchmark.md"
+      - "src/prob4d/information_contract_benchmark.py"
+      - "src/prob4d/information_contract_benchmark_smoke.py"
+      - "tests/test_information_contract_benchmark.py"
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/information-contract-benchmark-v1.yml"
+      - "benchmarks/information_contract_v1/**"
+      - "docs/information-contract-benchmark.md"
+      - "src/prob4d/information_contract_benchmark.py"
+      - "src/prob4d/information_contract_benchmark_smoke.py"
+      - "tests/test_information_contract_benchmark.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: information-contract-benchmark-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  unit:
+    name: Contract tests on Python ${{ matrix.python }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.12", "3.14"]
+    steps:
+      - name: Check out exact revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          clean: true
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install benchmark and test dependencies
+        run: |
+          python -m pip install -e ".[dev]"
+          python -m pip check
+      - name: Run focused benchmark tests
+        run: |
+          python -m ruff check \
+            src/prob4d/information_contract_benchmark.py \
+            src/prob4d/information_contract_benchmark_smoke.py \
+            tests/test_information_contract_benchmark.py
+          python -m pytest -q tests/test_information_contract_benchmark.py
+
+  deterministic-smoke:
+    name: Generate, replay, and retain the complete scorecard
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out exact revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          clean: true
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install NumPy-only package
+        run: |
+          python -m pip install -e .
+          python -m pip check
+      - name: Generate and evaluate deterministic smoke suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/information-contract-smoke"
+          python -m prob4d.information_contract_benchmark smoke "$root"
+          python -m prob4d.information_contract_benchmark evaluate \
+            "$root/suite.json" "$root/replayed.json"
+          cmp "$root/result.json" "$root/replayed.json"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "information-contract-smoke"
+          result = json.loads((root / "result.json").read_text(encoding="utf-8"))
+          aggregate = result["aggregate"]
+          assert aggregate["case_count"] == 2
+          assert aggregate["independent_group_count"] == 2
+          assert aggregate["contract"]["all_cases_pass"] is True
+          assert (
+              aggregate["equal_group_mean"]["dependence_nll_gain_per_dimension"]
+              > 0.0
+          )
+          assert aggregate["equal_group_mean"]["gauge_false_accept_fraction"] == 0.0
+          assert aggregate["equal_group_mean"]["exact_fallback_fraction"] == 1.0
+          print(json.dumps(aggregate, indent=2, sort_keys=True))
+          PY
+          sha256sum "$root"/*
+      - name: Upload complete deterministic scorecard
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v6.0.0
+        with:
+          name: information-contract-smoke-${{ github.sha }}
+          path: ${{ runner.temp }}/information-contract-smoke/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0

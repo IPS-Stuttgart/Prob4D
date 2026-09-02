@@ -1,0 +1,128 @@
+{
+  "$id": "https://github.com/IPS-Stuttgart/Prob4D/benchmarks/information_contract_v1/suite.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "aggregation_unit": {
+      "const": "group_id"
+    },
+    "cases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "case_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "group_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "metadata": {
+            "type": "object"
+          },
+          "payload": {
+            "minLength": 1,
+            "not": {
+              "anyOf": [
+                {
+                  "pattern": "^/"
+                },
+                {
+                  "pattern": "(^|/)\\.\\.(/|$)"
+                }
+              ]
+            },
+            "type": "string"
+          },
+          "payload_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "tasks": {
+            "items": {
+              "enum": [
+                "forecast",
+                "calibration",
+                "dependence",
+                "query",
+                "gauge",
+                "fallback",
+                "decision",
+                "communication"
+              ]
+            },
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "case_id",
+          "group_id",
+          "payload",
+          "payload_sha256",
+          "tasks"
+        ],
+        "type": "object"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "claim_boundary": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "schema_name": {
+      "const": "prob4d.information-contract-suite"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "suite_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "thresholds": {
+      "additionalProperties": false,
+      "properties": {
+        "coverage_probability": {
+          "exclusiveMaximum": 1.0,
+          "exclusiveMinimum": 0.0,
+          "type": "number"
+        },
+        "gauge_sensitivity_tolerance": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "moment_atol": {
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "relative_rank_tolerance": {
+          "exclusiveMaximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "coverage_probability",
+        "gauge_sensitivity_tolerance",
+        "moment_atol",
+        "relative_rank_tolerance"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema_name",
+    "schema_version",
+    "suite_id",
+    "aggregation_unit",
+    "thresholds",
+    "cases"
+  ],
+  "title": "Prob4D probabilistic 4-D information-contract suite v1",
+  "type": "object"
+}
