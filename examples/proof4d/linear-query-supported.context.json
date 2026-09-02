@@ -1,0 +1,14 @@
+{
+  "bindings": {
+    "certificate_id": "sha256:e5d4cc428a2f306afccb9b4b10e954fb9b6b03b0d2dc170d01de204b140bf67a",
+    "fallback_id": "example:caller-owned-physical-fallback-v1",
+    "input_digest": "sha256:2f3c65cf9544bf2bd752dd7d7365e1bf5eb43a4fafeec079ee08b39735c6f90b",
+    "query_id": "example:gauge-insensitive-local-query-v1",
+    "query_program_digest": "sha256:cdbc2a0a4f1dde2c24e8f1db78c65f7ed45081715b7a7d306fbd67e3b2e23961",
+    "source_factor_digest": "sha256:fcdc830f42fb7ced35849bf6f35f0ae7ee06f921c6e1f347adc1a6406a7603a7"
+  },
+  "certificate_kind": "observable-gauge-linear-query-v1",
+  "context_id": "sha256:7ca9e54e476c50a17b787ec19fdbc064a2397c42ff7a4b9aa33556de37e17194",
+  "schema": "prob4d.proof4d-execution-context",
+  "schema_version": 1
+}
