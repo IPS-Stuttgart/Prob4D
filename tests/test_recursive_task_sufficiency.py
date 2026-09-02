@@ -17,9 +17,7 @@ class DenseReference:
 
     def solve(self, value: object) -> np.ndarray:
         raw = np.asarray(value, dtype=np.float64)
-        return np.linalg.solve(
-            self.covariance, raw.reshape(self.dimension, -1)
-        ).reshape(raw.shape)
+        return np.linalg.solve(self.covariance, raw.reshape(self.dimension, -1)).reshape(raw.shape)
 
 
 def _kalman_update(
@@ -181,9 +179,7 @@ def test_closure_aware_compression_is_recursively_exact() -> None:
             innovation_operator=DenseReference(closure_innovation),
             maximum_rank=4,
         )
-        closure_factor = closure_compression.compressed_factor_m.reshape(
-            observation.shape[0], -1
-        )
+        closure_factor = closure_compression.compressed_factor_m.reshape(observation.shape[0], -1)
         closure_mean, closure_covariance = _kalman_update(
             closure_mean,
             closure_covariance,
