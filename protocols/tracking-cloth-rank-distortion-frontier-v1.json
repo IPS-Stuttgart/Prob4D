@@ -1,0 +1,109 @@
+{
+  "base_protocol_git_blob_sha1": "0607e4c2e116cd6f613ae563fcc46e6dc785d988",
+  "base_protocol_path": "protocols/tracking-cloth-query-portfolio-v1.json",
+  "base_script_git_blob_sha1": "dfb557c95bf04ac79af7b93447598ed4822d72cf",
+  "base_script_path": "scripts/science/run_tracking_cloth_query_portfolio_v1.py",
+  "claim_boundary": {
+    "all_rank_selection_training_model_only": true,
+    "bayesian_phystwin_benefit_claimed": false,
+    "causal4d_benefit_claimed": false,
+    "deployment_calibration_claimed": false,
+    "heldout_metrics_diagnostic": true,
+    "learned_4d_provider_claimed": false,
+    "observation_likelihood_preserved": false,
+    "raw_trajectories_published": false,
+    "recording_disjoint_real_motion_capture": true,
+    "recursive_exactness_claimed": false,
+    "state_of_the_art_claimed": false
+  },
+  "comparators": [
+    "globally optimal generalized-eigen factor projection",
+    "posterior-normalized response SVD ordering from the exact query compressor",
+    "shared-factor covariance-energy PCA"
+  ],
+  "dataset": {
+    "dataset_root": "/home/github-runner/.cache/datasets/tracking-cloth-deformation-v1-zenodo-14644526",
+    "doi": "10.5281/zenodo.14644526",
+    "name": "Tracking Cloth Deformation",
+    "public_release": true
+  },
+  "expected_case_count": 55,
+  "expected_compatible_recordings": 80,
+  "expected_csv_files": 120,
+  "frontier_ranks": "all",
+  "heldout_diagnostics": [
+    "RMSE per coordinate",
+    "normalized NEES",
+    "joint 90 percent coverage",
+    "Gaussian NLL per query dimension"
+  ],
+  "heldout_fixed_ranks": [
+    0,
+    1,
+    2,
+    4,
+    8,
+    16,
+    32
+  ],
+  "inherited_model_settings": {
+    "factor_eigenvalue_relative_tolerance": 1e-12,
+    "fold_count": 5,
+    "horizon_frames": 12,
+    "joint_covariance_ridge_fraction": 0.0001,
+    "joint_covariance_shrinkage": 0.08,
+    "lag_frames": 6,
+    "maximum_conditional_block_fraction": 0.2,
+    "maximum_windows_per_recording": 96,
+    "minimum_recordings_per_size": 24,
+    "query_counts": [
+      1,
+      2,
+      4,
+      8,
+      12,
+      20
+    ],
+    "query_selection": "deterministic evenly spaced marker indices; no target outcome used",
+    "stride_frames": 4
+  },
+  "methods": [
+    "generalized-eigen-optimal",
+    "posterior-response-svd",
+    "shared-factor-pca"
+  ],
+  "numerical_relative_tolerance": 1e-12,
+  "posterior_validity_margin": 1e-10,
+  "primary_hypotheses": {
+    "budget_rank": "the generalized-eigen frontier never requires more retained rank for any registered training-model distortion budget",
+    "same_rank_optimality": "the generalized-eigen frontier never has larger registered distortion than either equal-rank baseline",
+    "strict_real_effect": "report, but do not gate on, the frequency and magnitude of strict rank savings and same-rank regret on recording-disjoint real-data models"
+  },
+  "primary_trace_budget_per_query_dimension": 0.05,
+  "protocol_id": "39a0af94faa1101f6bedaa48f206d4b0afd9d95b54acb2355082e2dd1ce677a2",
+  "query_counts": [
+    1,
+    2,
+    4,
+    8,
+    12,
+    20
+  ],
+  "rank_selection": "minimum numerically valid retained rank satisfying the registered normalized posterior-covariance trace budget on the training-fold Gaussian model",
+  "required_maximum_identity_relative_error": 1e-07,
+  "required_maximum_optimality_violation": 1e-07,
+  "same_rank_payload": "all three methods store an observation-by-rank factor and original-rank-by-rank projection at each retained rank",
+  "schema": "prob4d.tracking-cloth-rank-distortion-frontier.v1",
+  "schema_version": 1,
+  "selection_uses_heldout_outcomes": false,
+  "sizes": [
+    "A2",
+    "A3"
+  ],
+  "trace_budgets_per_query_dimension": [
+    0.01,
+    0.05,
+    0.1,
+    0.25
+  ]
+}

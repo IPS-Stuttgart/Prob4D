@@ -1,0 +1,13 @@
+{
+  "schema": "prob4d.self-hosted-experiment-request.v1",
+  "request_id": "tracking-cloth-rank-distortion-frontier-v1-20260902-a",
+  "protocol_id": "39a0af94faa1101f6bedaa48f206d4b0afd9d95b54acb2355082e2dd1ce677a2",
+  "branch": "science/tracking-cloth-rank-distortion-frontier-v1",
+  "stacked_on": "research/query-rank-distortion-frontier-v1",
+  "runner_labels": ["self-hosted", "Linux", "X64", "gpuserver4090"],
+  "dataset_root": "/home/github-runner/.cache/datasets/tracking-cloth-deformation-v1-zenodo-14644526",
+  "requested_action": "evaluate the full generalized-eigen posterior rank-distortion frontier and equal-rank response-SVD/PCA controls on the frozen recording-disjoint Tracking Cloth models, with rank selection independent of held-out outcomes",
+  "raw_data_publication_authorized": false,
+  "provider_promotion_authorized": false,
+  "heldout_retuning_authorized": false
+}
