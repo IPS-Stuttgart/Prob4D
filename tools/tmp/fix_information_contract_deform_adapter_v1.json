@@ -1,0 +1,6 @@
+{
+  "schema_name": "prob4d.temporary-information-contract-deform-adapter-fix",
+  "schema_version": 1,
+  "purpose": "normalize and validate the retrospective public-data adapter without changing its frozen scientific protocol",
+  "scientific_inputs_changed": false
+}
