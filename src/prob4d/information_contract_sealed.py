@@ -827,7 +827,7 @@ def evaluate_sealed_information_contract(
                 {
                     "case_id": case_id,
                     "group_id": challenge_case["group_id"],
-                    "payload": merged_payload.name,
+                    "payload": merged_payload.relative_to(temporary_root).as_posix(),
                     "payload_sha256": _sha256_file(merged_payload),
                     "tasks": core_tasks,
                     "metadata": {
