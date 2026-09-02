@@ -181,10 +181,24 @@ def test_latent_and_query_reparameterization_preserve_the_frontier() -> None:
         atol=2e-11,
         rtol=2e-10,
     )
+    nonunique_ranks: list[int] = []
     for rank in range(8):
-        first = original.point(rank).compressed_factor_m.reshape(36, rank)
-        second = latent_changed.point(rank).compressed_factor_m.reshape(36, rank)
+        first_point = original.point(rank)
+        second_point = latent_changed.point(rank)
+        np.testing.assert_allclose(
+            first_point.audited_normalized_covariance_trace_loss,
+            second_point.audited_normalized_covariance_trace_loss,
+            atol=2e-11,
+            rtol=2e-10,
+        )
+        assert first_point.optimal_subspace_unique == second_point.optimal_subspace_unique
+        if not first_point.optimal_subspace_unique:
+            nonunique_ranks.append(rank)
+            continue
+        first = first_point.compressed_factor_m.reshape(36, rank)
+        second = second_point.compressed_factor_m.reshape(36, rank)
         np.testing.assert_allclose(first @ first.T, second @ second.T, atol=2e-10)
+    assert nonunique_ranks == [4, 5, 6]
 
     transform = np.array([[2.0, 0.1, 0.3], [0.2, 0.7, 0.0], [0.0, 0.2, 3.0]])
     query_changed = frontier(
@@ -199,6 +213,16 @@ def test_latent_and_query_reparameterization_preserve_the_frontier() -> None:
         atol=2e-11,
         rtol=2e-10,
     )
+    for rank in range(8):
+        original_point = original.point(rank)
+        changed_point = query_changed.point(rank)
+        np.testing.assert_allclose(
+            original_point.audited_normalized_covariance_trace_loss,
+            changed_point.audited_normalized_covariance_trace_loss,
+            atol=2e-11,
+            rtol=2e-10,
+        )
+        assert original_point.optimal_subspace_unique == changed_point.optimal_subspace_unique
 
 
 def test_budget_selection_is_fail_closed_to_a_valid_rank() -> None:
@@ -221,6 +245,8 @@ def test_zero_shared_rank_and_invalid_inputs() -> None:
     result = frontier(factor, prior, cross, innovation)
     assert result.original_rank == 0
     assert result.point(0).exact_posterior
+    assert result.point(0).optimal_subspace_unique
+    assert result.point(0).boundary_generalized_eigengap is None
 
     factor, prior, cross, _, innovation = model(seed=2, rank=3, qdim=2)
     with pytest.raises(TypeError, match="numerical_relative_tolerance"):

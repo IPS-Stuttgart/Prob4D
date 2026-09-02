@@ -85,8 +85,12 @@ B x_i=\lambda_i Mx_i,
 
 An optimal discarded subspace is the span of the `d` generalized eigenvectors
 with smallest eigenvalues.  Its Euclidean orthogonal complement gives the
-rank-`k=r-d` retained projector `V`.  The subspaces are nested, so all retained
-ranks form one deterministic frontier.
+rank-`k=r-d` retained projector `V`.  Choosing nested eigenspaces gives a nested
+frontier.  If the rank boundary cuts through a repeated generalized-eigenvalue
+block, the optimum value remains unique but the optimizing subspace is not.  The
+implementation reports the boundary eigengap and an `optimal_subspace_unique`
+flag; factor-covariance representatives should only be compared across latent
+reparameterizations at strict boundaries.
 
 This is a **global optimum only for this registered distortion and this
 `U -> U V` factor family**.  It is not a claim of globally optimal Bayesian model
