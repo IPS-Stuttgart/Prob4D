@@ -1,0 +1,14 @@
+{
+  "schema": "prob4d.self-hosted-experiment-request.v1",
+  "request_id": "tracking-cloth-rank-distortion-real-v1",
+  "request_sequence": 2,
+  "method_parent_revision": "baaebd29d576c77be77b97b75383a3a9dd89eaef",
+  "branch": "research/tracking-cloth-rank-distortion-real-v1",
+  "runner_labels": ["self-hosted", "gpuserver4090"],
+  "dataset_root": "/home/github-runner/.cache/datasets/tracking-cloth-deformation-v1-zenodo-14644526",
+  "dataset_state": "verified-complete-extracted",
+  "expected_recording_count": 120,
+  "requested_action": "recording-disjoint posterior rank-distortion evaluation at retained ranks 0, 1, 2, and 3 with generalized-eigen, response-SVD, and covariance-PCA factors",
+  "raw_data_publication_authorized": false,
+  "provider_promotion_authorized": false
+}

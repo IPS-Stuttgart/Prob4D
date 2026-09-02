@@ -1,0 +1,302 @@
+name: Tracking Cloth posterior rank-distortion real trajectories v1
+
+on:
+  pull_request:
+    branches:
+      - main
+      - research/query-rank-distortion-frontier-v1
+    paths:
+      - ".github/workflows/tracking-cloth-rank-distortion-real-v1.yml"
+      - "docs/tracking-cloth-rank-distortion-real-v1.md"
+      - "protocols/tracking-cloth-rank-distortion-real-v1.json"
+      - "protocols/execution_requests/tracking_cloth_rank_distortion_real_v1.json"
+      - "scripts/science/run_tracking_cloth_rank_distortion.py"
+      - "src/prob4d/posterior_rank_distortion.py"
+      - "tests/test_posterior_rank_distortion.py"
+      - "tests/test_tracking_cloth_rank_distortion.py"
+  push:
+    branches:
+      - research/tracking-cloth-rank-distortion-real-v1
+    paths:
+      - protocols/execution_requests/tracking_cloth_rank_distortion_real_v1.json
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tracking-cloth-rank-distortion-real-v1-${{ github.event_name }}
+  cancel-in-progress: true
+
+env:
+  DATASET_ROOT: /home/github-runner/.cache/datasets/tracking-cloth-deformation-v1-zenodo-14644526
+  PROTOCOL_PATH: protocols/tracking-cloth-rank-distortion-real-v1.json
+  REQUEST_PATH: protocols/execution_requests/tracking_cloth_rank_distortion_real_v1.json
+  PYTHONUNBUFFERED: "1"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+
+jobs:
+  hosted-preflight:
+    name: Validate immutable protocol and focused implementation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact requested revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Validate request and claim boundary
+        shell: bash
+        env:
+          EVENT_REPOSITORY: ${{ github.repository }}
+          EVENT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          request = json.loads(Path(os.environ["REQUEST_PATH"]).read_text(encoding="utf-8"))
+          protocol = json.loads(Path(os.environ["PROTOCOL_PATH"]).read_text(encoding="utf-8"))
+          assert os.environ["EVENT_REPOSITORY"] == "IPS-Stuttgart/Prob4D"
+          assert len(os.environ["EVENT_SHA"]) == 40
+          assert request["schema"] == "prob4d.self-hosted-experiment-request.v1"
+          assert request["request_id"] == "tracking-cloth-rank-distortion-real-v1"
+          assert request["branch"] == "research/tracking-cloth-rank-distortion-real-v1"
+          assert request["runner_labels"] == ["self-hosted", "gpuserver4090"]
+          assert request["dataset_root"] == os.environ["DATASET_ROOT"]
+          assert request["expected_recording_count"] == 120
+          assert request["raw_data_publication_authorized"] is False
+          assert request["provider_promotion_authorized"] is False
+          assert protocol["schema"] == "prob4d.tracking-cloth-rank-distortion-real.v1"
+          assert protocol["method_parent_revision"] == (
+              "baaebd29d576c77be77b97b75383a3a9dd89eaef"
+          )
+          assert protocol["dataset"]["dataset_state"] == "verified-complete-extracted"
+          assert protocol["query"]["dimension"] == 3
+          assert protocol["retained_ranks"] == [0, 1, 2, 3]
+          assert protocol["methods"] == [
+              "full",
+              "optimal_generalized_eigen",
+              "response_svd",
+              "covariance_pca",
+          ]
+          boundary = protocol["claim_boundary"]
+          assert boundary["rank_distortion_theorem_evaluated"] is True
+          assert boundary["learned_4d_provider_evaluated"] is False
+          assert boundary["deployment_covariance_calibration_claimed"] is False
+          assert boundary["arbitrary_task_loss_optimality_claimed"] is False
+          assert boundary["recursive_exactness_claimed"] is False
+          PY
+
+      - name: Install pinned focused environment
+        run: |
+          python -m pip install \
+            "numpy==2.2.6" "pytest==9.1.1" "ruff==0.16.5"
+          python -m pip install --no-deps -e .
+
+      - name: Check focused source quality
+        run: |
+          python -m ruff format --check \
+            scripts/science/run_tracking_cloth_rank_distortion.py \
+            tests/test_tracking_cloth_rank_distortion.py
+          python -m ruff check \
+            scripts/science/run_tracking_cloth_rank_distortion.py \
+            tests/test_tracking_cloth_rank_distortion.py
+          python -m py_compile scripts/science/run_tracking_cloth_rank_distortion.py
+
+      - name: Run theorem and study tests
+        run: |
+          python -m pytest -q \
+            tests/test_posterior_rank_distortion.py \
+            tests/test_tracking_cloth_rank_distortion.py
+
+  evaluate:
+    name: Evaluate 120 verified cloth recordings on gpuserver4090
+    needs: hosted-preflight
+    if: >-
+      github.actor == 'FlorianPfaff' &&
+      github.repository == 'IPS-Stuttgart/Prob4D' &&
+      github.event_name != 'pull_request'
+    environment: trusted-self-hosted-validation
+    runs-on: [self-hosted, Linux, X64, gpuserver4090]
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    steps:
+      - name: Record and validate selected runner and dataset
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_OS" = "Linux"
+          test "$RUNNER_ARCH" = "X64"
+          printf 'runner_name=%s\nrunner_os=%s\nrunner_arch=%s\n' \
+            "$RUNNER_NAME" "$RUNNER_OS" "$RUNNER_ARCH"
+          test -d "$DATASET_ROOT"
+          test -r "$DATASET_ROOT"
+          csv_count=$(find "$DATASET_ROOT" -type f -iname '*.csv' | wc -l)
+          test "$csv_count" -eq 120
+          printf 'csv_count=%s\n' "$csv_count"
+
+      - name: Check out exact preflighted revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          clean: true
+
+      - name: Verify exact clean checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Initialize isolated evidence workspace
+        id: workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${RUNNER_TEMP}/prob4d-cloth-rank-distortion-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          rm -rf -- "$root"
+          mkdir -p "$root/evidence"
+          printf '125\n' > "$root/process-exit-code.txt"
+          echo "root=$root" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Python 3.12 on the self-hosted runner
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Create isolated pinned numerical runtime
+        id: python
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          python -m venv "$root/venv"
+          "$root/venv/bin/python" -m pip install --disable-pip-version-check \
+            "numpy==2.2.6"
+          "$root/venv/bin/python" - <<'PY'
+          import sys
+          import numpy
+
+          print(f"python={sys.version.split()[0]}")
+          print(f"numpy={numpy.__version__}")
+          PY
+          echo "python=$root/venv/bin/python" >> "$GITHUB_OUTPUT"
+
+      - name: Execute recording-disjoint real rank-distortion evaluation
+        id: execute
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          output="$root/evidence"
+          rm -rf -- "$output"
+          set +e
+          PYTHONPATH="$GITHUB_WORKSPACE/src" "${{ steps.python.outputs.python }}" \
+            scripts/science/run_tracking_cloth_rank_distortion.py \
+              --dataset-root "$DATASET_ROOT" \
+              --protocol "$PROTOCOL_PATH" \
+              --output-dir "$output" \
+              --source-revision "$GITHUB_SHA"
+          status=$?
+          set -e
+          printf '%s\n' "$status" > "$root/process-exit-code.txt"
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Remove numerical runtime before artifact upload
+        if: always()
+        shell: bash
+        run: rm -rf -- "${{ steps.workspace.outputs.root }}/venv"
+
+      - name: Upload compact derived evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v6.0.0
+        with:
+          name: tracking-cloth-rank-distortion-real-v1-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            ${{ steps.workspace.outputs.root }}/evidence
+            ${{ steps.workspace.outputs.root }}/process-exit-code.txt
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Publish run summary
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="${{ steps.workspace.outputs.root }}/evidence"
+          if test -f "$output/summary.md"; then
+            cat "$output/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Enforce completed real-data theorem evaluation
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          output="$root/evidence"
+          test "$(cat "$root/process-exit-code.txt")" = "0"
+          test -f "$output/result.json"
+          test -f "$output/inventory.json"
+          test -f "$output/manifest.json"
+          test -f "$output/summary.md"
+          if find "$output" -type f -iname '*.csv' | grep -q .; then
+            echo "raw CSV data entered the evidence artifact" >&2
+            exit 1
+          fi
+          /usr/bin/python3 - "$output/result.json" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          result = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          if result["status"] != "evaluated-real-rank-distortion":
+              raise SystemExit(
+                  "real rank-distortion evaluation did not complete: "
+                  + result.get("reason", result["status"])
+              )
+          inventory = result["inventory"]
+          if inventory["csv_file_count"] != 120:
+              raise SystemExit("the complete verified CSV inventory was not seen")
+          if inventory["accepted_recording_count"] < 32:
+              raise SystemExit("too few real cloth recordings were admitted")
+          aggregate = result["aggregate"]
+          if aggregate["retained_ranks"] != [0, 1, 2, 3]:
+              raise SystemExit("the preregistered rank frontier was not evaluated")
+          if aggregate["numerical_exact_ranks"] != [3]:
+              raise SystemExit("the registered exact rank was not three in every fold")
+          if len(aggregate["ranks"]) != 4:
+              raise SystemExit("the aggregate rank table is incomplete")
+          if aggregate["maximum_optimality_violation"] > 1e-8:
+              raise SystemExit("the generalized-eigen optimality inequality failed")
+          parity = aggregate["exact_rank_full_parity"]
+          if parity["maximum_relative_gain_error"] > 1e-7:
+              raise SystemExit("exact-rank full/compressed gain parity failed")
+          if parity["maximum_relative_posterior_covariance_error"] > 1e-7:
+              raise SystemExit("exact-rank full/compressed covariance parity failed")
+          for rank_record in aggregate["ranks"]:
+              if set(rank_record["methods"]) != {
+                  "optimal_generalized_eigen",
+                  "response_svd",
+                  "covariance_pca",
+              }:
+                  raise SystemExit("a registered comparator is missing")
+          PY
