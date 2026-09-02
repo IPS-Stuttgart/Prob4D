@@ -1,105 +1,145 @@
-# Tracking Cloth real-trajectory posterior-compression study
+# Tracking Cloth posterior rank--distortion study v1
 
-This experiment evaluates the posterior-preserving shared-noise compression
-kernel on the complete public **Tracking cloth deformation** dataset
-(DOI `10.5281/zenodo.14644526`). It is a recording-disjoint real-motion-capture
-mechanism study, not a learned-provider promotion.
+## Purpose
 
-## Why this dataset
+This study tests the posterior rank--distortion theorem on public real cloth
+trajectories. It reuses the previously verified Tracking Cloth parser and
+recording-disjoint Gaussian fitting protocol, but replaces the single exact
+rank-3 endpoint with a preregistered frontier at retained ranks 0, 1, 2, and 3.
 
-The release contains 120 high-quality motion-capture recordings spanning four
-fabrics, A2 and A3 sizes, and dynamic shaking, twisting, table collision,
-hitting, and self-collision scenarios. Each CSV stores a frame identifier,
-timestamp, and marker coordinates. The parser deliberately accepts only the
-12-marker A3 and 20-marker A2 cloth-only layouts. Recordings with two additional
-rod/stick markers are excluded before model fitting, so no outcome-dependent
-selection is introduced.
+The primary mechanism question is:
 
-## Registered query and observations
+> At a fixed retained rank, does the generalized-eigen factor attain the
+> globally minimum posterior-normalized covariance contraction predicted by
+> the theorem, and is that advantage visible relative to the previous
+> Euclidean response-SVD ordering on data-fitted cloth models?
 
-Within each accepted recording, a causal window uses all cloth-marker
-displacements over the preceding six frames, rescaled to the twelve-frame query
-horizon. The three-dimensional query is the future displacement of the
-cloth-marker centroid. Windows with any missing required coordinate are omitted.
-At most 128 evenly spaced complete windows are retained per recording, giving
-each recording a bounded contribution.
+Held-out predictive metrics are reported as evidence, not implied by the
+training-model theorem.
 
-A2 and A3 recordings are modeled separately because they carry different marker
-counts. Within each size, file identities are ordered by SHA-256 and assigned
-round-robin to five folds. Every test recording is therefore excluded from the
-covariance fit used to evaluate it.
+## Dataset and admissible recordings
 
-## Local Gaussian model
+The source is *Tracking Cloth Deformation Using a Single RGB-D Camera*, version
+1, DOI `10.5281/zenodo.14644526`. The complete extracted release contains 120
+CSV recordings on `gpuserver4090` at
 
-For each training fold, the joint query/observation covariance is estimated from
-real windows, with a fixed 10% diagonal shrinkage and a small scale-relative
-ridge. The observation covariance is decomposed exactly as
+`/home/github-runner/.cache/datasets/tracking-cloth-deformation-v1-zenodo-14644526`.
 
-\[
-S = A + U U^\top ,
-\]
+Only publisher-style cloth marker tables with the registered marker counts are
+admitted:
 
-where `A` is a positive-definite fraction of the 3-D marker-block diagonal and
-`U` is the eigensystem factor of the remaining dependence. The fraction is
-bounded by the smallest generalized eigenvalue, so the remainder remains
-positive semidefinite.
+- A2 cloth: 20 markers;
+- A3 cloth: 12 markers.
 
-The proposed method retains
+Rod/stick tables and malformed recordings are rejected before model fitting.
+The earlier checksum-verified execution admitted 80 cloth recordings—48 A2 and
+32 A3—and evaluated 8,914 held-out windows. This study freezes the same parser,
+unit detection, causal window construction, and recording-level split rule.
 
-\[
-\operatorname{range}(U^\top S^{-1} C^\top),
-\]
+Raw trajectories are never copied into workflow artifacts. The artifact records
+per-file hashes and derived summaries only.
 
-where `C` is the query/observation cross covariance. Since the registered query
-is three-dimensional, the exact retained rank is at most three unless numerical
-validation requires the exact fallback.
+## Registered query and observation
 
-## Comparators and endpoints
+For marker positions `x_t^(i)`, the three-dimensional query is future centroid
+displacement
 
-The study evaluates:
+`q_t = mean_i x_(t+h)^(i) - mean_i x_t^(i)`.
 
-1. full shared covariance;
-2. posterior-preserving compression;
-3. equal-rank observation-covariance PCA;
-4. conditional block covariance only;
-5. prior-only prediction; and
-6. a cached full-query gain/covariance message.
+The observation is the stacked marker-wise constant-velocity extrapolation
 
-Primary endpoints are full/compressed gain error, posterior-covariance error,
-realized posterior-mean difference, retained rank, and shared-factor payload.
-Recording-disjoint RMSE, Gaussian NLL, normalized NEES, and nominal 90% joint
-coverage are diagnostics of the fitted local Gaussian model. A comparator whose
-altered covariance makes the query posterior indefinite is retained as an
-explicit invalid-posterior result rather than repaired with an outcome-dependent
-ridge.
+`y_t^(i) = (x_t^(i)-x_(t-lag)^(i)) * (dt_horizon/dt_lag)`.
 
-## Execution boundary
+The frozen protocol uses `lag=3`, `horizon=6`, `stride=6`, five folds, and at
+most 2,048 windows per recording.
 
-The workflow is triggered by a change to the exact execution-request file. It
-uses the `gpuserver4090` self-hosted runner and the verified dataset root
+## Recording-disjoint fitting
 
-```text
-/home/github-runner/.cache/datasets/tracking-cloth-deformation-v1-zenodo-14644526
-```
+Recordings are deterministically ordered by SHA-256 of their relative path and
+assigned round-robin to five folds. For each cloth size and fold, only training
+recordings are used to estimate the joint Gaussian covariance of `(q,y)`.
+Held-out recordings never influence means, covariances, shared-factor
+construction, rank selection, or subspaces.
 
-The self-hosted job has read-only repository permissions, no persisted checkout
-credentials, and no repository secrets. It uploads only compact JSON/Markdown
-results, source-file hashes, and aggregate metrics. Raw CSV trajectories are
-never copied into the artifact.
+The training covariance is stabilized by preregistered diagonal shrinkage and a
+small scale-relative ridge. Its observation block is decomposed as
+
+`S = A + U U^T`,
+
+where `A` is a strictly positive block-diagonal conditional term and `U` is the
+remaining supplied shared factor. The theorem is evaluated on this fitted
+factor family; the decomposition is a registered mechanism study, not a unique
+physical noise decomposition.
+
+## Methods
+
+For each fold, the full data-fitted posterior is the reference. Three equal-rank
+factor methods are evaluated at retained ranks 0, 1, 2, and 3:
+
+1. **Optimal generalized eigen.** The new theorem minimizes
+   `D = trace(P_full^-1 (P_full-P_reduced))` within `U -> U V`.
+2. **Response SVD.** The old Euclidean SVD of the posterior-whitened latent
+   response, truncated to the same rank. It identifies the exact nullspace but
+   ignores the remainder metric `M=I-U^T S^-1 U` at inexact ranks.
+3. **Covariance PCA.** The leading right-singular directions of `U`, retaining
+   shared covariance energy without query conditioning.
+
+Rank 3 is expected to be the exact endpoint because the registered query is
+three-dimensional and the previous real-data study found numerical exact rank
+3 in every fold. This is checked rather than assumed silently.
+
+## Primary quantities
+
+For every fold, rank, and method the artifact records:
+
+- posterior-normalized covariance trace contraction `D`;
+- maximum normalized covariance contraction and posterior validity;
+- relative gain and posterior-covariance differences from the full model;
+- held-out posterior-mean displacement from the full model;
+- held-out RMSE, Gaussian NLL, normalized NEES, and 90% coverage;
+- held-out normalized mean-shift risk;
+- factor payload bytes;
+- generalized eigengap and whether the optimum subspace is unique.
+
+The workflow enforces only identities and fail-closed validity conditions that
+follow from the registered model. It does **not** require a favorable scientific
+outcome. In particular, strict response-SVD improvement counts are reported but
+are not a pass criterion.
+
+## Expected interpretation
+
+A positive result requires more than exact rank-3 parity. The meaningful new
+evidence is a strict reduction of `D` at rank 1 and/or rank 2 on data-fitted
+folds, with no theorem-optimality violation. Held-out RMSE/NLL improvements would
+strengthen the empirical case but are not guaranteed by the covariance
+objective.
+
+Repeated generalized eigenvalues require care. At a rank boundary inside a
+repeated block, the optimum value is unique but the factor subspace is not.
+Therefore the artifact compares distortion at every rank and factor covariance
+only where the boundary eigengap is strict.
 
 ## Claim boundary
 
-A positive result establishes numerical posterior preservation and
-query-sufficient shared rank for a specified local Gaussian model estimated from
-real cloth trajectories. It does not establish:
+This study may support these claims:
 
-- a learned 4-D observation provider;
-- deployment-grade covariance calibration;
-- superiority of BayesianPhysTwin over its physical fallback;
-- Causal4D counterfactual benefit;
-- generalization to arbitrary cloths or perception systems; or
-- state of the art.
+- globally optimal posterior trace contraction within each fitted `U -> U V`
+  family;
+- exact rank-3 posterior parity on the registered local Gaussian query, if
+  observed;
+- recording-disjoint held-out behavior on public real cloth trajectories;
+- superiority or equality to response SVD and covariance PCA for the registered
+  theoretical distortion.
 
-The physical-performance question still requires a prospective provider,
-calibration split, and protected target protocol. This experiment isolates the
-real-data validity of the compression mechanism itself.
+It does not establish:
+
+- a learned 4-D reconstruction provider;
+- calibrated deployment uncertainty;
+- likelihood-preserving observation compression;
+- arbitrary task-loss or full posterior-KL optimality;
+- recursive or infinite-horizon exactness;
+- BayesianPhysTwin or Causal4D physical-performance benefit.
+
+The immutable protocol is
+`protocols/tracking-cloth-rank-distortion-real-v1.json`; the self-hosted request
+is `protocols/execution_requests/tracking_cloth_rank_distortion_real_v1.json`.
