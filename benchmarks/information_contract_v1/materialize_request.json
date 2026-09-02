@@ -1,0 +1,12 @@
+{
+  "schema_name": "prob4d.information-contract-materialize-request",
+  "schema_version": 1,
+  "request_id": "prob4d-information-contract-controlled-v1",
+  "suite": "benchmarks/information_contract_v1/controlled_suite.json",
+  "protocol": "benchmarks/information_contract_v1/protocol.json",
+  "classification": "deterministic controlled development evidence",
+  "public_dataset_records_authorized": 0,
+  "learned_provider_calls_authorized": 0,
+  "protected_targets_authorized": 0,
+  "physical_executions_authorized": 0
+}
