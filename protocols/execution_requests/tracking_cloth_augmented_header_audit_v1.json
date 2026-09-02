@@ -4,8 +4,8 @@
   "marker_trajectory_value_parsing_allowed": false,
   "protocol_id": "ab83a4a1454dc4751ee3dd7559c05e47d33ed776bdeb16209a54ae9b08cb79ec",
   "raw_data_publication_authorized": false,
-  "request_id": "tracking-cloth-augmented-header-audit-v1-20260902-a",
-  "requested_action": "header-only support audit of the 40 trajectory-unopened augmented Tracking Cloth layouts before any scientific protocol opens their marker trajectories",
+  "request_id": "tracking-cloth-augmented-header-audit-v1-20260902-b",
+  "requested_action": "repeat the unchanged metadata-only audit after a preflight lint repair",
   "runner_labels": [
     "self-hosted",
     "Linux",
