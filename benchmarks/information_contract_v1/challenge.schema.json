@@ -1,0 +1,165 @@
+{
+  "$id": "https://github.com/IPS-Stuttgart/Prob4D/benchmarks/information_contract_v1/challenge.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "aggregation_unit": {
+      "const": "group_id"
+    },
+    "cases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "case_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "group_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "metadata": {
+            "type": "object"
+          },
+          "payload": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "payload_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "tasks": {
+            "items": {
+              "enum": [
+                "forecast",
+                "calibration",
+                "dependence",
+                "query",
+                "gauge",
+                "fallback",
+                "decision",
+                "communication",
+                "finite_query"
+              ]
+            },
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "case_id",
+          "group_id",
+          "payload",
+          "payload_sha256",
+          "tasks"
+        ],
+        "type": "object"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "challenge_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "claim_boundary": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "dataset": {
+      "additionalProperties": false,
+      "properties": {
+        "dataset_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "dataset_version": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "information_order": {
+          "enum": [
+            "retrospective-open-target",
+            "prospective-sealed-target"
+          ]
+        },
+        "license_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "manifest": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "manifest_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "public_data": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "dataset_id",
+        "dataset_version",
+        "license_id",
+        "public_data",
+        "information_order",
+        "manifest",
+        "manifest_sha256"
+      ],
+      "type": "object"
+    },
+    "schema_name": {
+      "const": "prob4d.information-contract-challenge"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "thresholds": {
+      "additionalProperties": false,
+      "properties": {
+        "coverage_probability": {
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        "gauge_sensitivity_tolerance": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "moment_atol": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "relative_rank_tolerance": {
+          "exclusiveMaximum": 1,
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "coverage_probability",
+        "gauge_sensitivity_tolerance",
+        "moment_atol",
+        "relative_rank_tolerance"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema_name",
+    "schema_version",
+    "challenge_id",
+    "aggregation_unit",
+    "thresholds",
+    "claim_boundary",
+    "dataset",
+    "cases"
+  ],
+  "title": "Prob4D information-contract challenge v1",
+  "type": "object"
+}
