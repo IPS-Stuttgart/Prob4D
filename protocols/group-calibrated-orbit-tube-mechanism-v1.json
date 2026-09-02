@@ -1,0 +1,39 @@
+{
+  "claim_boundary": [
+    "Constructed exchangeable-group mechanism study only.",
+    "No public dataset, learned provider, BayesianPhysTwin, or Causal4D outcome is opened.",
+    "Complete simulated trajectories are the independent units.",
+    "The orbit estimator, metric, and Lipschitz constants are assumed correct.",
+    "The study does not establish conditional subgroup coverage or deployment safety."
+  ],
+  "comparison": {
+    "complete_group_split_conformal": "one maximum nonconformity score per complete trajectory",
+    "exact_orbit_without_tube": "sets rho to zero despite approximate-orbit departures",
+    "largest_calibration_group": "conservative maximum complete-group score",
+    "pooled_frames_as_independent": "invalid control that calibrates a random frame rather than a complete trajectory"
+  },
+  "decision_model": {
+    "candidate_advantage": "fallback-minus-candidate advantage before approximate-orbit penalty",
+    "harmful_accept": "the candidate is admitted although the test trajectory maximum departure exceeds its exact-orbit advantage",
+    "query_lipschitz": 1.0,
+    "query_tolerance": "twice the per-trial exact-orbit advantage",
+    "robust_advantage_lipschitz": 1.0
+  },
+  "protocol_id": "group-calibrated-orbit-tube-mechanism-v1",
+  "schema": "prob4d.group-calibrated-orbit-tube-mechanism-protocol.v1",
+  "settings": {
+    "advantage_max": 0.15,
+    "advantage_min": 0.07,
+    "background_fraction_max": 0.15,
+    "background_fraction_min": 0.02,
+    "calibration_groups": 39,
+    "chunk_size": 500,
+    "frames_per_group": 24,
+    "miscoverage": 0.1,
+    "peak_beta_a": 2.0,
+    "peak_beta_b": 5.0,
+    "peak_scale": 0.22,
+    "seed": 240319,
+    "trials": 20000
+  }
+}
