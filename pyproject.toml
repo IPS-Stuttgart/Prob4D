@@ -92,6 +92,10 @@ select = ["E", "F", "I", "UP", "B"]
 # Standalone evidence script: the long Markdown result table is kept literal,
 # and its benchmark closures are called immediately inside each loop iteration.
 "scripts/science/run_tracking_cloth_query_portfolio_v1.py" = ["B023", "E501", "UP035"]
+# Header-only evidence audit: retain literal Markdown summary fields.
+"scripts/science/audit_tracking_cloth_augmented_headers_v1.py" = ["E501"]
+# Source-only evidence audit: retain literal Markdown table headings.
+"scripts/science/audit_tracking_cloth_augmented_rod_source_v1.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.10"

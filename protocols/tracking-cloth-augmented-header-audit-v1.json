@@ -1,0 +1,73 @@
+{
+  "claim_boundary": {
+    "continuous_so2_utility_evaluated": false,
+    "deployment_safety": false,
+    "header_only_support_audit": true,
+    "learned_provider_evaluated": false,
+    "trajectory_values_opened": false
+  },
+  "dataset": {
+    "cloth_marker_labels": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10",
+      "11",
+      "12",
+      "13",
+      "14",
+      "15",
+      "16",
+      "17",
+      "18",
+      "19",
+      "20"
+    ],
+    "cloth_only_marker_count": 20,
+    "dataset_root": "/home/github-runner/.cache/datasets/tracking-cloth-deformation-v1-zenodo-14644526",
+    "expected_augmented_layout_recordings": 40,
+    "expected_csv_files": 120,
+    "expected_size": "A2",
+    "name": "Tracking Cloth Deformation",
+    "zenodo_record": "14644526"
+  },
+  "decision": {
+    "complete_if_expected_augmented_count_matches": true,
+    "next_step_requires_separate_frozen_protocol": true,
+    "no_scientific_utility_claim": true
+  },
+  "evidence_kind": "header-only-support-audit-before-augmented-trajectory-access",
+  "information_order": {
+    "header_layout_access_allowed": true,
+    "marker_trajectory_value_parsing_allowed": false,
+    "raw_data_publication_authorized": false,
+    "relative_path_metadata_access_allowed": true,
+    "target_side_threshold_tuning_allowed": false,
+    "trajectory_hashing_allowed": false
+  },
+  "metadata": {
+    "categories": [
+      "shake",
+      "twist",
+      "hitting",
+      "tablecloth",
+      "self-collision"
+    ],
+    "category_from_public_relative_path_only": true,
+    "material_and_size_from_public_relative_path_only": true,
+    "materials": [
+      "cotton",
+      "denim",
+      "polyester",
+      "wool"
+    ]
+  },
+  "protocol_id": "ab83a4a1454dc4751ee3dd7559c05e47d33ed776bdeb16209a54ae9b08cb79ec",
+  "schema": "prob4d.tracking-cloth-augmented-header-audit.v1"
+}

@@ -1,0 +1,91 @@
+{
+  "calibration": {
+    "angle_normalizer_rad": 1.0471975511965976,
+    "group_miscoverage": 0.1,
+    "guarantee": "split-conformal marginal coverage of the next exchangeable recording's empirical 90th-percentile score; not conditional or selective coverage",
+    "score": "max(abs(wrapped_angle)/(pi/3), closest-orbit-residual/representative-radius)",
+    "support": "continuous centered SO(2) arc with half-width threshold*pi/3 plus Euclidean tube radius threshold*representative_radius",
+    "within_recording_quantile": 0.9
+  },
+  "claim_boundary": {
+    "conditional_coverage": false,
+    "continuous_so2_geometry_exact": true,
+    "data_calibrated_continuous_ambiguity_support": true,
+    "deployment_safety": false,
+    "learned_visual_provider": false,
+    "public_real_motion_capture": true,
+    "selective_risk_control": false,
+    "simulated_probe_occlusion": true,
+    "state_of_the_art": false,
+    "unique_physical_state_identification": false
+  },
+  "dataset": {
+    "dataset_root": "/home/github-runner/.cache/datasets/tracking-cloth-deformation-v1-zenodo-14644526",
+    "expected_cloth_marker_counts": {
+      "A2": 20,
+      "A3": 12
+    },
+    "expected_cloth_only_recordings": 80,
+    "expected_csv_files": 120,
+    "name": "Tracking Cloth Deformation",
+    "zenodo_record": "14644526"
+  },
+  "diagnostics": {
+    "comparators": [
+      "local representative plug-in",
+      "continuous source-calibrated SO(2) tube certificate",
+      "complete continuous full-circle certificate",
+      "finite angle-grid interval approximations",
+      "axis-center exact fallback"
+    ],
+    "finite_grid_sizes": [
+      8,
+      16,
+      32
+    ]
+  },
+  "evidence_kind": "recording-disjoint-real-trajectory-continuous-symmetry-calibration",
+  "geometry": {
+    "horizons_frames": [
+      3,
+      6,
+      12,
+      24
+    ],
+    "maximum_cases_per_recording": 128,
+    "minimum_anchor_distance_mm": 20.0,
+    "minimum_cases_per_recording": 24,
+    "minimum_probe_radius_mm": 5.0,
+    "representative": "transported constant angular velocity from two prior horizon-spaced frames; current anchor line observed and probe hidden",
+    "selection_prefix_frames": 48
+  },
+  "inference": {
+    "bootstrap_replicates": 5000,
+    "bootstrap_seed": 20260902,
+    "fold_count": 5,
+    "fold_salt": "tracking-cloth-continuous-calibrated-so2-v1",
+    "nested_units": [
+      "frames",
+      "marker coordinates",
+      "horizon cases"
+    ],
+    "statistical_unit": "complete recording"
+  },
+  "information_order": {
+    "fold_test_trajectory_excluded_from_its_calibration_threshold": true,
+    "raw_trajectory_publication": false,
+    "target_side_threshold_tuning": false,
+    "triplet_selected_from_each_recording_causal_prefix": true
+  },
+  "protocol_id": "930ad490206f8b16a113fbc221af9f0d35c906318625fc661695508b2e03da55",
+  "registered_criteria": {
+    "minimum_calibrated_acceptance": 0.02,
+    "minimum_recording_mean_query_interval_coverage": 0.8,
+    "minimum_recording_mean_support_coverage": 0.8,
+    "overall_positive_if_any_horizon_passes": true,
+    "requires_exact_fallback": true,
+    "requires_full_circle_rejection": true,
+    "requires_lower_harmful_acceptance_than_local": true
+  },
+  "schema": "prob4d.tracking-cloth-continuous-calibrated-so2.v1"
+}

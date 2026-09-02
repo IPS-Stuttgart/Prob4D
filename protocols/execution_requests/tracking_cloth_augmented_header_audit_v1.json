@@ -1,0 +1,18 @@
+{
+  "branch": "science/tracking-cloth-continuous-calibrated-so2-v1",
+  "dataset_root": "/home/github-runner/.cache/datasets/tracking-cloth-deformation-v1-zenodo-14644526",
+  "marker_trajectory_value_parsing_allowed": false,
+  "protocol_id": "ab83a4a1454dc4751ee3dd7559c05e47d33ed776bdeb16209a54ae9b08cb79ec",
+  "raw_data_publication_authorized": false,
+  "request_id": "tracking-cloth-augmented-header-audit-v1-20260902-c",
+  "requested_action": "repeat the unchanged header-only audit using a classifier that recognizes Free-hanging shake and twist filenames",
+  "runner_labels": [
+    "self-hosted",
+    "Linux",
+    "X64",
+    "gpuserver4090"
+  ],
+  "schema": "prob4d.self-hosted-experiment-request.v1",
+  "target_side_threshold_tuning_allowed": false,
+  "trajectory_hashing_allowed": false
+}

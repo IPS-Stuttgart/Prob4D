@@ -1,0 +1,17 @@
+{
+  "branch": "science/tracking-cloth-continuous-calibrated-so2-v1",
+  "dataset_root": "/home/github-runner/.cache/datasets/tracking-cloth-deformation-v1-zenodo-14644526",
+  "protocol_id": "2bea48ef99e14f7677df1c91dfe7545ce31db205e27db314f53de39bfb4e0eee",
+  "raw_data_publication_authorized": false,
+  "request_id": "tracking-cloth-augmented-rod-source-audit-v1-20260902-e",
+  "requested_action": "verify whether the physically longest jointly visible pair identifies the labelled rod on the four Hitting source recordings",
+  "runner_labels": [
+    "self-hosted",
+    "Linux",
+    "X64",
+    "gpuserver4090"
+  ],
+  "schema": "prob4d.self-hosted-experiment-request.v1",
+  "self_collision_trajectory_access_allowed": false,
+  "target_side_tuning_allowed": false
+}
