@@ -1,0 +1,74 @@
+{
+  "schema": "prob4d.dot-rope-reserve-support-audit.v1",
+  "evidence_kind": "outcome-blind-two-dimensional-support-qualification",
+  "dataset": {
+    "persistent_id": "doi:10.13021/ORC2020/XXLVXM",
+    "archive_names": [
+      "R11-20.zip",
+      "R21-30.zip",
+      "R31-40.zip",
+      "R41-50.zip",
+      "R51-60.zip",
+      "R61-70.zip"
+    ],
+    "sequence_start": 11,
+    "sequence_stop": 70,
+    "cameras": [
+      "cam001",
+      "cam002",
+      "cam003",
+      "cam004",
+      "cam005",
+      "cam006",
+      "cam007",
+      "cam008",
+      "cam009",
+      "cam010"
+    ],
+    "frames": [1, 2, 3, 4, 5, 6, 7],
+    "coordinate_member_template": "{sequence}/coordinates/2d/frame{frame:06d}_{camera}.txt",
+    "coordinate_columns": [0, 1]
+  },
+  "visibility_rule": {
+    "finite_coordinates_required": true,
+    "nonnegative_coordinates_required": true,
+    "identity_definition": "stable row index within publisher 2-D coordinate files",
+    "common_support_scope": "intersection across all seven registered frames"
+  },
+  "camera_selection_rule": {
+    "order": [
+      "maximum common visible marker count across all seven frames",
+      "maximum minimum per-frame visible marker count",
+      "maximum mean per-frame visible marker count",
+      "lowest camera index"
+    ],
+    "minimum_common_visible_markers": 8,
+    "minimum_per_frame_visible_markers": 8,
+    "unsupported_sequences_replaced": false
+  },
+  "next_stage_boundary": {
+    "camera_map_may_be_frozen_from_this_result": true,
+    "learned_provider_may_run_only_after_camera_map_freeze": true,
+    "provider_output_support_requires_a_separate_outcome_blind_seal": true,
+    "three_dimensional_truth_may_open_only_after_provider_support_freeze": true
+  },
+  "information_boundary": {
+    "zip_member_names_visible": true,
+    "two_dimensional_coordinate_values_opened": true,
+    "three_dimensional_coordinate_values_opened": false,
+    "normal_view_images_opened": false,
+    "uv_view_images_opened": false,
+    "learned_provider_executed": false,
+    "provider_residuals_or_uncertainty_scores_opened": false,
+    "bayesian_phystwin_executed": false,
+    "causal4d_executed": false
+  },
+  "registered_outputs": [
+    "all sequence-camera support rows",
+    "one deterministically selected camera per sequence",
+    "qualified and unsupported reserve sequence rosters",
+    "exact accessed 2-D member ledger",
+    "official archive metadata and checksums"
+  ],
+  "claim_boundary": "Support qualification only. Two-dimensional marker visibility is used to freeze a camera map and candidate sequence roster before learned-provider execution. No 3-D truth, normal or UV imagery, provider prediction, residual, covariance score, physical query outcome, BayesianPhysTwin result, or Causal4D result is opened. Qualification does not imply provider competence or a positive held-out result."
+}
