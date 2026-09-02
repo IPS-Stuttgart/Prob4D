@@ -1,0 +1,68 @@
+name: Proof4D mechanical format once
+
+on:
+  push:
+    branches:
+      - science/proof-carrying-factors-v1
+    paths:
+      - protocols/execution_requests/proof4d_mechanical_format_once.trigger
+
+permissions:
+  contents: write
+
+concurrency:
+  group: proof4d-mechanical-format-once
+  cancel-in-progress: false
+
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out the exact experiment branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: science/proof-carrying-factors-v1
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Apply pinned Ruff formatting only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --no-cache-dir "ruff==0.16.5"
+          files=(
+            src/prob4d/proof_carrying_factor.py
+            src/prob4d_independent_verifier/proof_carrying.py
+            scripts/generate_proof_carrying_factor_examples.py
+            tests/test_proof_carrying_factor.py
+            tests/test_proof_carrying_factor_full_rank.py
+          )
+          python -m ruff check --fix "${files[@]}"
+          python -m ruff format "${files[@]}"
+          python -m ruff check "${files[@]}"
+          python -m ruff format --check "${files[@]}"
+      - name: Remove this temporary workflow and trigger
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm -- \
+            .github/workflows/proof4d-mechanical-format-once.yml \
+            protocols/execution_requests/proof4d_mechanical_format_once.trigger
+      - name: Commit only the mechanical result
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- \
+            src/prob4d/proof_carrying_factor.py \
+            src/prob4d_independent_verifier/proof_carrying.py \
+            scripts/generate_proof_carrying_factor_examples.py \
+            tests/test_proof_carrying_factor.py \
+            tests/test_proof_carrying_factor_full_rank.py
+          git commit -m "Apply mechanical Ruff formatting to Proof4D v1"
+          git push origin HEAD:science/proof-carrying-factors-v1
