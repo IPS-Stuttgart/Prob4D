@@ -9,7 +9,9 @@ on:
       - "protocols/tracking-cloth-augmented-header-audit-v1.json"
       - "protocols/execution_requests/tracking_cloth_augmented_header_audit_v1.json"
       - "scripts/science/audit_tracking_cloth_augmented_headers_v1.py"
+      - "scripts/science/audit_tracking_cloth_augmented_headers_v2.py"
       - "tests/test_tracking_cloth_augmented_header_audit_v1.py"
+      - "tests/test_tracking_cloth_augmented_header_audit_v2.py"
   workflow_dispatch:
 
 permissions:
@@ -88,9 +90,17 @@ jobs:
       - name: Focused tests and static checks
         run: |
           set -euo pipefail
-          python -m pytest -q tests/test_tracking_cloth_augmented_header_audit_v1.py
-          python -m ruff check scripts/science/audit_tracking_cloth_augmented_headers_v1.py tests/test_tracking_cloth_augmented_header_audit_v1.py
-          python -m compileall -q scripts/science/audit_tracking_cloth_augmented_headers_v1.py
+          python -m pytest -q \
+            tests/test_tracking_cloth_augmented_header_audit_v1.py \
+            tests/test_tracking_cloth_augmented_header_audit_v2.py
+          python -m ruff check \
+            scripts/science/audit_tracking_cloth_augmented_headers_v1.py \
+            scripts/science/audit_tracking_cloth_augmented_headers_v2.py \
+            tests/test_tracking_cloth_augmented_header_audit_v1.py \
+            tests/test_tracking_cloth_augmented_header_audit_v2.py
+          python -m compileall -q \
+            scripts/science/audit_tracking_cloth_augmented_headers_v1.py \
+            scripts/science/audit_tracking_cloth_augmented_headers_v2.py
 
   audit:
     name: Audit augmented headers on gpuserver4090
@@ -153,7 +163,13 @@ jobs:
           set -euo pipefail
           root="${{ steps.runtime.outputs.root }}"
           set +e
-          PYTHONPATH=src "${{ steps.runtime.outputs.python }}" scripts/science/audit_tracking_cloth_augmented_headers_v1.py --dataset-root "$DATASET_ROOT" --protocol "$PROTOCOL_PATH" --output-dir "$root/evidence" --source-revision "$GITHUB_SHA" > "$root/stdout.txt" 2> "$root/stderr.txt"
+          PYTHONPATH=src "${{ steps.runtime.outputs.python }}" \
+            scripts/science/audit_tracking_cloth_augmented_headers_v2.py \
+              --dataset-root "$DATASET_ROOT" \
+              --protocol "$PROTOCOL_PATH" \
+              --output-dir "$root/evidence" \
+              --source-revision "$GITHUB_SHA" \
+              > "$root/stdout.txt" 2> "$root/stderr.txt"
           status=$?
           set -e
           printf '%s\n' "$status" > "$root/process-exit-code.txt"
@@ -166,7 +182,8 @@ jobs:
         run: |
           set -euo pipefail
           evidence="${{ steps.runtime.outputs.root }}/evidence"
-          if find "$evidence" -type f \( -iname '*.csv' -o -iname '*.zip' \) -print -quit | grep -q .; then
+          if find "$evidence" -type f \( -iname '*.csv' -o -iname '*.zip' \) \
+            -print -quit | grep -q .; then
             echo "Raw trajectory payload appeared in header-audit evidence" >&2
             exit 3
           fi

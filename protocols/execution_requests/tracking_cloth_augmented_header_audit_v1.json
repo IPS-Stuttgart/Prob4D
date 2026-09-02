@@ -4,8 +4,8 @@
   "marker_trajectory_value_parsing_allowed": false,
   "protocol_id": "ab83a4a1454dc4751ee3dd7559c05e47d33ed776bdeb16209a54ae9b08cb79ec",
   "raw_data_publication_authorized": false,
-  "request_id": "tracking-cloth-augmented-header-audit-v1-20260902-b",
-  "requested_action": "repeat the unchanged metadata-only audit after a preflight lint repair",
+  "request_id": "tracking-cloth-augmented-header-audit-v1-20260902-c",
+  "requested_action": "repeat the unchanged header-only audit using a classifier that recognizes Free-hanging shake and twist filenames",
   "runner_labels": [
     "self-hosted",
     "Linux",
