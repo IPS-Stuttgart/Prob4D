@@ -135,29 +135,21 @@ def _equivariant_action_coupling_study() -> dict[str, Any]:
                 np.square(states[quotient_index] - actions[action_index]),
                 axis=1,
             )
-            shared_by_class[quotient_index] = group_weights @ (
-                shared_squared + common
-            )
+            shared_by_class[quotient_index] = group_weights @ (shared_squared + common)
 
             independent_delta = (
-                states[quotient_index, :, None, :]
-                - actions[action_index, None, :, :]
+                states[quotient_index, :, None, :] - actions[action_index, None, :, :]
             )
             independent_loss = (
-                np.sum(independent_delta * independent_delta, axis=2)
-                + common[:, None]
+                np.sum(independent_delta * independent_delta, axis=2) + common[:, None]
             )
-            independent_by_class[quotient_index] = (
-                group_weights @ independent_loss @ group_weights
-            )
+            independent_by_class[quotient_index] = group_weights @ independent_loss @ group_weights
 
             fixed_squared = np.sum(
                 np.square(states[quotient_index] - fixed_templates[action_index]),
                 axis=1,
             )
-            fixed_by_class[quotient_index] = group_weights @ (
-                fixed_squared + common
-            )
+            fixed_by_class[quotient_index] = group_weights @ (fixed_squared + common)
         shared_expected[action_index] = quotient_weights @ shared_by_class
         independent_expected[action_index] = quotient_weights @ independent_by_class
         fixed_expected[action_index] = quotient_weights @ fixed_by_class
@@ -219,9 +211,7 @@ def _equivariant_action_coupling_study() -> dict[str, Any]:
             np.count_nonzero(np.isclose(shared_expected, np.min(shared_expected)))
         ),
         "independent_gauge_optimal_action_count": int(
-            np.count_nonzero(
-                np.isclose(independent_expected, np.min(independent_expected))
-            )
+            np.count_nonzero(np.isclose(independent_expected, np.min(independent_expected)))
         ),
         "fixed_frame_optimal_action_count": int(
             np.count_nonzero(np.isclose(fixed_expected, np.min(fixed_expected)))
@@ -229,8 +219,7 @@ def _equivariant_action_coupling_study() -> dict[str, Any]:
         "maximum_regret_change_under_group_coordinate_offset": float(
             np.max(
                 np.abs(
-                    certificate.upper_worst_case_regret
-                    - offset_certificate.upper_worst_case_regret
+                    certificate.upper_worst_case_regret - offset_certificate.upper_worst_case_regret
                 )
             )
         ),
