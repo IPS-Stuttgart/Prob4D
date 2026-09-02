@@ -178,9 +178,7 @@ def recursive_linear_task_closure(
     transition_map = basis @ transition @ basis.T
     task_residual = _relative_residual(task, task_map @ basis)
     observation_residual = _relative_residual(observation, observation_map @ basis)
-    transition_residual = _relative_residual(
-        basis @ transition, transition_map @ basis
-    )
+    transition_residual = _relative_residual(basis @ transition, transition_map @ basis)
     audit_limit = max(1e-10, 100.0 * tolerance)
     if max(task_residual, observation_residual, transition_residual) > audit_limit:
         raise ValueError("numerical task closure failed its reconstruction audit")
