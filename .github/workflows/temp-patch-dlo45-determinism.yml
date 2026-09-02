@@ -1,0 +1,56 @@
+name: Temporary patch DLO45 adapter determinism
+
+on:
+  push:
+    branches: [science/information-contract-benchmark-sealed-v1]
+    paths:
+      - tools/requests/patch_dlo45_adapter_determinism.json
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact branch revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+          clean: true
+      - name: Restore original deterministic numerical environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path(".github/workflows/information-contract-deform-dlo45-retrospective.yml")
+          text = path.read_text(encoding="utf-8")
+          old = "env:\n  BPT_REVISION:"
+          new = '''env:
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+  BPT_REVISION:'''
+          if text.count(old) != 1:
+              raise SystemExit(f"expected one environment block, found {text.count(old)}")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
+          test "$(git diff --name-only)" = ".github/workflows/information-contract-deform-dlo45-retrospective.yml"
+      - name: Commit exact environment restoration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/workflows/information-contract-deform-dlo45-retrospective.yml
+          git commit -m "Restore deterministic DLO45 adapter environment"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
