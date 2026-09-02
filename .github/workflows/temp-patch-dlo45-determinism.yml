@@ -31,15 +31,19 @@ jobs:
           path = Path(".github/workflows/information-contract-deform-dlo45-retrospective.yml")
           text = path.read_text(encoding="utf-8")
           old = "env:\n  BPT_REVISION:"
-          new = '''env:
-  PYTHONHASHSEED: "0"
-  PYTHONUNBUFFERED: "1"
-  PYTHONDONTWRITEBYTECODE: "1"
-  OMP_NUM_THREADS: "1"
-  OPENBLAS_NUM_THREADS: "1"
-  MKL_NUM_THREADS: "1"
-  NUMEXPR_NUM_THREADS: "1"
-  BPT_REVISION:'''
+          new = "\n".join(
+              (
+                  "env:",
+                  '  PYTHONHASHSEED: "0"',
+                  '  PYTHONUNBUFFERED: "1"',
+                  '  PYTHONDONTWRITEBYTECODE: "1"',
+                  '  OMP_NUM_THREADS: "1"',
+                  '  OPENBLAS_NUM_THREADS: "1"',
+                  '  MKL_NUM_THREADS: "1"',
+                  '  NUMEXPR_NUM_THREADS: "1"',
+                  "  BPT_REVISION:",
+              )
+          )
           if text.count(old) != 1:
               raise SystemExit(f"expected one environment block, found {text.count(old)}")
           path.write_text(text.replace(old, new, 1), encoding="utf-8")
