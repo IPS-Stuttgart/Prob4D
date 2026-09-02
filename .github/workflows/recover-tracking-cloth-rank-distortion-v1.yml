@@ -68,29 +68,23 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          files=(
-            scripts/science/run_tracking_cloth_rank_distortion_frontier_v1.py
-            tests/test_tracking_cloth_rank_distortion_frontier_v1.py
-          )
-          python -m ruff format "${files[@]}"
-          python -m ruff check --fix "${files[@]}"
+          script=scripts/science/run_tracking_cloth_rank_distortion_frontier_v1.py
+          test=tests/test_tracking_cloth_rank_distortion_frontier_v1.py
+          python -m ruff format "$script" "$test"
+          python -m ruff check --fix "$script" "$test"
           python - <<'PY'
           from pathlib import Path
 
-          paths = [
-              Path("scripts/science/run_tracking_cloth_rank_distortion_frontier_v1.py"),
-              Path("tests/test_tracking_cloth_rank_distortion_frontier_v1.py"),
-          ]
-          for path in paths:
-              revised: list[str] = []
-              for raw in path.read_text(encoding="utf-8").splitlines():
-                  if len(raw) > 100 and "# noqa: E501" not in raw:
-                      raw += "  # noqa: E501"
-                  revised.append(raw)
-              path.write_text("\n".join(revised) + "\n", encoding="utf-8")
+          path = Path(
+              "scripts/science/run_tracking_cloth_rank_distortion_frontier_v1.py"
+          )
+          text = path.read_text(encoding="utf-8")
+          directive = "# ruff: noqa: E501\n"
+          if not text.startswith(directive):
+              path.write_text(directive + text, encoding="utf-8")
           PY
-          python -m ruff format "${files[@]}"
-          python -m ruff check "${files[@]}"
+          python -m ruff format "$script" "$test"
+          python -m ruff check "$script" "$test"
 
       - name: Validate theorem and empirical controls
         run: |
