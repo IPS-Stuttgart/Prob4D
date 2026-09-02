@@ -9,9 +9,12 @@
 - Preserve one shared group draw across complete vector-valued physical queries.
 - Add a fail-closed compact-group query certificate using a certified metric
   cover radius and Lipschitz bound.
-- Add deterministic algebraic verification over invariant and
-  symmetry-breaking updates, continuous-circle cover bounds, resolution ladders,
-  and shared-versus-independent gauge controls.
+- Add finite-action robust-regret lower and upper bounds over every unresolved
+  group completion, with exact finite-group recovery and fallback for
+  uncertified or inconclusive continuous scope.
+- Add deterministic algebraic verification over invariant and symmetry-breaking
+  updates, continuous-circle query and decision bounds, resolution ladders, and
+  shared-versus-independent gauge controls.
 
 This is a lightweight method and controlled-evidence increment. It does not
 infer a physical symmetry, validate a learned provider, open a dataset, establish
