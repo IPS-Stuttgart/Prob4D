@@ -106,6 +106,7 @@ jobs:
             src/prob4d/information_contract_witness_smoke.py
             tests/test_information_contract_witness.py
           )
+          python -m ruff check --fix "${files[@]}"
           python -m ruff check "${files[@]}"
           python -m pytest -q \
             tests/test_information_contract_benchmark.py \
