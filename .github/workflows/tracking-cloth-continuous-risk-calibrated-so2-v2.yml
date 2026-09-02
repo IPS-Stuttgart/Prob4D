@@ -168,7 +168,7 @@ jobs:
           set -euo pipefail
           root="${{ runner.temp }}/tracking-cloth-continuous-risk-${{ github.run_id }}-${{ github.run_attempt }}"
           rm -rf -- "$root"
-          mkdir -p "$root/evidence"
+          mkdir -p "$root"
           python -m venv "$root/venv"
           "$root/venv/bin/python" -m pip install \
             --disable-pip-version-check "numpy==2.3.5"
