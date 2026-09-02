@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from pathlib import Path
 import runpy
+from pathlib import Path
 
 import numpy as np
 import pytest
-
 
 MODULE = runpy.run_path(
     "benchmarks/information_contract_v1/adapters/"
