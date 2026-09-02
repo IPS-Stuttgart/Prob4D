@@ -1,0 +1,390 @@
+name: Tracking Cloth approximate-orbit tube v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/tracking-cloth-approximate-orbit-tube-v1.yml"
+      - "src/prob4d/orbit_tube.py"
+      - "src/prob4d/_tracking_cloth_approximate_orbit_calibration.py"
+      - "src/prob4d/_tracking_cloth_approximate_orbit_data.py"
+      - "src/prob4d/_tracking_cloth_approximate_orbit_evaluation.py"
+      - "src/prob4d/_tracking_cloth_approximate_orbit_io.py"
+      - "src/prob4d/_tracking_cloth_approximate_orbit_target.py"
+      - "scripts/science/run_tracking_cloth_approximate_orbit_tube_v1.py"
+      - "protocols/tracking-cloth-approximate-orbit-tube-v1.json"
+      - "protocols/execution_requests/tracking_cloth_approximate_orbit_tube_v1.request.json"
+      - "tests/test_orbit_tube.py"
+      - "tests/test_tracking_cloth_approximate_orbit_tube_v1.py"
+  push:
+    branches: [main]
+    paths:
+      - "protocols/execution_requests/tracking_cloth_approximate_orbit_tube_v1.request.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tracking-cloth-approximate-orbit-tube-v1-${{ github.sha }}
+  cancel-in-progress: false
+
+env:
+  PROTOCOL_PATH: protocols/tracking-cloth-approximate-orbit-tube-v1.json
+  REQUEST_PATH: protocols/execution_requests/tracking_cloth_approximate_orbit_tube_v1.request.json
+  SCRIPT_PATH: scripts/science/run_tracking_cloth_approximate_orbit_tube_v1.py
+  MODULE_PATH: src/prob4d/orbit_tube.py
+  ZENODO_URL: https://zenodo.org/records/14644526/files/tracking_dataset.zip?download=1
+  ZENODO_MD5: b4868b702f8a42b2ea1069d0f1a3b8f6
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+
+jobs:
+  contract:
+    name: Validate approximate-orbit implementation and protocol
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out exact revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          clean: true
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.10"
+
+      - name: Install exact test surface
+        run: |
+          python -m pip install --disable-pip-version-check \
+            "numpy==2.2.6" "pytest==9.1.1" "ruff==0.12.12"
+          python -m pip install --disable-pip-version-check --no-deps -e .
+
+      - name: Run focused tests and style checks
+        run: |
+          pytest -q \
+            tests/test_orbit_tube.py \
+            tests/test_tracking_cloth_approximate_orbit_tube_v1.py
+          ruff check \
+            src/prob4d/orbit_tube.py \
+            src/prob4d/_tracking_cloth_approximate_orbit_calibration.py \
+            src/prob4d/_tracking_cloth_approximate_orbit_data.py \
+            src/prob4d/_tracking_cloth_approximate_orbit_evaluation.py \
+            src/prob4d/_tracking_cloth_approximate_orbit_io.py \
+            src/prob4d/_tracking_cloth_approximate_orbit_target.py \
+            scripts/science/run_tracking_cloth_approximate_orbit_tube_v1.py \
+            tests/test_orbit_tube.py \
+            tests/test_tracking_cloth_approximate_orbit_tube_v1.py
+
+      - name: Validate content-addressed protocol and optional request
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          protocol_path = Path(os.environ["PROTOCOL_PATH"])
+          protocol = json.loads(protocol_path.read_text(encoding="utf-8"))
+          supplied = protocol.pop("protocol_id")
+          encoded = json.dumps(protocol, sort_keys=True, separators=(",", ":")).encode()
+          assert hashlib.sha256(encoded).hexdigest() == supplied
+          assert protocol["split"]["expected_calibration_groups"] == 18
+          assert protocol["split"]["expected_target_groups"] == 9
+          assert protocol["information_order"]["target_values_may_be_read_during_calibration"] is False
+          assert protocol["information_order"]["target_side_retuning_allowed"] is False
+          assert protocol["claim_boundary"]["estimated_orbit"] is True
+          assert protocol["claim_boundary"]["learned_visual_provider"] is False
+
+          request_path = Path(os.environ["REQUEST_PATH"])
+          if request_path.exists():
+              request = json.loads(request_path.read_text(encoding="utf-8"))
+              request_id = request.pop("request_id")
+              encoded = json.dumps(request, sort_keys=True, separators=(",", ":")).encode()
+              assert hashlib.sha256(encoded).hexdigest() == request_id
+              assert request["protocol_id"] == supplied
+              assert request["target_trajectory_values_opened_before_request"] is False
+              for path, expected in request["implementation_git_blobs"].items():
+                  import subprocess
+
+                  actual = subprocess.check_output(
+                      ["git", "hash-object", path], text=True
+                  ).strip()
+                  assert actual == expected, (path, actual, expected)
+          PY
+
+  calibrate:
+    name: Seal 18-recording approximate-orbit calibration
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    outputs:
+      calibrated: ${{ steps.result.outputs.calibrated }}
+      calibration_id: ${{ steps.result.outputs.calibration_id }}
+    steps:
+      - name: Check out exact request revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          clean: true
+
+      - name: Verify request and frozen implementation identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f "$REQUEST_PATH"
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import subprocess
+          from pathlib import Path
+
+          request = json.loads(Path(os.environ["REQUEST_PATH"]).read_text(encoding="utf-8"))
+          request_id = request.pop("request_id")
+          encoded = json.dumps(request, sort_keys=True, separators=(",", ":")).encode()
+          assert hashlib.sha256(encoded).hexdigest() == request_id
+          protocol = json.loads(Path(os.environ["PROTOCOL_PATH"]).read_text(encoding="utf-8"))
+          assert request["protocol_id"] == protocol["protocol_id"]
+          assert request["target_trajectory_values_opened_before_request"] is False
+          assert request["target_side_retuning_allowed"] is False
+          for path, expected in request["implementation_git_blobs"].items():
+              actual = subprocess.check_output(["git", "hash-object", path], text=True).strip()
+              assert actual == expected, (path, actual, expected)
+          PY
+
+      - name: Set up exact lightweight runtime
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Install runtime
+        run: |
+          python -m pip install --disable-pip-version-check "numpy==2.3.5"
+          python -m pip install --disable-pip-version-check --no-deps -e .
+          python -m pip check
+
+      - name: Download and verify official public release
+        id: dataset
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/tracking-cloth-approximate-orbit-calibration-$GITHUB_RUN_ID"
+          rm -rf -- "$root"
+          mkdir -p "$root/data" "$root/output"
+          archive="$root/tracking_dataset.zip"
+          curl --fail --location --retry 8 --retry-all-errors \
+            --connect-timeout 30 --max-time 3600 \
+            --output "$archive" "$ZENODO_URL"
+          printf '%s  %s\n' "$ZENODO_MD5" "$archive" | md5sum --check --strict
+          unzip -q "$archive" -d "$root/data"
+          test "$(find "$root/data" -type f -iname '*.csv' -printf '.' | wc -c)" -eq 120
+          echo "root=$root" >> "$GITHUB_OUTPUT"
+          echo "data=$root/data" >> "$GITHUB_OUTPUT"
+
+      - name: Calibrate without target trajectory access
+        id: experiment
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.dataset.outputs.root }}"
+          set +e
+          python "$SCRIPT_PATH" calibrate \
+            --dataset-root "${{ steps.dataset.outputs.data }}" \
+            --protocol "$PROTOCOL_PATH" \
+            --output-dir "$root/output/evaluation" \
+            --source-revision "$(git rev-parse HEAD)" \
+            > "$root/output/stdout.txt" 2> "$root/output/stderr.txt"
+          code=$?
+          set -e
+          printf '%s\n' "$code" > "$root/output/process-exit-code.txt"
+          test "$code" -eq 0 -o "$code" -eq 2
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+
+      - name: Remove raw release before publishing evidence
+        if: always()
+        shell: bash
+        run: |
+          root="${{ steps.dataset.outputs.root }}"
+          rm -rf -- "$root/data" "$root/tracking_dataset.zip"
+          if find "$root/output" -type f \( -iname '*.csv' -o -iname '*.zip' \) \
+              -print -quit | grep -q .; then
+            echo "raw data appeared in evidence" >&2
+            exit 3
+          fi
+
+      - name: Verify calibration seal
+        id: result
+        shell: bash
+        run: |
+          ROOT="${{ steps.dataset.outputs.root }}/output" python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["ROOT"])
+          value = json.loads((root / "evaluation" / "calibration.json").read_text())
+          supplied = value.pop("calibration_id")
+          encoded = json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
+          assert hashlib.sha256(encoded).hexdigest() == supplied
+          status = value["status"]
+          assert status in {"calibrated", "calibration-support-negative"}
+          if status == "calibrated":
+              assert value["information_order"]["target_trajectory_values_parsed"] is False
+              assert value["orbit_tube"]["group_count"] == 18
+              assert value["point_ball"]["group_count"] == 18
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as stream:
+              stream.write(f"calibrated={'true' if status == 'calibrated' else 'false'}\n")
+              stream.write(f"calibration_id={supplied}\n")
+          PY
+
+      - name: Upload compact calibration evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4.6.2
+        with:
+          name: tracking-cloth-approximate-orbit-calibration-${{ github.run_id }}
+          path: ${{ steps.dataset.outputs.root }}/output
+          if-no-files-found: error
+          retention-days: 90
+
+  evaluate:
+    name: Evaluate nine untouched self-collision recordings
+    needs: calibrate
+    if: needs.calibrate.outputs.calibrated == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Check out exact request revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          clean: true
+
+      - name: Set up exact lightweight runtime
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Install runtime
+        run: |
+          python -m pip install --disable-pip-version-check "numpy==2.3.5"
+          python -m pip install --disable-pip-version-check --no-deps -e .
+          python -m pip check
+
+      - name: Download exact calibration seal
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: tracking-cloth-approximate-orbit-calibration-${{ github.run_id }}
+          path: ${{ runner.temp }}/calibration
+
+      - name: Verify calibration before target access
+        shell: bash
+        env:
+          EXPECTED_CALIBRATION_ID: ${{ needs.calibrate.outputs.calibration_id }}
+        run: |
+          CALIBRATION="${{ runner.temp }}/calibration/evaluation/calibration.json" python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path(os.environ["CALIBRATION"])
+          value = json.loads(path.read_text())
+          supplied = value.pop("calibration_id")
+          encoded = json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
+          assert hashlib.sha256(encoded).hexdigest() == supplied
+          assert supplied == os.environ["EXPECTED_CALIBRATION_ID"]
+          assert value["status"] == "calibrated"
+          assert value["information_order"]["target_trajectory_values_parsed"] is False
+          PY
+
+      - name: Download and verify official public release
+        id: dataset
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/tracking-cloth-approximate-orbit-target-$GITHUB_RUN_ID"
+          rm -rf -- "$root"
+          mkdir -p "$root/data" "$root/output"
+          archive="$root/tracking_dataset.zip"
+          curl --fail --location --retry 8 --retry-all-errors \
+            --connect-timeout 30 --max-time 3600 \
+            --output "$archive" "$ZENODO_URL"
+          printf '%s  %s\n' "$ZENODO_MD5" "$archive" | md5sum --check --strict
+          unzip -q "$archive" -d "$root/data"
+          test "$(find "$root/data" -type f -iname '*.csv' -printf '.' | wc -c)" -eq 120
+          echo "root=$root" >> "$GITHUB_OUTPUT"
+          echo "data=$root/data" >> "$GITHUB_OUTPUT"
+
+      - name: Open only the frozen target split and evaluate
+        id: experiment
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.dataset.outputs.root }}"
+          set +e
+          python "$SCRIPT_PATH" evaluate \
+            --dataset-root "${{ steps.dataset.outputs.data }}" \
+            --protocol "$PROTOCOL_PATH" \
+            --calibration "${{ runner.temp }}/calibration/evaluation/calibration.json" \
+            --output-dir "$root/output/evaluation" \
+            --source-revision "$(git rev-parse HEAD)" \
+            > "$root/output/stdout.txt" 2> "$root/output/stderr.txt"
+          code=$?
+          set -e
+          printf '%s\n' "$code" > "$root/output/process-exit-code.txt"
+          test "$code" -eq 0 -o "$code" -eq 2 -o "$code" -eq 3
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+
+      - name: Remove raw release before publishing evidence
+        if: always()
+        shell: bash
+        run: |
+          root="${{ steps.dataset.outputs.root }}"
+          rm -rf -- "$root/data" "$root/tracking_dataset.zip"
+          if find "$root/output" -type f \( -iname '*.csv' -o -iname '*.zip' \) \
+              -print -quit | grep -q .; then
+            echo "raw data appeared in evidence" >&2
+            exit 3
+          fi
+
+      - name: Independently verify terminal result identity and frozen criteria
+        shell: bash
+        run: |
+          RESULT="${{ steps.dataset.outputs.root }}/output/evaluation/result.json" python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          value = json.loads(Path(os.environ["RESULT"]).read_text())
+          supplied = value.pop("result_id")
+          encoded = json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
+          assert hashlib.sha256(encoded).hexdigest() == supplied
+          assert value["status"] in {
+              "target-support-negative",
+              "approximate-orbit-tube-positive",
+              "approximate-orbit-tube-mixed",
+          }
+          assert value["information_order"]["target_side_retuning"] is False
+          assert value["information_order"]["target_groups_replaced"] is False
+          if value["status"] != "target-support-negative":
+              assert value["cohort"]["target_group_count"] == 9
+              assert value["calibration"]["calibration_group_count"] == 18
+              assert len(value["criteria"]) == 6
+          PY
+
+      - name: Upload compact target evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4.6.2
+        with:
+          name: tracking-cloth-approximate-orbit-result-${{ github.run_id }}
+          path: ${{ steps.dataset.outputs.root }}/output
+          if-no-files-found: error
+          retention-days: 90

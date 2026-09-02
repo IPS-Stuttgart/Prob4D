@@ -1,0 +1,132 @@
+{
+  "analysis": {
+    "bootstrap_replicates": 20000,
+    "bootstrap_seed": 92117,
+    "equal_weighting": "complete target recordings",
+    "frames_are_nested": true
+  },
+  "calibration": {
+    "finite_sample_statement": "conditional split-conformal coverage over exchangeable complete recordings",
+    "independent_unit": "complete-recording",
+    "orbit_score": "maximum point-to-estimated-circle distance over registered pairs",
+    "order_statistic": "ceil((n+1)*(1-alpha))",
+    "point_score": "maximum Euclidean error of the canonical transported point",
+    "requested_miscoverage": 0.1
+  },
+  "claim_boundary": {
+    "bayesian_phystwin_benefit": false,
+    "closed_loop_robot_control": false,
+    "controlled_observation_restriction": true,
+    "deployment_safety": false,
+    "estimated_orbit": true,
+    "fresh_self_collision_target_values": true,
+    "group_calibrated_orbit_tube": true,
+    "learned_visual_provider": false,
+    "physical_state_recovery": false,
+    "public_real_trajectories": true,
+    "state_of_the_art": false
+  },
+  "criteria": {
+    "exact_orbit_must_have_lower_simultaneous_coverage": true,
+    "maximum_orbit_to_ball_width_ratio": 0.75,
+    "minimum_orbit_simultaneous_covered_groups": 8,
+    "minimum_orbit_tube_admission_gain": 0.05,
+    "support_all_target_groups": true
+  },
+  "dataset": {
+    "allowed_materials": [
+      "cotton",
+      "denim",
+      "wool"
+    ],
+    "archive_filename": "tracking_dataset.zip",
+    "archive_md5": "b4868b702f8a42b2ea1069d0f1a3b8f6",
+    "cohort": "A2 cotton/denim/wool Self-collisions recordings",
+    "expected_cohort_files": 27,
+    "expected_csv_files": 120,
+    "prior_header_only_group_ids": [
+      "974be715d5d079a0",
+      "698ce880bacd2b8e",
+      "51b60a70fc57756f",
+      "56f4a92725ddfe31",
+      "c427db49dfb80888",
+      "f184b99d3b3b8a85",
+      "8bc21a918a541bf5",
+      "72c6fdec0573cbd0",
+      "d06dd772e7c2ec40",
+      "fe29865c1811b653",
+      "8c70cc0dad85fd73",
+      "5efe6d7c6bd60c63",
+      "da39b55672253a9b",
+      "c61ac901d973953f",
+      "554c4b900d5342da",
+      "e19a78562bf7b067",
+      "2067355116c1bf21",
+      "411a07a713174cdb",
+      "3a3c613f01984226",
+      "50dc47f83f3bba95",
+      "9d5e702cadf59222",
+      "15fd7c589857a06e",
+      "ece4f2cea23137f1",
+      "8effb04911c3601c",
+      "89bcfcf1849af7bf",
+      "7e66cdee601fa56d",
+      "689bd75517b8bf6f"
+    ],
+    "prior_header_only_support": {
+      "artifact_digest": "sha256:c7c61a117c1e3dbcf33997c528fb1703bfae44cbdfb560d176a9880bc04b05e3",
+      "artifact_id": 9810268001,
+      "protocol_id": "4652d72f9e8d4c80c69df86b7a48a6f4e307e4131ea3bea04e09deed10db5eb0",
+      "run_id": 33532387635,
+      "support_id": "2d3b385f69bbeace010412771ad988bc51509cfe61e071cdc6ed0f7803938abb",
+      "target_trajectory_values_parsed": false
+    },
+    "record_name": "Tracking Cloth Deformation",
+    "required_size": "A2",
+    "zenodo_record": "14644526"
+  },
+  "information_order": {
+    "all_cohort_headers_may_be_read_before_split_execution": true,
+    "calibration_values_may_be_read_before_calibration_seal": true,
+    "target_group_replacement_allowed": false,
+    "target_side_retuning_allowed": false,
+    "target_values_may_be_read_during_calibration": false,
+    "target_values_require_content_addressed_calibration": true
+  },
+  "marker_selection": {
+    "maximum_common_marker_count": 32,
+    "minimum_anchor_distance_mm": 100.0,
+    "minimum_probe_radius_mm": 20.0,
+    "score": "min(anchor_distance_q10_mm, 2*probe_radius_q10_mm)",
+    "selection_frames_per_recording": 12,
+    "selection_uses_calibration_trajectory_values": true,
+    "selection_uses_target_trajectory_values": false,
+    "support_namespace": "labels common to all 27 cohort headers"
+  },
+  "prediction": {
+    "canonical_point": "minimal-rotation transport of previous radial direction",
+    "decision_threshold_selection": "median calibration query-center fraction; target values excluded",
+    "minimum_valid_pairs": 64,
+    "orbit_model": "previous normalized axial fraction and radius ratio on current anchor line",
+    "pairs_per_recording": 256,
+    "query": "probe coordinate along current anchor axis minus a calibration-median normalized axial threshold"
+  },
+  "protocol_id": "8aa317f041b151282ea83eaa5018af0e1c869d3794d7480477e4006a28014fbc",
+  "schema": "prob4d.tracking-cloth-approximate-orbit-tube.v1",
+  "split": {
+    "calibration_per_material": 6,
+    "expected_calibration_groups": 18,
+    "expected_target_groups": 9,
+    "method": "within-material-sha256-order-v1",
+    "salt": "prob4d-tracking-cloth-approximate-orbit-tube-v1",
+    "target_per_material": 3,
+    "target_trajectory_values_opened_before_protocol_freeze": false
+  },
+  "terminal_statuses": [
+    "calibration-support-negative",
+    "target-support-negative",
+    "approximate-orbit-tube-positive",
+    "approximate-orbit-tube-mixed",
+    "technical-failure"
+  ]
+}
