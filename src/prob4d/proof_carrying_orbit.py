@@ -37,6 +37,7 @@ DEFAULT_ORBIT_ASSUMPTION_IDS = (
     "external-orbit-support-scope-v1",
 )
 _DIGEST_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
+_FULL_CIRCLE = AngleArc()
 
 
 def _canonical_bytes(value: Mapping[str, object]) -> bytes:
@@ -145,7 +146,7 @@ def build_axial_orbit_action_certificate(
     fallback_digest: str,
     input_digest: str,
     admission_policy_digest: str,
-    arc: AngleArc | None = AngleArc(),
+    arc: AngleArc | None = _FULL_CIRCLE,
     advantage_error_bound: float = 0.0,
     required_margin: float = 0.0,
     numerical_slack: float = 1e-12,
