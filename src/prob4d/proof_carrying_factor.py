@@ -10,8 +10,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 from collections.abc import Iterable, Mapping
+from numbers import Real
 from pathlib import Path
 from typing import Any, TypeAlias
 
@@ -110,8 +112,10 @@ def _digest(value: object, *, name: str) -> str:
 
 
 def _unit_interval(value: object, *, name: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, Real):
+        raise TypeError(f"{name} must be a real number")
     numeric = float(value)
-    if not np.isfinite(numeric) or not 0.0 <= numeric <= 1.0:
+    if not math.isfinite(numeric) or not 0.0 <= numeric <= 1.0:
         raise ValueError(f"{name} must lie in [0, 1]")
     return numeric
 
@@ -135,12 +139,21 @@ def _matrix(
     return array
 
 
+def _spectral_norm(value: FloatArray, *, name: str) -> float:
+    singular_values = np.linalg.svd(value, compute_uv=False)
+    result = 0.0 if singular_values.size == 0 else float(singular_values[0])
+    if not math.isfinite(result):
+        raise ValueError(f"{name} spectral norm must be finite")
+    return result
+
+
 def _positive_definite(value: object, *, name: str) -> FloatArray:
     matrix = _matrix(value, name=name, square=True)
     symmetric = 0.5 * (matrix + matrix.T)
     if not np.allclose(matrix, symmetric, atol=1e-12, rtol=1e-10):
         raise ValueError(f"{name} must be symmetric")
-    if float(np.min(np.linalg.eigvalsh(symmetric))) <= 0.0:
+    eigenvalues = np.linalg.eigvalsh(symmetric)
+    if float(eigenvalues[0]) <= 0.0:
         raise ValueError(f"{name} must be positive definite")
     return symmetric
 
@@ -235,18 +248,22 @@ def build_observable_gauge_query_certificate(
     weighted_jacobian = metric_sqrt @ jacobian
     observable_coordinates = weighted_jacobian @ factor.observable_basis
     denominator = max(
-        float(np.linalg.norm(weighted_jacobian, ord=2)),
-        np.finfo(np.float64).tiny,
+        _spectral_norm(weighted_jacobian, name="weighted query Jacobian"),
+        float(np.finfo(np.float64).tiny),
     )
     nullspace_sensitivity = (
         0.0
         if factor.nullspace_basis.shape[1] == 0
-        else float(np.linalg.norm(weighted_jacobian @ factor.nullspace_basis, ord=2) / denominator)
+        else _spectral_norm(
+            weighted_jacobian @ factor.nullspace_basis,
+            name="weighted query nullspace component",
+        )
+        / denominator
     )
-    reconstruction_residual = float(
-        np.linalg.norm(
+    reconstruction_residual = (
+        _spectral_norm(
             weighted_jacobian - observable_coordinates @ factor.observable_basis.T,
-            ord=2,
+            name="weighted query reconstruction residual",
         )
         / denominator
     )
