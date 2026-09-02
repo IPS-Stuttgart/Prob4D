@@ -1,0 +1,128 @@
+name: Tracking Cloth orbit-tube roster audit v1
+
+on:
+  push:
+    branches:
+      - science/tracking-cloth-orbit-tube-audit-v1
+    paths:
+      - ".github/workflows/tracking-cloth-orbit-tube-roster-audit-v1.yml"
+      - "scripts/science/audit_tracking_cloth_orbit_tube_roster.py"
+      - "protocols/tracking-cloth-orbit-tube-roster-audit-v1.json"
+      - "tests/test_tracking_cloth_orbit_tube_roster_audit.py"
+  pull_request:
+    paths:
+      - ".github/workflows/tracking-cloth-orbit-tube-roster-audit-v1.yml"
+      - "scripts/science/audit_tracking_cloth_orbit_tube_roster.py"
+      - "protocols/tracking-cloth-orbit-tube-roster-audit-v1.json"
+      - "tests/test_tracking_cloth_orbit_tube_roster_audit.py"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tracking-cloth-orbit-tube-roster-audit-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    name: Header-boundary and roster tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          clean: true
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v6.0.0
+        with:
+          python-version: "3.12"
+      - name: Install test dependency
+        run: python -m pip install pytest
+      - name: Run focused tests
+        run: python -m pytest -q tests/test_tracking_cloth_orbit_tube_roster_audit.py
+
+  audit:
+    name: Audit 27 fresh headers without trajectory access
+    if: github.event_name == 'push'
+    environment: trusted-self-hosted-validation
+    runs-on: [self-hosted, Linux, X64, gpuserver4090]
+    timeout-minutes: 30
+    env:
+      TRACKING_CLOTH_DATASET_ROOT: ${{ vars.TRACKING_CLOTH_DATASET_ROOT }}
+    steps:
+      - name: Check out exact reviewed revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          clean: true
+          fetch-depth: 1
+
+      - name: Resolve retained public archive without reading payload
+        id: dataset
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${TRACKING_CLOTH_DATASET_ROOT:-}"
+          if [[ -z "$root" ]]; then
+            root=/home/github-runner/.cache/datasets/tracking-cloth-deformation-v1-zenodo-14644526
+          fi
+          test -d "$root"
+          printf 'root=%s\n' "$root" >> "$GITHUB_OUTPUT"
+
+      - name: Run fixed header-only roster audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p outputs/tracking-cloth-orbit-tube-roster-audit-v1
+          python3 scripts/science/audit_tracking_cloth_orbit_tube_roster.py \
+            --dataset-root '${{ steps.dataset.outputs.root }}' \
+            --protocol protocols/tracking-cloth-orbit-tube-roster-audit-v1.json \
+            --output outputs/tracking-cloth-orbit-tube-roster-audit-v1/result.json
+
+      - name: Enforce information and support boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          result = json.loads(
+              Path("outputs/tracking-cloth-orbit-tube-roster-audit-v1/result.json")
+              .read_text(encoding="utf-8")
+          )
+          assert result["schema"] == "prob4d.tracking-cloth-orbit-tube-roster-audit.v1"
+          assert result["counts"] == {
+              "all_csv": 120,
+              "fresh": 27,
+              "source": 9,
+              "calibration": 9,
+              "target": 9,
+          }
+          assert result["archive"]["zip_integrity"] == "pass"
+          boundary = result["information_boundary"]
+          assert boundary["trajectory_rows_read"] == 0
+          assert boundary["split_fixed_before_header_read"] is True
+          assert boundary["source_trajectory_values_opened"] is False
+          assert boundary["calibration_trajectory_values_opened"] is False
+          assert boundary["target_trajectory_values_opened"] is False
+          assert boundary["raw_header_text_published"] is False
+          assert all(record["trajectory_rows_read"] == 0 for record in result["records"])
+          assert len(result["result_id"]) == 64
+          common = result["marker_intersections"]["all_roles"]
+          print(f"common_marker_count={len(common)}")
+          print(f"result_id={result['result_id']}")
+          PY
+
+      - name: Upload compact header-only evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4.6.2
+        with:
+          name: tracking-cloth-orbit-tube-roster-audit-v1-${{ github.run_id }}
+          path: |
+            outputs/tracking-cloth-orbit-tube-roster-audit-v1/result.json
+            protocols/tracking-cloth-orbit-tube-roster-audit-v1.json
+          if-no-files-found: error
+          retention-days: 30
