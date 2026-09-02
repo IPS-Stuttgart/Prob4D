@@ -1,0 +1,75 @@
+name: Symmetry-complete belief mechanism
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - src/prob4d/symmetry_complete_belief.py
+      - src/prob4d/symmetry_complete_belief_study.py
+      - tests/test_symmetry_complete_belief*.py
+      - src/prob4d/axial_gauge.py
+      - src/prob4d/axial_query_certificate.py
+      - tests/test_axial_gauge.py
+      - tests/test_axial_query_certificate.py
+      - docs/symmetry-complete-beliefs.md
+      - CHANGELOG.d/symmetry-complete-belief-v1.md
+      - .github/workflows/symmetry-complete-belief.yml
+
+permissions:
+  contents: read
+
+jobs:
+  mechanism:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install lightweight development dependencies
+        run: python -m pip install -e ".[dev]"
+      - name: Check source, types, and focused contracts
+        run: |
+          python -m ruff check \
+            src/prob4d/symmetry_complete_belief.py \
+            src/prob4d/symmetry_complete_belief_study.py \
+            tests/test_symmetry_complete_belief.py \
+            tests/test_symmetry_complete_belief_study.py
+          python -m ruff format --check \
+            src/prob4d/symmetry_complete_belief.py \
+            src/prob4d/symmetry_complete_belief_study.py \
+            tests/test_symmetry_complete_belief.py \
+            tests/test_symmetry_complete_belief_study.py
+          # Current NumPy stubs use Python 3.12 syntax. Runtime-floor coverage remains in Tests.
+          python -m mypy --python-version 3.12 \
+            src/prob4d/symmetry_complete_belief.py \
+            src/prob4d/symmetry_complete_belief_study.py
+          python -m pytest -q \
+            tests/test_symmetry_complete_belief.py \
+            tests/test_symmetry_complete_belief_study.py \
+            tests/test_axial_gauge.py \
+            tests/test_axial_query_certificate.py \
+            --junitxml=outputs/symmetry-complete-belief-tests.xml
+      - name: Execute controlled mechanism twice
+        run: |
+          python -m prob4d.symmetry_complete_belief_study \
+            --seed 20260902 \
+            --cases 512 \
+            --output outputs/symmetry-complete-belief-v1/result-a.json
+          python -m prob4d.symmetry_complete_belief_study \
+            --seed 20260902 \
+            --cases 512 \
+            --output outputs/symmetry-complete-belief-v1/result-b.json
+          cmp \
+            outputs/symmetry-complete-belief-v1/result-a.json \
+            outputs/symmetry-complete-belief-v1/result-b.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: symmetry-complete-belief-mechanism
+          path: outputs/
+          if-no-files-found: warn
+          retention-days: 14
