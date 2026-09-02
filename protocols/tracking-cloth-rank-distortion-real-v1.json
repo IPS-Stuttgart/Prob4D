@@ -1,0 +1,54 @@
+{
+  "claim_boundary": {
+    "bayesian_phystwin_benefit_claimed": false,
+    "causal4d_benefit_claimed": false,
+    "learned_4d_provider_evaluated": false,
+    "raw_data_publication_authorized": false,
+    "real_covariance_calibration_claimed": false
+  },
+  "dataset": {
+    "dataset_root": "/home/github-runner/.cache/datasets/tracking-cloth-deformation-v1-zenodo-14644526",
+    "dataset_state": "verified-complete-extracted",
+    "doi": "10.5281/zenodo.14644526",
+    "expected_recording_count": 120,
+    "name": "Tracking cloth deformation"
+  },
+  "evidence_class": "recording-disjoint-real-motion-capture-local-gaussian-mechanism",
+  "factor_eigenvalue_relative_tolerance": 1e-12,
+  "fold_count": 5,
+  "horizon_frames": 12,
+  "joint_covariance_ridge_fraction": 1e-06,
+  "joint_covariance_shrinkage": 0.1,
+  "lag_frames": 6,
+  "maximum_conditional_block_fraction": 0.25,
+  "maximum_windows_per_recording": 128,
+  "methods": [
+    "full",
+    "posterior_preserving",
+    "equal_rank_covariance_pca",
+    "conditional_only",
+    "prior_only",
+    "cached_full_query_message"
+  ],
+  "minimum_recordings_per_size": 16,
+  "parity_relative_tolerance": 1e-08,
+  "query": {
+    "definition": "cloth-marker centroid displacement from current frame to 12-frame future",
+    "dimension": 3,
+    "observation": "all cloth-marker displacements over preceding 6 frames rescaled to query horizon"
+  },
+  "rank_relative_tolerance": 1e-12,
+  "required_maximum_relative_parity_error": 1e-07,
+  "schema": "prob4d.tracking-cloth-posterior-compression-real.v1",
+  "selection": {
+    "accepted_marker_counts": {
+      "A2": 20,
+      "A3": 12
+    },
+    "equal_recording_cap": 128,
+    "fold_assignment": "sha256-relative-path-sort-round-robin-within-size",
+    "missing_data": "window-complete-case-only",
+    "rod_or_stick_marker_recordings": "excluded-by-marker-count-before-outcome-modeling"
+  },
+  "stride_frames": 12
+}

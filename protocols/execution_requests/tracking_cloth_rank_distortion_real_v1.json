@@ -1,0 +1,14 @@
+{
+  "schema": "prob4d.self-hosted-experiment-request.v1",
+  "request_id": "tracking-cloth-posterior-compression-real-v1",
+  "request_sequence": 7,
+  "method_parent_revision": "fa54c7ce8d7c0903d1ee35e861173a9fa328e0d8",
+  "branch": "science/tracking-cloth-posterior-compression-real-v1",
+  "runner_labels": ["self-hosted", "gpuserver4090"],
+  "dataset_root": "/home/github-runner/.cache/datasets/tracking-cloth-deformation-v1-zenodo-14644526",
+  "dataset_state": "verified-complete-extracted",
+  "expected_recording_count": 120,
+  "requested_action": "recording-disjoint posterior-preserving compression evaluation with pinned Python 3.12 and NumPy 2.3.5",
+  "raw_data_publication_authorized": false,
+  "provider_promotion_authorized": false
+}
