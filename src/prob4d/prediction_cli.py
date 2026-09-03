@@ -16,7 +16,8 @@ def _help_parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest="command")
     subparsers.add_parser(
-        "run-cut3r", help="run native causal RGB CUT3R and export a verified direct provider",
+        "run-cut3r",
+        help="run native causal RGB CUT3R and export a verified direct provider",
     )
     subparsers.add_parser(
         "import-motioncrafter",
