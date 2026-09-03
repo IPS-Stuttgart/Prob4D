@@ -1,0 +1,62 @@
+{
+  "aggregation": "equal_supported_score_frame_then_equal_sequence",
+  "alignment_frames": [
+    1,
+    2
+  ],
+  "archive_sha256": "07b2222808e7fef1e4a7fd86ee0329da7c50e31cac2992d4773db0e8ffc105d7",
+  "arms": [
+    "cut3r_initial_alignment",
+    "cut3r_full_prefix_alignment",
+    "last_residual",
+    "bayesian_iid",
+    "bayesian_shared"
+  ],
+  "artifact_id": "30ce2d2825f3ef68798b402ae2945d0c4cd74216c36b35c327a37994f5837c14",
+  "autopromotion": false,
+  "baseline_uncertainty": "same fixed Gaussian wrapper, not native CUT3R covariance",
+  "calibration_guarantee": false,
+  "camera": "cam001",
+  "claim": "exploratory sparse-prefix 3D-supervised observed-frame reconstruction only",
+  "closed_studies_reopened": false,
+  "future_2d_marker_locations_are_common_query_inputs": true,
+  "future_3d_permitted_only_after_all_predictions_sealed": true,
+  "future_rgb_is_in_existing_causal_provider_outputs": true,
+  "hyperparameter_search": false,
+  "metric_units": "prefix_span_not_asserted_metres",
+  "new_rgb_decoding": false,
+  "normalization": "bbox_diagonal_of_finite_frame_1_2_marker_rows",
+  "observation_std_prefix_span": 0.02,
+  "prior_global_fraction": 0.5,
+  "prior_std_prefix_span": 0.1,
+  "prospective_new_object_confirmation": false,
+  "protected_targets_accessed": false,
+  "provider_bundle_id": "952421d140731b2a6eb99df3cbd348653e04863fa457aaa490be31fe0b4c06a7",
+  "provider_inference_rerun": false,
+  "rbf_length_prefix_span": 0.25,
+  "residual_update_frames": [
+    3,
+    4,
+    5
+  ],
+  "schema": "prob4d.cut3r-bayesian-prefix-development-v1",
+  "score_frames": [
+    6,
+    7
+  ],
+  "sequences": [
+    "R01",
+    "R02",
+    "R03"
+  ],
+  "shared_observation_correlation": 0.8,
+  "source_files_sha256": {
+    "scripts/science/evaluate_dot_rope_cut3r_pooled.py": "2b214a227e3594aec94545159bea059970ac85ddbde8d88de603c206218396cf",
+    "scripts/science/run_cut3r_bayesian_prefix_dev.py": "87eaee9c51797bfdd72f27b820845971b08f13c524ea61c8e6f152e2e2098774",
+    "scripts/science/run_dot_rope_cut3r_native_provider.py": "211106432826b915f4332fcbdf72e087ce131e9c58bd4a72aa56510cc5ea20cc",
+    "src/prob4d/cut3r_bayesian_prefix_dev.py": "57bc8ff97fa1127d41c0f61ead9242816d1e92f8e67ca9ff5d1fde86d572045f",
+    "src/prob4d/dot_rope_cut3r_study.py": "166f2d83adeb3eb606766b31c4d83d509b8cbb4a29ae8731c70ba7941f4b76f9",
+    "src/prob4d/query_posterior.py": "34dbd61a5a1a1329e3e65b19fac1d7033033b8490b22d38bd1e1a06343e5a379",
+    "tests/test_cut3r_bayesian_prefix_dev.py": "dbee239f7b237798f85139303a8a2a14f7ead9b5da7f48aa6baba9047e9104cf"
+  }
+}
