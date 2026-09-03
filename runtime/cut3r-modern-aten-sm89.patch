@@ -2,7 +2,7 @@ diff --git a/src/croco/models/curope/kernels.cu b/src/croco/models/curope/kernel
 --- a/src/croco/models/curope/kernels.cu
 +++ b/src/croco/models/curope/kernels.cu
 @@ -100,3 +100,3 @@
- 
+
 -    AT_DISPATCH_FLOATING_TYPES_AND_HALF(tokens.type(), "rope_2d_cuda", ([&] {
 +    AT_DISPATCH_FLOATING_TYPES_AND_HALF(tokens.scalar_type(), "rope_2d_cuda", ([&] {
          rope_2d_cuda_kernel<scalar_t> <<<N_BLOCKS, THREADS_PER_BLOCK, SHARED_MEM>>> (
@@ -11,11 +11,11 @@ diff --git a/src/croco/models/curope/setup.py b/src/croco/models/curope/setup.py
 +++ b/src/croco/models/curope/setup.py
 @@ -2,11 +2,12 @@
  # Licensed under CC BY-NC-SA 4.0 (non-commercial use only).
- 
+
  from setuptools import setup
 -from torch import cuda
  from torch.utils.cpp_extension import BuildExtension, CUDAExtension
- 
+
 -# compile for all possible CUDA architectures
 -all_cuda_archs = cuda.get_gencode_flags().replace("compute=", "arch=").split()
 +# The registered DOT execution uses an RTX 4090.  CUT3R's original build asks
