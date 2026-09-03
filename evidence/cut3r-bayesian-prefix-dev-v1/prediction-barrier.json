@@ -1,0 +1,38 @@
+{
+  "artifact_id": "9a7d448192121533228c4ebbc5cb3ff9a16f0752d04ecb979ed992ccfc5492ab",
+  "cases": {
+    "R01": {
+      "file": "R01-predictions.npz",
+      "prefix_count": 20,
+      "query_count": 8,
+      "sha256": "483de5b89b84599ebef2dcad710a5446f3cde3a8aeadb1cef3001cd09835b30b",
+      "status": "ordinary_success",
+      "update_count": 12
+    },
+    "R02": {
+      "file": "R02-predictions.npz",
+      "prefix_count": 25,
+      "query_count": 10,
+      "sha256": "353cb304e62fae14b6d241565b4e654d84ceadca87e2abd3a6c9f1a2f5febbed",
+      "status": "ordinary_success",
+      "update_count": 15
+    },
+    "R03": {
+      "file": "R03-predictions.npz",
+      "prefix_count": 25,
+      "query_count": 10,
+      "sha256": "93cd139f8c503e939f3027bf502180a8e2e6bd08f91e24adb421671745dac20a",
+      "status": "ordinary_success",
+      "update_count": 15
+    }
+  },
+  "future_3d_opened": false,
+  "implementation_revision": "d70e0a426d1ec3e5da512e941c4e72f7915fb8b7",
+  "protocol_id": "30ce2d2825f3ef68798b402ae2945d0c4cd74216c36b35c327a37994f5837c14",
+  "provider_bundle_id": "952421d140731b2a6eb99df3cbd348653e04863fa457aaa490be31fe0b4c06a7",
+  "runtime": {
+    "numpy": "2.2.6",
+    "python": "3.10.12"
+  },
+  "schema": "prob4d.cut3r-bayesian-prefix-prediction-barrier-v1"
+}

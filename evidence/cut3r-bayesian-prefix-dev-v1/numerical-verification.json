@@ -1,0 +1,15 @@
+{
+  "artifact_id": "09b7b1f3d82a9dde88b9585f2a5b0012895ea676e8f9ef99e420b677a73480c7",
+  "canonical_result_and_barrier_verified": true,
+  "maximum_metric_difference": 4.440892098500626e-16,
+  "method": "independent scalar metric recomputation from unchanged sealed predictions and authorized source scoring markers",
+  "new_prediction_generated": false,
+  "prediction_barrier_id": "9a7d448192121533228c4ebbc5cb3ff9a16f0752d04ecb979ed992ccfc5492ab",
+  "prediction_hashes_verified": true,
+  "protected_targets_accessed": false,
+  "provider_inference_rerun": false,
+  "result_id": "f8d138921e3bf9ce02721a9d4f7154ae5a4182fd56360dd2c40134a34e2a4941",
+  "schema": "prob4d.cut3r-bayesian-prefix-numerical-replay-v1",
+  "scored_rows": 28,
+  "source_sequence_count": 3
+}
