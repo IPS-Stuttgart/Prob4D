@@ -63,27 +63,28 @@ def _stage_inputs(
         size = source.stat().st_size
         # Stop emission at the exclusive bound. A video codec can internally
         # decode lookahead/reference frames, but none are supplied to the model.
-        subprocess.run(
-            [
-                "ffmpeg",
-                "-nostdin",
-                "-v",
-                "error",
-                "-i",
-                str(source),
-                "-vf",
-                f"select=between(n\\,{frame_start}\\,{frame_stop - 1})",
-                "-fps_mode",
-                "passthrough",
-                "-frames:v",
-                str(count),
-                "-start_number",
-                "0",
-                str(destination / "%06d.png"),
-            ],
-            check=True,
-            capture_output=True,
-        )
+        command = [
+            "ffmpeg",
+            "-nostdin",
+            "-v",
+            "error",
+            "-i",
+            str(source),
+            "-vf",
+            f"select=between(n\\,{frame_start}\\,{frame_stop - 1})",
+            "-vsync",
+            "0",
+            "-frames:v",
+            str(count),
+            "-start_number",
+            "0",
+            str(destination / "%06d.png"),
+        ]
+        try:
+            subprocess.run(command, check=True, capture_output=True)
+        except subprocess.CalledProcessError as error:
+            detail = (error.stderr or b"").decode("utf-8", errors="replace")[-2000:]
+            raise RuntimeError(f"FFmpeg prefix extraction failed: {detail}") from error
         if file_sha256(source) != digest or source.stat().st_size != size:
             raise ValueError("video changed during prefix extraction")
         paths = [destination / f"{i:06d}.png" for i in range(count)]

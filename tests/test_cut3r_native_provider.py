@@ -196,8 +196,37 @@ def test_video_emission_is_bounded(tmp_path: Path, monkeypatch: pytest.MonkeyPat
     )
     command = calls[0]
     assert command[command.index("-frames:v") + 1] == "2"
+    assert command[command.index("-vsync") + 1] == "0"
+    assert "-fps_mode" not in command  # supported by FFmpeg 4.4 as well as newer releases
     assert command[command.index("-vf") + 1] == "select=between(n\\,3\\,4)"
     assert "-nostdin" in command
+
+
+def test_video_error_preserves_decoder_diagnostic(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    video = tmp_path / "input.mp4"
+    video.write_bytes(b"synthetic")
+
+    def failed(command: list[str], **kwargs: Any) -> None:
+        raise subprocess.CalledProcessError(1, command, stderr=b"invalid synthetic video")
+
+    monkeypatch.setattr(subprocess, "run", failed)
+    with pytest.raises(RuntimeError, match="invalid synthetic video"):
+        provider.run_cut3r_native(
+            video,
+            tmp_path / "out",
+            runtime_factory=FakeRuntime,
+            sequence_id="test",
+            frame_start=0,
+            frame_stop=1,
+            video=True,
+        )
+    receipt = json.loads((tmp_path / "out/run.json").read_text())
+    assert receipt["stage"] == "prefix-staging"
+    assert "invalid synthetic video" in receipt["error"]
+    assert not (tmp_path / "out/prediction").exists()
 
 
 @pytest.mark.parametrize("mutation", ["nan", "shape", "pose", "focal", "empty"])

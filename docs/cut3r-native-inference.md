@@ -141,6 +141,18 @@ against the shorter-prefix replay. Peak allocated GPU memory was 3,691,858,432
 bytes (about 3.44 GiB). The three production source modules' hashes in the receipt
 were independently compared with the delivered files and matched exactly.
 
+These recorded module hashes identify the initial image-path implementation
+at commit `6b92dc8`; the subsequent FFmpeg compatibility repair changes only
+video staging/error reporting, not the native RGB recurrence or the image path.
+The real video CLI was also verified using a three-frame synthetic FFV1 clip
+with an exclusive two-frame bound on FFmpeg 4.4.2. It published exactly two
+predictions, whose point-map files were byte-identical to the corresponding
+image-path files. This caught and repaired an unsupported `-fps_mode` option;
+the command now uses the compatible `-vsync 0` form and retains decoder errors
+in failure receipts. The separate video receipt binds the updated provider hash.
+The distributed build patch was applied to pristine pinned upstream files, and
+both resulting source hashes matched the runtime's expected compatibility hashes.
+
 The software check first encountered a checkpoint-file permission error before
 model loading; that failed synthetic workspace was retained. A readable copy of
 the same digest-verified official checkpoint was then transferred directly
