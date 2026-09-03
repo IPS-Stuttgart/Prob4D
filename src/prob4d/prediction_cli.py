@@ -16,6 +16,9 @@ def _help_parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest="command")
     subparsers.add_parser(
+        "run-cut3r", help="run native causal RGB CUT3R and export a verified direct provider",
+    )
+    subparsers.add_parser(
         "import-motioncrafter",
         help="convert an integrity-bound MotionCrafter prediction bundle",
     )
@@ -90,6 +93,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     if arguments[0] in {"-h", "--help"}:
         _help_parser().parse_args(arguments)
         return 0
+    if arguments[0] == "run-cut3r":
+        from ._cut3r_native_cli import main as native_cut3r_main
+
+        return int(native_cut3r_main(arguments[1:]))
     if arguments[0] == "import-vggt":
         from .vggt_provider_adapter import main as vggt_main
 

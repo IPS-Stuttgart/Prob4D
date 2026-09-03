@@ -9,6 +9,7 @@ include setup.py
 include src/prob4d/__init__.pyi
 graft docs
 graft protocols
+include runtime/cut3r-modern-aten-sm89.patch
 prune .github
 prune evidence
 prune environments

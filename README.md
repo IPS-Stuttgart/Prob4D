@@ -47,6 +47,10 @@ and model checkpoints remain optional external dependencies.
 
 ## Supported interfaces
 
+The optional [native CUT3R RGB runner](docs/cut3r-native-inference.md) adds streaming
+state updates and verified direct-point-map export via `prob4d prediction run-cut3r`.
+Its software support is separate from the frozen provider-evidence snapshot above.
+
 Prob4D 0.5 has one command and one current Python façade:
 
 ```text
