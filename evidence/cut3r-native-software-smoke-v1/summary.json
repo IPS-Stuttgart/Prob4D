@@ -1,0 +1,42 @@
+{
+  "schema": "prob4d.cut3r-native-software-verification-v1",
+  "status": "success",
+  "evidence_kind": "synthetic-software-compatibility-only",
+  "dataset_accessed": false,
+  "historical_experiment_retried": false,
+  "scientific_accuracy_claimed": false,
+  "cut3r_revision": "8bc15dc92a6d7fd92920b4ec81540d3dec7d3ecf",
+  "checkpoint_sha256": "45f7e98a0a64dbeb54901ae2b878cd8cd125f20a4497316483f0bd6f109f8103",
+  "torch": "2.11.0+cu126",
+  "torch_cuda": "12.6",
+  "gpu": "NVIDIA GeForce RTX 4090",
+  "native_build_variant": "modern-aten-sm89",
+  "frames_exported": 3,
+  "point_shape": [384, 512, 3],
+  "prefix_point_max_abs_error": 0.0,
+  "official_recurrent_point_max_abs_error": 0.0,
+  "peak_cuda_allocated_bytes": 3691858432,
+  "raw_smoke_artifact_id": "f2601201d6cc5b97c82b653d64c36a320850140fff68afa3a5914d5e45334871",
+  "raw_smoke_file_sha256": "1b0f5c417a159cc46c2528d494c8060811f8606ec9a784c0c5d5e686972a0939",
+  "production_artifact_id": "b1cd5ca54c325f7a6c4289ac7693883fad9bf746191523cbd7c5a6c91defb3a9",
+  "manifest_sha256": "9c66fcc918e5ed086e4020e74cdb01ff8e2a4165c5381018582a585b303d724f",
+  "video_cli_verification": {
+    "status": "success",
+    "ffmpeg_version": "4.4.2",
+    "input_synthetic_frame_count": 3,
+    "requested_prefix_frame_count": 2,
+    "frames_completed": 2,
+    "prediction_published": true,
+    "point_maps_byte_identical_to_image_path": true,
+    "artifact_id": "71851b6f07f4fa8d2b16b0268148a3a217dea34ab1e9728e4e7d0518e2c3ef2b",
+    "receipt_file_sha256": "8beffb82d3399373c12ae3d3b4189049aedd2bb494cb0fae693c6c92e65aa852",
+    "manifest_sha256": "b30afef6511ef167055f3528d9e7d50037518ba1b5b454320e1fa8d6c254c077",
+    "provider_implementation_sha256": "7089a5fdec1ada2b219fd48ce8d57a70cd95ae8428f44e1158c97cb0bad667e8"
+  },
+  "implementation_sha256s": {
+    "cut3r_native_provider.py": "bdbf28894d255f18bbb6095baf0068c6f895208072ff2313314983a6da58e15a",
+    "cut3r_native_runtime.py": "23f22ed06d03857ef201fa27243d519e0cd028b57477928eeca7e4de702631ff",
+    "_cut3r_native_cli.py": "7ead4717cc6ec1f413eeae89cb723fcd8c36a5eeafbf6f8dd44f5b462bd67e07",
+    "scripts/smoke_cut3r_native.py": "ba2dfcd2b53ed0a10f784ab2bbff164090af585535b9f7890cb205eaa397631e"
+  }
+}
