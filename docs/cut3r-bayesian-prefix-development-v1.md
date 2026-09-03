@@ -59,3 +59,10 @@ on previously seen identities, not a disjoint-hidden-identity test. With only
 three previously opened source sequences, no confirmatory CI or SOTA claim is made.
 Any positive result must beat the full-prefix alignment and last-residual controls
 before it motivates a distinct, larger public-data evaluation.
+
+## Completed result
+
+The [retained result](../evidence/cut3r-bayesian-prefix-dev-v1/README.md) covers
+all three sequences. Shared-error Bayes improves RMSE by 78.38% over full-prefix
+metric alignment, but is 10.21% worse than last-residual correction overall.
+The strongest simple point baseline therefore remains unbeaten in this test.

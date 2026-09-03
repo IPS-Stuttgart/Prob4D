@@ -1,0 +1,440 @@
+{
+  "aggregate": {
+    "bayesian_iid": {
+      "coverage90": 1.0,
+      "full_coordinate_width90_prefix_span": 0.07953809957437373,
+      "nll_per_coordinate": -2.4873377956637013,
+      "normalized_nees": 0.6329481669180687,
+      "rmse_prefix_span": 0.03205764621305082,
+      "scored_rows": 9.333333333333334
+    },
+    "bayesian_shared": {
+      "coverage90": 1.0,
+      "full_coordinate_width90_prefix_span": 0.09125586280389031,
+      "nll_per_coordinate": -2.4551873612937407,
+      "normalized_nees": 0.4217323830160886,
+      "rmse_prefix_span": 0.029383184749615477,
+      "scored_rows": 9.333333333333334
+    },
+    "cut3r_full_prefix_alignment": {
+      "coverage90": 0.9166666666666666,
+      "full_coordinate_width90_prefix_span": 0.33548562963317696,
+      "nll_per_coordinate": -1.043604041370233,
+      "normalized_nees": 0.6408643236849988,
+      "rmse_prefix_span": 0.1358853664563937,
+      "scored_rows": 9.333333333333334
+    },
+    "cut3r_initial_alignment": {
+      "coverage90": 0.85,
+      "full_coordinate_width90_prefix_span": 0.33548562963317696,
+      "nll_per_coordinate": -0.6494164011496147,
+      "normalized_nees": 1.4292396041262354,
+      "rmse_prefix_span": 0.20032480631773986,
+      "scored_rows": 9.333333333333334
+    },
+    "last_residual": {
+      "coverage90": 1.0,
+      "full_coordinate_width90_prefix_span": 0.33548562963317696,
+      "nll_per_coordinate": -1.3501750269098924,
+      "normalized_nees": 0.0277223526056803,
+      "rmse_prefix_span": 0.026660604984818828,
+      "scored_rows": 9.333333333333334
+    }
+  },
+  "aggregate_scope": "all_three",
+  "artifact_id": "f8d138921e3bf9ce02721a9d4f7154ae5a4182fd56360dd2c40134a34e2a4941",
+  "autopromotion": false,
+  "calibration_guarantee": false,
+  "claim": "exploratory sparse-prefix 3D-supervised observed-frame reconstruction only",
+  "complete_denominator": true,
+  "implementation_revision": "d70e0a426d1ec3e5da512e941c4e72f7915fb8b7",
+  "locked_sequence_count": 3,
+  "new_future_3d_access_only_after_prediction_barrier": true,
+  "new_rgb_decoding": false,
+  "opened_coordinate_members": [
+    {
+      "member": "R01/coordinates/2d/frame000001_cam001.txt",
+      "sha256": "62c1b975b684569367e0adf3aa2c026b832a26a8e45be67858f6bad6eb4d466b",
+      "stage": "prediction"
+    },
+    {
+      "member": "R01/coordinates/3d/frame000001_cam001.txt",
+      "sha256": "a8c0e0e3051c9fabf3eaef14223f8782f52d0447ae803c07b7ace6459e3bd994",
+      "stage": "prediction"
+    },
+    {
+      "member": "R01/coordinates/2d/frame000002_cam001.txt",
+      "sha256": "245cd8fe6bfaa35e549085cf3ab91f3e2e4b3817f530765b6a5c06d1ab22abf3",
+      "stage": "prediction"
+    },
+    {
+      "member": "R01/coordinates/3d/frame000002_cam001.txt",
+      "sha256": "38f6edf451f3c1941a9088f2384dc720c61f5b4d067da0bafba18fa8da203470",
+      "stage": "prediction"
+    },
+    {
+      "member": "R01/coordinates/2d/frame000003_cam001.txt",
+      "sha256": "21f008275103000f06cb38f8630649597785978d785a78cba08fcbe7dc5b03e6",
+      "stage": "prediction"
+    },
+    {
+      "member": "R01/coordinates/3d/frame000003_cam001.txt",
+      "sha256": "8d20be0537b2a5a11483562c2834318545b0a13b5902964371f9df0edfbe78d9",
+      "stage": "prediction"
+    },
+    {
+      "member": "R01/coordinates/2d/frame000004_cam001.txt",
+      "sha256": "066a9ad6d9d56e643ffff09fdc09009adb69450c5eafa9cf28c956b9567de459",
+      "stage": "prediction"
+    },
+    {
+      "member": "R01/coordinates/3d/frame000004_cam001.txt",
+      "sha256": "e364977f67d8f4da04dafecc350aedd16fe91182acb766a53caa82badc3a493d",
+      "stage": "prediction"
+    },
+    {
+      "member": "R01/coordinates/2d/frame000005_cam001.txt",
+      "sha256": "213fc8a1994b7786fecc3380c020ea1242f404278a351950c1848384461188c8",
+      "stage": "prediction"
+    },
+    {
+      "member": "R01/coordinates/3d/frame000005_cam001.txt",
+      "sha256": "3e9e6cb3a242f860e7e888470a405f4f83165f34116db6b12738caed316a1e91",
+      "stage": "prediction"
+    },
+    {
+      "member": "R01/coordinates/2d/frame000006_cam001.txt",
+      "sha256": "d806d5a4bef2b343659b015e322d365090e630234e5127f71b95844bea656ebd",
+      "stage": "prediction"
+    },
+    {
+      "member": "R01/coordinates/2d/frame000007_cam001.txt",
+      "sha256": "10a45c05a0fac21b8421e9c33ef13895f9fc546e2067a50d1285cfeb308bb75a",
+      "stage": "prediction"
+    },
+    {
+      "member": "R02/coordinates/2d/frame000001_cam001.txt",
+      "sha256": "41d3a4551e63a8a297b2074699167857c575f9db16aa135c75083ccccfcf40c9",
+      "stage": "prediction"
+    },
+    {
+      "member": "R02/coordinates/3d/frame000001_cam001.txt",
+      "sha256": "e9c7338152944059582557d97861220069ac648331213f085e6f132296b2d88a",
+      "stage": "prediction"
+    },
+    {
+      "member": "R02/coordinates/2d/frame000002_cam001.txt",
+      "sha256": "c8504d3206b1c91c4fd8f1b8dae39f4439def2127e9730ef526337851a5e0212",
+      "stage": "prediction"
+    },
+    {
+      "member": "R02/coordinates/3d/frame000002_cam001.txt",
+      "sha256": "affcd856738e705faba1c546b15162e5f68fa7bb4d9b2520f80757eaa6d52efa",
+      "stage": "prediction"
+    },
+    {
+      "member": "R02/coordinates/2d/frame000003_cam001.txt",
+      "sha256": "4f0201c5213d82091dd31689b9e1093f8b04e83b8bacf561a46a30b06ec79efa",
+      "stage": "prediction"
+    },
+    {
+      "member": "R02/coordinates/3d/frame000003_cam001.txt",
+      "sha256": "1b7f14a12e750c4b53349c76f905fbaebd0817cdeb4b40067acc4bb9d54c31eb",
+      "stage": "prediction"
+    },
+    {
+      "member": "R02/coordinates/2d/frame000004_cam001.txt",
+      "sha256": "c4b024ebcdcc2401d3c816e994404eb7a247d99ad8742fc97489c5592b4919a6",
+      "stage": "prediction"
+    },
+    {
+      "member": "R02/coordinates/3d/frame000004_cam001.txt",
+      "sha256": "b919e5f75c042b93b8542eb885bf21af8bef6eb247d8f7a96239dfbfc959de0f",
+      "stage": "prediction"
+    },
+    {
+      "member": "R02/coordinates/2d/frame000005_cam001.txt",
+      "sha256": "0872b8e9a2595de5c959292b535b97126e7d6979db00e5599396e07d8d86af12",
+      "stage": "prediction"
+    },
+    {
+      "member": "R02/coordinates/3d/frame000005_cam001.txt",
+      "sha256": "3a10c6b77e24883d1b772abd6f6a6fe65020eba41cea2b95dd699bf2cfe51648",
+      "stage": "prediction"
+    },
+    {
+      "member": "R02/coordinates/2d/frame000006_cam001.txt",
+      "sha256": "091b0d7bbc67916cff89a9298cf70fbb2478ba73c9e210aacedcf778ac8b188e",
+      "stage": "prediction"
+    },
+    {
+      "member": "R02/coordinates/2d/frame000007_cam001.txt",
+      "sha256": "7282b426fd926e0cf9e0cb9518430bf39befbee6cf2991a2c15419902a841853",
+      "stage": "prediction"
+    },
+    {
+      "member": "R03/coordinates/2d/frame000001_cam001.txt",
+      "sha256": "9d5a2eb57314edece74334d715b9faa9d03c41bc17ad86394fd89adeab16f4ba",
+      "stage": "prediction"
+    },
+    {
+      "member": "R03/coordinates/3d/frame000001_cam001.txt",
+      "sha256": "876a82a4c40cc86aab3599b2733eade6b00eb74eb0189be64cbb6e6168fedf2c",
+      "stage": "prediction"
+    },
+    {
+      "member": "R03/coordinates/2d/frame000002_cam001.txt",
+      "sha256": "f57dd8197beaf0bac0a82021138c5598190ebf6be01a15358a29a6a9baddf118",
+      "stage": "prediction"
+    },
+    {
+      "member": "R03/coordinates/3d/frame000002_cam001.txt",
+      "sha256": "279340921da859ed7dc3667044675ab2d2ae78368919095b968151a2a369120f",
+      "stage": "prediction"
+    },
+    {
+      "member": "R03/coordinates/2d/frame000003_cam001.txt",
+      "sha256": "6b939a8cd8b5d93b9252f3bbaf8dc9fbdb2082ffdbda807a999ccffc1a75d632",
+      "stage": "prediction"
+    },
+    {
+      "member": "R03/coordinates/3d/frame000003_cam001.txt",
+      "sha256": "f26ebefbde544b77f695e472be5a769eca21be09a6350a47a7bb95e64087dc0b",
+      "stage": "prediction"
+    },
+    {
+      "member": "R03/coordinates/2d/frame000004_cam001.txt",
+      "sha256": "bf37e6c500ec6bb2483a67f67b5704b66b805d588dd7802a386b492d5046a26b",
+      "stage": "prediction"
+    },
+    {
+      "member": "R03/coordinates/3d/frame000004_cam001.txt",
+      "sha256": "0be4b2bb6ad6e528cf11d6484b867e8ee385f31d851a033a51b8f774ce138050",
+      "stage": "prediction"
+    },
+    {
+      "member": "R03/coordinates/2d/frame000005_cam001.txt",
+      "sha256": "7fe7134e6b42f9aebcc5dc6f90b22e5a745ced1e1a373ce8c47da823a8d10a85",
+      "stage": "prediction"
+    },
+    {
+      "member": "R03/coordinates/3d/frame000005_cam001.txt",
+      "sha256": "856a8dc77c010ff7b3997be973ea0e606671962b39d001696098e072828826f8",
+      "stage": "prediction"
+    },
+    {
+      "member": "R03/coordinates/2d/frame000006_cam001.txt",
+      "sha256": "b917e967dda85c3a691a3022d2a0c9273106fc17c52d0fd5a762f5a08e22b15f",
+      "stage": "prediction"
+    },
+    {
+      "member": "R03/coordinates/2d/frame000007_cam001.txt",
+      "sha256": "82e532c6ceee7dc7f60be15e1c97bf88f280ba4fa74ceda52b4495f743e82e51",
+      "stage": "prediction"
+    },
+    {
+      "member": "R01/coordinates/3d/frame000006_cam001.txt",
+      "sha256": "5a5b276988351685f3be1dd3233f7fa1765027c5a5f9c916c5b1766027c4724d",
+      "stage": "scoring"
+    },
+    {
+      "member": "R01/coordinates/3d/frame000007_cam001.txt",
+      "sha256": "3bb20932fbd909be74f5fe9111800624c812c98a75bcafc1e8fe948c9aa2c0a8",
+      "stage": "scoring"
+    },
+    {
+      "member": "R02/coordinates/3d/frame000006_cam001.txt",
+      "sha256": "b9fe03fcd5ceea3e0e3b45a5faa658547a18e7862f83f805823f083d12a2f877",
+      "stage": "scoring"
+    },
+    {
+      "member": "R02/coordinates/3d/frame000007_cam001.txt",
+      "sha256": "686577932de5ca5d76b78ac72be0b3222da03fdc51b5c473607e133a6a4634fb",
+      "stage": "scoring"
+    },
+    {
+      "member": "R03/coordinates/3d/frame000006_cam001.txt",
+      "sha256": "86cdb06fcf2f82653177c3080cb2c46f127e1eed5460d3707a97cb6a8936ee85",
+      "stage": "scoring"
+    },
+    {
+      "member": "R03/coordinates/3d/frame000007_cam001.txt",
+      "sha256": "a319e3e6be323947dc048ca02c40dd6301b20786cf11707ad665a76513d2596f",
+      "stage": "scoring"
+    }
+  ],
+  "per_sequence": {
+    "R01": {
+      "metrics": {
+        "bayesian_iid": {
+          "coverage90": 1.0,
+          "full_coordinate_width90_prefix_span": 0.07908557186486839,
+          "nll_per_coordinate": -2.45351362714013,
+          "normalized_nees": 0.712048549266435,
+          "rmse_prefix_span": 0.034900339610748045,
+          "scored_rows": 8.0
+        },
+        "bayesian_shared": {
+          "coverage90": 1.0,
+          "full_coordinate_width90_prefix_span": 0.09113427265698791,
+          "nll_per_coordinate": -2.3503896092934706,
+          "normalized_nees": 0.6341223346650576,
+          "rmse_prefix_span": 0.03787086311313494,
+          "scored_rows": 8.0
+        },
+        "cut3r_full_prefix_alignment": {
+          "coverage90": 0.75,
+          "full_coordinate_width90_prefix_span": 0.33548562963317696,
+          "nll_per_coordinate": -0.7822674761938913,
+          "normalized_nees": 1.1635374540376824,
+          "rmse_prefix_span": 0.19040494899278076,
+          "scored_rows": 8.0
+        },
+        "cut3r_initial_alignment": {
+          "coverage90": 0.75,
+          "full_coordinate_width90_prefix_span": 0.33548562963317696,
+          "nll_per_coordinate": -0.08821097928304011,
+          "normalized_nees": 2.5516504478593847,
+          "rmse_prefix_span": 0.2821538129219884,
+          "scored_rows": 8.0
+        },
+        "last_residual": {
+          "coverage90": 1.0,
+          "full_coordinate_width90_prefix_span": 0.33548562963317696,
+          "nll_per_coordinate": -1.3583541872734601,
+          "normalized_nees": 0.011364031878544982,
+          "rmse_prefix_span": 0.01828419682636263,
+          "scored_rows": 8.0
+        }
+      },
+      "status": "scored"
+    },
+    "R02": {
+      "metrics": {
+        "bayesian_iid": {
+          "coverage90": 1.0,
+          "full_coordinate_width90_prefix_span": 0.0809127587179955,
+          "nll_per_coordinate": -2.6455263805507734,
+          "normalized_nees": 0.2821464951341466,
+          "rmse_prefix_span": 0.02256180653960787,
+          "scored_rows": 10.0
+        },
+        "bayesian_shared": {
+          "coverage90": 1.0,
+          "full_coordinate_width90_prefix_span": 0.09101935081754362,
+          "nll_per_coordinate": -2.60665190922831,
+          "normalized_nees": 0.12386905868596813,
+          "rmse_prefix_span": 0.016716734974439606,
+          "scored_rows": 10.0
+        },
+        "cut3r_full_prefix_alignment": {
+          "coverage90": 1.0,
+          "full_coordinate_width90_prefix_span": 0.33548562963317696,
+          "nll_per_coordinate": -1.1618953426523362,
+          "normalized_nees": 0.40428172112079286,
+          "rmse_prefix_span": 0.11219765550067472,
+          "scored_rows": 10.0
+        },
+        "cut3r_initial_alignment": {
+          "coverage90": 0.8,
+          "full_coordinate_width90_prefix_span": 0.33548562963317696,
+          "nll_per_coordinate": -0.7228542506817757,
+          "normalized_nees": 1.2823639050619133,
+          "rmse_prefix_span": 0.19993779076182183,
+          "scored_rows": 10.0
+        },
+        "last_residual": {
+          "coverage90": 1.0,
+          "full_coordinate_width90_prefix_span": 0.33548562963317696,
+          "nll_per_coordinate": -1.3574941300875412,
+          "normalized_nees": 0.013084146250382681,
+          "rmse_prefix_span": 0.019856171017969274,
+          "scored_rows": 10.0
+        }
+      },
+      "status": "scored"
+    },
+    "R03": {
+      "metrics": {
+        "bayesian_iid": {
+          "coverage90": 1.0,
+          "full_coordinate_width90_prefix_span": 0.07861596814025729,
+          "nll_per_coordinate": -2.3629733793002003,
+          "normalized_nees": 0.9046494563536243,
+          "rmse_prefix_span": 0.03871079248879655,
+          "scored_rows": 10.0
+        },
+        "bayesian_shared": {
+          "coverage90": 1.0,
+          "full_coordinate_width90_prefix_span": 0.09161396493713939,
+          "nll_per_coordinate": -2.408520565359442,
+          "normalized_nees": 0.5072057556972401,
+          "rmse_prefix_span": 0.03356195616127188,
+          "scored_rows": 10.0
+        },
+        "cut3r_full_prefix_alignment": {
+          "coverage90": 1.0,
+          "full_coordinate_width90_prefix_span": 0.33548562963317696,
+          "nll_per_coordinate": -1.186649305264472,
+          "normalized_nees": 0.35477379589652114,
+          "rmse_prefix_span": 0.10505349487572563,
+          "scored_rows": 10.0
+        },
+        "cut3r_initial_alignment": {
+          "coverage90": 1.0,
+          "full_coordinate_width90_prefix_span": 0.33548562963317696,
+          "nll_per_coordinate": -1.1371839734840283,
+          "normalized_nees": 0.4537044594574083,
+          "rmse_prefix_span": 0.11888281526940932,
+          "scored_rows": 10.0
+        },
+        "last_residual": {
+          "coverage90": 1.0,
+          "full_coordinate_width90_prefix_span": 0.33548562963317696,
+          "nll_per_coordinate": -1.3346767633686758,
+          "normalized_nees": 0.05871887968811323,
+          "rmse_prefix_span": 0.04184144711012458,
+          "scored_rows": 10.0
+        }
+      },
+      "status": "scored"
+    }
+  },
+  "prediction_accounting": {
+    "R01": {
+      "file": "R01-predictions.npz",
+      "prefix_count": 20,
+      "query_count": 8,
+      "sha256": "483de5b89b84599ebef2dcad710a5446f3cde3a8aeadb1cef3001cd09835b30b",
+      "status": "ordinary_success",
+      "update_count": 12
+    },
+    "R02": {
+      "file": "R02-predictions.npz",
+      "prefix_count": 25,
+      "query_count": 10,
+      "sha256": "353cb304e62fae14b6d241565b4e654d84ceadca87e2abd3a6c9f1a2f5febbed",
+      "status": "ordinary_success",
+      "update_count": 15
+    },
+    "R03": {
+      "file": "R03-predictions.npz",
+      "prefix_count": 25,
+      "query_count": 10,
+      "sha256": "93cd139f8c503e939f3027bf502180a8e2e6bd08f91e24adb421671745dac20a",
+      "status": "ordinary_success",
+      "update_count": 15
+    }
+  },
+  "prediction_barrier_id": "9a7d448192121533228c4ebbc5cb3ff9a16f0752d04ecb979ed992ccfc5492ab",
+  "prior_source_outcomes_already_opened": true,
+  "protected_targets_accessed": false,
+  "protocol_id": "30ce2d2825f3ef68798b402ae2945d0c4cd74216c36b35c327a37994f5837c14",
+  "provider_inference_rerun": false,
+  "runtime": {
+    "numpy": "2.2.6",
+    "python": "3.10.12"
+  },
+  "schema": "prob4d.cut3r-bayesian-prefix-development-result-v1",
+  "scored_sequence_count": 3
+}
