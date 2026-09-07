@@ -1,0 +1,467 @@
+name: DOT R11-R30 gpuserver6000 prewarm v1
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "protocols/execution_requests/dot_r11_r30_gpuserver6000_prewarm_v1.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dot-r11-r30-gpuserver6000-prewarm-v1
+  cancel-in-progress: false
+
+env:
+  REQUEST_PATH: protocols/execution_requests/dot_r11_r30_gpuserver6000_prewarm_v1.json
+  RUNTIME_ROOT: /home/github-runner/.cache/prob4d/dot-r11-r30-cut3r-gpuserver6000-v1
+  ARCHIVE_ROOT: /home/github-runner/.cache/prob4d/dot-r11-r30-archives-v29
+  CUT3R_REVISION: 8bc15dc92a6d7fd92920b4ec81540d3dec7d3ecf
+  CUT3R_CHECKPOINT_SHA256: 45f7e98a0a64dbeb54901ae2b878cd8cd125f20a4497316483f0bd6f109f8103
+  CUT3R_CHECKPOINT_GDRIVE_ID: 1Asz-ZB3FfpzZYwunhQvNPZEUA8XUNAYD
+  R11_ARCHIVE: R11-20.zip
+  R11_MD5: 23ce3e7067465d3edabe20b4c7cfa388
+  R21_ARCHIVE: R21-30.zip
+  R21_MD5: 8aee77f79d1aff6e1f3fd21886b251a0
+  DATASET_API: https://dataverse.orc.gmu.edu/api/datasets/:persistentId/?persistentId=doi:10.13021/ORC2020/XXLVXM
+  DATAFILE_API_ROOT: https://dataverse.orc.gmu.edu/api/access/datafile
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+
+jobs:
+  authorize:
+    name: Authorize one immutable operational prewarm
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      head_sha: ${{ steps.request.outputs.head_sha }}
+      request_id: ${{ steps.request.outputs.request_id }}
+    steps:
+      - name: Check out exact merged-main revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+          clean: true
+      - name: Require exactly one non-forced request-file change
+        id: request
+        shell: bash
+        env:
+          EVENT_REF: ${{ github.ref }}
+          EVENT_BEFORE: ${{ github.event.before }}
+          EVENT_AFTER: ${{ github.event.after }}
+          EVENT_FORCED: ${{ github.event.forced }}
+          EVENT_DELETED: ${{ github.event.deleted }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_REF" = "refs/heads/main"
+          test "$EVENT_AFTER" = "$(git rev-parse HEAD)"
+          test "$EVENT_FORCED" = "false"
+          test "$EVENT_DELETED" = "false"
+          test "$EVENT_BEFORE" != "0000000000000000000000000000000000000000"
+          mapfile -t changed < <(git diff --name-only "$EVENT_BEFORE" "$EVENT_AFTER" | sort)
+          if [[ ${#changed[@]} -ne 1 || "${changed[0]}" != "$REQUEST_PATH" ]]; then
+            printf 'Expected only %s; changed paths were:\n' "$REQUEST_PATH" >&2
+            printf '  %s\n' "${changed[@]}" >&2
+            exit 2
+          fi
+          test -f "$REQUEST_PATH"
+          REQUEST="$REQUEST_PATH" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          value = json.loads(Path(os.environ["REQUEST"]).read_text(encoding="utf-8"))
+          expected = {
+              "schema": "prob4d.dot-r11-r30-gpuserver6000-prewarm-request",
+              "schema_version": 1,
+              "runner_label": "gpuserver6000",
+              "runner_name": "workstation2",
+              "scope": "runtime-and-compressed-archive-prewarm-only",
+              "archives": ["R11-20.zip", "R21-30.zip"],
+              "archives_may_be_extracted": False,
+              "markers_may_be_opened": False,
+              "scientific_evaluation_authorized": False,
+          }
+          if value != expected:
+              raise SystemExit("operational prewarm request content changed")
+          PY
+          request_id=$(sha256sum "$REQUEST_PATH" | awk '{print $1}')
+          {
+            echo "head_sha=$EVENT_AFTER"
+            echo "request_id=$request_id"
+          } >> "$GITHUB_OUTPUT"
+
+  prewarm:
+    name: Prewarm exact CUT3R runtime and unopened R11-R30 archives
+    if: github.event_name == 'push'
+    needs: authorize
+    environment: trusted-self-hosted-validation
+    runs-on: [self-hosted, gpuserver6000]
+    timeout-minutes: 720
+    permissions:
+      contents: read
+    steps:
+      - name: Bind intended runner and initialize receipt workspace
+        id: workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_NAME" = "workstation2"
+          test "$RUNNER_OS" = "Linux"
+          test "$RUNNER_ARCH" = "X64"
+          command -v nvidia-smi >/dev/null 2>&1
+          command -v c++ >/dev/null 2>&1
+          root="${RUNNER_TEMP}/prob4d-dot-r11-r30-prewarm-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          rm -rf -- "$root"
+          mkdir -p "$root/receipt" "$root/home" "$root/tmp" "$root/cache"
+          echo "root=$root" >> "$GITHUB_OUTPUT"
+          {
+            echo "HOME=$root/home"
+            echo "TMPDIR=$root/tmp"
+            echo "XDG_CACHE_HOME=$root/cache"
+            echo "PIP_CACHE_DIR=$root/cache/pip"
+            echo "HF_HOME=$root/cache/huggingface"
+            echo "WANDB_MODE=disabled"
+            echo "WANDB_DISABLED=true"
+          } >> "$GITHUB_ENV"
+          nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv,noheader
+      - name: Check out exact authorized Prob4D revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.authorize.outputs.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+      - name: Set up bootstrap Python 3.11
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+      - name: Reuse or atomically build exact persistent CUT3R runtime
+        shell: bash
+        env:
+          REQUEST_ID: ${{ needs.authorize.outputs.request_id }}
+        run: |
+          set -euo pipefail
+          manifest="$RUNTIME_ROOT/bootstrap-manifest.json"
+          valid=false
+          if [[ -f "$manifest" && -x "$RUNTIME_ROOT/venv/bin/python" && -d "$RUNTIME_ROOT/CUT3R/.git" ]]; then
+            if MANIFEST="$manifest" ROOT="$RUNTIME_ROOT" python - <<'PY'
+          import json
+          import os
+          import re
+          import subprocess
+          from pathlib import Path
+
+          root = Path(os.environ["ROOT"])
+          value = json.loads(Path(os.environ["MANIFEST"]).read_text(encoding="utf-8"))
+          if value.get("schema") != "prob4d.dot-cut3r-gpuserver6000-runtime-prewarm":
+              raise SystemExit(1)
+          if value.get("schema_version") != 1:
+              raise SystemExit(1)
+          if value.get("cut3r_revision") != os.environ["CUT3R_REVISION"]:
+              raise SystemExit(1)
+          if value.get("checkpoint_sha256") != os.environ["CUT3R_CHECKPOINT_SHA256"]:
+              raise SystemExit(1)
+          if value.get("runtime_python") != str(root / "venv/bin/python"):
+              raise SystemExit(1)
+          if value.get("dot_dataset_accessed") is not False:
+              raise SystemExit(1)
+          if value.get("archives_opened") is not False:
+              raise SystemExit(1)
+          native_id = value.get("native_rope_artifact_id", "")
+          if re.fullmatch(r"[0-9a-f]{64}", native_id) is None:
+              raise SystemExit(1)
+          head = subprocess.check_output(
+              ["git", "-C", str(root / "CUT3R"), "rev-parse", "HEAD"], text=True
+          ).strip()
+          if head != os.environ["CUT3R_REVISION"]:
+              raise SystemExit(1)
+          PY
+            then
+              if [[ "$(sha256sum "$RUNTIME_ROOT/cut3r_512_dpt_4_64.pth" | awk '{print $1}')" = "$CUT3R_CHECKPOINT_SHA256" ]]; then
+                if "$RUNTIME_ROOT/venv/bin/python" - <<'PY'
+          import torch
+          if not torch.cuda.is_available():
+              raise SystemExit(1)
+          print(torch.__version__, torch.version.cuda, torch.cuda.get_device_name(0))
+          PY
+                then
+                  valid=true
+                fi
+              fi
+            fi
+          fi
+
+          if [[ "$valid" != true ]]; then
+            parent=$(dirname "$RUNTIME_ROOT")
+            stage="${RUNTIME_ROOT}.stage-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+            mkdir -p "$parent"
+            rm -rf -- "$stage"
+            mkdir -p "$stage"
+
+            git init -q "$stage/CUT3R"
+            git -C "$stage/CUT3R" remote add origin https://github.com/CUT3R/CUT3R.git
+            git -C "$stage/CUT3R" fetch --depth 1 origin "$CUT3R_REVISION"
+            git -C "$stage/CUT3R" checkout --detach FETCH_HEAD
+            test "$(git -C "$stage/CUT3R" rev-parse HEAD)" = "$CUT3R_REVISION"
+
+            python -m venv "$stage/venv"
+            runtime_python="$stage/venv/bin/python"
+            "$runtime_python" -m pip install \
+              "pip==25.2" "setuptools==80.9.0" "wheel==0.45.1"
+            "$runtime_python" -m pip install \
+              torch==2.11.0 torchvision==0.26.0 \
+              --index-url https://download.pytorch.org/whl/cu126
+            python - "$stage/CUT3R/requirements.txt" "$stage/requirements-no-torch.txt" <<'PY'
+          import re
+          import sys
+          from pathlib import Path
+
+          source = Path(sys.argv[1]).read_text(encoding="utf-8").splitlines()
+          kept = []
+          for line in source:
+              stripped = line.strip()
+              if re.match(r"^(torch|torchvision)(?:\s|[<>=!~].*)?$", stripped, flags=re.I):
+                  continue
+              kept.append(line)
+          Path(sys.argv[2]).write_text("\n".join(kept) + "\n", encoding="utf-8")
+          PY
+            "$runtime_python" -m pip install -r "$stage/requirements-no-torch.txt" gdown==5.2.0
+            "$runtime_python" -m pip check
+
+            checkpoint="$stage/cut3r_512_dpt_4_64.pth"
+            CHECKPOINT="$checkpoint" "$runtime_python" - <<'PY'
+          import os
+          import gdown
+
+          result = gdown.download(
+              id=os.environ["CUT3R_CHECKPOINT_GDRIVE_ID"],
+              output=os.environ["CHECKPOINT"],
+              quiet=False,
+          )
+          if result is None:
+              raise SystemExit("gdown did not produce the frozen CUT3R checkpoint")
+          PY
+            test "$(sha256sum "$checkpoint" | awk '{print $1}')" = "$CUT3R_CHECKPOINT_SHA256"
+
+            nvcc=""
+            for candidate in \
+              "$(command -v nvcc || true)" \
+              /usr/local/cuda/bin/nvcc \
+              /usr/local/cuda-12.6/bin/nvcc \
+              /usr/local/cuda-12.8/bin/nvcc
+            do
+              if [[ -x "$candidate" ]]; then
+                nvcc="$candidate"
+                break
+              fi
+            done
+            test -n "$nvcc" || {
+              echo "native RoPE requires nvcc" >&2
+              exit 2
+            }
+            cuda_home=$(dirname "$(dirname "$nvcc")")
+            arch=$(
+              "$runtime_python" - <<'PY'
+          import torch
+          if not torch.cuda.is_available():
+              raise SystemExit("CUDA is unavailable")
+          major, minor = torch.cuda.get_device_capability(0)
+          print(f"{major}.{minor}")
+          PY
+            )
+            find "$stage/CUT3R/src/croco/models/curope" -maxdepth 1 -type f -name '*.so' -delete
+            rm -rf -- "$stage/CUT3R/src/croco/models/curope/build"
+            CUDA_HOME="$cuda_home" \
+              TORCH_CUDA_ARCH_LIST="$arch" \
+              MAX_JOBS=4 \
+              TORCH_EXTENSIONS_DIR="$stage/torch-extensions" \
+              PYTHONPATH="$GITHUB_WORKSPACE/src:$stage/CUT3R:$stage/CUT3R/src" \
+              "$runtime_python" scripts/science/prepare_cut3r_runtime.py \
+                --cut3r-checkout "$stage/CUT3R" \
+                --build \
+                --output "$stage/runtime-receipt.json"
+
+            STAGE="$stage" FINAL="$RUNTIME_ROOT" REQUEST_ID="$REQUEST_ID" \
+              "$runtime_python" - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          stage = Path(os.environ["STAGE"])
+          native_files = sorted((stage / "CUT3R/src/croco/models/curope").glob("*.so"))
+          if not native_files:
+              raise SystemExit("native RoPE build emitted no shared object")
+          digest = hashlib.sha256()
+          for path in native_files:
+              digest.update(path.name.encode("utf-8"))
+              digest.update(b"\0")
+              digest.update(path.read_bytes())
+          manifest = {
+              "schema": "prob4d.dot-cut3r-gpuserver6000-runtime-prewarm",
+              "schema_version": 1,
+              "request_id": os.environ["REQUEST_ID"],
+              "runner_name": os.environ["RUNNER_NAME"],
+              "cut3r_revision": os.environ["CUT3R_REVISION"],
+              "checkpoint_sha256": os.environ["CUT3R_CHECKPOINT_SHA256"],
+              "runtime_python": str(Path(os.environ["FINAL"]) / "venv/bin/python"),
+              "native_rope_artifact_id": digest.hexdigest(),
+              "dot_dataset_accessed": False,
+              "archives_opened": False,
+          }
+          (stage / "bootstrap-manifest.json").write_text(
+              json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+            rm -rf -- "$RUNTIME_ROOT"
+            mv -- "$stage" "$RUNTIME_ROOT"
+          fi
+
+          test -x "$RUNTIME_ROOT/venv/bin/python"
+          test "$(git -C "$RUNTIME_ROOT/CUT3R" rev-parse HEAD)" = "$CUT3R_REVISION"
+          test "$(sha256sum "$RUNTIME_ROOT/cut3r_512_dpt_4_64.pth" | awk '{print $1}')" = "$CUT3R_CHECKPOINT_SHA256"
+          "$RUNTIME_ROOT/venv/bin/python" - <<'PY'
+          import torch
+          if not torch.cuda.is_available():
+              raise SystemExit("persistent runtime has no CUDA")
+          print("runtime", torch.__version__, torch.version.cuda, torch.cuda.get_device_name(0))
+          PY
+      - name: Download and verify compressed R11-R30 archives without opening them
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$ARCHIVE_ROOT"
+          ROOT="${{ steps.workspace.outputs.root }}" python - <<'PY' > "$RUNNER_TEMP/dot-r11-r30-prewarm.tsv"
+          import json
+          import os
+          import urllib.request
+          from pathlib import Path
+
+          expected = {
+              os.environ["R11_ARCHIVE"]: os.environ["R11_MD5"],
+              os.environ["R21_ARCHIVE"]: os.environ["R21_MD5"],
+          }
+          request = urllib.request.Request(
+              os.environ["DATASET_API"],
+              headers={"User-Agent": "Prob4D-DOT-R11-R30-prewarm/1"},
+          )
+          with urllib.request.urlopen(request, timeout=60) as response:
+              metadata = json.load(response)
+          if metadata.get("status") != "OK":
+              raise SystemExit("Dataverse metadata request did not return OK")
+          files = metadata["data"]["latestVersion"]["files"]
+          by_name = {entry["dataFile"]["filename"]: entry["dataFile"] for entry in files}
+          receipt = {}
+          for name, md5 in expected.items():
+              data_file = by_name.get(name)
+              checksum = (data_file or {}).get("checksum") or {}
+              if checksum.get("type") != "MD5" or checksum.get("value", "").lower() != md5:
+                  raise SystemExit(f"official identity changed for {name}")
+              receipt[name] = {
+                  "datafile_id": int(data_file["id"]),
+                  "bytes": int(data_file["filesize"]),
+                  "md5": md5,
+              }
+              print(name, int(data_file["id"]), int(data_file["filesize"]), md5, sep="\t")
+          Path(os.environ["ROOT"], "receipt", "official-archives.json").write_text(
+              json.dumps(receipt, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          while IFS=$'\t' read -r name file_id bytes md5; do
+            archive="$ARCHIVE_ROOT/$name"
+            valid=false
+            if [[ -f "$archive" && "$(stat -c %s "$archive")" = "$bytes" ]]; then
+              measured=$(md5sum "$archive" | awk '{print $1}')
+              [[ "$measured" = "$md5" ]] && valid=true
+            fi
+            if [[ "$valid" != true ]]; then
+              part="$archive.part"
+              touch "$part"
+              curl --fail --location --retry 12 --retry-all-errors \
+                --connect-timeout 30 --continue-at - \
+                --output "$part" "$DATAFILE_API_ROOT/$file_id"
+              test "$(stat -c %s "$part")" = "$bytes"
+              printf '%s  %s\n' "$md5" "$part" | md5sum --check --strict
+              mv -- "$part" "$archive"
+            fi
+            test "$(stat -c %s "$archive")" = "$bytes"
+            printf '%s  %s\n' "$md5" "$archive" | md5sum --check --strict
+          done < "$RUNNER_TEMP/dot-r11-r30-prewarm.tsv"
+      - name: Seal bounded prewarm receipt
+        shell: bash
+        env:
+          REQUEST_ID: ${{ needs.authorize.outputs.request_id }}
+          EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          ROOT="${{ steps.workspace.outputs.root }}" python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["ROOT"])
+          archives = json.loads((root / "receipt/official-archives.json").read_text(encoding="utf-8"))
+          runtime = json.loads(
+              Path(os.environ["RUNTIME_ROOT"], "bootstrap-manifest.json").read_text(encoding="utf-8")
+          )
+          value = {
+              "schema": "prob4d.dot-r11-r30-gpuserver6000-prewarm-result",
+              "schema_version": 1,
+              "request_id": os.environ["REQUEST_ID"],
+              "prob4d_revision": os.environ["EXPECTED_HEAD_SHA"],
+              "runner_name": os.environ["RUNNER_NAME"],
+              "runtime": runtime,
+              "archives": archives,
+              "information_boundary": {
+                  "compressed_archives_downloaded": True,
+                  "archives_opened": False,
+                  "normal_view_images_opened": False,
+                  "two_dimensional_markers_opened": False,
+                  "three_dimensional_markers_opened": False,
+                  "scientific_predictions_constructed": False,
+                  "scientific_evaluation_performed": False,
+              },
+              "reserved_sequences": "R31-R70",
+          }
+          canonical = json.dumps(
+              value,
+              sort_keys=True,
+              separators=(",", ":"),
+              ensure_ascii=False,
+              allow_nan=False,
+          ).encode("utf-8")
+          value["result_id"] = hashlib.sha256(canonical).hexdigest()
+          (root / "receipt/result.json").write_text(
+              json.dumps(value, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+      - name: Upload bounded prewarm receipt
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: dot-r11-r30-gpuserver6000-prewarm-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.workspace.outputs.root }}/receipt/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Remove isolated receipt workspace
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${{ steps.workspace.outputs.root }}"
+          test "$root" = "${RUNNER_TEMP}/prob4d-dot-r11-r30-prewarm-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          rm -rf -- "$root"
