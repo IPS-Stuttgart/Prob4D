@@ -20,7 +20,8 @@ def test_postprocessor_is_exact_run_bound_and_hosted_only() -> None:
     assert "types: [completed]" in prefix
     assert 'TARGET_RUN_ID: "33434695566"' in text
     assert "TARGET_HEAD_SHA: 9e1b77b2e70685881db7f188a95a3a91443275e8" in text
-    assert '"run_attempt": 2' in text
+    assert "attempt not in {2, 3}" in text
+    assert "workflow-run attempt changed" in text
     assert "runs-on: ubuntu-latest" in text
     assert "self-hosted" not in text
     assert "secrets." not in text

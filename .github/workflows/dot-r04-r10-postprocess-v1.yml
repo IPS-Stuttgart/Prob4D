@@ -73,6 +73,9 @@ jobs:
           event = json.loads(Path(os.environ["EVENT_PATH"]).read_text(encoding="utf-8"))
           payload = event.get("workflow_run") or {}
           target_run_id = int(os.environ["TARGET_RUN_ID"])
+          attempt = int(payload.get("run_attempt", 0))
+          if attempt not in {2, 3}:
+              raise SystemExit("unexpected triggering workflow attempt")
           expected = {
               "id": target_run_id,
               "head_sha": os.environ["TARGET_HEAD_SHA"],
@@ -80,7 +83,6 @@ jobs:
               "head_branch": "main",
               "event": "push",
               "status": "completed",
-              "run_attempt": 2,
           }
           for key, value in expected.items():
               if payload.get(key) != value:
@@ -104,6 +106,8 @@ jobs:
           for key, value in expected.items():
               if run.get(key) != value:
                   raise SystemExit(f"workflow-run metadata changed: {key}")
+          if int(run.get("run_attempt", 0)) != attempt:
+              raise SystemExit("workflow-run attempt changed")
 
           jobs = get(f"/actions/runs/{target_run_id}/jobs?per_page=100").get("jobs", [])
           providers = [job for job in jobs if job.get("name") == os.environ["TARGET_PROVIDER_JOB"]]

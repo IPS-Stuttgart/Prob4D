@@ -1,4 +1,4 @@
-name: Relay frozen DOT R04-R10 archive v1
+name: Relay frozen DOT R04-R10 archive v2
 
 on:
   pull_request:
@@ -25,9 +25,14 @@ concurrency:
 env:
   REQUEST_PATH: protocols/execution_requests/dot_r04_r10_hosted_archive_relay_v1.json
   TARGET_RUN_ID: "33434695566"
-  TARGET_JOB_ID: "99628289885"
+  TARGET_JOB_ID: "99660292244"
+  TARGET_ATTEMPT: "2"
   TARGET_HEAD_SHA: 9e1b77b2e70685881db7f188a95a3a91443275e8
   RECOVERY_RUN_ID: "33442397966"
+  RECOVERY_JOB_ID: "99653502112"
+  RECOVERY_HEAD_SHA: ef2daea9484edb17917f328812a458813f692cd6
+  RECOVERY_WORKFLOW_PATH: .github/workflows/recover-dot-r04-r10-archive-cache-v2.yml
+  MIN_RECOVERY_SECONDS: "3600"
   ARCHIVE_NAME: R01-10.zip
   ARCHIVE_BYTES: "1408905061"
   ARCHIVE_MD5: ca546ff5f22c0279123ccb18509858ee
@@ -72,12 +77,12 @@ jobs:
             tests/test_github_action_pins.py
 
   authorize:
-    name: Authorize one exact relay request after failed direct recovery
+    name: Authorize exact attempt-2 relay and retire transport owners
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
-      actions: read
+      actions: write
       contents: read
     outputs:
       request_id: ${{ steps.request.outputs.request_id }}
@@ -128,14 +133,19 @@ jobs:
           path = Path(os.environ["REQUEST_PATH"])
           request = json.loads(path.read_text(encoding="utf-8"))
           assert request["schema"] == "prob4d.dot-r04-r10-hosted-archive-relay-request"
-          assert request["schema_version"] == 1
+          assert request["schema_version"] == 2
           payload = dict(request)
           request_id = payload.pop("request_id")
           assert hashlib.sha256(canonical(payload)).hexdigest() == request_id
           assert request["target_run_id"] == int(os.environ["TARGET_RUN_ID"])
           assert request["target_job_id"] == int(os.environ["TARGET_JOB_ID"])
+          assert request["target_attempt"] == int(os.environ["TARGET_ATTEMPT"])
           assert request["target_head_sha"] == os.environ["TARGET_HEAD_SHA"]
           assert request["failed_recovery_run_id"] == int(os.environ["RECOVERY_RUN_ID"])
+          assert request["failed_recovery_job_id"] == int(os.environ["RECOVERY_JOB_ID"])
+          assert request["failed_recovery_head_sha"] == os.environ["RECOVERY_HEAD_SHA"]
+          assert request["failed_recovery_workflow_path"] == os.environ["RECOVERY_WORKFLOW_PATH"]
+          assert request["minimum_recovery_seconds"] == int(os.environ["MIN_RECOVERY_SECONDS"])
           assert request["archive_name"] == os.environ["ARCHIVE_NAME"]
           assert request["archive_bytes"] == int(os.environ["ARCHIVE_BYTES"])
           assert request["archive_md5"] == os.environ["ARCHIVE_MD5"]
@@ -147,65 +157,207 @@ jobs:
           assert request["scientific_inputs_changed"] is False
           assert request["provider_prediction_inside_relay"] is False
           assert request["marker_payload_access_inside_relay"] is False
-          assert request["action"] == "relay-official-archive-and-rerun-exact-failed-job"
+          assert request["action"] == "relay-official-archive-and-rerun-cancelled-attempt2-provider-job"
           with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
               output.write(f"request_id={request_id}\n")
               output.write(f"head_sha={os.environ['EVENT_AFTER']}\n")
           PY
-      - name: Require failed direct recovery and untouched failed provider run
+      - name: Require overlong or failed direct recovery and retire exact queued attempt 2
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          REQUEST_ID: ${{ steps.request.outputs.request_id }}
         run: |
           set -euo pipefail
           python - <<'PY'
+          from __future__ import annotations
+
+          import datetime as dt
           import json
           import os
+          import time
+          import urllib.error
           import urllib.request
+          from typing import Any
 
-          api = os.environ["GITHUB_API_URL"]
+          api = os.environ["GITHUB_API_URL"].rstrip("/")
           repository = os.environ["GITHUB_REPOSITORY"]
           headers = {
               "Accept": "application/vnd.github+json",
               "Authorization": f"Bearer {os.environ['GH_TOKEN']}",
-              "User-Agent": "Prob4D-DOT-hosted-relay/1",
+              "User-Agent": "Prob4D-DOT-hosted-relay-v2/1",
               "X-GitHub-Api-Version": "2022-11-28",
           }
 
-          def get(path):
+          def call(method: str, path: str) -> tuple[int, Any]:
               request = urllib.request.Request(
-                  f"{api}/repos/{repository}{path}", headers=headers
+                  f"{api}/repos/{repository}{path}",
+                  method=method,
+                  data=b"" if method == "POST" else None,
+                  headers=headers,
               )
-              with urllib.request.urlopen(request, timeout=60) as response:
-                  return json.load(response)
+              try:
+                  with urllib.request.urlopen(request, timeout=60) as response:
+                      raw = response.read()
+                      return response.status, json.loads(raw) if raw else None
+              except urllib.error.HTTPError as error:
+                  detail = error.read().decode("utf-8", errors="replace")
+                  raise RuntimeError(
+                      f"GitHub API {method} {path} failed with {error.code}: {detail}"
+                  ) from error
 
-          recovery = get(f"/actions/runs/{os.environ['RECOVERY_RUN_ID']}")
-          if recovery["status"] != "completed" or recovery.get("conclusion") == "success":
-              raise SystemExit("direct recovery has not terminally failed; hosted relay is not authorized")
+          def get(path: str) -> Any:
+              return call("GET", path)[1]
 
-          target = get(f"/actions/runs/{os.environ['TARGET_RUN_ID']}")
+          def jobs(run_id: int) -> list[dict[str, Any]]:
+              payload = get(f"/actions/runs/{run_id}/jobs?per_page=100")
+              return list(payload.get("jobs", []))
+
+          def artifacts(run_id: int) -> list[dict[str, Any]]:
+              payload = get(f"/actions/runs/{run_id}/artifacts?per_page=100")
+              return list(payload.get("artifacts", []))
+
+          def cancel_and_wait(run_id: int, *, label: str) -> dict[str, Any]:
+              status, _ = call("POST", f"/actions/runs/{run_id}/cancel")
+              if status not in {202, 204}:
+                  raise SystemExit(f"unexpected {label} cancellation response {status}")
+              deadline = time.monotonic() + 180.0
+              while time.monotonic() < deadline:
+                  value = get(f"/actions/runs/{run_id}")
+                  if value["status"] == "completed":
+                      if value.get("conclusion") != "cancelled":
+                          raise SystemExit(
+                              f"{label} completed unexpectedly as {value.get('conclusion')}"
+                          )
+                      return value
+                  time.sleep(2)
+              raise SystemExit(f"timed out cancelling {label}")
+
+          recovery_run_id = int(os.environ["RECOVERY_RUN_ID"])
+          recovery = get(f"/actions/runs/{recovery_run_id}")
+          if recovery["head_sha"] != os.environ["RECOVERY_HEAD_SHA"]:
+              raise SystemExit("direct recovery head changed")
+          if recovery["path"] != os.environ["RECOVERY_WORKFLOW_PATH"]:
+              raise SystemExit("direct recovery workflow changed")
+          if int(recovery.get("run_attempt", 0)) != 1:
+              raise SystemExit("direct recovery attempt changed")
+          if artifacts(recovery_run_id):
+              raise SystemExit("direct recovery already emitted evidence")
+
+          recovery_matches = [
+              job
+              for job in jobs(recovery_run_id)
+              if int(job["id"]) == int(os.environ["RECOVERY_JOB_ID"])
+              and job.get("name") == "Recover exact official archive on gpuserver6000"
+          ]
+          if len(recovery_matches) != 1:
+              raise SystemExit("exact direct-recovery job is unavailable")
+          recovery_job = recovery_matches[0]
+          cancel_recovery = False
+          recovery_state = f"{recovery['status']}/{recovery.get('conclusion')}"
+
+          if recovery["status"] == "completed":
+              if recovery.get("conclusion") == "success":
+                  raise SystemExit("direct recovery succeeded; hosted relay is forbidden")
+          elif recovery["status"] == "in_progress":
+              if recovery_job["status"] != "in_progress":
+                  raise SystemExit("direct recovery run/job state is inconsistent")
+              if recovery_job.get("runner_name") != "workstation2":
+                  raise SystemExit("direct recovery runner changed")
+              steps = {
+                  step.get("name"): step for step in recovery_job.get("steps") or []
+              }
+              for name in (
+                  "Bind intended runner and tools",
+                  "Prove failure remained before provider prediction and sealing",
+              ):
+                  if (steps.get(name) or {}).get("conclusion") != "success":
+                      raise SystemExit(f"direct recovery prerequisite changed: {name}")
+              archive = steps.get(
+                  "Reuse, salvage, or reacquire publisher-verified archive"
+              ) or {}
+              receipt = steps.get("Upload bounded recovery receipt") or {}
+              if archive.get("status") != "in_progress" or archive.get("conclusion") is not None:
+                  raise SystemExit("direct recovery advanced beyond archive acquisition")
+              if receipt.get("status") not in {"pending", "queued"}:
+                  raise SystemExit("direct recovery advanced to receipt publication")
+              started = archive.get("started_at")
+              if not started:
+                  raise SystemExit("archive-recovery start time is unavailable")
+              start_time = dt.datetime.fromisoformat(started.replace("Z", "+00:00"))
+              elapsed = (dt.datetime.now(dt.timezone.utc) - start_time).total_seconds()
+              if elapsed < int(os.environ["MIN_RECOVERY_SECONDS"]):
+                  raise SystemExit(
+                      f"direct recovery has not exceeded the frozen relay threshold: {elapsed:.1f}s"
+                  )
+              cancel_recovery = True
+          else:
+              raise SystemExit("direct recovery is neither terminal nor safely cancellable")
+
+          target_run_id = int(os.environ["TARGET_RUN_ID"])
+          target = get(f"/actions/runs/{target_run_id}")
           if target["head_sha"] != os.environ["TARGET_HEAD_SHA"]:
               raise SystemExit("target run head changed")
-          if target["status"] != "completed" or target.get("conclusion") != "failure":
-              raise SystemExit("target run is no longer the failed pre-inference execution")
-          artifacts = get(f"/actions/runs/{os.environ['TARGET_RUN_ID']}/artifacts?per_page=100")
-          if int(artifacts.get("total_count", 0)) != 0:
-              raise SystemExit("target run unexpectedly published artifacts")
-          jobs = get(f"/actions/runs/{os.environ['TARGET_RUN_ID']}/jobs?per_page=100")["jobs"]
-          matches = [job for job in jobs if int(job["id"]) == int(os.environ["TARGET_JOB_ID"])]
-          if len(matches) != 1 or matches[0].get("conclusion") != "failure":
-              raise SystemExit("exact failed provider job is unavailable")
-          steps = {step["name"]: step for step in matches[0].get("steps", [])}
-          if steps.get("Download and verify the official DOT R01-R10 archive", {}).get("conclusion") != "failure":
-              raise SystemExit("provider failure was not the frozen archive-transfer failure")
-          for name in (
-              "Build and attest native CUT3R RoPE in an isolated checkout",
-              "Enable the hash-pinned legacy checkpoint loader",
-              "Predict from marker-free normal-view images only",
-              "Seal provider bundle before any marker access",
-          ):
-              if steps.get(name, {}).get("conclusion") not in {None, "skipped"}:
-                  raise SystemExit(f"target advanced beyond archive transfer: {name}")
+          if int(target.get("run_attempt", 0)) != int(os.environ["TARGET_ATTEMPT"]):
+              raise SystemExit("target attempt changed")
+          if target["status"] not in {"queued", "pending"} or target.get("conclusion") is not None:
+              raise SystemExit("target attempt 2 is no longer unopened and queued")
+          if artifacts(target_run_id):
+              raise SystemExit("target attempt 2 unexpectedly published artifacts")
+          target_matches = [
+              job
+              for job in jobs(target_run_id)
+              if int(job["id"]) == int(os.environ["TARGET_JOB_ID"])
+              and job.get("name")
+              == "Seal marker-free R04-R10 CUT3R predictions on gpuserver6000"
+          ]
+          if len(target_matches) != 1:
+              raise SystemExit("exact queued attempt-2 provider job is unavailable")
+          target_job = target_matches[0]
+          if target_job["status"] not in {"queued", "pending"}:
+              raise SystemExit("attempt-2 provider job already started")
+          if target_job.get("steps") not in (None, []):
+              raise SystemExit("attempt-2 provider job has steps")
+          if target_job.get("runner_id") not in (None, 0):
+              raise SystemExit("attempt-2 provider job has a runner assignment")
+          if target_job.get("runner_name") not in (None, ""):
+              raise SystemExit("attempt-2 provider job has a runner name")
+
+          cancel_and_wait(target_run_id, label="target attempt 2")
+          if cancel_recovery:
+              cancelled_recovery = cancel_and_wait(
+                  recovery_run_id, label="direct archive recovery"
+              )
+              recovery_state = (
+                  f"{cancelled_recovery['status']}/"
+                  f"{cancelled_recovery.get('conclusion')}"
+              )
+
+          if artifacts(target_run_id):
+              raise SystemExit("cancelled target attempt emitted artifacts")
+          if artifacts(recovery_run_id):
+              raise SystemExit("retired direct recovery emitted artifacts")
+
+          receipt = {
+              "schema": "prob4d.dot-r04-r10-hosted-relay-v2-authorization",
+              "schema_version": 1,
+              "request_id": os.environ["REQUEST_ID"],
+              "target_run_id": target_run_id,
+              "cancelled_target_attempt": int(os.environ["TARGET_ATTEMPT"]),
+              "cancelled_target_job_id": int(os.environ["TARGET_JOB_ID"]),
+              "direct_recovery_run_id": recovery_run_id,
+              "direct_recovery_state": recovery_state,
+              "direct_recovery_cancelled_by_relay": cancel_recovery,
+              "archive_payload_opened_by_authorizer": False,
+              "marker_payload_opened_by_authorizer": False,
+              "scientific_inputs_changed": False,
+          }
+          print(json.dumps(receipt, indent=2, sort_keys=True))
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as output:
+              output.write("## DOT R04 attempt-2 relay authorization\n\n")
+              output.write("```json\n")
+              output.write(json.dumps(receipt, indent=2, sort_keys=True))
+              output.write("\n```\n")
           PY
 
   acquire:
@@ -384,7 +536,7 @@ jobs:
           RELAY_ARTIFACT_ID: ${{ needs.acquire.outputs.artifact_id }}
         run: |
           set -euo pipefail
-          python - <<'PY'
+          /usr/bin/python3 - <<'PY'
           import hashlib
           import json
           import os
@@ -427,7 +579,7 @@ jobs:
           fi
           test "$(stat -c %s "$CACHE_PATH")" = "$ARCHIVE_BYTES"
           printf '%s  %s\n' "$ARCHIVE_MD5" "$CACHE_PATH" | md5sum --check --strict
-          python - <<'PY'
+          /usr/bin/python3 - <<'PY'
           import json
           import os
           from pathlib import Path
@@ -461,7 +613,7 @@ jobs:
           rm -rf -- "${{ steps.workspace.outputs.root }}"
 
   finalize:
-    name: Delete transient relay and rerun exact failed provider job
+    name: Delete transient relay and rerun exact cancelled provider job
     if: always() && needs.acquire.result == 'success'
     needs: [authorize, acquire, install]
     runs-on: ubuntu-latest
@@ -470,7 +622,7 @@ jobs:
       actions: write
       contents: read
     steps:
-      - name: Delete raw relay artifact and conditionally rerun exact job
+      - name: Delete raw relay artifact and conditionally create attempt 3
         env:
           GH_TOKEN: ${{ github.token }}
           RAW_ARTIFACT_ID: ${{ needs.acquire.outputs.artifact_id }}
@@ -489,13 +641,16 @@ jobs:
           headers = {
               "Accept": "application/vnd.github+json",
               "Authorization": f"Bearer {os.environ['GH_TOKEN']}",
-              "User-Agent": "Prob4D-DOT-hosted-relay/1",
+              "User-Agent": "Prob4D-DOT-hosted-relay-v2/1",
               "X-GitHub-Api-Version": "2022-11-28",
           }
 
           def call(path, *, method="GET"):
               request = urllib.request.Request(
-                  f"{api}/repos/{repository}{path}", method=method, headers=headers
+                  f"{api}/repos/{repository}{path}",
+                  method=method,
+                  data=b"" if method == "POST" else None,
+                  headers=headers,
               )
               try:
                   with urllib.request.urlopen(request, timeout=60) as response:
@@ -514,17 +669,39 @@ jobs:
           target = call(f"/actions/runs/{os.environ['TARGET_RUN_ID']}")
           if target["head_sha"] != os.environ["TARGET_HEAD_SHA"]:
               raise SystemExit("target run head changed")
+          attempt = int(target.get("run_attempt", 0))
           if target["status"] in {"queued", "in_progress", "waiting", "pending"}:
-              print("exact target run is already active; no duplicate rerun requested")
+              if attempt < 3:
+                  raise SystemExit("unexpected active target attempt")
+              print("exact target run is already active at attempt 3 or later")
               raise SystemExit(0)
           if target["status"] == "completed" and target.get("conclusion") == "success":
               print("exact target run already succeeded; no duplicate rerun requested")
               raise SystemExit(0)
-          artifacts = call(f"/actions/runs/{os.environ['TARGET_RUN_ID']}/artifacts?per_page=100")
+          artifacts = call(
+              f"/actions/runs/{os.environ['TARGET_RUN_ID']}/artifacts?per_page=100"
+          )
           if int(artifacts.get("total_count", 0)) != 0:
               raise SystemExit("target run published evidence; automatic rerun refused")
-          if target["status"] != "completed" or target.get("conclusion") != "failure":
-              raise SystemExit("target run is not in the exact rerunnable failure state")
+          if attempt != int(os.environ["TARGET_ATTEMPT"]):
+              raise SystemExit("target run attempt changed before exact rerun")
+          if target["status"] != "completed" or target.get("conclusion") != "cancelled":
+              raise SystemExit("target attempt 2 is not in the exact cancelled state")
+          jobs = call(
+              f"/actions/runs/{os.environ['TARGET_RUN_ID']}/jobs?per_page=100"
+          )["jobs"]
+          matches = [
+              job
+              for job in jobs
+              if int(job["id"]) == int(os.environ["TARGET_JOB_ID"])
+          ]
+          if len(matches) != 1:
+              raise SystemExit("cancelled attempt-2 provider job is unavailable")
+          job = matches[0]
+          if job.get("conclusion") != "cancelled":
+              raise SystemExit("attempt-2 provider job did not end cancelled")
+          if job.get("steps") not in (None, []):
+              raise SystemExit("cancelled attempt-2 provider job has steps")
           call(f"/actions/jobs/{os.environ['TARGET_JOB_ID']}/rerun", method="POST")
-          print("exact failed provider job and dependent evaluator were rerun")
+          print("exact cancelled provider job and dependent evaluator were rerun as attempt 3")
           PY
