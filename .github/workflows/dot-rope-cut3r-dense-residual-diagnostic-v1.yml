@@ -1,0 +1,183 @@
+name: DOT rope CUT3R dense residual diagnostic v1
+
+on:
+  push:
+    branches:
+      - research/dot-rope-cut3r-material-residual-v1
+    paths:
+      - ".github/workflows/dot-rope-cut3r-dense-residual-diagnostic-v1.yml"
+      - "protocols/dot-rope-cut3r-dense-residual-diagnostic-v1.json"
+      - "scripts/science/evaluate_dot_rope_cut3r_dense_residual.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: dot-rope-cut3r-dense-residual-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PROTOCOL_PATH: protocols/dot-rope-cut3r-dense-residual-diagnostic-v1.json
+  PROVIDER_RUN_ID: "33329701704"
+  PROVIDER_ARTIFACT_NAME: dot-rope-cut3r-sealed-provider-33329701704-1
+  OUTPUT_DIR: outputs/dot-rope-cut3r-dense-residual-diagnostic-v1
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+
+jobs:
+  dense-provider-diagnostic:
+    name: Dense restart residual without DOT truth
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out exact diagnostic revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Install pinned numerical dependency
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --no-cache-dir \
+            "numpy==2.2.6"
+          python - <<'PY'
+          import numpy
+          assert numpy.__version__ == "2.2.6"
+          print({"numpy": numpy.__version__})
+          PY
+
+      - name: Validate frozen diagnostic and numerical kernel
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/science/evaluate_dot_rope_cut3r_dense_residual.py \
+            validate-protocol --protocol "$PROTOCOL_PATH"
+          python scripts/science/evaluate_dot_rope_cut3r_dense_residual.py \
+            self-test
+          python -m py_compile \
+            scripts/science/evaluate_dot_rope_cut3r_dense_residual.py
+
+      - name: Initialize isolated provider workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/dot-rope-dense-residual-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          rm -rf -- "$root" "$OUTPUT_DIR"
+          mkdir -p "$root/provider"
+          echo "PROVIDER_ROOT=$root/provider" >> "$GITHUB_ENV"
+
+      - name: Download exact previously sealed CUT3R bundle
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ${{ env.PROVIDER_ARTIFACT_NAME }}
+          path: ${{ env.PROVIDER_ROOT }}
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.PROVIDER_RUN_ID }}
+
+      - name: Run provider-only dense residual diagnostic
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/science/evaluate_dot_rope_cut3r_dense_residual.py \
+            evaluate \
+            --protocol "$PROTOCOL_PATH" \
+            --provider-bundle "$PROVIDER_ROOT/bundle" \
+            --output-dir "$OUTPUT_DIR" \
+            --repository-revision "$(git rev-parse HEAD)"
+
+      - name: Verify bounded evidence and primary result
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          output = Path(os.environ["OUTPUT_DIR"])
+          if (output / "technical-failure.json").exists():
+              raise SystemExit((output / "technical-failure.json").read_text())
+          result = json.loads((output / "result.json").read_text())
+          assert result["schema"] == (
+              "prob4d.dot-rope-cut3r-dense-residual-diagnostic"
+          )
+          assert result["protocol_id"] == (
+              "f5b3140ee1aac7309d1feb8900d07caa19ac6eb54585480e9231239106f2a19e"
+          )
+          assert result["provider_bundle_id"] == (
+              "952421d140731b2a6eb99df3cbd348653e04863fa457aaa490be31fe0b4c06a7"
+          )
+          assert result["decision"] == (
+              "exploratory-dense-residual-structure-detected"
+          )
+          diagnostic = result["decision_diagnostic"]
+          assert diagnostic["supported"] is True
+          assert diagnostic["score_improvement_sequence_count"] == 3
+          assert diagnostic["positive_shrinkage_sequence_count"] == 3
+          assert diagnostic["mean_relative_score_improvement"] > 0.10
+          assert [row["sequence"] for row in result["primary_rows"]] == [
+              "R01", "R02", "R03"
+          ]
+          assert [
+              row["selected_shrinkage"] for row in result["primary_rows"]
+          ] == [0.25, 0.5, 1.0]
+          assert all(
+              row["score_relative_improvement_over_global"] > 0.0
+              for row in result["primary_rows"]
+          )
+          assert len(result["all_method_rows"]) == 15
+          assert len(result["sensitivity_rows"]) == 27
+          boundary = result["information_boundary"]
+          assert boundary == {
+              "provider_predictions_opened": True,
+              "normal_view_images_reopened": False,
+              "two_dimensional_markers_opened": False,
+              "three_dimensional_truth_opened": False,
+              "reserved_sequence_payloads_opened": False,
+              "bayesian_phystwin_executed": False,
+              "causal4d_executed": False,
+          }
+          assert set(path.name for path in output.iterdir()) == {
+              "method-summary.csv",
+              "result.json",
+              "sensitivity.csv",
+              "summary.md",
+          }
+          print({
+              "diagnostic_id": result["diagnostic_id"],
+              "decision": result["decision"],
+              "diagnostic": diagnostic,
+          })
+          PY
+
+      - name: Publish diagnostic summary
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f "$OUTPUT_DIR/summary.md" ]]; then
+            cat "$OUTPUT_DIR/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload derived provider-only evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: dot-rope-cut3r-dense-residual-diagnostic-v1-${{ github.run_id }}-${{ github.run_attempt }}
+          path: outputs/dot-rope-cut3r-dense-residual-diagnostic-v1/
+          if-no-files-found: warn
+          retention-days: 30

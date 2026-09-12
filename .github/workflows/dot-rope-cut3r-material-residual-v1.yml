@@ -1,0 +1,261 @@
+name: DOT rope CUT3R persistent material residual v1
+
+on:
+  push:
+    branches:
+      - research/dot-rope-cut3r-material-residual-v1
+    paths:
+      - ".github/workflows/dot-rope-cut3r-material-residual-v1.yml"
+      - "protocols/dot-rope-cut3r-material-residual-v1.json"
+      - "scripts/science/evaluate_dot_rope_cut3r_material_residual.py"
+      - "src/prob4d/dot_rope_cut3r_study.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: dot-rope-cut3r-material-residual-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DOT_ROPE_ROOT: /home/github-runner/.cache/workflows/dot-rope
+  PROTOCOL_PATH: protocols/dot-rope-cut3r-material-residual-v1.json
+  PROVIDER_RUN_ID: "33329701704"
+  PROVIDER_ARTIFACT_NAME: dot-rope-cut3r-sealed-provider-33329701704-1
+  OUTPUT_DIR: outputs/dot-rope-cut3r-material-residual-v1
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+
+jobs:
+  source-material-residual:
+    name: R01-R03 provider-agreement local residual
+    runs-on: [self-hosted, gpuserver4090]
+    timeout-minutes: 45
+    steps:
+      - name: Check out exact research revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          clean: true
+
+      - name: Initialize isolated runner paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/dot-rope-cut3r-material-residual-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          rm -rf -- "$root" "$OUTPUT_DIR"
+          mkdir -p "$root/provider" "$root/deps"
+          {
+            echo "WORK_ROOT=$root"
+            echo "PROVIDER_ROOT=$root/provider"
+            echo "DEPS_DIR=$root/deps"
+          } >> "$GITHUB_ENV"
+
+      - name: Verify frozen source mount and archive identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -L "$DOT_ROPE_ROOT"
+          resolved="$(readlink -f "$DOT_ROPE_ROOT")"
+          test "$resolved" = "/mnt/seagate10tb/florianpfaff/datasets/dot-rope"
+          archive="$resolved/R01-10.zip"
+          test -f "$archive"
+          test ! -L "$archive"
+          test "$(stat -c %s "$archive")" = "1705947395"
+          printf '%s  %s\n' \
+            ca546ff5f22c0279123ccb18509858ee "$archive" \
+            | md5sum --check --strict
+          test "$(git hash-object protocols/dot-rope-cut3r-native-provider-v1.json)" = \
+            eaf84956189015c35e53a521cf1b152ca813e680
+          printf 'runner_name=%s\nmachine=%s\nrevision=%s\n' \
+            "$RUNNER_NAME" "$(hostname)" "$(git rev-parse HEAD)"
+
+      - name: Create pinned lightweight numerical environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install \
+            --disable-pip-version-check \
+            --no-cache-dir \
+            --no-deps \
+            --target "$DEPS_DIR" \
+            "numpy==2.2.6"
+          PYTHONPATH="$DEPS_DIR:$GITHUB_WORKSPACE/src" python3 - <<'PY'
+          import numpy
+          from prob4d.dot_rope_cut3r_study import Sim3, robust_fit_sim3
+
+          assert numpy.__version__ == "2.2.6"
+          print({
+              "numpy": numpy.__version__,
+              "kernel": [Sim3.__name__, robust_fit_sim3.__name__],
+          })
+          PY
+
+      - name: Validate protocol and deterministic synthetic contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH="$DEPS_DIR:$GITHUB_WORKSPACE/src" python3 \
+            scripts/science/evaluate_dot_rope_cut3r_material_residual.py \
+            validate-protocol --protocol "$PROTOCOL_PATH"
+          PYTHONPATH="$DEPS_DIR:$GITHUB_WORKSPACE/src" python3 \
+            scripts/science/evaluate_dot_rope_cut3r_material_residual.py \
+            self-test
+          python3 -m py_compile \
+            scripts/science/evaluate_dot_rope_cut3r_material_residual.py
+
+      - name: Download exact previously sealed CUT3R bundle
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ${{ env.PROVIDER_ARTIFACT_NAME }}
+          path: ${{ env.PROVIDER_ROOT }}
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.PROVIDER_RUN_ID }}
+
+      - name: Evaluate persistent material residual on frozen source frames
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH="$DEPS_DIR:$GITHUB_WORKSPACE/src" python3 \
+            scripts/science/evaluate_dot_rope_cut3r_material_residual.py \
+            evaluate \
+            --protocol "$PROTOCOL_PATH" \
+            --dataset-root "$DOT_ROPE_ROOT" \
+            --provider-bundle "$PROVIDER_ROOT/bundle" \
+            --output-dir "$OUTPUT_DIR" \
+            --repository-revision "$(git rev-parse HEAD)"
+
+      - name: Verify baseline reproduction, result semantics, and custody
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH="$DEPS_DIR" python3 - <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          output = Path(os.environ["OUTPUT_DIR"])
+          if (output / "technical-failure.json").exists():
+              raise SystemExit((output / "technical-failure.json").read_text())
+          result = json.loads((output / "result.json").read_text())
+          custody = json.loads((output / "opened-members.json").read_text())
+          assert result["schema"] == "prob4d.dot-rope-cut3r-material-residual-evaluation"
+          assert result["schema_version"] == 1
+          assert result["protocol_id"] == (
+              "d81b0d02dcff3a83c7c6d6b7af34f51d026a0d11319e2327ba627a72ddaa1487"
+          )
+          assert result["provider_bundle_id"] == (
+              "952421d140731b2a6eb99df3cbd348653e04863fa457aaa490be31fe0b4c06a7"
+          )
+          assert result["predecessor"]["evaluation_id"] == (
+              "ec86014b945b5f0d7e0d1fc8e38e5976acfb5efc7ef92fc816714c1cc5b60e09"
+          )
+          assert result["decision"] in {
+              "source-persistent-material-residual-supported",
+              "source-persistent-material-residual-not-supported",
+          }
+          assert [row["sequence"] for row in result["sequences"]] == [
+              "R01", "R02", "R03"
+          ]
+          expected_baselines = {
+              "R01": {
+                  "identity_stitch": 0.1121561549406431,
+                  "global_sim3_stitch": 0.102378521734169,
+                  "continuous": 0.09497317967336762,
+                  "oracle_window": 0.05504552086329353,
+              },
+              "R02": {
+                  "identity_stitch": 0.037155100701887295,
+                  "global_sim3_stitch": 0.08133969917310162,
+                  "continuous": 0.06643146424886696,
+                  "oracle_window": 0.02958046756677207,
+              },
+              "R03": {
+                  "identity_stitch": 0.05728196996570019,
+                  "global_sim3_stitch": 0.05804710436166074,
+                  "continuous": 0.05113562321170002,
+                  "oracle_window": 0.03358124100438446,
+              },
+          }
+          for row in result["sequences"]:
+              metrics = row["method_metrics"]
+              for method, expected in expected_baselines[row["sequence"]].items():
+                  measured = metrics[method]["rmse_fraction_of_truth_span"]
+                  assert abs(measured - expected) < 1e-8, (
+                      row["sequence"], method, measured, expected
+                  )
+              assert row["selected_shrinkage"] in {0.0, 0.25, 0.5, 0.75, 1.0}
+          assert {row["method"] for row in result["aggregate_methods"]} == {
+              "identity_stitch",
+              "global_sim3_stitch",
+              "persistent_material_residual_stitch",
+              "continuous",
+              "oracle_window",
+          }
+          boundary = result["information_boundary"]
+          assert boundary["correction_fit_uses_ground_truth"] is False
+          assert boundary["reserved_payloads_opened"] is False
+          assert boundary["target_outcomes_used"] is False
+          assert boundary["bayesian_phystwin_executed"] is False
+          assert boundary["causal4d_executed"] is False
+          assert boundary["opened_sequences"] == ["R01", "R02", "R03"]
+          assert boundary["reserved_sequences"] == "R04-R70"
+          assert boundary["opened_member_count"] == 42
+          assert custody["archive"] == "R01-10.zip"
+          assert custody["reserved_sequences"] == "R04-R70"
+          assert len(custody["members"]) == 42
+          expected_member = re.compile(
+              r"^R0[123]/coordinates/[23]d/frame00000[1-7]_cam001[.]txt$"
+          )
+          assert all(
+              expected_member.fullmatch(row["member"])
+              for row in custody["members"]
+          )
+          assert set(path.name for path in output.iterdir()) == {
+              "correction-models.csv",
+              "opened-members.json",
+              "result.json",
+              "sequence-metrics.csv",
+              "summary.md",
+          }
+          print({
+              "evaluation_id": result["evaluation_id"],
+              "decision": result["decision"],
+              "diagnostic": result["decision_diagnostic"],
+          })
+          PY
+
+      - name: Publish source-only scientific summary
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f "$OUTPUT_DIR/summary.md" ]]; then
+            cat "$OUTPUT_DIR/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          elif [[ -f "$OUTPUT_DIR/technical-failure.json" ]]; then
+            {
+              echo "## DOT material-residual technical failure"
+              echo
+              echo '```json'
+              cat "$OUTPUT_DIR/technical-failure.json"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload bounded derived evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: dot-rope-cut3r-material-residual-v1-${{ github.run_id }}-${{ github.run_attempt }}
+          path: outputs/dot-rope-cut3r-material-residual-v1/
+          if-no-files-found: warn
+          retention-days: 30

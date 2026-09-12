@@ -1,0 +1,87 @@
+{
+  "schema": "prob4d.dot-rope-cut3r-dense-residual-protocol",
+  "schema_version": 1,
+  "evidence_kind": "exploratory-provider-only-restart-diagnostic",
+  "provider": {
+    "artifact_name": "dot-rope-cut3r-sealed-provider-33329701704-1",
+    "run_id": 33329701704,
+    "bundle_id": "952421d140731b2a6eb99df3cbd348653e04863fa457aaa490be31fe0b4c06a7",
+    "request_id": "83cc26be92364fc7715d692b3bb966cf914fb9f911e0763823f2789480a00cf2",
+    "prob4d_revision": "7eb4867e36742d819c514fad21436d4f475b4bed"
+  },
+  "source_sequences": [
+    "R01",
+    "R02",
+    "R03"
+  ],
+  "reserved_sequences": "R04-R70",
+  "runs": {
+    "reference": "window_a",
+    "restart": "window_b",
+    "third_view": "continuous"
+  },
+  "frames": {
+    "overlap_fit_and_selection": [
+      3,
+      4,
+      5
+    ],
+    "provider_only_score": [
+      6,
+      7
+    ]
+  },
+  "primary_setting": {
+    "grid_step_pixels": 8,
+    "evaluation_confidence_quantile": 0.5,
+    "global_alignment": "confidence-weighted proper Sim3 with iterative 80-percent residual trim",
+    "field": "per-grid-pixel mean 3-D residual in window-a coordinates",
+    "field_fit_support": "globally aligned overlap samples retained by the Sim3 trim",
+    "shrinkage_grid": [
+      0.0,
+      0.25,
+      0.5,
+      0.75,
+      1.0
+    ],
+    "shrinkage_selection": "leave-one-overlap-frame-out weighted RMSE between window-a and corrected window-b",
+    "score_reference": "continuous transformed to window-a by an independently fitted overlap Sim3"
+  },
+  "comparators": [
+    "global_sim3",
+    "global_sim3_plus_linear_image_field",
+    "global_sim3_plus_quadratic_image_field",
+    "global_sim3_plus_cubic_image_field",
+    "global_sim3_plus_per_pixel_field"
+  ],
+  "sensitivity": {
+    "grid_step_pixels": [
+      4,
+      8,
+      16
+    ],
+    "evaluation_confidence_quantiles": [
+      0.25,
+      0.5,
+      0.75
+    ],
+    "model": "global_sim3_plus_per_pixel_field"
+  },
+  "decision_rule": {
+    "primary_model": "global_sim3_plus_per_pixel_field",
+    "minimum_score_improvement_sequences": 2,
+    "minimum_positive_shrinkage_sequences": 2,
+    "require_positive_mean_relative_score_improvement": true
+  },
+  "information_boundary": {
+    "provider_predictions_opened": true,
+    "normal_view_images_reopened": false,
+    "two_dimensional_markers_opened": false,
+    "three_dimensional_truth_opened": false,
+    "reserved_sequence_payloads_opened": false,
+    "bayesian_phystwin_executed": false,
+    "causal4d_executed": false
+  },
+  "claim_boundary": "Exploratory provider-only restart diagnostic on the already sealed CUT3R R01-R03 prediction bundle. It tests whether a dense local residual fitted without DOT marker coordinates improves agreement with a third CUT3R execution. It is not ground-truth validation, not independent calibration, and not evidence on R04-R70. The marker-level truth-scored experiment was frozen before this diagnostic.",
+  "protocol_id": "f5b3140ee1aac7309d1feb8900d07caa19ac6eb54585480e9231239106f2a19e"
+}
