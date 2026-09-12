@@ -1,0 +1,209 @@
+{
+  "schema": "prob4d.dot-r11-r20-query-message-ci-source-protocol",
+  "schema_version": 1,
+  "stage": "development-only-source",
+  "dataset": {
+    "name": "DOT V29 rope",
+    "doi": "10.13021/ORC2020/XXLVXM",
+    "source_archive": {
+      "name": "R11-20.zip",
+      "md5": "23ce3e7067465d3edabe20b4c7cfa388"
+    },
+    "source_sequences": [
+      "R11",
+      "R12",
+      "R13",
+      "R14",
+      "R15",
+      "R16",
+      "R17",
+      "R18",
+      "R19",
+      "R20"
+    ],
+    "confirmation_sequences": [
+      "R21",
+      "R22",
+      "R23",
+      "R24",
+      "R25",
+      "R26",
+      "R27",
+      "R28",
+      "R29",
+      "R30"
+    ],
+    "reserved_sequences": "R31-R70"
+  },
+  "sealed_provider": {
+    "workflow_run_id": 33552798863,
+    "execution_revision": "c64765ea766e667a566e1b565e8ed01ffd734e53",
+    "artifact_id": 9818146750,
+    "artifact_digest": "sha256:70c2cec1cf33b65ae6653a3839fb4f74d57023d1d49cced6c61e6948f4d7b8a6",
+    "provider_seal_id": "38ea78e8bf44cbeaedeeadaee862af3cc6369d35d7e3b5a2b5fac0f020c7145b",
+    "source_marker_payloads_opened_when_predictions_were_sealed": false,
+    "confirmation_payloads_opened": false,
+    "components": [
+      {
+        "camera": "cam001",
+        "sequences": [
+          "R13",
+          "R14",
+          "R15",
+          "R16",
+          "R18",
+          "R19"
+        ],
+        "provider_bundle_id": "14d78d100a62e11e0e51d76491e72f9bb34d30e141a8a510d9bdb69bacb35dff"
+      },
+      {
+        "camera": "cam002",
+        "sequences": [
+          "R17"
+        ],
+        "provider_bundle_id": "e0c476a039e9610a2849c6dba3996936fbf7f648b68b61d93bc0519fff389dae"
+      },
+      {
+        "camera": "cam005",
+        "sequences": [
+          "R11",
+          "R12",
+          "R20"
+        ],
+        "provider_bundle_id": "60c56f8c1cc2b07e418d67b01d81c3dc7dd7b369dbeaac9899f029af8f79b818"
+      }
+    ]
+  },
+  "terminal_rank_diagnostic": {
+    "artifact_id": 9818149548,
+    "artifact_digest": "sha256:d6f81bbb2fbe8af7cf574fe4bdad313fe0ac05d2882a3673c832b2ce2e79add0",
+    "result_id": "a1fc018dc7fb504b35f6fbfc422e7a59edaeb71009c6f29c512019d42f949ced",
+    "decision": "camera-routing-provider-rank-negative",
+    "fixed_candidate": "expanded__overlap-345",
+    "factor_rank_counts": {
+      "6": 1,
+      "7": 9
+    },
+    "supported_sequences": [
+      "R18"
+    ],
+    "interpretation": "motivation for rank-agnostic query messages; never a positive rank-six claim"
+  },
+  "windows": {
+    "continuous": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "window_a": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "window_b": [
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "overlap": [
+      3,
+      4,
+      5
+    ],
+    "common_anchor": "identity-bound physical fallback query belief at overlap reference frame 5"
+  },
+  "queries": [
+    {
+      "id": "centerline_centroid",
+      "dimension": 3,
+      "definition": "provider-window overlap centroid in the registered local chart",
+      "role": "gauge-insensitive utility query"
+    },
+    {
+      "id": "off_axis_probe",
+      "dimension": 3,
+      "definition": "overlap centroid plus one deterministic cloud-scale normal in the same chart",
+      "role": "gauge-sensitive adverse query"
+    }
+  ],
+  "message_contract": {
+    "implementation": "prob4d.query_message",
+    "construction": "posterior-ratio-v1",
+    "same_query_required": true,
+    "byte_identical_anchor_required": true,
+    "negative_information_rejected": true,
+    "singular_query_coordinates": "reduce to an independent basis or fail closed",
+    "posterior_parity_relative_tolerance": 1e-09,
+    "duplicate_message_mean_relative_tolerance": 1e-12,
+    "duplicate_message_covariance_relative_tolerance": 1e-12,
+    "observation_likelihood_preserved": false
+  },
+  "source_methods": {
+    "primary": {
+      "id": "two_window_query_ci_equal",
+      "messages": [
+        "window_a",
+        "window_b"
+      ],
+      "weights": [
+        0.5,
+        0.5
+      ],
+      "prior_weight": 0.0,
+      "weight_selection_uses_source_outcomes": false
+    },
+    "comparators": [
+      "physical_fallback",
+      "window_a_only",
+      "window_b_only",
+      "continuous_provider_query",
+      "naive_independent_message_sum",
+      "diagonal_query_covariance",
+      "pairwise_logdet_ci_source_diagnostic"
+    ],
+    "duplicate_message_control": "repeat one byte-identical message twice at weights 0.5/0.5",
+    "naive_duplicate_control": "add the same information increment twice"
+  },
+  "source_endpoints": {
+    "independent_unit": "complete_sequence",
+    "required": [
+      "per-window posterior mean and covariance parity",
+      "duplicate-message idempotence",
+      "query RMSE",
+      "joint Gaussian NLL",
+      "nominal 90% query coverage and interval width",
+      "harmful accepted-update fraction versus physical fallback",
+      "message bytes and construction/application latency",
+      "results stratified by observed factor rank"
+    ],
+    "source_weighting": "equal sequence weight",
+    "outcome_use": "development-only; cannot support a confirmation or deployment claim"
+  },
+  "promotion": {
+    "automatic_confirmation_authorization": false,
+    "on_source_completion": "freeze a separate one-shot R21-R30 protocol before any confirmation access",
+    "on_source_negative": "retain the result and leave R21-R70 unopened",
+    "rank_six_required": false
+  },
+  "information_boundary": {
+    "source_sequences_previously_opened": true,
+    "source_provider_may_be_reused_without_rerun": true,
+    "confirmation_access_authorized": false,
+    "r21_r30_payloads_opened": false,
+    "r31_r70_payloads_opened": false,
+    "execution_request_present": false,
+    "target_side_retuning_allowed": false,
+    "bayesian_phystwin_executed": false,
+    "causal4d_executed": false
+  },
+  "claim_boundary": "Development-only source evaluation on already-open DOT R11-R20 using one exact sealed marker-free CUT3R provider artifact. It may establish Gaussian query-message parity, duplicate-evidence idempotence, and descriptive source utility across changing factor ranks. It cannot establish held-out performance, calibration, learned-provider competence, BayesianPhysTwin or Causal4D benefit, deployment safety, or state of the art. R21-R70 remain closed.",
+  "protocol_id": "50feac697139ab4b61942df8b4e32611fc0f41da2d29884ed81753dd73e77706"
+}
