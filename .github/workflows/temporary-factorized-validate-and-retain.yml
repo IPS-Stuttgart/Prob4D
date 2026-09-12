@@ -1,0 +1,108 @@
+name: Temporary factorized-dependence validation and retention
+
+on:
+  push:
+    branches:
+      - research/factorized-shared-dependence-v1
+    paths:
+      - ".github/workflows/temporary-factorized-validate-and-retain.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: temporary-factorized-dependence-finalization
+  cancel-in-progress: false
+
+jobs:
+  validate-and-retain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out branch head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: research/factorized-shared-dependence-v1
+          fetch-depth: 0
+          persist-credentials: true
+          clean: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Format, test, type-check, and reproduce
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -e ".[dev]"
+          python -m pip check
+          python -m ruff check --fix \
+            src/prob4d/factorized_dependence.py \
+            tests/test_factorized_dependence.py \
+            scripts/science/run_factorized_shared_dependence_control.py
+          python -m ruff format \
+            src/prob4d/factorized_dependence.py \
+            tests/test_factorized_dependence.py \
+            scripts/science/run_factorized_shared_dependence_control.py
+          python -m ruff check \
+            src/prob4d/factorized_dependence.py \
+            tests/test_factorized_dependence.py \
+            scripts/science/run_factorized_shared_dependence_control.py
+          python -m mypy src/prob4d/factorized_dependence.py
+          python -m pytest -q tests/test_factorized_dependence.py
+          rm -rf outputs/factorized-shared-dependence-control-v1
+          python scripts/science/run_factorized_shared_dependence_control.py \
+            --protocol protocols/factorized-shared-dependence-control-v1.json \
+            --output outputs/factorized-shared-dependence-control-v1/result.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          result_path = Path(
+              "outputs/factorized-shared-dependence-control-v1/result.json"
+          )
+          result = json.loads(result_path.read_text(encoding="utf-8"))
+          parity = result["dense_parity"]
+          assert parity["maximum_solve_absolute_error"] < 1.0e-8
+          assert parity["log_determinant_absolute_error"] < 1.0e-8
+          assert parity["quadratic_form_absolute_error"] < 1.0e-7
+          assert parity["gaussian_nll_absolute_error"] < 1.0e-7
+          assert result["sampling_control"][
+              "relative_covariance_frobenius_error"
+          ] < 0.05
+          storage = result["paper_scale_storage"]
+          assert storage["factorized_float64_bytes"] == 491_520
+          assert storage["dense_float64_bytes"] == 301_989_888
+          assert storage["dense_to_factorized_storage_ratio"] == 614.4
+          retained = Path(
+              "evidence/factorized-shared-dependence-control-v1/result.json"
+          )
+          retained.parent.mkdir(parents=True, exist_ok=True)
+          retained.write_bytes(result_path.read_bytes())
+          print({
+              "artifact_id": result["artifact_id"],
+              "dense_parity": parity,
+              "sampling_control": result["sampling_control"],
+              "storage": storage,
+          })
+          PY
+
+      - name: Commit formatted code and validated evidence, then remove temporary workflows
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm -f .github/workflows/temporary-factorized-autoformat.yml \
+            2>/dev/null || true
+          git rm -f \
+            .github/workflows/temporary-factorized-validate-and-retain.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add \
+            src/prob4d/factorized_dependence.py \
+            tests/test_factorized_dependence.py \
+            scripts/science/run_factorized_shared_dependence_control.py \
+            evidence/factorized-shared-dependence-control-v1/result.json
+          git commit -m "Validate factorized shared dependence and retain control [factorized-validated]"
+          git push origin HEAD:research/factorized-shared-dependence-v1
