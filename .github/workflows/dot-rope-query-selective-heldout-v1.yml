@@ -63,7 +63,7 @@ jobs:
           persist-credentials: false
           clean: true
       - name: Set up Python 3.12
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
       - name: Require exactly one non-forced request-file change
@@ -185,7 +185,7 @@ jobs:
               raise SystemExit("prerequisite workflow run changed")
           PY
       - name: Download exact prerequisite evidence
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: ${{ needs.authorize.outputs.prerequisite_artifact_name }}
           path: ${{ runner.temp }}/dot-prerequisite
@@ -309,7 +309,7 @@ jobs:
           clean: true
 
       - name: Set up bootstrap Python 3.11
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.11"
 
@@ -734,7 +734,7 @@ jobs:
 
       - name: Upload immutable R11-R30 provider bundle
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: dot-rope-query-selective-provider-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ steps.workspace.outputs.root }}/provider/
@@ -743,7 +743,7 @@ jobs:
 
       - name: Upload bounded gpuserver6000 runtime receipts
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: dot-rope-query-selective-runtime-gpuserver6000-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ steps.workspace.outputs.root }}/evidence/
@@ -799,7 +799,7 @@ jobs:
           persist-credentials: false
           clean: true
       - name: Set up scientific Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
           cache: pip
@@ -809,7 +809,7 @@ jobs:
           python -m pip install -e .
           python -m pip check
       - name: Download exact provider bundle from this run
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: dot-rope-query-selective-provider-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ steps.workspace.outputs.root }}/provider
@@ -935,7 +935,7 @@ jobs:
           PY
           chmod a-w "$seal"
       - name: Upload content-addressed prediction seal
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dot-rope-query-selective-seal-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ steps.workspace.outputs.root }}/seal/
@@ -971,7 +971,7 @@ jobs:
           persist-credentials: false
           clean: true
       - name: Set up scientific Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
           cache: pip
@@ -981,7 +981,7 @@ jobs:
           python -m pip install -e .
           python -m pip check
       - name: Download exact provider and prediction seal
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: dot-rope-query-selective-*
           path: ${{ steps.workspace.outputs.root }}/artifacts
@@ -1092,7 +1092,7 @@ jobs:
           PY
       - name: Upload content-addressed terminal evidence
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dot-rope-query-selective-result-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ steps.workspace.outputs.root }}/evidence/
