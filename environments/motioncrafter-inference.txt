@@ -9,7 +9,7 @@ imageio-ffmpeg==0.6.0
 kornia==0.8.3
 mediapy==1.2.7
 opencv-python-headless==5.0.0.93
-pytest==9.1.1
+pytest==9.2.0
 scipy==1.18.0
 transformers==5.15.1
 
